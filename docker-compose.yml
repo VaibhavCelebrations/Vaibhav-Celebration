@@ -1,0 +1,24 @@
+# Local development Postgres for Vaibhav Celebrations (Document 02)
+# Connect on localhost:5433 (mapped from container 5432)
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vbc-postgres
+    restart: unless-stopped
+    ports:
+      # Host 5433 avoids conflict with any local Postgres on 5432
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: vbc
+      POSTGRES_PASSWORD: vbc_dev_password
+      POSTGRES_DB: vaibhav_celebrations
+    volumes:
+      - vbc_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vbc -d vaibhav_celebrations"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  vbc_pg_data:

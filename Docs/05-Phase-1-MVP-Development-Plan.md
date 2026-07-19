@@ -58,7 +58,6 @@ Indicative total: **~6 working weeks** for Phase 1 with 3 developers working nea
 | Establish shared design tokens (colors, type scale, spacing) in Tailwind config, shared between `frontend` and `admin` where sensible | Vishal (lead), Chaitanya (align) | Client wants premium/elegant/warm/trustworthy tone (Content & SEO Guide 3) — encode as design tokens, not ad hoc CSS |
 | Component library skeleton: Button, Card, Badge, Modal, Tabs, Stepper, Toast | Vishal | Reused across booking journey and admin forms |
 | Admin layout skeleton: sidebar nav (CMS / CRM / Settings), topbar, auth-guarded route group | Chaitanya | |
-| CI/CD wiring: Vercel projects (frontend, admin) connected to GitHub; Render service + deploy hook for backend | Shubham | |
 | Error tracking + uptime monitor wired (free tiers) | Shubham | |
 | `.env.example` finalized for all three repos, secrets rotation policy documented | Shubham | See Document 09 |
 

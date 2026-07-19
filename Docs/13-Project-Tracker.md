@@ -22,17 +22,17 @@
 ## 1. Project Overview & Timeline
 
 - **Phase 1 (MVP) Target Completion:** 15–17 August 2026 (driven by the **August Event Gate**)
-- **Overall Project Target (as stated to client, MOM §3):** First week of September 2026
+- **Overall Project Target (as stated to client, MOM 3):** First week of September 2026
 - **Workflow Sequence:** UI Design → Client Review & Approval → Frontend Development → Admin Panel Integration → Backend Development & Integration → Testing
 - **Governing engineering documents:** Document 05 (Phase 1), Document 06 (Phase 2), Document 07 (Phase 3)
 
 ### ⚠️ Timeline Reconciliation Note (flag, not silently resolved)
-The MOM's client-facing target has **all three phases** wrapped by the first week of September. The documentation suite's own indicative build estimates (Doc 05 §2, Doc 06 §3, Doc 07 §4) total **~13 working weeks** across all three phases (Phase 1 ~6 wks, Phase 2 ~4 wks, Phase 3 ~3 wks) starting from Week 1 — which, from a 19–21 July kickoff, lands closer to **mid-October**, not early September. This is not a contradiction to silently paper over:
-- The **Phase 1 / August Event Gate date is hard and protected** regardless of anything below (Doc 05 §12 risk register).
+The MOM's client-facing target has **all three phases** wrapped by the first week of September. The documentation suite's own indicative build estimates (Doc 05 2, Doc 06 3, Doc 07 4) total **~13 working weeks** across all three phases (Phase 1 ~6 wks, Phase 2 ~4 wks, Phase 3 ~3 wks) starting from Week 1 — which, from a 19–21 July kickoff, lands closer to **mid-October**, not early September. This is not a contradiction to silently paper over:
+- The **Phase 1 / August Event Gate date is hard and protected** regardless of anything below (Doc 05 12 risk register).
 - The **"first week of September" figure should be treated as an aspirational client-communicated target**, not yet reconciled against the phase-by-phase indicative plan.
 - **Action:** Project Lead to explicitly confirm with the client whether "Overall Project Target Completion" in the MOM means (a) Phase 1 fully wrapped, or (b) all three phases live — and re-baseline the Master Timeline below accordingly at the first review session (22/23 July). Until then, both figures are carried here side-by-side.
 
-### Master Timeline (Indicative, Document 11 §5 — Adjust Live Against Actual Client Dependency Delivery)
+### Master Timeline (Indicative, Document 11 5 — Adjust Live Against Actual Client Dependency Delivery)
 
 ```
 Week 1        : Phase 1.0 Foundation + Phase 1.1 Go-Live Shell begins
@@ -61,7 +61,7 @@ Week 13       : Phase 3.5 — QA, GO-LIVE, project handover  ── Phase 3 mile
 | **Chaitanya** | Admin Panel / UI-UX | Admin CMS, Admin CRM, Booking Calendar UI, Settings |
 | **Charu Saxena** | Client Rep | Approvals, Content Provision, Third-Party Registrations |
 
-### RACI Matrix (Document 11 §1)
+### RACI Matrix (Document 11 1)
 
 | Deliverable Area | Shubham | Vishal | Chaitanya |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Week 13       : Phase 3.5 — QA, GO-LIVE, project handover  ── Phase 3 mile
 
 ---
 
-## 3. Project Setup & Current Status (MOM §2, as of 19 July 2026)
+## 3. Project Setup & Current Status (MOM 2, as of 19 July 2026)
 
 | Item | Status |
 |---|---|
@@ -89,8 +89,8 @@ Week 13       : Phase 3.5 — QA, GO-LIVE, project handover  ── Phase 3 mile
 | GitHub repository setup | **In Progress** |
 | Domain & DNS infrastructure setup | **In Progress** |
 | Cloudflare configuration (DNS + security/proxy layer) | **In Progress** |
-| Basic project repo + local dev environment | **In Progress** |
-| Actual development start | **In Progress** — beginning with Phase 1 UI design |
+| Basic project repo + local dev environment | **Completed** (Phase 1.0 foundation wired — Docker Postgres, backend API, frontend/admin shells, env files) |
+| Actual development start | **In Progress** — Phase 1.0 complete; next is Sub-Phase 1.1 Go-Live Shell |
 
 ---
 
@@ -98,14 +98,14 @@ Week 13       : Phase 3.5 — QA, GO-LIVE, project handover  ── Phase 3 mile
 
 | Milestone | Target Date | Status | Notes |
 |---|---|---|---|
-| **First UI/Design Review** | 22 or 23 July 2026 | **Pending** | Review initial landing & core page designs; next milestones/review date set here (MOM §12) |
+| **First UI/Design Review** | 22 or 23 July 2026 | **Pending** | Review initial landing & core page designs; next milestones/review date set here (MOM 12) |
 | **August Event Gate (Sub-Phase 1.1)** | Early August 2026 | **Pending** | Go-Live Shell must be live for event registrations |
 | **Phase 1 MVP Go-Live** | 15–17 August 2026 | **Pending** | Full public site, basic admin, booking engine |
 | **Phase 2 E-Commerce Go-Live** | ~Week 10 (indicative) | **Not Yet Due** | Independent shop, inventory engine, cross-linking |
 | **Phase 3 Gift Registry Go-Live** | ~Week 13 (indicative) | **Not Yet Due** | Private registries, guest reservation flow, handover |
-| **Overall Project Target (client-communicated)** | 1st Week Sept 2026 | **Pending / To Reconcile** | See Timeline Reconciliation Note (§1) |
+| **Overall Project Target (client-communicated)** | 1st Week Sept 2026 | **Pending / To Reconcile** | See Timeline Reconciliation Note (1) |
 
-Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliverable (Homepage, Theme template, Package/Checkout flow, Admin CMS, Admin CRM, Shop, Gift Registry). Track revision-cycle usage per deliverable as reviews happen:
+Per SOW 42 (Document 11 9): up to **two revision cycles** per major UI deliverable (Homepage, Theme template, Package/Checkout flow, Admin CMS, Admin CRM, Shop, Gift Registry). Track revision-cycle usage per deliverable as reviews happen:
 
 | Major Deliverable | Revision Cycles Used | Notes |
 |---|---|---|
@@ -119,7 +119,7 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 
 ---
 
-## 5. Commercial Milestone Tracker (Informative — Document 11 §8, Document 01 §5 Governance Note)
+## 5. Commercial Milestone Tracker (Informative — Document 11 8, Document 01 5 Governance Note)
 
 | Milestone | Amount | Trigger | Status |
 |---|---|---|---|
@@ -129,7 +129,7 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 | Phase 3 completion | ₹7,500 | Phase 3 go-live sign-off / start of free-maintenance window | — |
 | **Total** | **₹50,000** | | |
 
-> This split was discussed operationally (Meeting 2) but is **not restated verbatim in SOW v1.1** — Finance/PM should confirm the exact invoice schedule with the client in writing (Doc 01 §5). Doesn't change engineering scope.
+> This split was discussed operationally (Meeting 2) but is **not restated verbatim in SOW v1.1** — Finance/PM should confirm the exact invoice schedule with the client in writing (Doc 01 5). Doesn't change engineering scope.
 
 ---
 
@@ -143,16 +143,16 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 
 | Task | Owner(s) | Status |
 |---|---|---|
-| Lock Prisma schema, Migration Batches 0001–0006 | Shubham | Pending |
-| Set up Postgres (dev + staging), run initial migrations, seed script | Shubham | Pending |
-| Configure `helmet`, CORS allowlist, Zod validation, error handler, request logger | Shubham | Pending |
-| Admin auth (JWT + refresh cookie), seed one `SUPER_ADMIN` | Shubham | Pending |
-| Shared design tokens (colors, type scale, spacing) in Tailwind config | Vishal (lead), Chaitanya (align) | Pending |
-| Component library skeleton (Button, Card, Badge, Modal, Tabs, Stepper, Toast) | Vishal | Pending |
-| Admin layout skeleton: sidebar nav, topbar, auth-guarded routes | Chaitanya | Pending |
-| CI/CD wiring: Vercel (frontend/admin) + Render (backend) | Shubham | **In Progress** |
-| Error tracking + uptime monitor (free tiers) | Shubham | Pending |
-| `.env.example` finalized for all 3 repos, secrets rotation policy documented | Shubham | Pending |
+| Lock Prisma schema, Migration Batches 0001–0006 | Shubham | **Completed** (migration `20260719121227_phase1_foundation`) |
+| Set up Postgres (dev + staging), run initial migrations, seed script | Shubham | **Completed** (Docker Compose on `:5433`, seed: SUPER_ADMIN + 3 themes + 3 packages) |
+| Configure `helmet`, CORS allowlist, Zod validation, error handler, request logger | Shubham | **Completed** |
+| Admin auth (JWT + refresh cookie), seed one `SUPER_ADMIN` | Shubham | **Completed** (login verified) |
+| Shared design tokens (colors, type scale, spacing) in Tailwind config | Vishal (lead), Chaitanya (align) | **Completed** (frontend + admin brand tokens) |
+| Component library skeleton (Button, Card, Badge, Modal, Tabs, Stepper, Toast) | Vishal | **Completed** (`frontend/src/components/ui`) |
+| Admin layout skeleton: sidebar nav, topbar, auth-guarded routes | Chaitanya | **Completed** (`/login` + `/dashboard` shell) |
+| CI/CD wiring: Vercel (frontend/admin) + Render (backend) | Shubham | **In Progress** (GitHub Actions CI added; Vercel/Render project connect pending) |
+| Error tracking + uptime monitor (free tiers) | Shubham | **In Progress** (Sentry DSN env placeholder + `/health` for uptime monitors) |
+| `.env.example` finalized for all 3 repos, secrets rotation policy documented | Shubham | **Completed** (see Doc 14) |
 | GitHub repo, domain/DNS, Cloudflare configuration | Shubham | **In Progress** |
 
 ### 1.1 — Go-Live Shell (Weeks 1–2) ◄── AUGUST EVENT GATE
@@ -249,16 +249,16 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 
 | Task | Owner(s) | Status |
 |---|---|---|
-| Full regression pass vs. Definition of Done (Doc 05 §1.1) | All | Pending |
-| Security checklist execution (Doc 09 §9 Pre-Go-Live Checklist) | Shubham | Pending |
+| Full regression pass vs. Definition of Done (Doc 05 1.1) | All | Pending |
+| Security checklist execution (Doc 09 9 Pre-Go-Live Checklist) | Shubham | Pending |
 | Load/traffic sanity check (~50 users/month scale) | Shubham | Pending |
 | Backup + restore drill | Shubham | Pending |
 | Client UAT session (tracked against 2-revision policy) | All | Pending |
 | DNS cutover, Vercel/Render production promotion, Razorpay live-mode switch | Shubham | Pending |
 | Client handover walkthrough + Admin User Guide | All | Pending |
 
-### Phase 1 Definition of Done (Doc 05 §1.1) — Exit Checklist
-- [ ] All Doc 01 §13 "Doc 05" checklist items live in production
+### Phase 1 Definition of Done (Doc 05 1.1) — Exit Checklist
+- [ ] All Doc 01 13 "Doc 05" checklist items live in production
 - [ ] Legal pages published and linked from checkout
 - [ ] Razorpay live mode, verified webhook, one real settled test transaction
 - [ ] WhatsApp invoicing live or gracefully degraded to email-only
@@ -269,7 +269,7 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 - [ ] Admin can independently manage Theme/Package/Gallery/Blog/FAQ/Testimonial/Event/Popup without developer involvement
 - [ ] Document 09 Pre-Go-Live security checklist signed off
 
-### Phase 1 Risk Register (Document 05 §12)
+### Phase 1 Risk Register (Document 05 12)
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -278,7 +278,7 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 | Legal pages not supplied in time | Go-live blocker (checkout must link to them) | Escalate early; labeled "Coming Soon" interim only if unavoidable |
 | Razorpay KYC/account delay | Payments can't go live | Start immediately at contract signing; build/test against test mode in parallel |
 | Overbooking under concurrent load | Data integrity / trust | Advisory-lock design, explicit concurrency test pre-go-live |
-| Scope creep (affiliate, AI chatbot, full accounts) | Budget/timeline overrun | Log as Change Request (§11 below), do not silently build |
+| Scope creep (affiliate, AI chatbot, full accounts) | Budget/timeline overrun | Log as Change Request (11 below), do not silently build |
 
 ---
 
@@ -352,12 +352,12 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 | Performance check on image-heavy product grid | Vishal | Not Yet Due |
 | Client UAT on shop journey (2-revision policy tracked) | All | Not Yet Due |
 
-### Phase 2 Risk Register (Document 06 §12)
+### Phase 2 Risk Register (Document 06 12)
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Client product data/images/inventory arrive late | Blocks realistic catalog testing | Seed placeholder SKUs; swap via Admin |
-| Ambiguity in 45–50 day stale-flag trigger (listing date vs. zero-stock date) | Wrong products flagged/hidden | Confirm exact rule with client at Phase 2 kickoff (see §10 below) |
+| Ambiguity in 45–50 day stale-flag trigger (listing date vs. zero-stock date) | Wrong products flagged/hidden | Confirm exact rule with client at Phase 2 kickoff (see 10 below) |
 | Overselling under concurrent checkout | Financial/trust damage | Row-level locking + compensating transaction, load-tested |
 | Scope creep toward deeper cross-linked purchasing engine | Budget/timeline overrun | Log as Change Request, not silently built |
 
@@ -421,13 +421,13 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 | Regression pass on Phase 1 (Guest Verification reuse) and Phase 2 (product linking) | All | Not Yet Due |
 | Negative test: confirm zero affiliate-link UI/API surface exists anywhere | Shubham | Not Yet Due |
 
-### Phase 3 Risk Register (Document 07 §12)
+### Phase 3 Risk Register (Document 07 12)
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Client requests real affiliate integration mid-phase | Scope/budget/brand-risk overrun | Log as Change Request; do not build (SOW 33) |
 | Metadata scraping blocked by major retailers (expected/common) | Owner experience feels "broken" | Manual-entry fallback is first-class UX from day one |
-| Ambiguity in exact retention mechanic post-expiry | Data-retention/compliance risk | Confirm with client at Phase 3 kickoff (see §10 below) |
+| Ambiguity in exact retention mechanic post-expiry | Data-retention/compliance risk | Confirm with client at Phase 3 kickoff (see 10 below) |
 | Guest confirms wrong item / owner disputes | Support burden | "Reverse Reservation" shipped from day one |
 | Owner/guest auth-context confusion during implementation | Security bug (privilege confusion) | Distinct middleware guards, specifically code-reviewed |
 
@@ -435,7 +435,7 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 
 ## 9. Client Action Requirements & Dependency Tracker (Living — Update Continuously)
 
-*Merged from Document 11 §6, original tracker, and MOM §4–10. This is the canonical blocker-tracking table.*
+*Merged from Document 11 6, original tracker, and MOM 4–10. This is the canonical blocker-tracking table.*
 
 | # | Item Needed | Needed For (Sprint/Phase) | Status |
 |---|---|---|---|
@@ -465,20 +465,20 @@ Per SOW 42 (Document 11 §9): up to **two revision cycles** per major UI deliver
 
 | # | Decision | Where Flagged | Target Resolution |
 |---|---|---|---|
-| 1 | Final WhatsApp provider: Meta Cloud API (direct) vs. Twilio vs. BSP aggregator (Interakt/AiSensy/Gupshup/Wati) — Doc 12 is a Twilio-specific setup guide, but Doc 02 defaults to Meta Cloud API direct for lowest cost | Doc 02 §6.2 | First 2 weeks of Phase 1 |
-| 2 | Exact commercial milestone invoice schedule (15k/20k/7.5k/7.5k) — discussed in Meeting 2, not restated verbatim in signed SOW | Doc 01 §5, Doc 11 §8 | Before Phase 1 completion invoice |
-| 3 | Stale-inventory flag trigger: "days since listing" vs. "days since stock hit zero" | Doc 06 §7 | Phase 2 kickoff |
-| 4 | Gift Registry retention action on expiry: archive + later soft-delete vs. immediate soft-delete | Doc 07 §9 | Phase 3 kickoff |
-| 5 | Standard-tier Gift Registry paid upgrade add-on — build or skip | Doc 07 §5.0 | Phase 3 kickoff |
-| 6 | "Shipped" status email for orders — in Phase 2 MVP scope or deferred | Doc 06 §9 | Phase 2, Sub-Phase 2.5 |
-| 7 | Booking capacity granularity — stay per-day, or add per-time-slot rules later | Doc 01 §7 | Post-Phase-1 refinement, not a launch blocker |
-| 8 | Reconcile "Overall Project Target — 1st week Sept" against the ~13-week indicative phase plan | This document §1 | First review session (22/23 July) |
+| 1 | Final WhatsApp provider: Meta Cloud API (direct) vs. Twilio vs. BSP aggregator (Interakt/AiSensy/Gupshup/Wati) — Doc 12 is a Twilio-specific setup guide, but Doc 02 defaults to Meta Cloud API direct for lowest cost | Doc 02 6.2 | First 2 weeks of Phase 1 |
+| 2 | Exact commercial milestone invoice schedule (15k/20k/7.5k/7.5k) — discussed in Meeting 2, not restated verbatim in signed SOW | Doc 01 5, Doc 11 8 | Before Phase 1 completion invoice |
+| 3 | Stale-inventory flag trigger: "days since listing" vs. "days since stock hit zero" | Doc 06 7 | Phase 2 kickoff |
+| 4 | Gift Registry retention action on expiry: archive + later soft-delete vs. immediate soft-delete | Doc 07 9 | Phase 3 kickoff |
+| 5 | Standard-tier Gift Registry paid upgrade add-on — build or skip | Doc 07 5.0 | Phase 3 kickoff |
+| 6 | "Shipped" status email for orders — in Phase 2 MVP scope or deferred | Doc 06 9 | Phase 2, Sub-Phase 2.5 |
+| 7 | Booking capacity granularity — stay per-day, or add per-time-slot rules later | Doc 01 7 | Post-Phase-1 refinement, not a launch blocker |
+| 8 | Reconcile "Overall Project Target — 1st week Sept" against the ~13-week indicative phase plan | This document 1 | First review session (22/23 July) |
 
 ---
 
-## 11. Change Request Log (Document 11 §7)
+## 11. Change Request Log (Document 11 7)
 
-Per Doc 01 §14/§41 — anything requested that isn't in SOW 1–39 gets logged here, not silently built:
+Per Doc 01 14/41 — anything requested that isn't in SOW 1–39 gets logged here, not silently built:
 
 | # | Date | Requested By | Description | Traced To | In SOW? | Decision | Impact if Approved |
 |---|---|---|---|---|---|---|---|
@@ -490,7 +490,7 @@ Per Doc 01 §14/§41 — anything requested that isn't in SOW 1–39 gets logged
 
 ---
 
-## 12. Out-of-Scope Quick Reference (SOW 40 — Document 01 §14)
+## 12. Out-of-Scope Quick Reference (SOW 40 — Document 01 14)
 
 Do **not** build any of the following without a signed Change Request:
 
@@ -509,7 +509,7 @@ Do **not** build any of the following without a signed Change Request:
 
 ---
 
-## 13. Testing & Pre-Go-Live Gates (Document 09 §7, §9)
+## 13. Testing & Pre-Go-Live Gates (Document 09 7, 9)
 
 | Priority | Module | Approach |
 |---|---|---|
@@ -519,11 +519,11 @@ Do **not** build any of the following without a signed Change Request:
 | Medium — manual | CMS/CRM CRUD screens | Smoke-tested per module |
 | Low — spot-checked | SEO/schema output | Rich Results Test + Lighthouse pre-go-live |
 
-**Pre-Go-Live Checklist (every phase, Doc 09 §9):** CSP/CORS reviewed · dependency audit clean · rate limits live-tested · admin panel unreachable from public site + `noindex` · secret scan run · backup/restore drill documented · error tracker + uptime monitor confirmed · payment webhook verified against real transaction · traffic smoke test appropriate to ~50 users/month scale.
+**Pre-Go-Live Checklist (every phase, Doc 09 9):** CSP/CORS reviewed · dependency audit clean · rate limits live-tested · admin panel unreachable from public site + `noindex` · secret scan run · backup/restore drill documented · error tracker + uptime monitor confirmed · payment webhook verified against real transaction · traffic smoke test appropriate to ~50 users/month scale.
 
 ---
 
-## 14. Post-Launch Support & Handover (Document 11 §10–11)
+## 14. Post-Launch Support & Handover (Document 11 10–11)
 
 - **Support window:** 2 months complimentary post-launch (bug fixes + minor adjustments only; new features/integrations/redesigns are out of scope — logged as Change Requests).
 - **Intake:** single tracked channel (issue tracker or existing WhatsApp group), triaged by Shubham.
@@ -568,4 +568,4 @@ Do **not** build any of the following without a signed Change Request:
 
 ---
 
-*This tracker should be kept current in whatever day-to-day project-tracking tool the team actually uses — this markdown file is the canonical snapshot/template referenced by Document 11 §6 and requested directly by the client in the 19 July 2026 MOM (§11).*
+*This tracker should be kept current in whatever day-to-day project-tracking tool the team actually uses — this markdown file is the canonical snapshot/template referenced by Document 11 6 and requested directly by the client in the 19 July 2026 MOM (11).*

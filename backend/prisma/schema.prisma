@@ -1,0 +1,655 @@
+// Vaibhav Celebrations — Phase 1 schema (Migration batches 0001–0006)
+// Source of truth: Docs/03-Database-Schema-and-Data-Model.md
+// Phase 2/3 tables are additive later — do not invent FKs to them here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth & Audit ───────────────────────────────────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  OPERATIONS
+  CONTENT_EDITOR
+}
+
+model AdminUser {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         AdminRole  @default(OPERATIONS)
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+  auditLogs    AuditLog[]
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+}
+
+model GuestVerificationToken {
+  id            String    @id @default(cuid())
+  referenceCode String
+  referenceType String
+  email         String
+  otpHash       String
+  otpExpiresAt  DateTime
+  verifiedAt    DateTime?
+  attemptCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  @@index([referenceCode, referenceType])
+}
+
+model SequenceCounter {
+  id        String @id @default(cuid())
+  key       String @unique
+  lastValue Int    @default(0)
+}
+
+model OperationalSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Media ──────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id                    String             @id @default(cuid())
+  url                   String
+  cdnKey                String
+  type                  String
+  altText               String?
+  width                 Int?
+  height                Int?
+  sizeBytes             Int?
+  uploadedByAdminUserId String?
+  createdAt             DateTime           @default(now())
+  deletedAt             DateTime?
+  themeHeroes   Theme[]            @relation("ThemeHero")
+  sampleAssets  ThemeSampleAsset[]
+  galleryImages GalleryImage[]
+}
+
+// ─── Themes & Packages ──────────────────────────────────────────────────────
+
+model Theme {
+  id               String             @id @default(cuid())
+  title            String
+  slug             String             @unique
+  shortDescription String
+  storyDescription String?            @db.Text
+  audienceNote     String?
+  heroImageId      String?
+  heroImage        MediaAsset?        @relation("ThemeHero", fields: [heroImageId], references: [id])
+  isActive         Boolean            @default(true)
+  displayOrder     Int                @default(0)
+  seoTitle         String?
+  seoDescription   String?
+  ogImageId        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  deletedAt        DateTime?
+  galleryImages    GalleryImage[]     @relation("ThemeGallery")
+  packages         ThemePackage[]
+  sampleAssets     ThemeSampleAsset[]
+  bookings         Booking[]
+  testimonials     Testimonial[]
+  events           Event[]
+}
+
+enum SampleAssetType {
+  DIGITAL_INVITE
+  VIDEO_INVITE
+  PARENT_PARTY_BRIEF
+  COUNTDOWN_CARD
+  ACTIVITY_KIT
+  RETURN_GIFT_PREVIEW
+  OTHER
+}
+
+model ThemeSampleAsset {
+  id           String          @id @default(cuid())
+  themeId      String
+  theme        Theme           @relation(fields: [themeId], references: [id])
+  type         SampleAssetType
+  title        String
+  mediaId      String
+  media        MediaAsset      @relation(fields: [mediaId], references: [id])
+  description  String?
+  displayOrder Int             @default(0)
+  createdAt    DateTime        @default(now())
+  deletedAt    DateTime?
+}
+
+model Package {
+  id                   String                        @id @default(cuid())
+  title                String
+  slug                 String                        @unique
+  priceInPaise         Int
+  tierRank             Int
+  isRecommended        Boolean                       @default(false)
+  isActive             Boolean                       @default(true)
+  isCustomizable       Boolean                       @default(true)
+  displayOrder         Int                           @default(0)
+  description          String?                       @db.Text
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  deletedAt            DateTime?
+  features             PackageFeature[]
+  addOns               PackageAddOn[]
+  customizationOptions PackageCustomizationOption[]
+  themeLinks           ThemePackage[]
+  bookings             Booking[]
+  testimonials         Testimonial[]
+}
+
+model ThemePackage {
+  id                   String  @id @default(cuid())
+  themeId              String
+  theme                Theme   @relation(fields: [themeId], references: [id])
+  packageId            String
+  package              Package @relation(fields: [packageId], references: [id])
+  priceOverrideInPaise Int?
+  isActive             Boolean @default(true)
+
+  @@unique([themeId, packageId])
+}
+
+model PackageFeature {
+  id              String           @id @default(cuid())
+  packageId       String
+  package         Package          @relation(fields: [packageId], references: [id])
+  label           String
+  quantity        Int              @default(1)
+  unit            String?
+  sampleAssetType SampleAssetType?
+  displayOrder    Int              @default(0)
+  deletedAt       DateTime?
+}
+
+model AddOnService {
+  id           String        @id @default(cuid())
+  title        String
+  priceInPaise Int
+  isActive     Boolean       @default(true)
+  minQuantity  Int           @default(1)
+  maxQuantity  Int?
+  createdAt    DateTime      @default(now())
+  deletedAt    DateTime?
+  packageLinks PackageAddOn[]
+}
+
+model PackageAddOn {
+  id                String       @id @default(cuid())
+  packageId         String
+  package           Package      @relation(fields: [packageId], references: [id])
+  addOnServiceId    String
+  addOnService      AddOnService @relation(fields: [addOnServiceId], references: [id])
+  isDefaultIncluded Boolean      @default(false)
+
+  @@unique([packageId, addOnServiceId])
+}
+
+model PackageCustomizationOption {
+  id                String                  @id @default(cuid())
+  packageId         String
+  package           Package                 @relation(fields: [packageId], references: [id])
+  label             String
+  extraPriceInPaise Int
+  minQuantity       Int                     @default(0)
+  maxQuantity       Int?
+  isActive          Boolean                 @default(true)
+  displayOrder      Int                     @default(0)
+  deletedAt         DateTime?
+  bookings          BookingCustomization[]
+}
+
+// ─── Gallery ────────────────────────────────────────────────────────────────
+
+enum GalleryCtaType {
+  NONE
+  THEME
+  PACKAGE
+  EVENT
+  BOOKING
+}
+
+model GalleryImage {
+  id            String            @id @default(cuid())
+  mediaId       String
+  media         MediaAsset        @relation(fields: [mediaId], references: [id])
+  caption       String?
+  altText       String
+  themeId       String?
+  theme         Theme?            @relation("ThemeGallery", fields: [themeId], references: [id])
+  ctaType       GalleryCtaType    @default(NONE)
+  ctaTargetSlug String?
+  isActive      Boolean           @default(true)
+  displayOrder  Int               @default(0)
+  createdAt     DateTime          @default(now())
+  deletedAt     DateTime?
+  tags          GalleryImageTag[]
+}
+
+model GalleryTag {
+  id     String            @id @default(cuid())
+  name   String            @unique
+  images GalleryImageTag[]
+}
+
+model GalleryImageTag {
+  galleryImageId String
+  galleryImage   GalleryImage @relation(fields: [galleryImageId], references: [id])
+  tagId          String
+  tag            GalleryTag   @relation(fields: [tagId], references: [id])
+
+  @@id([galleryImageId, tagId])
+}
+
+// ─── Content types ──────────────────────────────────────────────────────────
+
+enum TestimonialSubjectType {
+  THEME
+  PACKAGE
+  GENERAL
+}
+
+model Testimonial {
+  id           String                  @id @default(cuid())
+  customerName String
+  content      String                  @db.Text
+  rating       Int?
+  subjectType  TestimonialSubjectType
+  themeId      String?
+  theme        Theme?                  @relation(fields: [themeId], references: [id])
+  packageId    String?
+  package      Package?                @relation(fields: [packageId], references: [id])
+  isFeatured   Boolean                 @default(false)
+  isActive     Boolean                 @default(true)
+  createdAt    DateTime                @default(now())
+  deletedAt    DateTime?
+}
+
+model FAQ {
+  id           String    @id @default(cuid())
+  question     String
+  answer       String    @db.Text
+  category     String?
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  deletedAt    DateTime?
+}
+
+enum PopupPlacement {
+  HOMEPAGE
+  THEMES_PAGE
+  PACKAGES_PAGE
+  GALLERY_PAGE
+}
+
+model Popup {
+  id                  String           @id @default(cuid())
+  title               String
+  bodyText            String?
+  imageId             String?
+  ctaLabel            String?
+  ctaUrl              String?
+  placements          PopupPlacement[]
+  triggerAfterSeconds Int              @default(5)
+  linkedEventId       String?
+  linkedEvent         Event?           @relation(fields: [linkedEventId], references: [id])
+  isActive            Boolean          @default(true)
+  startsAt            DateTime?
+  endsAt              DateTime?
+  deletedAt           DateTime?
+}
+
+enum LegalPageType {
+  REFUND_POLICY
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  CANCELLATION_POLICY
+}
+
+model LegalPage {
+  id          String        @id @default(cuid())
+  type        LegalPageType @unique
+  title       String
+  bodyHtml    String        @db.Text
+  updatedAt   DateTime      @updatedAt
+  publishedAt DateTime?
+}
+
+model SiteMetadata {
+  id              String   @id @default(cuid())
+  pageKey         String   @unique
+  metaTitle       String?
+  metaDescription String?
+  ogImageId       String?
+  canonicalUrl    String?
+  schemaJsonLd    Json?
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── Blog ───────────────────────────────────────────────────────────────────
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+}
+
+model BlogPost {
+  id              String             @id @default(cuid())
+  title           String
+  slug            String             @unique
+  featuredImageId String?
+  contentHtml     String             @db.Text
+  excerpt         String?
+  authorName      String?
+  status          BlogStatus         @default(DRAFT)
+  publishedAt     DateTime?
+  seoTitle        String?
+  seoDescription  String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deletedAt       DateTime?
+  categories      BlogPostCategory[]
+  tags            BlogPostTag[]
+}
+
+model BlogCategory {
+  id    String             @id @default(cuid())
+  name  String             @unique
+  posts BlogPostCategory[]
+}
+
+model BlogTag {
+  id    String        @id @default(cuid())
+  name  String        @unique
+  posts BlogPostTag[]
+}
+
+model BlogPostCategory {
+  blogPostId String
+  blogPost   BlogPost     @relation(fields: [blogPostId], references: [id])
+  categoryId String
+  category   BlogCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([blogPostId, categoryId])
+}
+
+model BlogPostTag {
+  blogPostId String
+  blogPost   BlogPost @relation(fields: [blogPostId], references: [id])
+  tagId      String
+  tag        BlogTag  @relation(fields: [tagId], references: [id])
+
+  @@id([blogPostId, tagId])
+}
+
+// ─── Events ─────────────────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Event {
+  id                     String              @id @default(cuid())
+  title                  String
+  slug                   String              @unique
+  bannerMediaId          String?
+  description            String              @db.Text
+  activities             Json?
+  ageGroup               String?
+  venue                  String?
+  scheduleStartAt        DateTime?
+  scheduleEndAt          DateTime?
+  isRegistrationOpen     Boolean             @default(true)
+  registrationFeeInPaise Int?
+  themeId                String?
+  theme                  Theme?              @relation(fields: [themeId], references: [id])
+  seoTitle               String?
+  seoDescription         String?
+  isActive               Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  deletedAt              DateTime?
+  registrations          EventRegistration[]
+  popups                 Popup[]
+}
+
+model EventRegistration {
+  id                String        @id @default(cuid())
+  eventId           String
+  event             Event         @relation(fields: [eventId], references: [id])
+  name              String
+  email             String
+  phone             String
+  guestCount        Int?          @default(1)
+  notes             String?
+  paymentStatus     PaymentStatus @default(NOT_REQUIRED)
+  amountPaidInPaise Int?
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  createdAt         DateTime      @default(now())
+  deletedAt         DateTime?
+}
+
+// ─── CRM ────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id            String                 @id @default(cuid())
+  fullName      String
+  email         String
+  phone         String
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  deletedAt     DateTime?
+  bookings      Booking[]
+  consultations ConsultationRequest[]
+  leads         Lead[]
+  invoices      Invoice[]
+  notes         CustomerNote[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model CustomerNote {
+  id                String   @id @default(cuid())
+  customerId        String
+  customer          Customer @relation(fields: [customerId], references: [id])
+  authorAdminUserId String
+  note              String   @db.Text
+  createdAt         DateTime @default(now())
+}
+
+enum LeadSource {
+  CHATBOT
+  CONTACT_FORM
+  CONSULTATION
+  EVENT_REGISTRATION
+  NEWSLETTER
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  CLOSED_LOST
+}
+
+model Lead {
+  id               String          @id @default(cuid())
+  customerId       String?
+  customer         Customer?       @relation(fields: [customerId], references: [id])
+  name             String
+  email            String?
+  phone            String?
+  source           LeadSource
+  status           LeadStatus      @default(NEW)
+  interestArea     String?
+  message          String?
+  chatbotSessionId String?
+  chatbotSession   ChatbotSession? @relation(fields: [chatbotSessionId], references: [id])
+  createdAt        DateTime        @default(now())
+  deletedAt        DateTime?
+}
+
+model ChatbotSession {
+  id        String   @id @default(cuid())
+  path      Json
+  resultTag String?
+  createdAt DateTime @default(now())
+  leads     Lead[]
+}
+
+enum ConsultationStatus {
+  PENDING
+  REVIEWED
+  SCHEDULED
+  COMPLETED
+  DECLINED
+}
+
+model ConsultationRequest {
+  id                  String             @id @default(cuid())
+  customerId          String?
+  customer            Customer?          @relation(fields: [customerId], references: [id])
+  name                String
+  email               String
+  phone               String
+  eventDate           DateTime
+  childOrEventDetails String?
+  customRequirements  String?            @db.Text
+  advanceNoticeDays   Int
+  belowMinimumNotice  Boolean            @default(false)
+  status              ConsultationStatus @default(PENDING)
+  createdAt           DateTime           @default(now())
+  deletedAt           DateTime?
+}
+
+// ─── Bookings ───────────────────────────────────────────────────────────────
+
+enum BookingStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Booking {
+  id                        String                  @id @default(cuid())
+  bookingCode               String                  @unique
+  customerId                String
+  customer                  Customer                @relation(fields: [customerId], references: [id])
+  themeId                   String
+  theme                     Theme                   @relation(fields: [themeId], references: [id])
+  packageId                 String
+  package                   Package                 @relation(fields: [packageId], references: [id])
+  eventDate                 DateTime                @db.Date
+  status                    BookingStatus           @default(SCHEDULED)
+  paymentStatus             PaymentStatus           @default(PENDING)
+  basePriceInPaise          Int
+  customizationTotalInPaise Int                     @default(0)
+  gstInPaise                Int                     @default(0)
+  totalPriceInPaise         Int
+  razorpayOrderId           String?
+  razorpayPaymentId         String?
+  guestEmail                String
+  guestPhone                String
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  deletedAt                 DateTime?
+  customizations            BookingCustomization[]
+  invoice                   Invoice?
+
+  @@index([eventDate])
+  @@index([bookingCode])
+  @@index([status])
+}
+
+model BookingCustomization {
+  id               String                      @id @default(cuid())
+  bookingId        String
+  booking          Booking                     @relation(fields: [bookingId], references: [id])
+  optionId         String
+  option           PackageCustomizationOption  @relation(fields: [optionId], references: [id])
+  quantity         Int
+  unitPriceInPaise Int
+}
+
+enum CapacityScope {
+  GLOBAL_DEFAULT
+  SPECIFIC_DATE
+}
+
+model BookingCapacityRule {
+  id                String        @id @default(cuid())
+  scope             CapacityScope @default(GLOBAL_DEFAULT)
+  specificDate      DateTime?     @db.Date
+  maxBookingsPerDay Int
+  isBlocked         Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// ─── Invoices ───────────────────────────────────────────────────────────────
+
+enum InvoiceLinkedType {
+  BOOKING
+  ORDER
+  EVENT_REGISTRATION
+}
+
+model Invoice {
+  id                 String            @id @default(cuid())
+  invoiceNumber      String            @unique
+  linkedType         InvoiceLinkedType
+  bookingId          String?           @unique
+  booking            Booking?          @relation(fields: [bookingId], references: [id])
+  // orderId reserved for Phase 2 (no FK until Order model exists)
+  orderId            String?           @unique
+  customerId         String
+  customer           Customer          @relation(fields: [customerId], references: [id])
+  subtotalInPaise    Int
+  gstInPaise         Int
+  totalInPaise       Int
+  pdfUrl             String?
+  emailSentAt        DateTime?
+  whatsappSentAt     DateTime?
+  whatsappSendStatus String?
+  issuedAt           DateTime          @default(now())
+  deletedAt          DateTime?
+
+  @@index([issuedAt])
+}
