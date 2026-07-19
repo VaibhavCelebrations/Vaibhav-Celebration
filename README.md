@@ -40,7 +40,7 @@ npm run dev
 ### Default admin (seed)
 
 - URL: http://localhost:3001/login  
-- Email: `admin@vaibhavcelebrations.com`  
+- Email: `admin@vaibhavcelebrations.in`  
 - Password: `ChangeMe_SuperAdmin_123!`
 
 Copy `.env.example` → `.env` / `.env.local` in each app before changing credentials for staging/production.

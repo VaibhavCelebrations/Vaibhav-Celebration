@@ -21,7 +21,7 @@ Auth: `POST /api/v1/auth/admin/login`
 
 Default seed admin (change immediately in production):
 
-- Email: `admin@vaibhavcelebrations.com`
+- Email: `admin@vaibhavcelebrations.in`
 - Password: `ChangeMe_SuperAdmin_123!`
 
 ## Environment

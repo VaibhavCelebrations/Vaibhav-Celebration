@@ -2,7 +2,7 @@
 
 **Owner:** Shubham Deshmukh (Backend)
 **Consumers:** Vishal (frontend integration), Chaitanya (admin integration)
-**Base URL (prod):** `https://api.vaibhavcelebrations.com/api/v1`
+**Base URL (prod):** `https://api.vaibhavcelebrations.in/api/v1`
 **Depends on:** Document 03 (schema), Document 09 (security standards)
 
 ---
