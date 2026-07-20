@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "EventPageTemplate" AS ENUM ('CLASSIC_HERO', 'EDITORIAL_SPLIT', 'FESTIVE_IMMERSIVE');
+
+-- AlterTable
+ALTER TABLE "Event" ADD COLUMN     "ctaLabel" TEXT,
+ADD COLUMN     "ctaUrl" TEXT,
+ADD COLUMN     "faqItems" JSONB,
+ADD COLUMN     "galleryMediaIds" JSONB,
+ADD COLUMN     "pageTemplate" "EventPageTemplate" NOT NULL DEFAULT 'CLASSIC_HERO',
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

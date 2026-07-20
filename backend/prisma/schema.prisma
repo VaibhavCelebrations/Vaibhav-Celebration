@@ -420,6 +420,13 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+/// Three curated landing-page layouts; admin picks one per event (not a page-builder).
+enum EventPageTemplate {
+  CLASSIC_HERO       // Full-bleed hero → story sections → registration (warm, traditional)
+  EDITORIAL_SPLIT    // Split editorial layout with accent rail (magazine / premium)
+  FESTIVE_IMMERSIVE  // Immersive full-bleed festive with bold typography (campaign / ads)
+}
+
 model Event {
   id                     String              @id @default(cuid())
   title                  String
@@ -435,10 +442,19 @@ model Event {
   registrationFeeInPaise Int?
   themeId                String?
   theme                  Theme?              @relation(fields: [themeId], references: [id])
+  /// Admin-selected page layout from the 3 fixed templates
+  pageTemplate           EventPageTemplate   @default(CLASSIC_HERO)
+  /// Optional gallery media IDs (MediaAsset.id[]) for the event page gallery section
+  galleryMediaIds        Json?
+  /// Optional inline FAQs [{question, answer}]
+  faqItems               Json?
+  ctaLabel               String?
+  ctaUrl                 String?
   seoTitle               String?
   seoDescription         String?
   isActive               Boolean             @default(true)
   createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @default(now()) @updatedAt
   deletedAt              DateTime?
   registrations          EventRegistration[]
   popups                 Popup[]
