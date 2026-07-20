@@ -33,3 +33,15 @@ export class ValidationError extends AppError {
     super("VALIDATION_ERROR", message, 400, details);
   }
 }
+
+export class ConflictError extends AppError {
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, 409, details);
+  }
+}
+
+export class RateLimitedError extends AppError {
+  constructor(message = "Too many requests", code = "RATE_LIMITED") {
+    super(code, message, 429);
+  }
+}
