@@ -2,12 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Eye, EyeOff } from "lucide-react";
 import { AdminApiError, loginAdmin } from "@/lib/admin-api-client";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -27,17 +30,13 @@ export default function LoginPage() {
 
   return (
     <div
-      style={{
-        minHeight: "100dvh",
-        display: "grid",
-        gridTemplateColumns: "1fr 480px",
-      }}
+      className="grid min-h-dvh grid-cols-1 md:grid-cols-[1fr_480px]"
     >
-      {/* ── Left decorative panel ── */}
+      {/* ── Left decorative panel (hidden below md — no room to breathe on mobile) ── */}
       <div
+        className="hidden md:flex"
         style={{
           background: "linear-gradient(160deg, var(--color-cream) 0%, var(--color-blush-light) 40%, var(--color-blush) 100%)",
-          display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "3rem",
@@ -47,26 +46,15 @@ export default function LoginPage() {
       >
         {/* Brand mark */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: "linear-gradient(135deg, var(--color-mocha) 0%, var(--color-mocha-dark) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "var(--shadow-mocha)",
-            }}
-          >
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: "1.25rem", fontWeight: 600, color: "#fff" }}>
-              VC
-            </span>
-          </div>
-          <div>
-            <div style={{ fontFamily: "var(--font-serif)", fontSize: "1.125rem", fontWeight: 600, color: "var(--color-charcoal)" }}>
-              Vaibhav Celebrations
-            </div>
+          <Image
+            src="/logo-transparent.png"
+            alt="Vaibhav Celebrations"
+            width={246}
+            height={196}
+            priority
+            style={{ height: 56, width: "auto", objectFit: "contain" }}
+          />
+          <div style={{ borderLeft: "1px solid var(--color-blush)", paddingLeft: "0.875rem" }}>
             <div style={{ fontSize: "0.6875rem", color: "var(--color-text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500 }}>
               Admin Panel
             </div>
@@ -181,18 +169,47 @@ export default function LoginPage() {
               >
                 Password
               </label>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                minLength={8}
-                placeholder="••••••••"
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  id="login-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  minLength={8}
+                  placeholder="••••••••"
+                  className="input"
+                  style={{ paddingRight: "2.75rem" }}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  title={showPassword ? "Hide password" : "Show password"}
+                  style={{
+                    position: "absolute",
+                    right: 4,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 38,
+                    height: 38,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "var(--radius-sm)",
+                    color: "var(--color-text-muted)",
+                    cursor: "pointer",
+                    transition: "color 150ms ease",
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" /> : <Eye size={18} strokeWidth={1.75} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
 
             {/* Error */}

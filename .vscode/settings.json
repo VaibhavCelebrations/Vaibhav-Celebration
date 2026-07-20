@@ -1,0 +1,20 @@
+{
+  // Tailwind v4 uses @theme, @source, @utility — suppress VS Code CSS validator warnings
+  "css.customData": [],
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+
+  // Recommended: use Tailwind IntelliSense extension instead of built-in CSS validation
+  "editor.quickSuggestions": {
+    "strings": "on"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[tsx]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

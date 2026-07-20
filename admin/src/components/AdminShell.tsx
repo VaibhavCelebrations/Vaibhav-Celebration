@@ -1,29 +1,50 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import {
+  Palette,
+  Package,
+  Image as ImageIcon,
+  PartyPopper,
+  Newspaper,
+  HelpCircle,
+  Star,
+  Megaphone,
+  FileText,
+  Users,
+  UserPlus,
+  CalendarCheck,
+  CalendarRange,
+  Receipt,
+  MessagesSquare,
+  Settings as SettingsIcon,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 import { fetchMe, logoutAdmin, type AdminUser } from "@/lib/admin-api-client";
 
-type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings" };
+type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings"; icon: LucideIcon };
 
 const NAV: NavItem[] = [
-  { section: "CMS", href: "/dashboard/cms/themes", label: "Themes" },
-  { section: "CMS", href: "/dashboard/cms/packages", label: "Packages" },
-  { section: "CMS", href: "/dashboard/cms/gallery", label: "Gallery" },
-  { section: "CMS", href: "/dashboard/cms/events", label: "Events" },
-  { section: "CMS", href: "/dashboard/cms/blog", label: "Blog" },
-  { section: "CMS", href: "/dashboard/cms/faqs", label: "FAQs" },
-  { section: "CMS", href: "/dashboard/cms/testimonials", label: "Testimonials" },
-  { section: "CMS", href: "/dashboard/cms/popups", label: "Popups" },
-  { section: "CMS", href: "/dashboard/cms/legal", label: "Legal Pages" },
-  { section: "CRM", href: "/dashboard/crm/customers", label: "Customers" },
-  { section: "CRM", href: "/dashboard/crm/leads", label: "Leads" },
-  { section: "CRM", href: "/dashboard/crm/bookings", label: "Bookings" },
-  { section: "CRM", href: "/dashboard/crm/calendar", label: "Calendar" },
-  { section: "CRM", href: "/dashboard/crm/invoices", label: "Invoices" },
-  { section: "CRM", href: "/dashboard/crm/consultations", label: "Consultations" },
-  { section: "Settings", href: "/dashboard/settings", label: "Operational Settings" },
+  { section: "CMS", href: "/dashboard/cms/themes", label: "Themes", icon: Palette },
+  { section: "CMS", href: "/dashboard/cms/packages", label: "Packages", icon: Package },
+  { section: "CMS", href: "/dashboard/cms/gallery", label: "Gallery", icon: ImageIcon },
+  { section: "CMS", href: "/dashboard/cms/events", label: "Events", icon: PartyPopper },
+  { section: "CMS", href: "/dashboard/cms/blog", label: "Blog", icon: Newspaper },
+  { section: "CMS", href: "/dashboard/cms/faqs", label: "FAQs", icon: HelpCircle },
+  { section: "CMS", href: "/dashboard/cms/testimonials", label: "Testimonials", icon: Star },
+  { section: "CMS", href: "/dashboard/cms/popups", label: "Popups", icon: Megaphone },
+  { section: "CMS", href: "/dashboard/cms/legal", label: "Legal Pages", icon: FileText },
+  { section: "CRM", href: "/dashboard/crm/customers", label: "Customers", icon: Users },
+  { section: "CRM", href: "/dashboard/crm/leads", label: "Leads", icon: UserPlus },
+  { section: "CRM", href: "/dashboard/crm/bookings", label: "Bookings", icon: CalendarCheck },
+  { section: "CRM", href: "/dashboard/crm/calendar", label: "Calendar", icon: CalendarRange },
+  { section: "CRM", href: "/dashboard/crm/invoices", label: "Invoices", icon: Receipt },
+  { section: "CRM", href: "/dashboard/crm/consultations", label: "Consultations", icon: MessagesSquare },
+  { section: "Settings", href: "/dashboard/settings", label: "Operational Settings", icon: SettingsIcon },
 ];
 
 function canSeeSection(role: AdminUser["role"], section: NavItem["section"]) {
@@ -55,7 +76,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-[var(--color-ink-muted)]">
+      <div className="flex min-h-screen items-center justify-center text-sm text-(--color-ink-muted)">
         Loading admin session…
       </div>
     );
@@ -64,37 +85,75 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!admin) return null;
 
   const sections = ["CMS", "CRM", "Settings"] as const;
+  const initials = admin.name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-64 shrink-0 flex-col bg-[var(--color-sidebar)] text-[var(--color-sidebar-text)]">
-        <div className="border-b border-white/10 px-5 py-5">
-          <p className="font-display text-xl">Vaibhav Admin</p>
-          <p className="mt-1 text-xs text-[var(--color-sidebar-muted)]">CMS + CRM</p>
+      <aside
+        className="sticky top-0 flex h-screen w-64 shrink-0 flex-col self-start bg-white"
+        style={{ borderRight: "1px solid var(--color-border-soft)", boxShadow: "2px 0 16px 0 rgba(33,33,33,0.04)" }}
+      >
+        <div
+          className="flex shrink-0 items-center justify-center px-4 py-6"
+          style={{ borderBottom: "1px solid var(--color-border-soft)" }}
+        >
+          <Link
+            href="/dashboard"
+            aria-label="Go to dashboard"
+            className="flex cursor-pointer items-center justify-center rounded-md transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: "var(--color-mocha)" }}
+          >
+            <Image
+              src="/logo-transparent.png"
+              alt="Vaibhav Celebrations"
+              width={246}
+              height={196}
+              priority
+              className="h-28 w-auto object-contain"
+            />
+          </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+
+        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
           {sections.map((section) => {
             if (!canSeeSection(admin.role, section)) return null;
             const items = NAV.filter((n) => n.section === section);
             return (
               <div key={section} className="mb-5">
-                <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-sidebar-muted)]">
+                <p className="mb-2 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-muted)">
                   {section}
                 </p>
                 <ul className="space-y-0.5">
                   {items.map((item) => {
                     const active = pathname.startsWith(item.href);
+                    const ItemIcon = item.icon;
                     return (
                       <li key={item.href}>
                         <Link
                           href={item.href}
-                          className={`block rounded-md px-2.5 py-2 text-sm transition ${
-                            active
-                              ? "bg-white/12 text-white"
-                              : "text-[var(--color-sidebar-muted)] hover:bg-white/6 hover:text-white"
-                          }`}
+                          aria-current={active ? "page" : undefined}
+                          className={`nav-item ${active ? "active" : ""}`}
                         >
-                          {item.label}
+                          <ItemIcon
+                            size={17}
+                            strokeWidth={1.75}
+                            className="nav-icon shrink-0"
+                            style={{ color: active ? "var(--color-mocha)" : "var(--color-text-muted)" }}
+                            aria-hidden="true"
+                          />
+                          <span className="flex-1">{item.label}</span>
+                          {active && (
+                            <span
+                              aria-hidden="true"
+                              className="h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ background: "var(--color-mocha)" }}
+                            />
+                          )}
                         </Link>
                       </li>
                     );
@@ -107,18 +166,37 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-[var(--color-border)] bg-white px-6 py-4">
-          <div>
-            <p className="text-sm font-medium">{admin.name}</p>
-            <p className="text-xs text-[var(--color-ink-muted)]">
-              {admin.email} · {admin.role.replace("_", " ")}
-            </p>
+        <header
+          className="flex items-center justify-between bg-white px-6 py-4"
+          style={{ borderBottom: "1px solid var(--color-border-soft)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-serif text-sm font-semibold"
+              style={{
+                background: "linear-gradient(135deg, var(--color-blush) 0%, var(--color-mocha-light) 100%)",
+                color: "var(--color-mocha-dark)",
+              }}
+            >
+              {initials}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-(--color-charcoal)">{admin.name}</p>
+              <p className="text-xs text-(--color-text-muted)">
+                {admin.email} · {admin.role.replace("_", " ")}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onLogout}
-            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-cream)]"
+            aria-label="Log out"
+            title="Log out"
+            className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
+            style={{ borderColor: "var(--color-border)", color: "var(--color-charcoal-soft)" }}
           >
+            <LogOut size={15} strokeWidth={1.75} aria-hidden="true" />
             Log out
           </button>
         </header>

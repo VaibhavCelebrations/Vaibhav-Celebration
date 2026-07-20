@@ -31,10 +31,10 @@
   --color-text-secondary: #5A5A5A;
   --color-text-muted:     #8A8070;
 
-  /* Sidebar tokens (from Shubham's branch — dark sidebar) */
-  --color-sidebar:        #1C1714;
-  --color-sidebar-text:   #F3EBE3;
-  --color-sidebar-muted:  #B9AEA3;
+  /* Sidebar tokens */
+  --color-sidebar:        #FFFFFF;
+  --color-sidebar-text:   #171412;
+  --color-sidebar-muted:  #8A8070;
 
   /* Legacy aliases (used in Shubham's components — keep for compatibility) */
   --color-ink:            #171412;
@@ -274,6 +274,14 @@ a:hover { color: var(--color-mocha-dark); }
 .nav-item:hover { background: var(--color-cream); color: var(--color-charcoal); }
 .nav-item.active { background: var(--color-blush-light); color: var(--color-mocha); font-weight: 600; }
 .nav-item.active .nav-icon { color: var(--color-mocha); }
+
+/* ─── Table row hover ─── */
+.table-row {
+  transition: background-color 150ms ease;
+}
+.table-row:hover {
+  background-color: var(--color-blush-light) !important;
+}
 
 /* ─── Skeleton shimmer ─── */
 @keyframes shimmer {
