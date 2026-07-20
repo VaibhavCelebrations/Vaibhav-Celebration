@@ -131,7 +131,7 @@ Example (Event schema, illustrative):
   "endDate": "2026-08-02T19:00:00+05:30",
   "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
   "location": { "@type": "Place", "name": "Vaibhav Celebrations Venue", "address": "..." },
-  "image": ["https://cdn.vaibhavcelebrations.com/events/monsoon-magic.webp"],
+  "image": ["https://cdn.vaibhavcelebrations.in/events/monsoon-magic.webp"],
   "organizer": { "@type": "Organization", "name": "Vaibhav Celebrations" }
 }
 ```

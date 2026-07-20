@@ -37,6 +37,8 @@ Every functional or technical decision in Documents 01–11 is traceable to one 
 | [10](./10-Content-SEO-Analytics-Implementation-Guide.md) | Content Strategy, SEO & Analytics Implementation Guide        | How does the Content & SEO Guide v1.0 map onto real CMS fields, schema markup, and analytics events?        |
 | [11](./11-Team-Workflow-Timeline-RACI-Governance.md)     | Team Workflow, Timeline, RACI & Delivery Governance           | Who owns what, what's the timeline, how do we track client dependencies and change requests?                |
 | [12](./12-Twilio-WhatsApp-Integration-Guide.md)          | Twilio WhatsApp Integration Guide                             | How to set up Twilio for sending WhatsApp messages and what details we need for the backend?                |
+| [13](./13-Project-Tracker.md)                            | Centralized Project Tracker & Milestones                      | Live task statuses across all phases                                                                        |
+| [14](./14-Secrets-Rotation-Policy.md)                    | Secrets Rotation Policy                                       | How to rotate JWT/Razorpay/WhatsApp/SMTP/Cloudflare secrets safely                                          |
 
 ---
 

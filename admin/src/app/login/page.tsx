@@ -1,11 +1,30 @@
-import Link from "next/link";
+"use client";
 
-export const metadata = {
-  title: "Login — Vaibhav Celebrations Admin",
-  robots: "noindex, nofollow",
-};
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { AdminApiError, loginAdmin } from "@/lib/admin-api-client";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await loginAdmin(email, password);
+      router.replace("/");
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.message : "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div
       style={{
@@ -98,28 +117,8 @@ export default function LoginPage() {
 
         {/* Decorative circles */}
         <div aria-hidden="true">
-          <div
-            style={{
-              position: "absolute",
-              bottom: -80,
-              right: -80,
-              width: 320,
-              height: 320,
-              borderRadius: "50%",
-              background: "rgba(117, 88, 70, 0.06)",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: 80,
-              right: -40,
-              width: 160,
-              height: 160,
-              borderRadius: "50%",
-              background: "rgba(232, 213, 207, 0.5)",
-            }}
-          />
+          <div style={{ position: "absolute", bottom: -80, right: -80, width: 320, height: 320, borderRadius: "50%", background: "rgba(117, 88, 70, 0.06)" }} />
+          <div style={{ position: "absolute", bottom: 80, right: -40, width: 160, height: 160, borderRadius: "50%", background: "rgba(232, 213, 207, 0.5)" }} />
         </div>
 
         <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", margin: 0 }}>
@@ -139,7 +138,6 @@ export default function LoginPage() {
         }}
       >
         <div style={{ maxWidth: 360, width: "100%", margin: "0 auto" }}>
-
           <div style={{ marginBottom: "2rem" }}>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.75rem", fontWeight: 600, color: "var(--color-charcoal)", margin: "0 0 0.375rem" }}>
               Welcome back
@@ -150,8 +148,7 @@ export default function LoginPage() {
           </div>
 
           <form
-            action="/api/auth/login"
-            method="POST"
+            onSubmit={onSubmit}
             style={{ display: "flex", flexDirection: "column", gap: "1.125rem" }}
             aria-label="Admin login form"
           >
@@ -171,44 +168,60 @@ export default function LoginPage() {
                 required
                 placeholder="admin@vaibhav.in"
                 className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
             {/* Password */}
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
-                <label
-                  htmlFor="login-password"
-                  style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-charcoal)" }}
-                >
-                  Password
-                </label>
-                <Link
-                  href="/forgot-password"
-                  style={{ fontSize: "0.75rem", color: "var(--color-mocha)", fontWeight: 500 }}
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <label
+                htmlFor="login-password"
+                style={{ display: "block", fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-charcoal)", marginBottom: "0.375rem" }}
+              >
+                Password
+              </label>
               <input
                 id="login-password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
+                minLength={8}
                 placeholder="••••••••"
                 className="input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            {/* Error */}
+            {error && (
+              <p
+                style={{
+                  background: "var(--color-error-bg)",
+                  color: "var(--color-error)",
+                  border: "1px solid var(--color-error)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "0.625rem 0.875rem",
+                  fontSize: "0.8125rem",
+                  margin: 0,
+                }}
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
 
             {/* Submit */}
             <button
               id="login-submit"
               type="submit"
+              disabled={loading}
               className="btn btn-primary"
               style={{ marginTop: "0.5rem", width: "100%", height: 48, fontSize: "0.9375rem" }}
             >
-              Sign in to Admin
+              {loading ? "Signing in…" : "Sign in to Admin"}
             </button>
           </form>
 
