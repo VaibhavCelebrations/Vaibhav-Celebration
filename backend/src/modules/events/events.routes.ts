@@ -98,6 +98,42 @@ adminEventsRouter.use(...roles);
 
 adminEventsRouter.get("/templates", (_req, res) => ok(res, EVENT_PAGE_TEMPLATES));
 
+adminEventsRouter.get("/", async (req, res, next) => {
+  try {
+    const { prisma } = await import("../../db/prisma");
+    const { parsePagination, paginationMeta } = await import("../../lib/response");
+    const q = req.query as { page?: string; pageSize?: string; search?: string };
+    const { page, pageSize, skip, take } = parsePagination({
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+    });
+    const where = {
+      deletedAt: null as null,
+      ...(q.search
+        ? {
+            OR: [
+              { title: { contains: q.search, mode: "insensitive" as const } },
+              { slug: { contains: q.search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.event.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { scheduleStartAt: "desc" },
+        include: { theme: true },
+      }),
+      prisma.event.count({ where }),
+    ]);
+    return ok(res, { items, total, page, pageSize }, { pagination: paginationMeta(page, pageSize, total) });
+  } catch (e) {
+    return next(e);
+  }
+});
+
 adminEventsRouter.post("/", validate(eventSchema), async (req, res, next) => {
   try {
     const item = await createEvent(req.body);

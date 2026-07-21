@@ -3,12 +3,14 @@
 // Phase 2/3 tables are additive later — do not invent FKs to them here.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
 }
 
 // ─── Auth & Audit ───────────────────────────────────────────────────────────
@@ -20,17 +22,18 @@ enum AdminRole {
 }
 
 model AdminUser {
-  id           String     @id @default(cuid())
-  name         String
-  email        String     @unique
-  passwordHash String
-  role         AdminRole  @default(OPERATIONS)
-  isActive     Boolean    @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  deletedAt    DateTime?
-  auditLogs    AuditLog[]
+  id             String               @id @default(cuid())
+  name           String
+  email          String               @unique
+  passwordHash   String
+  role           AdminRole            @default(OPERATIONS)
+  isActive       Boolean              @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  deletedAt      DateTime?
+  auditLogs      AuditLog[]
+  refreshTokens  AdminRefreshToken[]
 }
 
 model AuditLog {
@@ -43,6 +46,36 @@ model AuditLog {
   metadata    Json?
   ipAddress   String?
   createdAt   DateTime  @default(now())
+}
+
+// ─── Auth — Refresh Token Rotation ─────────────────────────────────────────
+//
+// Raw refresh tokens are NEVER stored. Only a SHA-256 hash is persisted so
+// the table is useless to an attacker who can read the DB but not the secret.
+//
+// familyId groups all tokens from a single login session. If any already-used
+// token is presented (replay attack), the entire family is immediately revoked.
+
+model AdminRefreshToken {
+  id          String    @id @default(cuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  /// SHA-256 hex of the raw JWT — raw token is never stored
+  tokenHash   String    @unique
+  /// All tokens from the same login session share this id
+  familyId    String
+  /// Set when the token is consumed (rotated); null means still valid
+  usedAt      DateTime?
+  /// Absolute expiry — must match JWT exp
+  expiresAt   DateTime
+  /// Set on manual logout or reuse-detection revocation
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([adminUserId])
+  @@index([familyId])
 }
 
 model GuestVerificationToken {
@@ -89,6 +122,9 @@ model MediaAsset {
   themeHeroes   Theme[]            @relation("ThemeHero")
   sampleAssets  ThemeSampleAsset[]
   galleryImages GalleryImage[]
+
+  @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([cdnKey(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 // ─── Themes & Packages ──────────────────────────────────────────────────────
@@ -116,6 +152,10 @@ model Theme {
   bookings         Booking[]
   testimonials     Testimonial[]
   events           Event[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([shortDescription(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 enum SampleAssetType {
@@ -162,6 +202,9 @@ model Package {
   themeLinks           ThemePackage[]
   bookings             Booking[]
   testimonials         Testimonial[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model ThemePackage {
@@ -250,6 +293,9 @@ model GalleryImage {
   createdAt     DateTime          @default(now())
   deletedAt     DateTime?
   tags          GalleryImageTag[]
+
+  @@index([caption(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model GalleryTag {
@@ -289,6 +335,9 @@ model Testimonial {
   isActive     Boolean                 @default(true)
   createdAt    DateTime                @default(now())
   deletedAt    DateTime?
+
+  @@index([customerName(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([content(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model FAQ {
@@ -299,6 +348,9 @@ model FAQ {
   displayOrder Int       @default(0)
   isActive     Boolean   @default(true)
   deletedAt    DateTime?
+
+  @@index([question(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([answer(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 enum PopupPlacement {
@@ -377,6 +429,9 @@ model BlogPost {
   deletedAt       DateTime?
   categories      BlogPostCategory[]
   tags            BlogPostTag[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model BlogCategory {
@@ -458,6 +513,9 @@ model Event {
   deletedAt              DateTime?
   registrations          EventRegistration[]
   popups                 Popup[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model EventRegistration {
@@ -495,6 +553,9 @@ model Customer {
 
   @@index([email])
   @@index([phone])
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Customer_email_gin_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "Customer_phone_gin_idx")
 }
 
 model CustomerNote {
@@ -538,6 +599,9 @@ model Lead {
   chatbotSession   ChatbotSession? @relation(fields: [chatbotSessionId], references: [id])
   createdAt        DateTime        @default(now())
   deletedAt        DateTime?
+
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model ChatbotSession {

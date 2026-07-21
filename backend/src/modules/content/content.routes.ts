@@ -1,4 +1,9 @@
-import { AdminRole, LegalPageType, PopupPlacement, TestimonialSubjectType } from "@prisma/client";
+import {
+  AdminRole,
+  LegalPageType,
+  PopupPlacement,
+  TestimonialSubjectType,
+} from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma";
@@ -8,34 +13,472 @@ import { created, ok } from "../../lib/response";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 
-const roles = [requireAdmin, requireRoles(AdminRole.CONTENT_EDITOR, AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN)];
+const roles = [
+  requireAdmin,
+  requireRoles(
+    AdminRole.CONTENT_EDITOR,
+    AdminRole.OPERATIONS,
+    AdminRole.SUPER_ADMIN,
+  ),
+];
 const id = z.object({ id: z.string().min(1) });
-const testimonial = z.object({ customerName: z.string().min(1), content: z.string().min(1), rating: z.number().int().min(1).max(5).optional().nullable(), subjectType: z.nativeEnum(TestimonialSubjectType), themeId: z.string().optional().nullable(), packageId: z.string().optional().nullable(), isFeatured: z.boolean().optional(), isActive: z.boolean().optional() });
-const faq = z.object({ question: z.string().min(1), answer: z.string().min(1), category: z.string().optional().nullable(), displayOrder: z.number().int().optional(), isActive: z.boolean().optional() });
-const popup = z.object({ title: z.string().min(1), bodyText: z.string().optional().nullable(), imageId: z.string().optional().nullable(), ctaLabel: z.string().optional().nullable(), ctaUrl: z.string().optional().nullable(), placements: z.array(z.nativeEnum(PopupPlacement)).min(1), triggerAfterSeconds: z.number().int().min(0).optional(), linkedEventId: z.string().optional().nullable(), isActive: z.boolean().optional(), startsAt: z.coerce.date().optional().nullable(), endsAt: z.coerce.date().optional().nullable() });
-const legal = z.object({ type: z.nativeEnum(LegalPageType), title: z.string().min(1), bodyHtml: z.string().min(1), publishedAt: z.coerce.date().optional().nullable() });
-const metadata = z.object({ pageKey: z.string().min(1), metaTitle: z.string().optional().nullable(), metaDescription: z.string().optional().nullable(), ogImageId: z.string().optional().nullable(), canonicalUrl: z.string().optional().nullable(), schemaJsonLd: z.unknown().optional().nullable() });
-const legalTypes: Record<string, LegalPageType> = { "refund-policy": "REFUND_POLICY", "terms-of-service": "TERMS_OF_SERVICE", "privacy-policy": "PRIVACY_POLICY", "cancellation-policy": "CANCELLATION_POLICY" };
+const testimonial = z.object({
+  customerName: z.string().min(1),
+  content: z.string().min(1),
+  rating: z.number().int().min(1).max(5).optional().nullable(),
+  subjectType: z.nativeEnum(TestimonialSubjectType),
+  themeId: z.string().optional().nullable(),
+  packageId: z.string().optional().nullable(),
+  isFeatured: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});
+const faq = z.object({
+  question: z.string().min(1),
+  answer: z.string().min(1),
+  category: z.string().optional().nullable(),
+  displayOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+});
+const popup = z.object({
+  title: z.string().min(1),
+  bodyText: z.string().optional().nullable(),
+  imageId: z.string().optional().nullable(),
+  ctaLabel: z.string().optional().nullable(),
+  ctaUrl: z.string().optional().nullable(),
+  placements: z.array(z.nativeEnum(PopupPlacement)).min(1),
+  triggerAfterSeconds: z.number().int().min(0).optional(),
+  linkedEventId: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+  startsAt: z.coerce.date().optional().nullable(),
+  endsAt: z.coerce.date().optional().nullable(),
+});
+const legal = z.object({
+  type: z.nativeEnum(LegalPageType),
+  title: z.string().min(1),
+  bodyHtml: z.string().min(1),
+  publishedAt: z.coerce.date().optional().nullable(),
+});
+const metadata = z.object({
+  pageKey: z.string().min(1),
+  metaTitle: z.string().optional().nullable(),
+  metaDescription: z.string().optional().nullable(),
+  ogImageId: z.string().optional().nullable(),
+  canonicalUrl: z.string().optional().nullable(),
+  schemaJsonLd: z.unknown().optional().nullable(),
+});
+const legalTypes: Record<string, LegalPageType> = {
+  "refund-policy": "REFUND_POLICY",
+  "terms-of-service": "TERMS_OF_SERVICE",
+  "privacy-policy": "PRIVACY_POLICY",
+  "cancellation-policy": "CANCELLATION_POLICY",
+};
 
 export const contentRouter = Router();
-contentRouter.get("/testimonials", validate(z.object({ themeId: z.string().optional(), packageId: z.string().optional() }), "query"), async (req, res, next) => { try { const themeId = queryString(req, "themeId"); const packageId = queryString(req, "packageId"); return ok(res, await prisma.testimonial.findMany({ where: { deletedAt: null, isActive: true, ...(themeId ? { themeId } : {}), ...(packageId ? { packageId } : {}) } })); } catch (error) { return next(error); } });
-contentRouter.get("/faqs", validate(z.object({ category: z.string().optional() }), "query"), async (req, res, next) => { try { const category = queryString(req, "category"); return ok(res, await prisma.fAQ.findMany({ where: { deletedAt: null, isActive: true, ...(category ? { category } : {}) }, orderBy: { displayOrder: "asc" } })); } catch (error) { return next(error); } });
-contentRouter.get("/popups/active", validate(z.object({ placement: z.nativeEnum(PopupPlacement).default(PopupPlacement.HOMEPAGE) }), "query"), async (req, res, next) => { try { const now = new Date(); const q = req.query as unknown as { placement: PopupPlacement }; return ok(res, await prisma.popup.findMany({ where: { deletedAt: null, isActive: true, placements: { has: q.placement }, AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: now } }] }, { OR: [{ endsAt: null }, { endsAt: { gte: now } }] }] } })); } catch (error) { return next(error); } });
-contentRouter.get("/legal/:type", async (req, res, next) => { try { const type = legalTypes[param(req, "type")]; if (!type) throw new NotFoundError("Legal page not found"); const item = await prisma.legalPage.findUnique({ where: { type } }); if (!item) throw new NotFoundError("Legal page not found"); return ok(res, item); } catch (error) { return next(error); } });
-contentRouter.get("/metadata/:pageKey", async (req, res, next) => { try { const item = await prisma.siteMetadata.findUnique({ where: { pageKey: param(req, "pageKey") } }); if (!item) throw new NotFoundError("Metadata not found"); return ok(res, item); } catch (error) { return next(error); } });
+contentRouter.get(
+  "/testimonials",
+  validate(
+    z.object({
+      themeId: z.string().optional(),
+      packageId: z.string().optional(),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const themeId = queryString(req, "themeId");
+      const packageId = queryString(req, "packageId");
+      return ok(
+        res,
+        await prisma.testimonial.findMany({
+          where: {
+            deletedAt: null,
+            isActive: true,
+            ...(themeId ? { themeId } : {}),
+            ...(packageId ? { packageId } : {}),
+          },
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+contentRouter.get(
+  "/faqs",
+  validate(z.object({ category: z.string().optional() }), "query"),
+  async (req, res, next) => {
+    try {
+      const category = queryString(req, "category");
+      return ok(
+        res,
+        await prisma.fAQ.findMany({
+          where: {
+            deletedAt: null,
+            isActive: true,
+            ...(category ? { category } : {}),
+          },
+          orderBy: { displayOrder: "asc" },
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+contentRouter.get(
+  "/popups/active",
+  validate(
+    z.object({
+      placement: z.nativeEnum(PopupPlacement).default(PopupPlacement.HOMEPAGE),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const now = new Date();
+      const q = req.query as unknown as { placement: PopupPlacement };
+      return ok(
+        res,
+        await prisma.popup.findMany({
+          where: {
+            deletedAt: null,
+            isActive: true,
+            placements: { has: q.placement },
+            AND: [
+              { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+              { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+            ],
+          },
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+contentRouter.get("/legal/:type", async (req, res, next) => {
+  try {
+    const type = legalTypes[param(req, "type")];
+    if (!type) throw new NotFoundError("Legal page not found");
+    const item = await prisma.legalPage.findUnique({ where: { type } });
+    if (!item) throw new NotFoundError("Legal page not found");
+    return ok(res, item);
+  } catch (error) {
+    return next(error);
+  }
+});
+contentRouter.get("/metadata/:pageKey", async (req, res, next) => {
+  try {
+    const item = await prisma.siteMetadata.findUnique({
+      where: { pageKey: param(req, "pageKey") },
+    });
+    if (!item) throw new NotFoundError("Metadata not found");
+    return ok(res, item);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 export const adminContentRouter = Router();
 adminContentRouter.use(...roles);
-adminContentRouter.post("/testimonials", validate(testimonial), async (req, res, next) => { try { return created(res, await prisma.testimonial.create({ data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.put("/testimonials/:id", validate(id, "params"), validate(testimonial.partial()), async (req, res, next) => { try { return ok(res, await prisma.testimonial.update({ where: { id: param(req, "id") }, data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.delete("/testimonials/:id", validate(id, "params"), async (req, res, next) => { try { const result = await prisma.testimonial.updateMany({ where: { id: param(req, "id"), deletedAt: null }, data: { deletedAt: new Date(), isActive: false } }); if (!result.count) throw new NotFoundError("Content not found"); return ok(res, { deleted: true }); } catch (error) { return next(error); } });
-adminContentRouter.post("/faqs", validate(faq), async (req, res, next) => { try { return created(res, await prisma.fAQ.create({ data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.put("/faqs/:id", validate(id, "params"), validate(faq.partial()), async (req, res, next) => { try { return ok(res, await prisma.fAQ.update({ where: { id: param(req, "id") }, data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.delete("/faqs/:id", validate(id, "params"), async (req, res, next) => { try { const result = await prisma.fAQ.updateMany({ where: { id: param(req, "id"), deletedAt: null }, data: { deletedAt: new Date(), isActive: false } }); if (!result.count) throw new NotFoundError("Content not found"); return ok(res, { deleted: true }); } catch (error) { return next(error); } });
-adminContentRouter.post("/popups", validate(popup), async (req, res, next) => { try { return created(res, await prisma.popup.create({ data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.put("/popups/:id", validate(id, "params"), validate(popup.partial()), async (req, res, next) => { try { return ok(res, await prisma.popup.update({ where: { id: param(req, "id") }, data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.delete("/popups/:id", validate(id, "params"), async (req, res, next) => { try { const result = await prisma.popup.updateMany({ where: { id: param(req, "id"), deletedAt: null }, data: { deletedAt: new Date(), isActive: false } }); if (!result.count) throw new NotFoundError("Content not found"); return ok(res, { deleted: true }); } catch (error) { return next(error); } });
-adminContentRouter.post("/legal", validate(legal), async (req, res, next) => { try { return created(res, await prisma.legalPage.upsert({ where: { type: req.body.type }, create: req.body, update: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.put("/legal/:type", validate(z.object({ type: z.nativeEnum(LegalPageType) }), "params"), validate(legal.omit({ type: true }).partial()), async (req, res, next) => { try { return ok(res, await prisma.legalPage.update({ where: { type: param(req, "type") as LegalPageType }, data: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.post("/metadata", validate(metadata), async (req, res, next) => { try { return created(res, await prisma.siteMetadata.upsert({ where: { pageKey: req.body.pageKey }, create: req.body, update: req.body })); } catch (error) { return next(error); } });
-adminContentRouter.put("/metadata/:pageKey", validate(z.object({ pageKey: z.string().min(1) }), "params"), validate(metadata.omit({ pageKey: true }).partial()), async (req, res, next) => { try { return ok(res, await prisma.siteMetadata.update({ where: { pageKey: param(req, "pageKey") }, data: req.body })); } catch (error) { return next(error); } });
+
+adminContentRouter.get("/testimonials", async (req, res, next) => {
+  try {
+    const { parsePagination, paginationMeta } = await import("../../lib/response");
+    const q = req.query as { page?: string; pageSize?: string; search?: string };
+    const { page, pageSize, skip, take } = parsePagination({
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+    });
+    const where = {
+      deletedAt: null as null,
+      ...(q.search
+        ? {
+            OR: [
+              { customerName: { contains: q.search, mode: "insensitive" as const } },
+              { content: { contains: q.search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.testimonial.findMany({ where, skip, take, orderBy: { createdAt: "desc" } }),
+      prisma.testimonial.count({ where }),
+    ]);
+    return ok(res, { items, total, page, pageSize }, { pagination: paginationMeta(page, pageSize, total) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminContentRouter.post(
+  "/testimonials",
+  validate(testimonial),
+  async (req, res, next) => {
+    try {
+      return created(res, await prisma.testimonial.create({ data: req.body }));
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.put(
+  "/testimonials/:id",
+  validate(id, "params"),
+  validate(testimonial.partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.testimonial.update({
+          where: { id: param(req, "id") },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.delete(
+  "/testimonials/:id",
+  validate(id, "params"),
+  async (req, res, next) => {
+    try {
+      const result = await prisma.testimonial.updateMany({
+        where: { id: param(req, "id"), deletedAt: null },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+      if (!result.count) throw new NotFoundError("Content not found");
+      return ok(res, { deleted: true });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.get(
+  "/faqs",
+  validate(
+    z.object({
+      page: z.coerce.number().optional(),
+      pageSize: z.coerce.number().optional(),
+      search: z.string().optional(),
+      category: z.string().optional(),
+      isActive: z.string().optional(),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const { adminListFaqs } = await import("../admin/admin-list.service");
+      return ok(res, await adminListFaqs(req.query as never));
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.post("/faqs", validate(faq), async (req, res, next) => {
+  try {
+    return created(res, await prisma.fAQ.create({ data: req.body }));
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.put(
+  "/faqs/:id",
+  validate(id, "params"),
+  validate(faq.partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.fAQ.update({
+          where: { id: param(req, "id") },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.patch(
+  "/faqs/:id",
+  validate(id, "params"),
+  validate(faq.partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.fAQ.update({
+          where: { id: param(req, "id") },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.delete(
+  "/faqs/:id",
+  validate(id, "params"),
+  async (req, res, next) => {
+    try {
+      const result = await prisma.fAQ.updateMany({
+        where: { id: param(req, "id"), deletedAt: null },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+      if (!result.count) throw new NotFoundError("Content not found");
+      return ok(res, { deleted: true });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.get("/popups", async (req, res, next) => {
+  try {
+    const { parsePagination, paginationMeta } = await import("../../lib/response");
+    const q = req.query as { page?: string; pageSize?: string; search?: string };
+    const { page, pageSize, skip, take } = parsePagination({
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+    });
+    const where = {
+      deletedAt: null as null,
+      ...(q.search ? { title: { contains: q.search, mode: "insensitive" as const } } : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.popup.findMany({ where, skip, take, orderBy: { title: "asc" } }),
+      prisma.popup.count({ where }),
+    ]);
+    return ok(res, { items, total, page, pageSize }, { pagination: paginationMeta(page, pageSize, total) });
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.post("/popups", validate(popup), async (req, res, next) => {
+  try {
+    return created(res, await prisma.popup.create({ data: req.body }));
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.put(
+  "/popups/:id",
+  validate(id, "params"),
+  validate(popup.partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.popup.update({
+          where: { id: param(req, "id") },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.delete(
+  "/popups/:id",
+  validate(id, "params"),
+  async (req, res, next) => {
+    try {
+      const result = await prisma.popup.updateMany({
+        where: { id: param(req, "id"), deletedAt: null },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+      if (!result.count) throw new NotFoundError("Content not found");
+      return ok(res, { deleted: true });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.get("/legal", async (_req, res, next) => {
+  try {
+    const items = await prisma.legalPage.findMany({ orderBy: { type: "asc" } });
+    return ok(res, { items, total: items.length, page: 1, pageSize: items.length || 4 });
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.get("/metadata", async (_req, res, next) => {
+  try {
+    const items = await prisma.siteMetadata.findMany({ orderBy: { pageKey: "asc" } });
+    return ok(res, { items, total: items.length, page: 1, pageSize: items.length || 20 });
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.post("/legal", validate(legal), async (req, res, next) => {
+  try {
+    return created(
+      res,
+      await prisma.legalPage.upsert({
+        where: { type: req.body.type },
+        create: req.body,
+        update: req.body,
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+adminContentRouter.put(
+  "/legal/:type",
+  validate(z.object({ type: z.nativeEnum(LegalPageType) }), "params"),
+  validate(legal.omit({ type: true }).partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.legalPage.update({
+          where: { type: param(req, "type") as LegalPageType },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.post(
+  "/metadata",
+  validate(metadata),
+  async (req, res, next) => {
+    try {
+      return created(
+        res,
+        await prisma.siteMetadata.upsert({
+          where: { pageKey: req.body.pageKey },
+          create: req.body,
+          update: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.put(
+  "/metadata/:pageKey",
+  validate(z.object({ pageKey: z.string().min(1) }), "params"),
+  validate(metadata.omit({ pageKey: true }).partial()),
+  async (req, res, next) => {
+    try {
+      return ok(
+        res,
+        await prisma.siteMetadata.update({
+          where: { pageKey: param(req, "pageKey") },
+          data: req.body,
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+);

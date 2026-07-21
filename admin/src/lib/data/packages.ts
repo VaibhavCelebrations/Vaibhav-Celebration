@@ -1,8 +1,8 @@
-import { adminFetch } from "@/lib/admin-api-client";
+import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { createMockCollection } from "@/lib/mock/store";
 import type { Package, PackageInput } from "@/types/cms";
 import { USE_MOCK_DATA } from "./config";
-import { qs, type ListResult, type Repository } from "./types";
+import { qs, type Repository } from "./types";
 
 const ENDPOINT = "/admin/packages";
 
@@ -86,7 +86,8 @@ const mockPackagesRepo = createMockCollection<Package, PackageInput>({
 export const packagesRepo: Repository<Package, PackageInput> = USE_MOCK_DATA
   ? mockPackagesRepo
   : {
-      list: (query) => adminFetch<ListResult<Package>>(`${ENDPOINT}${qs(query)}`),
+      list: (query) =>
+        adminFetchList<Package>(`${ENDPOINT}${qs(query)}`, { page: query.page, pageSize: query.pageSize }),
       get: (id) => adminFetch<Package>(`${ENDPOINT}/${id}`),
       create: (body) => adminFetch<Package>(ENDPOINT, { method: "POST", body }),
       update: (id, body) => adminFetch<Package>(`${ENDPOINT}/${id}`, { method: "PATCH", body }),

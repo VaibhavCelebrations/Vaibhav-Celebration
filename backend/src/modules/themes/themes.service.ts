@@ -1,6 +1,10 @@
 import { Prisma, SampleAssetType } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import {
+  removeThemeGalleryTag,
+  syncThemeGalleryTag,
+} from "../gallery/gallery.service";
 
 const publicThemeInclude = {
   heroImage: true,
@@ -32,18 +36,34 @@ export async function getThemeBySlug(slug: string) {
 }
 
 export async function createTheme(data: Prisma.ThemeUncheckedCreateInput) {
-  return prisma.theme.create({ data });
+  const theme = await prisma.theme.create({ data });
+  if (typeof data.title === "string") {
+    await syncThemeGalleryTag(data.title);
+  }
+  return theme;
 }
 
 export async function updateTheme(id: string, data: Prisma.ThemeUncheckedUpdateInput) {
-  const theme = await prisma.theme.updateMany({ where: { id, deletedAt: null }, data });
-  if (!theme.count) throw new NotFoundError("Theme not found");
-  return prisma.theme.findUniqueOrThrow({ where: { id } });
+  const existing = await prisma.theme.findFirst({ where: { id, deletedAt: null } });
+  if (!existing) throw new NotFoundError("Theme not found");
+  await prisma.theme.updateMany({ where: { id, deletedAt: null }, data });
+  const theme = await prisma.theme.findUniqueOrThrow({ where: { id } });
+  if (typeof data.title === "string" && data.title !== existing.title) {
+    await syncThemeGalleryTag(theme.title, existing.title);
+  } else if (theme.isActive) {
+    await syncThemeGalleryTag(theme.title);
+  }
+  return theme;
 }
 
 export async function deleteTheme(id: string) {
-  const result = await prisma.theme.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date(), isActive: false } });
-  if (!result.count) throw new NotFoundError("Theme not found");
+  const existing = await prisma.theme.findFirst({ where: { id, deletedAt: null } });
+  if (!existing) throw new NotFoundError("Theme not found");
+  await prisma.theme.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+  await removeThemeGalleryTag(id, existing.title);
 }
 
 export async function addSampleAsset(themeId: string, data: { type: SampleAssetType; title: string; mediaId: string; description?: string; displayOrder?: number }) {

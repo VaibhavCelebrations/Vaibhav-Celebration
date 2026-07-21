@@ -1,12 +1,13 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { corsOrigins, env } from "./config/env";
 import { logger } from "./lib/logger";
 import { errorHandler } from "./middleware/error-handler";
+import { noStore } from "./middleware/no-store";
 import { getUploadDir } from "./integrations/media/storage";
 
 import { authRouter } from "./modules/auth/auth.routes";
@@ -55,7 +56,10 @@ export function createApp() {
   app.use(
     helmet({
       contentSecurityPolicy: env.NODE_ENV === "production" ? undefined : false,
-      crossOriginResourcePolicy: { policy: "cross-origin" },
+      // P4 — Changed from cross-origin (permissive) to same-site.
+      // Prevents cross-origin embedded resources (iframes, img) from reading
+      // admin API responses. Same-site is appropriate for a first-party admin SPA.
+      crossOriginResourcePolicy: { policy: "same-site" },
     }),
   );
 
@@ -97,12 +101,63 @@ export function createApp() {
     pinoHttp({
       logger,
       autoLogging: env.NODE_ENV !== "test",
+      // P1 — Redact credential-carrying headers at the HTTP logger level.
+      // These paths are in addition to the base logger's redact list and cover
+      // the pino-http-specific request/response object shape.
+      redact: {
+        paths: [
+          "req.headers.authorization",  // Bearer JWT access token
+          "req.headers.cookie",          // Refresh-token cookie
+          "res.headers['set-cookie']",   // Outbound Set-Cookie on login/refresh
+          // P6 — Body field redaction (guards against future body serializers)
+          "req.body.password",
+          "req.body.newPassword",
+          "req.body.currentPassword",
+          "req.body.otp",
+          "req.body.token",
+          "req.body.refreshToken",
+        ],
+        censor: "[REDACTED]",
+      },
     }),
   );
 
   // Local media uploads (dev / fallback when R2 unset)
   app.use("/uploads", express.static(getUploadDir()));
 
+  // ─── Rate Limiters ────────────────────────────────────────────────────────
+  //
+  // Keying strategy:
+  //   • Public limiters  → keyed by IP (default)
+  //   • Admin limiters   → keyed by JWT `sub` (admin user ID) so that
+  //     multiple admins on the same office network each get their own quota.
+  //     Falls back to IP when no valid Bearer token is present (the auth
+  //     middleware will reject it anyway).
+
+  /** Extracts admin user-id from Bearer JWT — falls back to IP. */
+  function adminKeyGenerator(req: express.Request): string {
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer ")) {
+      try {
+        const token = header.slice(7);
+        // Decode without full verification — we only need the sub for bucketing.
+        // Full cryptographic verification still happens in requireAdmin middleware.
+        const parts = token.split(".");
+        const b64Payload = parts[1];
+        if (parts.length === 3 && b64Payload) {
+          const payload = JSON.parse(Buffer.from(b64Payload, "base64url").toString("utf8")) as {
+            sub?: string;
+          };
+          if (payload.sub) return `admin:${payload.sub}`;
+        }
+      } catch {
+        // fall through to IP
+      }
+    }
+    return `ip:${req.ip ?? "unknown"}`;
+  }
+
+  /** Public CMS endpoints — keyed by IP. */
   const publicLimiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_PUBLIC,
@@ -110,10 +165,11 @@ export function createApp() {
     legacyHeaders: false,
     message: {
       success: false,
-      error: { code: "RATE_LIMITED", message: "Too many requests" },
+      error: { code: "RATE_LIMITED", message: "Too many requests. Please wait and try again." },
     },
   });
 
+  /** Auth / login endpoints — keyed by IP, tight. */
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -121,10 +177,11 @@ export function createApp() {
     legacyHeaders: false,
     message: {
       success: false,
-      error: { code: "RATE_LIMITED", message: "Too many auth attempts" },
+      error: { code: "RATE_LIMITED", message: "Too many authentication attempts. Please wait 15 minutes." },
     },
   });
 
+  /** High-sensitivity write endpoints (bookings, consultations, leads) — keyed by IP. */
   const strictLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
     max: 10,
@@ -132,10 +189,11 @@ export function createApp() {
     legacyHeaders: false,
     message: {
       success: false,
-      error: { code: "RATE_LIMITED", message: "Too many requests" },
+      error: { code: "RATE_LIMITED", message: "Too many requests. Please wait and try again." },
     },
   });
 
+  /** Guest OTP — keyed by IP, very tight. */
   const otpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
@@ -143,55 +201,107 @@ export function createApp() {
     legacyHeaders: false,
     message: {
       success: false,
-      error: { code: "RATE_LIMITED", message: "Too many OTP attempts" },
+      error: { code: "RATE_LIMITED", message: "Too many OTP attempts. Please wait 15 minutes." },
     },
   });
 
-  app.use(publicLimiter);
+  /**
+   * Admin panel — keyed by JWT sub (admin user ID).
+   * 1 000 requests per 10-minute window per admin user.
+   * Multiple admins sharing one office IP each get their own full quota.
+   */
+  const adminLimiter = rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    max: env.RATE_LIMIT_MAX_ADMIN,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: adminKeyGenerator,
+    validate: { ip: false },
+    message: {
+      success: false,
+      error: {
+        code: "RATE_LIMITED",
+        message:
+          "Admin request limit reached. Your quota resets automatically — please wait a moment and retry.",
+      },
+    },
+  });
+
+  /**
+   * Media upload endpoints (presign + multipart) — keyed by JWT sub.
+   * Prevents accidental bulk-upload loops from exhausting R2 or bandwidth.
+   * 100 upload operations per 10-minute window per admin user.
+   */
+  const mediaUploadLimiter = rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    max: env.RATE_LIMIT_MAX_UPLOAD,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: adminKeyGenerator,
+    validate: { ip: false },
+    message: {
+      success: false,
+      error: {
+        code: "RATE_LIMITED",
+        message: "Upload limit reached. You can upload up to 100 files per 10 minutes. Please wait and retry.",
+      },
+    },
+  });
+
+  // Health check — no rate limiting (used by uptime monitors)
   app.use(healthRouter);
 
   const api = express.Router();
 
-  // Auth & guest
+  // Auth & guest — IP-keyed, tight
   api.use("/auth", authLimiter, authRouter);
   api.use("/guest", otpLimiter, guestRouter);
 
-  // Public CMS
-  api.use("/themes", themesRouter);
-  api.use("/packages", packagesRouter);
-  api.use("/pricing", pricingRouter);
-  api.use("/gallery", galleryRouter);
-  api.use(contentRouter);
-  api.use("/blog", blogRouter);
-  api.use("/events", eventsRouter);
+  // Public CMS — IP-keyed, 100/10min
+  api.use("/themes", publicLimiter, themesRouter);
+  api.use("/packages", publicLimiter, packagesRouter);
+  api.use("/pricing", publicLimiter, pricingRouter);
+  api.use("/gallery", publicLimiter, galleryRouter);
+  api.use(contentRouter); // no extra limiter — served via static-ish reads
+  api.use("/blog", publicLimiter, blogRouter);
+  api.use("/events", publicLimiter, eventsRouter);
 
-  // Booking journey
-  api.use("/availability", availabilityRouter);
+  // Booking journey — mix of public & strict
+  api.use("/availability", publicLimiter, availabilityRouter);
   api.use("/bookings", strictLimiter, bookingsRouter);
   api.use("/checkout", checkoutRouter);
   api.use("/payments", paymentsRouter);
-  api.use("/invoices", invoicesRouter);
+  api.use("/invoices", publicLimiter, invoicesRouter);
   api.use("/consultations", strictLimiter, consultationsRouter);
   api.use("/leads", strictLimiter, leadsPublicRouter);
-  api.use("/chatbot", chatbotRouter);
+  api.use("/chatbot", publicLimiter, chatbotRouter);
 
-  // Admin
-  api.use("/admin/themes", adminThemesRouter);
-  api.use("/admin/packages", adminPackagesRouter);
-  api.use("/admin/gallery", adminGalleryRouter);
-  api.use("/admin", adminContentRouter);
-  api.use("/admin/blog", adminBlogRouter);
-  api.use("/admin/events", adminEventsRouter);
-  api.use("/admin/media", mediaRouter);
-  api.use("/admin/bookings", adminBookingsRouter);
-  api.use("/admin/invoices", adminInvoicesRouter);
-  api.use("/admin/consultations", adminConsultationsRouter);
-  api.use("/admin/leads", adminLeadsRouter);
-  api.use("/admin/customers", adminCustomersRouter);
-  api.use("/admin/chatbot", adminChatbotRouter);
-  api.use("/admin/capacity-rules", adminCapacityRouter);
-  api.use("/admin/settings", adminSettingsRouter);
-  api.use("/admin/audit-log", adminAuditRouter);
+  // ─── Admin Panel ──────────────────────────────────────────────────────────
+  // All admin routes: JWT-keyed rate limit + Cache-Control: no-store (P3).
+  // noStore prevents browsers / CDN from caching PII or admin data.
+  api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
+  api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
+  api.use("/admin/gallery", adminLimiter, noStore, adminGalleryRouter);
+  api.use("/admin", adminLimiter, noStore, adminContentRouter);
+  api.use("/admin/blog", adminLimiter, noStore, adminBlogRouter);
+  api.use("/admin/events", adminLimiter, noStore, adminEventsRouter);
+  // Media router: general browsing uses adminLimiter; upload paths get an
+  // additional tighter mediaUploadLimiter (100/10min) on top.
+  const mediaAdminRouter = express.Router();
+  mediaAdminRouter.use(adminLimiter);
+  mediaAdminRouter.use(noStore);
+  mediaAdminRouter.use(["/presign", "/upload", "/upload-binary", "/complete"], mediaUploadLimiter);
+  mediaAdminRouter.use(mediaRouter);
+  api.use("/admin/media", mediaAdminRouter);
+  api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
+  api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
+  api.use("/admin/consultations", adminLimiter, noStore, adminConsultationsRouter);
+  api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);
+  api.use("/admin/customers", adminLimiter, noStore, adminCustomersRouter);
+  api.use("/admin/chatbot", adminLimiter, noStore, adminChatbotRouter);
+  api.use("/admin/capacity-rules", adminLimiter, noStore, adminCapacityRouter);
+  api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
+  api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
 
   app.use(env.API_PREFIX, api);
 

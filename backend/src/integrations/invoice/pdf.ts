@@ -57,7 +57,9 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
     buffer,
     originalName: `${input.invoiceNumber}.pdf`,
     mimeType: "application/pdf",
-    folder: "invoices",
+    kind: "invoices",
+    scope: String(new Date().getFullYear()),
+    role: input.invoiceNumber.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
   });
 
   return { url: stored.url, cdnKey: stored.cdnKey };

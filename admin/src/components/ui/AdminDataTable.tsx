@@ -274,6 +274,7 @@ export function AdminDataTable<T>({
   empty,
   density = "comfortable",
 }: AdminDataTableProps<T>) {
+  const safeRows = Array.isArray(rows) ? rows : [];
   const [openMenuRow, setOpenMenuRow] = useState<string | null>(null);
   const menuRootRef = useRef<HTMLDivElement>(null);
 
@@ -380,7 +381,7 @@ export function AdminDataTable<T>({
                       {rowActions && rowActions.length > 0 && <td style={{ padding: cellPad }} />}
                     </tr>
                   ))
-                : rows.map((row, i) => {
+                : safeRows.map((row, i) => {
                     const key = rowKey(row);
                     const accent = rowAccent?.(row);
                     const visibleActions = (rowActions ?? []).filter((a) => !a.hidden?.(row));

@@ -20,6 +20,13 @@ import {
   Receipt,
   MessagesSquare,
   Settings as SettingsIcon,
+  FileText,
+  Images,
+  SearchCheck,
+  SlidersHorizontal,
+  Gauge,
+  ScrollText,
+  ShieldCheck,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -27,7 +34,7 @@ import type { AdminUser } from "@/lib/admin-api-client";
 import { useAdminSession } from "@/components/AdminSessionContext";
 import { logout } from "@/lib/data/session";
 
-type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings"; icon: LucideIcon };
+type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings"; icon: LucideIcon; roles?: AdminUser["role"][] };
 
 const NAV: NavItem[] = [
   { section: "CMS", href: "/dashboard/cms/themes", label: "Themes", icon: Palette },
@@ -38,6 +45,9 @@ const NAV: NavItem[] = [
   { section: "CMS", href: "/dashboard/cms/faqs", label: "FAQs", icon: HelpCircle },
   { section: "CMS", href: "/dashboard/cms/testimonials", label: "Testimonials", icon: Star },
   { section: "CMS", href: "/dashboard/cms/popups", label: "Popups", icon: Megaphone },
+  { section: "CMS", href: "/dashboard/cms/legal", label: "Legal Pages", icon: FileText },
+  { section: "CMS", href: "/dashboard/cms/media", label: "Media Library", icon: Images },
+  { section: "CMS", href: "/dashboard/cms/metadata", label: "Site Metadata (SEO)", icon: SearchCheck },
   { section: "CRM", href: "/dashboard/crm/customers", label: "Customers", icon: Users },
   { section: "CRM", href: "/dashboard/crm/leads", label: "Leads", icon: UserPlus },
   { section: "CRM", href: "/dashboard/crm/bookings", label: "Bookings", icon: CalendarCheck },
@@ -45,12 +55,15 @@ const NAV: NavItem[] = [
   { section: "CRM", href: "/dashboard/crm/invoices", label: "Invoices", icon: Receipt },
   { section: "CRM", href: "/dashboard/crm/consultations", label: "Consultations", icon: MessagesSquare },
   { section: "Settings", href: "/dashboard/settings", label: "Operational Settings", icon: SettingsIcon },
+  { section: "Settings", href: "/dashboard/settings/capacity", label: "Capacity Rules", icon: Gauge, roles: ["SUPER_ADMIN", "OPERATIONS"] },
+  { section: "Settings", href: "/dashboard/settings/audit", label: "Audit Log", icon: ScrollText, roles: ["SUPER_ADMIN"] },
+  { section: "Settings", href: "/dashboard/settings/users", label: "Admin Users", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
 ];
 
 function canSeeSection(role: AdminUser["role"], section: NavItem["section"]) {
   if (role === "SUPER_ADMIN") return true;
   if (role === "CONTENT_EDITOR") return section === "CMS";
-  if (role === "OPERATIONS") return section === "CRM";
+  if (role === "OPERATIONS") return section === "CRM" || section === "Settings";
   return false;
 }
 
@@ -102,7 +115,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
           {sections.map((section) => {
             if (!canSeeSection(admin.role, section)) return null;
-            const items = NAV.filter((n) => n.section === section);
+            const items = NAV.filter((n) => n.section === section && (!n.roles || n.roles.includes(admin.role)));
             return (
               <div key={section} className="mb-5">
                 <p className="mb-2 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-muted)">

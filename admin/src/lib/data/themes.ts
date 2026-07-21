@@ -1,8 +1,8 @@
-import { adminFetch } from "@/lib/admin-api-client";
+import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { createMockCollection, genId } from "@/lib/mock/store";
 import type { Theme, ThemeInput } from "@/types/cms";
 import { USE_MOCK_DATA } from "./config";
-import { qs, type ListResult, type Repository } from "./types";
+import { qs, type Repository } from "./types";
 
 const ENDPOINT = "/admin/themes";
 
@@ -121,7 +121,8 @@ const mockThemesRepo = createMockCollection<Theme, ThemeInput>({
 export const themesRepo: Repository<Theme, ThemeInput> = USE_MOCK_DATA
   ? mockThemesRepo
   : {
-      list: (query) => adminFetch<ListResult<Theme>>(`${ENDPOINT}${qs(query)}`),
+      list: (query) =>
+        adminFetchList<Theme>(`${ENDPOINT}${qs(query)}`, { page: query.page, pageSize: query.pageSize }),
       get: (id) => adminFetch<Theme>(`${ENDPOINT}/${id}`),
       create: (body) => adminFetch<Theme>(ENDPOINT, { method: "POST", body }),
       update: (id, body) => adminFetch<Theme>(`${ENDPOINT}/${id}`, { method: "PATCH", body }),

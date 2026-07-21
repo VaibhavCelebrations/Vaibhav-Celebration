@@ -35,11 +35,24 @@ export function useRepoList<T>(fetcher: (query: ListQuery) => Promise<ListResult
 
     fetcher(query)
       .then((res) => {
-        if (active) setState({ items: res.items, total: res.total, loading: false, error: null });
+        if (active) {
+          const items = Array.isArray(res?.items) ? res.items : [];
+          setState({
+            items,
+            total: typeof res?.total === "number" ? res.total : items.length,
+            loading: false,
+            error: null,
+          });
+        }
       })
       .catch((err) => {
         if (active) {
-          setState((s) => ({ ...s, loading: false, error: err instanceof AdminApiError ? err.message : "Failed to load." }));
+          setState({
+            items: [],
+            total: 0,
+            loading: false,
+            error: err instanceof AdminApiError ? err.message : "Failed to load.",
+          });
         }
       });
 

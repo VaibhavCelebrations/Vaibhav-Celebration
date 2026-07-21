@@ -14,6 +14,7 @@ import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
+import { MediaPicker } from "@/components/ui/MediaPicker";
 import { NumberInput, SlugInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
 import type { Theme, ThemeInput } from "@/types/cms";
 
@@ -75,7 +76,7 @@ export function ThemesScreen() {
       displayOrder: row.displayOrder,
       seoTitle: row.seoTitle,
       seoDescription: row.seoDescription,
-      heroImageId: row.heroImage?.url ?? null,
+      heroImageId: row.heroImage?.id ?? null,
     });
     setFormError(null);
     setDirty(false);
@@ -203,8 +204,12 @@ export function ThemesScreen() {
         <FormField label="Audience note" htmlFor="theme-audience" hint="e.g. recommended ages or party size.">
           <TextInput id="theme-audience" value={form.audienceNote ?? ""} onChange={(e) => patchForm({ audienceNote: e.target.value || null })} />
         </FormField>
-        <FormField label="Hero image URL" htmlFor="theme-hero" hint="Temporary URL field until the media library ships.">
-          <TextInput id="theme-hero" value={form.heroImageId ?? ""} onChange={(e) => patchForm({ heroImageId: e.target.value || null })} />
+        <FormField label="Hero image" htmlFor="theme-hero" hint="Select an existing asset or upload one to the media library.">
+          <MediaPicker
+            kind="themes"
+            value={form.heroImageId ? (editing?.heroImage?.id === form.heroImageId ? editing.heroImage : { id: form.heroImageId, url: form.heroImageId }) : null}
+            onChange={(media) => patchForm({ heroImageId: media?.id ?? null })}
+          />
         </FormField>
         <FormField label="Display order" htmlFor="theme-order">
           <NumberInput value={form.displayOrder} onChange={(n) => patchForm({ displayOrder: n })} />
