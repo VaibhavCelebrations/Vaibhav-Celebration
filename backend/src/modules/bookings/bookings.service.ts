@@ -252,6 +252,7 @@ export async function adminUpdateBookingStatus(id: string, status: BookingStatus
 }
 
 export async function listAdminBookings(filters: {
+  search?: string;
   status?: BookingStatus;
   paymentStatus?: PaymentStatus;
   themeId?: string;
@@ -270,6 +271,16 @@ export async function listAdminBookings(filters: {
     where.eventDate = {};
     if (filters.from) where.eventDate.gte = toDateOnly(filters.from);
     if (filters.to) where.eventDate.lte = toDateOnly(filters.to);
+  }
+  if (filters.search) {
+    where.OR = [
+      { bookingCode: { contains: filters.search, mode: "insensitive" } },
+      { guestEmail: { contains: filters.search, mode: "insensitive" } },
+      { guestPhone: { contains: filters.search } },
+      { customer: { fullName: { contains: filters.search, mode: "insensitive" } } },
+      { customer: { email: { contains: filters.search, mode: "insensitive" } } },
+      { customer: { phone: { contains: filters.search } } },
+    ];
   }
 
   const [total, items] = await Promise.all([

@@ -41,14 +41,17 @@ adminConsultationsRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, Ad
 adminConsultationsRouter.get(
   "/",
   validate(
-    paginationQuerySchema.extend({ status: z.nativeEnum(ConsultationStatus).optional() }),
+    paginationQuerySchema.extend({
+      search: z.string().optional(),
+      status: z.nativeEnum(ConsultationStatus).optional(),
+    }),
     "query",
   ),
   async (req, res, next) => {
     try {
-      const q = req.query as unknown as { page?: number; pageSize?: number; status?: ConsultationStatus };
+      const q = req.query as unknown as { search?: string; page?: number; pageSize?: number; status?: ConsultationStatus };
       const { page, pageSize } = parsePagination(q);
-      const { total, items } = await listConsultations({ status: q.status, page, pageSize });
+      const { total, items } = await listConsultations({ search: q.search, status: q.status, page, pageSize });
       return ok(res, items, { pagination: paginationMeta(page, pageSize, total) });
     } catch (err) {
       return next(err);

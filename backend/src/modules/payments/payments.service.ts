@@ -232,22 +232,27 @@ export async function deliverInvoice(invoiceId: string) {
 }
 
 export async function listInvoices(filters: {
+  search?: string;
   from?: string;
   to?: string;
   customerId?: string;
   page: number;
   pageSize: number;
 }) {
-  const where: {
-    deletedAt: null;
-    customerId?: string;
-    issuedAt?: { gte?: Date; lte?: Date };
-  } = { deletedAt: null };
+  const where: any = { deletedAt: null };
   if (filters.customerId) where.customerId = filters.customerId;
   if (filters.from || filters.to) {
     where.issuedAt = {};
     if (filters.from) where.issuedAt.gte = new Date(filters.from);
     if (filters.to) where.issuedAt.lte = new Date(filters.to);
+  }
+  if (filters.search) {
+    where.OR = [
+      { invoiceNumber: { contains: filters.search, mode: "insensitive" } },
+      { customer: { fullName: { contains: filters.search, mode: "insensitive" } } },
+      { customer: { email: { contains: filters.search, mode: "insensitive" } } },
+      { customer: { phone: { contains: filters.search } } },
+    ];
   }
 
   const [total, items] = await Promise.all([

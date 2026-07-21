@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User, MapPin } from "lucide-react";
@@ -225,9 +225,9 @@ export default function CalendarPage() {
   }, [cursor, view]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 h-[calc(100vh-3rem)]">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col shrink-0 gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-(--color-mocha)">CRM</p>
           <h1 className="font-serif text-3xl font-semibold tracking-tight text-(--color-charcoal)">
@@ -240,7 +240,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-white p-3 shadow-sm">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-(--color-border) bg-white p-3 shadow-sm">
         {/* Nav controls */}
         <div className="flex items-center gap-2">
           <button
@@ -294,7 +294,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-(--color-text-muted)">
+      <div className="flex shrink-0 flex-wrap items-center gap-4 text-xs font-medium text-(--color-text-muted)">
         {Object.entries(STATUS_STYLE).map(([status, style]) => (
           <span key={status} className="flex items-center gap-1.5">
             <span
@@ -309,20 +309,23 @@ export default function CalendarPage() {
 
       {/* Loading overlay */}
       {loading && (
-        <div className="flex items-center gap-2 rounded-lg border border-(--color-border) bg-white px-4 py-3 text-sm text-(--color-text-muted)">
+        <div className="flex shrink-0 items-center gap-2 rounded-lg border border-(--color-border) bg-white px-4 py-3 text-sm text-(--color-text-muted)">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--color-mocha) border-t-transparent" />
           Loading bookings…
         </div>
       )}
 
-      {/* Month View */}
-      {view === "month" && <MonthView cursor={cursor} today={today} bookingsByDate={bookingsByDate} onDateClick={jumpToDate} selectedDate={selectedDate} />}
+      {/* Views Container */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* Month View */}
+        {view === "month" && <MonthView cursor={cursor} today={today} bookingsByDate={bookingsByDate} onDateClick={jumpToDate} selectedDate={selectedDate} />}
 
-      {/* Week View */}
-      {view === "week" && <WeekView cursor={cursor} today={today} bookingsByDate={bookingsByDate} onDateClick={(d) => { setCursor(d); setView("day"); }} />}
+        {/* Week View */}
+        {view === "week" && <WeekView cursor={cursor} today={today} bookingsByDate={bookingsByDate} onDateClick={(d) => { setCursor(d); setView("day"); }} />}
 
-      {/* Day View */}
-      {view === "day" && <DayView cursor={cursor} today={today} bookingsByDate={bookingsByDate} />}
+        {/* Day View */}
+        {view === "day" && <DayView cursor={cursor} today={today} bookingsByDate={bookingsByDate} />}
+      </div>
     </div>
   );
 }
@@ -344,11 +347,12 @@ function MonthView({
     () => getMonthGrid(cursor.getFullYear(), cursor.getMonth()),
     [cursor],
   );
+  const totalRows = Math.ceil(cells.length / 7);
 
   return (
-    <div className="rounded-xl border border-(--color-border) bg-white shadow-sm overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-(--color-border) bg-white shadow-sm overflow-hidden">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 border-b border-(--color-border) bg-(--color-surface)">
+      <div className="grid grid-cols-7 border-b border-(--color-border) bg-(--color-surface) shrink-0">
         {WEEKDAYS_SHORT.map((day) => (
           <div
             key={day}
@@ -360,27 +364,26 @@ function MonthView({
       </div>
 
       {/* Day cells */}
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-7 flex-1 min-h-0" style={{ gridTemplateRows: `repeat(${totalRows}, minmax(0, 1fr))` }}>
         {cells.map((cell, i) => {
           const key = toDateKey(cell.date);
           const events = bookingsByDate.get(key) ?? [];
           const isToday = isSameDay(cell.date, today);
           const isSelected = selectedDate ? isSameDay(cell.date, selectedDate) : false;
           const row = Math.floor(i / 7);
-          const totalRows = Math.ceil(cells.length / 7);
 
           return (
             <button
               key={i}
               type="button"
               onClick={() => onDateClick(cell.date)}
-              className={`min-h-28 border-r border-b border-(--color-border) p-2 text-left transition-colors hover:bg-(--color-surface)/60 cursor-pointer ${
+              className={`flex flex-col min-h-0 border-r border-b border-(--color-border) p-2 text-left transition-colors hover:bg-(--color-surface)/60 cursor-pointer ${
                 !cell.isCurrentMonth ? "bg-(--color-surface)/30" : "bg-white"
               } ${i % 7 === 6 ? "border-r-0" : ""} ${row === totalRows - 1 ? "border-b-0" : ""} ${
                 isSelected ? "ring-2 ring-inset ring-(--color-mocha)/40" : ""
               }`}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex shrink-0 items-start justify-between">
                 <span
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium transition-colors ${
                     isToday
@@ -399,15 +402,10 @@ function MonthView({
                 )}
               </div>
 
-              <div className="mt-1 space-y-1">
-                {events.slice(0, 3).map((b) => (
+              <div className="mt-1 flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                {events.map((b) => (
                   <EventCard key={b.id} booking={b} compact />
                 ))}
-                {events.length > 3 && (
-                  <p className="text-[10px] font-medium text-(--color-mocha)">
-                    +{events.length - 3} more
-                  </p>
-                )}
               </div>
             </button>
           );

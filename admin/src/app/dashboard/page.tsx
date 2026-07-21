@@ -47,26 +47,28 @@ const STATUS_STYLE: Record<string, { label: string; className: string }> = {
   cancelled: { label: "Cancelled", className: "badge badge-error" },
 };
 
+import { CalendarCheck, Palette, ImagePlus, PartyPopper } from "lucide-react";
+
 const QUICK_ACTIONS = [
   {
     label: "New Booking",
     href: "/dashboard/crm/bookings",
-    d: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+    icon: CalendarCheck,
   },
   {
     label: "Add Theme",
     href: "/dashboard/cms/themes?create=1",
-    d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+    icon: Palette,
   },
   {
     label: "Upload Gallery",
     href: "/dashboard/cms/gallery",
-    d: "M15 8h.01M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm7 12-3.5-4.5 2.5-3L11 13l3-4 4 5H6",
+    icon: ImagePlus,
   },
   {
     label: "New Event",
     href: "/dashboard/cms/events",
-    d: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2",
+    icon: PartyPopper,
   },
 ];
 
@@ -444,29 +446,32 @@ export default function DashboardPage() {
               Quick Actions
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.625rem" }}>
-              {QUICK_ACTIONS.map((a) => (
-                <Link
-                  key={a.href}
-                  href={a.href}
-                  className="btn btn-ghost"
-                  style={{
-                    flexDirection: "column",
-                    gap: "0.5rem",
-                    padding: "0.875rem 0.5rem",
-                    fontSize: "0.75rem",
-                    height: "auto",
-                    minHeight: 72,
-                    borderRadius: "var(--radius-md)",
-                    textDecoration: "none",
-                    color: "var(--color-charcoal-soft)",
-                  }}
-                >
-                  <span style={{ color: "var(--color-mocha)" }}>
-                    <Icon d={a.d} size={22} />
-                  </span>
-                  {a.label}
-                </Link>
-              ))}
+              {QUICK_ACTIONS.map((a) => {
+                const ActionIcon = a.icon;
+                return (
+                  <Link
+                    key={a.href}
+                    href={a.href}
+                    className="btn btn-ghost"
+                    style={{
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                      padding: "0.875rem 0.5rem",
+                      fontSize: "0.75rem",
+                      height: "auto",
+                      minHeight: 72,
+                      borderRadius: "var(--radius-md)",
+                      textDecoration: "none",
+                      color: "var(--color-charcoal-soft)",
+                    }}
+                  >
+                    <span style={{ color: "var(--color-mocha)" }}>
+                      <ActionIcon size={22} strokeWidth={1.75} />
+                    </span>
+                    {a.label}
+                  </Link>
+                );
+              })}
             </div>
           </section>
 

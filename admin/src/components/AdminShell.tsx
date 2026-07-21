@@ -37,30 +37,144 @@ import type { AdminUser } from "@/lib/admin-api-client";
 import { useAdminSession } from "@/components/AdminSessionContext";
 import { logout } from "@/lib/data/session";
 
-type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings"; icon: LucideIcon; roles?: AdminUser["role"][] };
+type NavItem = {
+  href: string;
+  label: string;
+  section: "CMS" | "CRM" | "Settings";
+  icon: LucideIcon;
+  roles?: AdminUser["role"][];
+};
 
 const NAV: NavItem[] = [
-  { section: "CMS", href: "/dashboard/cms/themes", label: "Themes", icon: Palette },
-  { section: "CMS", href: "/dashboard/cms/packages", label: "Packages", icon: Package },
-  { section: "CMS", href: "/dashboard/cms/gallery", label: "Gallery", icon: ImageIcon },
-  { section: "CMS", href: "/dashboard/cms/events", label: "Events", icon: PartyPopper },
-  { section: "CMS", href: "/dashboard/cms/blog", label: "Blog", icon: Newspaper },
-  { section: "CMS", href: "/dashboard/cms/faqs", label: "FAQs", icon: HelpCircle },
-  { section: "CMS", href: "/dashboard/cms/testimonials", label: "Testimonials", icon: Star },
-  { section: "CMS", href: "/dashboard/cms/popups", label: "Popups", icon: Megaphone },
-  { section: "CMS", href: "/dashboard/cms/legal", label: "Legal Pages", icon: FileText },
-  { section: "CMS", href: "/dashboard/cms/media", label: "Media Library", icon: Images },
-  { section: "CMS", href: "/dashboard/cms/metadata", label: "Site Metadata (SEO)", icon: SearchCheck },
-  { section: "CRM", href: "/dashboard/crm/customers", label: "Customers", icon: Users },
-  { section: "CRM", href: "/dashboard/crm/leads", label: "Leads", icon: UserPlus },
-  { section: "CRM", href: "/dashboard/crm/bookings", label: "Bookings", icon: CalendarCheck },
-  { section: "CRM", href: "/dashboard/crm/calendar", label: "Calendar", icon: CalendarRange },
-  { section: "CRM", href: "/dashboard/crm/invoices", label: "Invoices", icon: Receipt },
-  { section: "CRM", href: "/dashboard/crm/consultations", label: "Consultations", icon: MessagesSquare },
-  { section: "Settings", href: "/dashboard/settings", label: "Operational Settings", icon: SettingsIcon },
-  { section: "Settings", href: "/dashboard/settings/capacity", label: "Capacity Rules", icon: Gauge, roles: ["SUPER_ADMIN", "OPERATIONS"] },
-  { section: "Settings", href: "/dashboard/settings/audit", label: "Audit Log", icon: ScrollText, roles: ["SUPER_ADMIN"] },
-  { section: "Settings", href: "/dashboard/settings/users", label: "Admin Users", icon: ShieldCheck, roles: ["SUPER_ADMIN"] },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/themes",
+    label: "Themes",
+    icon: Palette,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/packages",
+    label: "Packages",
+    icon: Package,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/gallery",
+    label: "Gallery",
+    icon: ImageIcon,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/events",
+    label: "Events",
+    icon: PartyPopper,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/blog",
+    label: "Blog",
+    icon: Newspaper,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/faqs",
+    label: "FAQs",
+    icon: HelpCircle,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/testimonials",
+    label: "Testimonials",
+    icon: Star,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/popups",
+    label: "Popups",
+    icon: Megaphone,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/legal",
+    label: "Legal Pages",
+    icon: FileText,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/media",
+    label: "Media Library",
+    icon: Images,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/metadata",
+    label: "Site Metadata (SEO)",
+    icon: SearchCheck,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/customers",
+    label: "Customers",
+    icon: Users,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/leads",
+    label: "Leads",
+    icon: UserPlus,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/bookings",
+    label: "Bookings",
+    icon: CalendarCheck,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/calendar",
+    label: "Calendar",
+    icon: CalendarRange,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/invoices",
+    label: "Invoices",
+    icon: Receipt,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/consultations",
+    label: "Consultations",
+    icon: MessagesSquare,
+  },
+  {
+    section: "Settings",
+    href: "/dashboard/settings",
+    label: "Operational Settings",
+    icon: SettingsIcon,
+  },
+  {
+    section: "Settings",
+    href: "/dashboard/settings/capacity",
+    label: "Capacity Rules",
+    icon: Gauge,
+    roles: ["SUPER_ADMIN", "OPERATIONS"],
+  },
+  {
+    section: "Settings",
+    href: "/dashboard/settings/audit",
+    label: "Audit Log",
+    icon: ScrollText,
+    roles: ["SUPER_ADMIN"],
+  },
+  {
+    section: "Settings",
+    href: "/dashboard/settings/users",
+    label: "Admin Users",
+    icon: ShieldCheck,
+    roles: ["SUPER_ADMIN"],
+  },
 ];
 
 function canSeeSection(role: AdminUser["role"], section: NavItem["section"]) {
@@ -86,7 +200,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         const matchingSection = NAV.find((item) =>
           item.href === "/dashboard/settings"
             ? pathname === item.href
-            : pathname.startsWith(item.href)
+            : pathname.startsWith(item.href),
         )?.section;
         if (matchingSection) {
           setOpenSection(matchingSection);
@@ -112,11 +226,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen">
       <aside
         className="sticky top-0 flex h-screen w-64 shrink-0 flex-col self-start bg-white"
-        style={{ borderRight: "1px solid var(--color-border-soft)", boxShadow: "2px 0 16px 0 rgba(33,33,33,0.04)" }}
+        style={{
+          borderRight: "1px solid var(--color-border-soft)",
+          boxShadow: "2px 0 16px 0 rgba(33,33,33,0.04)",
+        }}
       >
         <div
-          className="flex shrink-0 items-center justify-center px-4 py-6"
-          style={{ borderBottom: "1px solid var(--color-border-soft)" }}
+          className="flex h-24 shrink-0 items-center justify-center overflow-hidden border-b px-4"
+          style={{ borderColor: "var(--color-border-soft)" }}
         >
           <Link
             href="/dashboard"
@@ -124,18 +241,23 @@ export function AdminShell({ children }: { children: ReactNode }) {
             className="flex cursor-pointer items-center justify-center rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ outlineColor: "var(--color-mocha)" }}
           >
-            <Image
-              src="/logo-photoroom.png"
-              alt="Vaibhav Celebrations"
-              width={1264}
-              height={843}
-              priority
-              className="h-28 w-auto object-contain"
-            />
+            <div className="relative flex h-full w-48 items-center justify-center">
+              <Image
+                src="/logo-photoroom.png"
+                alt="Vaibhav Celebrations"
+                width={1264}
+                height={843}
+                priority
+                className="mt-7 h-38 w-auto object-contain scale-[1.35] drop-shadow-sm"
+              />
+            </div>
           </Link>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
+        <nav
+          className="flex-1 overflow-y-auto px-3 py-4"
+          aria-label="Main navigation"
+        >
           <div className="mb-2">
             <Link
               href="/dashboard"
@@ -146,7 +268,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 size={17}
                 strokeWidth={1.75}
                 className="nav-icon shrink-0"
-                style={{ color: pathname === "/dashboard" ? "var(--color-mocha)" : "var(--color-text-muted)" }}
+                style={{
+                  color:
+                    pathname === "/dashboard"
+                      ? "var(--color-mocha)"
+                      : "var(--color-text-muted)",
+                }}
                 aria-hidden="true"
               />
               <span className="flex-1">Dashboard</span>
@@ -155,7 +282,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
           {sections.map((section) => {
             if (!canSeeSection(admin.role, section)) return null;
-            const items = NAV.filter((n) => n.section === section && (!n.roles || n.roles.includes(admin.role)));
+            const items = NAV.filter(
+              (n) =>
+                n.section === section &&
+                (!n.roles || n.roles.includes(admin.role)),
+            );
             const isOpen = openSection === section;
 
             return (
@@ -170,12 +301,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
                     {section}
                   </span>
                   {isOpen ? (
-                    <ChevronDown size={14} className="text-(--color-text-muted)" />
+                    <ChevronDown
+                      size={14}
+                      className="text-(--color-text-muted)"
+                    />
                   ) : (
-                    <ChevronRight size={14} className="text-(--color-text-muted)" />
+                    <ChevronRight
+                      size={14}
+                      className="text-(--color-text-muted)"
+                    />
                   )}
                 </button>
-                
+
                 {isOpen && (
                   <ul className="mt-1 space-y-0.5">
                     {items.map((item) => {
@@ -183,7 +320,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
                       const active =
                         item.href === "/dashboard/settings"
                           ? pathname === item.href
-                          : pathname === item.href || pathname.startsWith(item.href + "/");
+                          : pathname === item.href ||
+                            pathname.startsWith(item.href + "/");
 
                       const ItemIcon = item.icon;
                       return (
@@ -197,7 +335,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
                               size={17}
                               strokeWidth={1.75}
                               className="nav-icon shrink-0"
-                              style={{ color: active ? "var(--color-mocha)" : "var(--color-text-muted)" }}
+                              style={{
+                                color: active
+                                  ? "var(--color-mocha)"
+                                  : "var(--color-text-muted)",
+                              }}
                               aria-hidden="true"
                             />
                             <span className="flex-1">{item.label}</span>
@@ -219,21 +361,30 @@ export function AdminShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="shrink-0 p-4" style={{ borderTop: "1px solid var(--color-border-soft)" }}>
+        <div
+          className="shrink-0 p-4"
+          style={{ borderTop: "1px solid var(--color-border-soft)" }}
+        >
           <div className="mb-4 flex items-center gap-3 overflow-hidden">
             <div
               aria-hidden="true"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-serif text-sm font-semibold"
               style={{
-                background: "linear-gradient(135deg, var(--color-blush) 0%, var(--color-mocha-light) 100%)",
+                background:
+                  "linear-gradient(135deg, var(--color-blush) 0%, var(--color-mocha-light) 100%)",
                 color: "var(--color-mocha-dark)",
               }}
             >
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-(--color-charcoal)">{admin.name}</p>
-              <p className="truncate text-xs text-(--color-text-muted)" title={admin.email}>
+              <p className="truncate text-sm font-medium text-(--color-charcoal)">
+                {admin.name}
+              </p>
+              <p
+                className="truncate text-xs text-(--color-text-muted)"
+                title={admin.email}
+              >
                 {admin.email}
               </p>
             </div>
@@ -244,7 +395,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             aria-label="Log out"
             title="Log out"
             className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-gray-50"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-charcoal-soft)" }}
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-charcoal-soft)",
+            }}
           >
             <LogOut size={15} strokeWidth={1.75} aria-hidden="true" />
             Log out

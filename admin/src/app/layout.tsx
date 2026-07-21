@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 // ─── Fonts via next/font (no layout shift, auto-optimised) ───────────────
-const displayFont = Cormorant_Garamond({
-  variable: "--font-display",
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  style: ["normal", "italic"],
-});
-
-const bodyFont = Source_Sans_3({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -27,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${displayFont.variable} ${bodyFont.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} h-full`} style={{ "--font-display": "var(--font-inter)", "--font-body": "var(--font-inter)" } as React.CSSProperties}>
       <head>
         <meta name="robots" content="noindex,nofollow" />
       </head>

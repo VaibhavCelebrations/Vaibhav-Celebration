@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const display = Cormorant_Garamond({
-  variable: "--font-display",
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const body = Source_Sans_3({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -27,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} style={{ "--font-display": "var(--font-inter)", "--font-body": "var(--font-inter)" } as React.CSSProperties}>
       <body className="min-h-full flex flex-col bg-[var(--color-cream)] text-[var(--color-ink)]">
         <Providers>{children}</Providers>
       </body>
