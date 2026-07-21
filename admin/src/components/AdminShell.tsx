@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   Palette,
   Package,
@@ -28,6 +28,9 @@ import {
   ScrollText,
   ShieldCheck,
   LogOut,
+  LayoutDashboard,
+  ChevronDown,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import type { AdminUser } from "@/lib/admin-api-client";
@@ -72,6 +75,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { admin } = useAdminSession();
 
+  const [openSection, setOpenSection] = useState<string | null>(null);
+
+  // Initialize the open section based on the current pathname
+  useEffect(() => {
+    if (!openSection) {
+      if (pathname === "/dashboard") {
+        setOpenSection(null);
+      } else {
+        const matchingSection = NAV.find((item) =>
+          item.href === "/dashboard/settings"
+            ? pathname === item.href
+            : pathname.startsWith(item.href)
+        )?.section;
+        if (matchingSection) {
+          setOpenSection(matchingSection);
+        }
+      }
+    }
+  }, [pathname]);
+
   async function onLogout() {
     await logout();
     router.replace("/login");
@@ -113,45 +136,84 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
+          <div className="mb-2">
+            <Link
+              href="/dashboard"
+              aria-current={pathname === "/dashboard" ? "page" : undefined}
+              className={`nav-item ${pathname === "/dashboard" ? "active" : ""}`}
+            >
+              <LayoutDashboard
+                size={17}
+                strokeWidth={1.75}
+                className="nav-icon shrink-0"
+                style={{ color: pathname === "/dashboard" ? "var(--color-mocha)" : "var(--color-text-muted)" }}
+                aria-hidden="true"
+              />
+              <span className="flex-1">Dashboard</span>
+            </Link>
+          </div>
+
           {sections.map((section) => {
             if (!canSeeSection(admin.role, section)) return null;
             const items = NAV.filter((n) => n.section === section && (!n.roles || n.roles.includes(admin.role)));
+            const isOpen = openSection === section;
+
             return (
-              <div key={section} className="mb-5">
-                <p className="mb-2 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-muted)">
-                  {section}
-                </p>
-                <ul className="space-y-0.5">
-                  {items.map((item) => {
-                    const active = pathname.startsWith(item.href);
-                    const ItemIcon = item.icon;
-                    return (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          aria-current={active ? "page" : undefined}
-                          className={`nav-item ${active ? "active" : ""}`}
-                        >
-                          <ItemIcon
-                            size={17}
-                            strokeWidth={1.75}
-                            className="nav-icon shrink-0"
-                            style={{ color: active ? "var(--color-mocha)" : "var(--color-text-muted)" }}
-                            aria-hidden="true"
-                          />
-                          <span className="flex-1">{item.label}</span>
-                          {active && (
-                            <span
+              <div key={section} className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(isOpen ? null : section)}
+                  className="flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-mocha)"
+                  aria-expanded={isOpen}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-muted)">
+                    {section}
+                  </span>
+                  {isOpen ? (
+                    <ChevronDown size={14} className="text-(--color-text-muted)" />
+                  ) : (
+                    <ChevronRight size={14} className="text-(--color-text-muted)" />
+                  )}
+                </button>
+                
+                {isOpen && (
+                  <ul className="mt-1 space-y-0.5">
+                    {items.map((item) => {
+                      // Fix for operational settings highlighting incorrectly when on sub-settings
+                      const active =
+                        item.href === "/dashboard/settings"
+                          ? pathname === item.href
+                          : pathname === item.href || pathname.startsWith(item.href + "/");
+
+                      const ItemIcon = item.icon;
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            aria-current={active ? "page" : undefined}
+                            className={`nav-item ${active ? "active" : ""}`}
+                          >
+                            <ItemIcon
+                              size={17}
+                              strokeWidth={1.75}
+                              className="nav-icon shrink-0"
+                              style={{ color: active ? "var(--color-mocha)" : "var(--color-text-muted)" }}
                               aria-hidden="true"
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{ background: "var(--color-mocha)" }}
                             />
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+                            <span className="flex-1">{item.label}</span>
+                            {active && (
+                              <span
+                                aria-hidden="true"
+                                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                style={{ background: "var(--color-mocha)" }}
+                              />
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             );
           })}
