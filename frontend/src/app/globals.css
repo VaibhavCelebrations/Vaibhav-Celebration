@@ -1,61 +1,322 @@
 @import "tailwindcss";
 
+/* ===================================================================
+   VAIBHAV CELEBRATIONS — Design System
+   Pinterest-Inspired · Soft Premium · Minimal Luxury · Warm Emotional
+   
+   Primary Palette (from client):
+   - Soft Cream:   #F5F3E6  (backgrounds)
+   - Charcoal:     #212121  (headings, text)
+   - Mocha Brown:  #755846  (buttons, accents)
+   - Soft Blush:   #E8D5CF  (hover, highlights)
+   - Muted Sage:   #D9DED3  (icons, subtle bg)
+   =================================================================== */
+
 :root {
-  /* Brand — warm celebration palette (premium, elegant, trustworthy) */
-  --color-cream: #faf6f1;
-  --color-ivory: #fff9f3;
-  --color-ink: #1c1410;
-  --color-ink-muted: #5c4f45;
-  --color-blush: #c45c4a;
-  --color-blush-deep: #a34838;
-  --color-gold: #c4a35a;
-  --color-gold-soft: #e8d5a3;
-  --color-sage: #6b8f71;
-  --color-success: #2f6f4e;
-  --color-border: #e8ddd2;
+  /* ── Client Brand Palette ──────────────────────────────────────── */
+  --color-cream: #F5F3E6;
+  --color-cream-dark: #EDE9D5;
+  --color-charcoal: #212121;
+  --color-charcoal-light: #3a3a3a;
+  --color-mocha: #755846;
+  --color-mocha-light: #8d6e5a;
+  --color-mocha-dark: #5d4538;
+  --color-blush: #E8D5CF;
+  --color-blush-light: #f3ebe7;
+  --color-blush-deep: #c9a599;
+  --color-sage: #D9DED3;
+  --color-sage-dark: #a8b09c;
+
+  /* Extended Accents (complementary to client palette) */
+  --color-gold-soft: #d4b896;
+  --color-gold-accent: #c9a96e;
+  --color-warm-white: #FEFCF7;
+  --color-ivory: #FAF8F0;
+  --color-text: #3d3d3d;
+  --color-text-muted: #6b6560;
+  --color-text-light: #8a847e;
+
+  /* Theme accents (for theme cards) */
+  --color-space-navy: #1a1f3d;
+  --color-space-purple: #2d1b69;
+  --color-cocomelon-green: #4CAF50;
+  --color-cocomelon-red: #e74c3c;
+  --color-princess-pink: #e8b4c8;
+  --color-princess-purple: #9b59b6;
+  --color-jungle-green: #2d6a4f;
+  --color-jungle-brown: #8d6e5a;
+
+  /* Surfaces */
   --color-surface: #ffffff;
-  --color-surface-elevated: #fffdfb;
+  --color-surface-elevated: #FEFCF7;
+  --color-border: #e8e2d6;
+  --color-border-light: #f0ebe0;
 
+  /* Semantic */
   --background: var(--color-cream);
-  --foreground: var(--color-ink);
+  --foreground: var(--color-charcoal);
 
+  /* Radii */
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
 
-  --shadow-soft: 0 8px 30px rgba(28, 20, 16, 0.06);
-  --shadow-lift: 0 16px 40px rgba(28, 20, 16, 0.1);
+  /* Shadows */
+  --shadow-soft: 0 4px 20px -4px rgba(33, 33, 33, 0.08);
+  --shadow-card: 0 8px 30px -8px rgba(33, 33, 33, 0.1);
+  --shadow-lift: 0 16px 40px -10px rgba(117, 88, 70, 0.15);
+  --shadow-hover: 0 20px 50px -12px rgba(117, 88, 70, 0.2);
+
+  /* Motion */
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ── Tailwind v4 Theme Registration ─────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-cream: var(--color-cream);
-  --color-ivory: var(--color-ivory);
-  --color-ink: var(--color-ink);
-  --color-ink-muted: var(--color-ink-muted);
+  --color-cream-dark: var(--color-cream-dark);
+  --color-charcoal: var(--color-charcoal);
+  --color-charcoal-light: var(--color-charcoal-light);
+  --color-mocha: var(--color-mocha);
+  --color-mocha-light: var(--color-mocha-light);
+  --color-mocha-dark: var(--color-mocha-dark);
   --color-blush: var(--color-blush);
+  --color-blush-light: var(--color-blush-light);
   --color-blush-deep: var(--color-blush-deep);
-  --color-gold: var(--color-gold);
-  --color-gold-soft: var(--color-gold-soft);
   --color-sage: var(--color-sage);
-  --color-success: var(--color-success);
-  --color-border: var(--color-border);
+  --color-sage-dark: var(--color-sage-dark);
+  --color-gold-soft: var(--color-gold-soft);
+  --color-gold-accent: var(--color-gold-accent);
+  --color-warm-white: var(--color-warm-white);
+  --color-ivory: var(--color-ivory);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-light: var(--color-text-light);
   --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-border: var(--color-border);
+  --color-border-light: var(--color-border-light);
+  --color-space-navy: var(--color-space-navy);
+  --color-space-purple: var(--color-space-purple);
+  --color-cocomelon-green: var(--color-cocomelon-green);
+  --color-princess-pink: var(--color-princess-pink);
+  --color-jungle-green: var(--color-jungle-green);
   --font-display: var(--font-display);
   --font-sans: var(--font-body);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-lift: var(--shadow-lift);
+  --shadow-hover: var(--shadow-hover);
+}
+
+/* ── Base ────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-body), Georgia, serif;
+  color: var(--color-text);
+  font-family: var(--font-body), "Poppins", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1,
-h2,
-h3,
-.font-display {
-  font-family: var(--font-display), Georgia, serif;
-  letter-spacing: -0.02em;
+::selection {
+  background: var(--color-mocha);
+  color: #fff;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display), "Playfair Display", Georgia, serif;
+  color: var(--color-charcoal);
+  letter-spacing: -0.01em;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--color-cream); }
+::-webkit-scrollbar-thumb { background: var(--color-blush-deep); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-mocha); }
+
+/* ── Focus Accessibility ────────────────────────────────────────── */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--color-mocha);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── Motion ──────────────────────────────────────────────────────── */
+.transition-premium {
+  transition: all 0.55s var(--ease-premium);
+}
+
+/* ── Primary CTA (Mocha Brown, Solid) ───────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-mocha);
+  border-radius: var(--radius-full);
+  transition: all 0.4s var(--ease-premium);
+}
+
+.btn-primary:hover {
+  background: var(--color-mocha-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ── Outline CTA ────────────────────────────────────────────────── */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--color-mocha);
+  background: transparent;
+  border: 1.5px solid var(--color-mocha);
+  border-radius: var(--radius-full);
+  transition: all 0.4s var(--ease-premium);
+}
+
+.btn-outline:hover {
+  background: var(--color-mocha);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* ── Ghost Button (dark bg) ─────────────────────────────────────── */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--color-cream);
+  background: transparent;
+  border: 1.5px solid rgba(245, 243, 230, 0.35);
+  border-radius: var(--radius-full);
+  transition: all 0.4s var(--ease-premium);
+}
+
+.btn-ghost:hover {
+  background: rgba(245, 243, 230, 0.12);
+  border-color: var(--color-cream);
+  transform: translateY(-2px);
+}
+
+/* ── Nav Link Underline ─────────────────────────────────────────── */
+.nav-link { position: relative; }
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -4px;
+  width: 0; height: 2px;
+  background: var(--color-mocha);
+  transform: translateX(-50%);
+  transition: width 0.4s var(--ease-premium);
+}
+.nav-link:hover::after { width: 100%; }
+
+/* ── Floating Navbar Shell ──────────────────────────────────────── */
+.nav-shell {
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+  background-color: transparent;
+  transition:
+    width 0.8s var(--ease-premium),
+    margin 0.8s var(--ease-premium),
+    border-radius 0.8s var(--ease-premium),
+    box-shadow 0.8s var(--ease-premium),
+    border-color 0.8s var(--ease-premium),
+    background-color 0.6s ease;
+}
+
+.nav-inner {
+  transition: height 0.6s var(--ease-premium), padding 0.6s var(--ease-premium);
+}
+
+header.scrolled .nav-shell {
+  width: calc(100% - 24px);
+  max-width: 1280px;
+  margin: 10px auto 0;
+  border-radius: 50px;
+  border-color: var(--color-border);
+  box-shadow: 0 12px 32px -10px rgba(33, 33, 33, 0.15);
+  background-color: rgba(245, 243, 230, 0.97);
+}
+
+@media (min-width: 768px) {
+  header.scrolled .nav-shell { width: calc(100% - 48px); }
+}
+
+header.scrolled .nav-inner { height: 4.75rem; }
+
+/* ── Mobile nav ─────────────────────────────────────────────────── */
+.mobile-link {
+  display: block;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid transparent;
+  transition: color 0.35s var(--ease-premium), padding-left 0.35s var(--ease-premium), border-color 0.35s var(--ease-premium);
+}
+.mobile-link:hover {
+  color: var(--color-mocha);
+  padding-left: 8px;
+  border-color: var(--color-blush);
+}
+
+/* ── Service/Deliverable Card ───────────────────────────────────── */
+.service-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: all 0.45s var(--ease-premium);
+}
+
+.service-card:hover {
+  border-color: var(--color-mocha);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-4px);
+}
+
+/* ── Masonry Gallery ────────────────────────────────────────────── */
+.masonry { column-gap: 1rem; }
+.masonry-item { break-inside: avoid; margin-bottom: 1rem; }
+
+/* ── Carousel Dot ───────────────────────────────────────────────── */
+.carousel-dot[data-active="true"] {
+  background-color: var(--color-mocha);
+  width: 24px;
+}
+
+/* ── Reduced Motion ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .transition-premium { transition: none; }
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

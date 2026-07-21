@@ -7,3 +7,6 @@ export type { TabItem } from "./Tabs";
 export { Stepper } from "./Stepper";
 export type { Step } from "./Stepper";
 export { ToastProvider, useToast } from "./Toast";
+export { SectionHeader } from "./SectionHeader";
+export { AnimatedCounter } from "./AnimatedCounter";
+export { ScrollReveal } from "./ScrollReveal";
