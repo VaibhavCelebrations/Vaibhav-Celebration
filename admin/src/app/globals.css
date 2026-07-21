@@ -141,23 +141,35 @@ a:hover { color: var(--color-mocha-dark); }
   }
 }
 
-/* ─── Utility Classes ─── */
-.text-brand-primary   { color: var(--color-mocha); }
-.text-brand-secondary { color: var(--color-charcoal); }
-.text-muted           { color: var(--color-text-muted); }
+/* ─── Utility Classes ───
+   Layered so real Tailwind utilities (pl-*, pr-*, etc.) still win when
+   combined on the same element — unlayered CSS otherwise beats every
+   layer regardless of source order or specificity. */
+@layer utilities {
+  .text-brand-primary   { color: var(--color-mocha); }
+  .text-brand-secondary { color: var(--color-charcoal); }
+  .text-muted           { color: var(--color-text-muted); }
 
-.bg-surface     { background-color: var(--color-surface); }
-.bg-surface-alt { background-color: var(--color-surface-alt); }
-.bg-mocha       { background-color: var(--color-mocha); }
-.bg-cream       { background-color: var(--color-cream); }
+  .bg-surface     { background-color: var(--color-surface); }
+  .bg-surface-alt { background-color: var(--color-surface-alt); }
+  .bg-mocha       { background-color: var(--color-mocha); }
+  .bg-cream       { background-color: var(--color-cream); }
 
-.border-brand { border-color: var(--color-border); }
+  .border-brand { border-color: var(--color-border); }
 
-.shadow-soft     { box-shadow: var(--shadow-soft); }
-.shadow-card     { box-shadow: var(--shadow-card); }
-.shadow-elevated { box-shadow: var(--shadow-elevated); }
-.shadow-mocha    { box-shadow: var(--shadow-mocha); }
+  .shadow-soft     { box-shadow: var(--shadow-soft); }
+  .shadow-card     { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  .shadow-mocha    { box-shadow: var(--shadow-mocha); }
+}
 
+/* ─── Component classes ───
+   Layered as `components` (below Tailwind's `utilities` layer) so utility
+   classes like pl-8/pr-3 applied alongside .input/.btn/.card always win —
+   e.g. AdminDataTable's search icon and PriceInput's ₹ symbol need pl-8/pl-7
+   to clear .input's own padding, which an unlayered rule would otherwise
+   override regardless of source order. */
+@layer components {
 /* ─── Card ─── */
 .card {
   background: #fff;
@@ -294,6 +306,7 @@ a:hover { color: var(--color-mocha-dark); }
   animation: shimmer 1.4s ease infinite;
   border-radius: var(--radius-md);
 }
+} /* end @layer components */
 
 /* ─── Ornament divider ─── */
 .ornament {
