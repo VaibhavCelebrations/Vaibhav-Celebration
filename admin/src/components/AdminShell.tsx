@@ -102,7 +102,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             style={{ outlineColor: "var(--color-mocha)" }}
           >
             <Image
-              src="/logo.png"
+              src="/logo-photoroom.png"
               alt="Vaibhav Celebrations"
               width={1264}
               height={843}
