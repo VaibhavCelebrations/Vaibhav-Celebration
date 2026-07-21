@@ -218,14 +218,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-      </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header
-          className="flex items-center justify-between bg-white px-6 py-4"
-          style={{ borderBottom: "1px solid var(--color-border-soft)" }}
-        >
-          <div className="flex items-center gap-3">
+        <div className="shrink-0 p-4" style={{ borderTop: "1px solid var(--color-border-soft)" }}>
+          <div className="mb-4 flex items-center gap-3 overflow-hidden">
             <div
               aria-hidden="true"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-serif text-sm font-semibold"
@@ -236,10 +231,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             >
               {initials}
             </div>
-            <div>
-              <p className="text-sm font-medium text-(--color-charcoal)">{admin.name}</p>
-              <p className="text-xs text-(--color-text-muted)">
-                {admin.email} · {admin.role.replace("_", " ")}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-(--color-charcoal)">{admin.name}</p>
+              <p className="truncate text-xs text-(--color-text-muted)" title={admin.email}>
+                {admin.email}
               </p>
             </div>
           </div>
@@ -248,13 +243,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
             onClick={onLogout}
             aria-label="Log out"
             title="Log out"
-            className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-gray-50"
             style={{ borderColor: "var(--color-border)", color: "var(--color-charcoal-soft)" }}
           >
             <LogOut size={15} strokeWidth={1.75} aria-hidden="true" />
             Log out
           </button>
-        </header>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
