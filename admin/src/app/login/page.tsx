@@ -48,7 +48,7 @@ export default function LoginPage() {
         {/* Brand mark */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
           <Image
-            src="/logo.png"
+            src="/logo-photoroom.png"
             alt="Vaibhav Celebrations"
             width={1264}
             height={843}
