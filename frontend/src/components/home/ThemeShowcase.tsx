@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { placeholderThemes } from "@/lib/placeholder-data";
 
-/* ── Local theme background images ──────────────────────────────── */
+/* -- Local theme background images -------------------------------- */
 import spaceBg from "@/assets/theme/space_theme.png";
 import cocomelonBg from "@/assets/theme/cocomelon_theme.png";
 import princessBg from "@/assets/theme/princess_theme.png";
