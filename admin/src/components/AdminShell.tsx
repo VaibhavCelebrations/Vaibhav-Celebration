@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Palette,
   Package,
@@ -13,7 +13,6 @@ import {
   HelpCircle,
   Star,
   Megaphone,
-  FileText,
   Users,
   UserPlus,
   CalendarCheck,
@@ -24,7 +23,9 @@ import {
   LogOut,
   type LucideIcon,
 } from "lucide-react";
-import { fetchMe, logoutAdmin, type AdminUser } from "@/lib/admin-api-client";
+import type { AdminUser } from "@/lib/admin-api-client";
+import { useAdminSession } from "@/components/AdminSessionContext";
+import { logout } from "@/lib/data/session";
 
 type NavItem = { href: string; label: string; section: "CMS" | "CRM" | "Settings"; icon: LucideIcon };
 
@@ -37,7 +38,6 @@ const NAV: NavItem[] = [
   { section: "CMS", href: "/dashboard/cms/faqs", label: "FAQs", icon: HelpCircle },
   { section: "CMS", href: "/dashboard/cms/testimonials", label: "Testimonials", icon: Star },
   { section: "CMS", href: "/dashboard/cms/popups", label: "Popups", icon: Megaphone },
-  { section: "CMS", href: "/dashboard/cms/legal", label: "Legal Pages", icon: FileText },
   { section: "CRM", href: "/dashboard/crm/customers", label: "Customers", icon: Users },
   { section: "CRM", href: "/dashboard/crm/leads", label: "Leads", icon: UserPlus },
   { section: "CRM", href: "/dashboard/crm/bookings", label: "Bookings", icon: CalendarCheck },
@@ -57,32 +57,12 @@ function canSeeSection(role: AdminUser["role"], section: NavItem["section"]) {
 export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMe()
-      .then(setAdmin)
-      .catch(() => {
-        router.replace("/login");
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
+  const { admin } = useAdminSession();
 
   async function onLogout() {
-    await logoutAdmin();
+    await logout();
     router.replace("/login");
   }
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-(--color-ink-muted)">
-        Loading admin session…
-      </div>
-    );
-  }
-
-  if (!admin) return null;
 
   const sections = ["CMS", "CRM", "Settings"] as const;
   const initials = admin.name
@@ -105,14 +85,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <Link
             href="/dashboard"
             aria-label="Go to dashboard"
-            className="flex cursor-pointer items-center justify-center rounded-md transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="flex cursor-pointer items-center justify-center rounded-md transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ outlineColor: "var(--color-mocha)" }}
           >
             <Image
-              src="/logo-transparent.png"
+              src="/logo.png"
               alt="Vaibhav Celebrations"
-              width={246}
-              height={196}
+              width={1264}
+              height={843}
               priority
               className="h-28 w-auto object-contain"
             />

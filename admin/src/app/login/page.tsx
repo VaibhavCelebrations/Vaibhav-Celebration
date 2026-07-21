@@ -4,7 +4,8 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
-import { AdminApiError, loginAdmin } from "@/lib/admin-api-client";
+import { AdminApiError } from "@/lib/admin-api-client";
+import { login } from "@/lib/data/session";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await loginAdmin(email, password);
+      await login(email, password);
       router.replace("/");
     } catch (err) {
       setError(err instanceof AdminApiError ? err.message : "Login failed. Please check your credentials.");
@@ -47,10 +48,10 @@ export default function LoginPage() {
         {/* Brand mark */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
           <Image
-            src="/logo-transparent.png"
+            src="/logo.png"
             alt="Vaibhav Celebrations"
-            width={246}
-            height={196}
+            width={1264}
+            height={843}
             priority
             style={{ height: 56, width: "auto", objectFit: "contain" }}
           />

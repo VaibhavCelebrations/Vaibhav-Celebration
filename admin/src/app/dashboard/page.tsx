@@ -80,10 +80,10 @@ const UPCOMING_EVENTS = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: "New Booking",   href: "/bookings/new",   d: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" },
-  { label: "Add Theme",     href: "/themes/new",     d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" },
-  { label: "Upload Gallery",href: "/gallery",        d: "M15 8h.01M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm7 12-3.5-4.5 2.5-3L11 13l3-4 4 5H6" },
-  { label: "New Event",     href: "/events/new",     d: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" },
+  { label: "New Booking",   href: "/dashboard/crm/bookings?create=1", d: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" },
+  { label: "Add Theme",     href: "/dashboard/cms/themes?create=1",   d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" },
+  { label: "Upload Gallery",href: "/dashboard/cms/gallery",           d: "M15 8h.01M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm7 12-3.5-4.5 2.5-3L11 13l3-4 4 5H6" },
+  { label: "New Event",     href: "/dashboard/cms/events?create=1",   d: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" },
 ];
 
 // ─── Dashboard Page ────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ export default function DashboardPage() {
               Recent Bookings
             </h2>
             <Link
-              href="/bookings"
+              href="/dashboard/crm/bookings"
               className="btn btn-ghost"
               style={{ padding: "0.375rem 0.75rem", height: 34, minHeight: 34, fontSize: "0.8125rem" }}
             >
@@ -225,7 +225,7 @@ export default function DashboardPage() {
                     style={{ backgroundColor: i % 2 === 0 ? "#fff" : "var(--color-surface)" }}
                   >
                     <td style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--color-border-soft)", whiteSpace: "nowrap" }}>
-                      <Link href={`/bookings/${b.id}`} style={{ fontWeight: 600, color: "var(--color-mocha)", fontSize: "0.8125rem" }}>
+                      <Link href={`/dashboard/crm/bookings/${b.id}`} style={{ fontWeight: 600, color: "var(--color-mocha)", fontSize: "0.8125rem" }}>
                         {b.id}
                       </Link>
                     </td>
@@ -299,7 +299,7 @@ export default function DashboardPage() {
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.0625rem", fontWeight: 600, margin: 0 }}>
                 Upcoming Events
               </h2>
-              <Link href="/events" style={{ fontSize: "0.75rem", color: "var(--color-mocha)", fontWeight: 500 }}>
+              <Link href="/dashboard/cms/events" style={{ fontSize: "0.75rem", color: "var(--color-mocha)", fontWeight: 500 }}>
                 See all →
               </Link>
             </div>
@@ -377,10 +377,10 @@ export default function DashboardPage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexShrink: 0 }}>
-            <Link href="/events" className="btn btn-primary" style={{ fontSize: "0.8125rem", padding: "0.5rem 1rem", height: 38, minHeight: 38 }}>
+            <Link href="/dashboard/cms/events" className="btn btn-primary" style={{ fontSize: "0.8125rem", padding: "0.5rem 1rem", height: 38, minHeight: 38 }}>
               Go to Events
             </Link>
-            <Link href="/themes" className="btn btn-secondary" style={{ fontSize: "0.8125rem", padding: "0.5rem 1rem", height: 38, minHeight: 38 }}>
+            <Link href="/dashboard/cms/themes" className="btn btn-secondary" style={{ fontSize: "0.8125rem", padding: "0.5rem 1rem", height: 38, minHeight: 38 }}>
               Themes
             </Link>
           </div>
