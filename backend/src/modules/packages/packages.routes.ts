@@ -1,4 +1,4 @@
-import { AdminRole, SampleAssetType } from "@prisma/client";
+import { AdminRole } from "@prisma/client";
 import { Router, type NextFunction, type Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma";
@@ -16,10 +16,12 @@ import {
   createPackage,
   deletePackage,
   getPackageBySlug,
+  getPackageDetail,
+  getPackageMatrix,
   listPackages,
-  replaceFeatures,
+  replacePackageServiceItems,
+  savePackageMatrix,
   updatePackage,
-  upsertCustomizationOptions,
 } from "./packages.service";
 
 const roles = [
@@ -38,21 +40,16 @@ const packageSchema = z.object({
   displayOrder: z.number().int().optional(),
   description: z.string().optional().nullable(),
 });
-const featureSchema = z.object({
-  label: z.string().min(1),
-  quantity: z.number().int().min(0),
-  unit: z.string().optional(),
-  sampleAssetType: z.nativeEnum(SampleAssetType).optional(),
+
+const serviceItemSchema = z.object({
+  extraServiceId: z.string().min(1),
+  isIncluded: z.boolean(),
   displayOrder: z.number().int().optional(),
 });
-const optionSchema = z.object({
-  id: z.string().optional(),
-  label: z.string().min(1),
-  extraPriceInPaise: z.number().int().min(0),
-  minQuantity: z.number().int().min(0).optional(),
-  maxQuantity: z.number().int().min(0).optional().nullable(),
-  isActive: z.boolean().optional(),
-  displayOrder: z.number().int().optional(),
+
+const extraServicePriceSchema = z.object({
+  id: z.string().min(1),
+  customizationPriceInPaise: z.number().int().min(0),
 });
 
 async function audit(req: AuthenticatedRequest, action: string, entityId: string, metadata?: unknown) {
@@ -70,10 +67,13 @@ async function shapePackage(packageId: string) {
   const p = await prisma.package.findFirst({
     where: { id: packageId, deletedAt: null },
     include: {
+      serviceItems: {
+        orderBy: { displayOrder: "asc" },
+        include: { extraService: true },
+      },
       _count: {
         select: {
-          features: { where: { deletedAt: null } },
-          customizationOptions: { where: { deletedAt: null } },
+          serviceItems: true,
           themeLinks: true,
         },
       },
@@ -94,9 +94,19 @@ async function shapePackage(packageId: string) {
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
     deletedAt: p.deletedAt?.toISOString() ?? null,
-    featureCount: p._count.features,
-    customizationOptionCount: p._count.customizationOptions,
+    serviceItemCount: p._count.serviceItems,
+    includedServiceCount: p.serviceItems.filter((s) => s.isIncluded).length,
     themeCount: p._count.themeLinks,
+    serviceItems: p.serviceItems.map((s) => ({
+      id: s.id,
+      extraServiceId: s.extraServiceId,
+      label: s.extraService.label,
+      description: s.extraService.description,
+      requirements: s.extraService.requirements,
+      customizationPriceInPaise: s.extraService.customizationPriceInPaise,
+      isIncluded: s.isIncluded,
+      displayOrder: s.displayOrder,
+    })),
   };
 }
 
@@ -163,6 +173,45 @@ adminPackagesRouter.get(
   },
 );
 
+adminPackagesRouter.get("/matrix", async (_req, res, next) => {
+  try {
+    return ok(res, await getPackageMatrix());
+  } catch (err) {
+    return next(err);
+  }
+});
+
+adminPackagesRouter.put(
+  "/matrix",
+  validate(
+    z.object({
+      packages: z.array(
+        z.object({
+          packageId: z.string().min(1),
+          title: z.string().optional(),
+          description: z.string().optional().nullable(),
+          priceInPaise: z.number().int().min(0).optional(),
+          isRecommended: z.boolean().optional(),
+          isActive: z.boolean().optional(),
+          isCustomizable: z.boolean().optional(),
+          items: z.array(serviceItemSchema),
+        }),
+      ),
+      extraServices: z.array(extraServicePriceSchema).optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await savePackageMatrix(req.body);
+      await audit(req as AuthenticatedRequest, "SAVE_MATRIX", "all");
+      void triggerRevalidate(["/packages"]);
+      return ok(res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
 adminPackagesRouter.get("/:id", validate(id, "params"), async (req, res, next) => {
   try {
     return ok(res, await shapePackage(param(req, "id")));
@@ -183,31 +232,15 @@ adminPackagesRouter.post("/", validate(packageSchema), async (req, res, next) =>
 });
 
 adminPackagesRouter.post(
-  "/:id/features",
+  "/:id/service-items",
   validate(id, "params"),
-  validate(z.object({ features: z.array(featureSchema).min(1) })),
+  validate(z.object({ items: z.array(serviceItemSchema) })),
   async (req, res, next) => {
     try {
-      await replaceFeatures(param(req, "id"), req.body.features);
-      await audit(req as AuthenticatedRequest, "REPLACE_FEATURES", param(req, "id"));
+      const item = await replacePackageServiceItems(param(req, "id"), req.body.items);
+      await audit(req as AuthenticatedRequest, "REPLACE_SERVICE_ITEMS", param(req, "id"));
       void triggerRevalidate(["/packages"]);
-      return ok(res, { updated: true });
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-adminPackagesRouter.post(
-  "/:id/customization-options",
-  validate(id, "params"),
-  validate(z.object({ options: z.array(optionSchema).min(1) })),
-  async (req, res, next) => {
-    try {
-      const items = await upsertCustomizationOptions(param(req, "id"), req.body.options);
-      await audit(req as AuthenticatedRequest, "UPSERT_CUSTOMIZATION_OPTIONS", param(req, "id"));
-      void triggerRevalidate(["/packages"]);
-      return ok(res, items);
+      return ok(res, item);
     } catch (err) {
       return next(err);
     }

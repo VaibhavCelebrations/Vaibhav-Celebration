@@ -151,7 +151,7 @@ export async function enqueueInvoiceForBooking(bookingId: string) {
       customer: true,
       theme: true,
       package: true,
-      customizations: { include: { option: true } },
+      customizations: { include: { packageServiceItem: { include: { extraService: true } } } },
       invoice: true,
     },
   });
@@ -162,7 +162,7 @@ export async function enqueueInvoiceForBooking(bookingId: string) {
   const lineItems = [
     { label: `${booking.theme.title} — ${booking.package.title}`, amountInPaise: booking.basePriceInPaise },
     ...booking.customizations.map((c) => ({
-      label: `${c.option.label} × ${c.quantity}`,
+      label: `${c.packageServiceItem.extraService.label} × ${c.quantity}`,
       amountInPaise: c.unitPriceInPaise * c.quantity,
     })),
   ];

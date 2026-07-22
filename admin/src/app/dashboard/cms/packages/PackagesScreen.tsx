@@ -1,253 +1,611 @@
 "use client";
 
-import { Archive as ArchiveIcon, Package as PackageIcon, Pencil, Star } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
-import { packagesRepo } from "@/lib/data/packages";
-import { formatPaise } from "@/lib/format";
-import { useListQuery } from "@/lib/use-list-query";
-import { useRepoList } from "@/lib/use-repo-list";
+import {
+  extraServicesRepo,
+  fetchPackageMatrix,
+  savePackageMatrix,
+} from "@/lib/data/packages";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
-import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
 import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
-import { NumberInput, PriceInput, SlugInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
-import type { Package, PackageInput } from "@/types/cms";
+import { NumberInput, PriceInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
+import type { ExtraService, ExtraServiceInput, PackageMatrixRow } from "@/types/cms";
 
-const EMPTY_FORM: PackageInput = {
-  title: "",
-  slug: "",
-  priceInPaise: 0,
-  tierRank: 1,
-  isRecommended: false,
-  isActive: true,
-  isCustomizable: true,
+type Tab = "matrix" | "services";
+
+type MatrixState = {
+  packages: PackageMatrixRow[];
+  extraServices: ExtraService[];
+};
+
+const EMPTY_SERVICE: ExtraServiceInput = {
+  label: "",
+  description: "",
+  requirements: "",
+  customizationPriceInPaise: 0,
   displayOrder: 0,
-  description: null,
+  isActive: true,
 };
 
 export function PackagesScreen() {
-  const { query, setQuery } = useListQuery({ sort: "displayOrder", dir: "asc" });
-  const { items: rows, total, loading, error, reload } = useRepoList(packagesRepo.list, query);
-
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<Package | null>(null);
-  const [form, setForm] = useState<PackageInput>(EMPTY_FORM);
+  const [tab, setTab] = useState<Tab>("matrix");
+  const [matrix, setMatrix] = useState<MatrixState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [archiveTarget, setArchiveTarget] = useState<Package | null>(null);
+  const [serviceDrawer, setServiceDrawer] = useState(false);
+  const [editingService, setEditingService] = useState<ExtraService | null>(null);
+  const [serviceForm, setServiceForm] = useState<ExtraServiceInput>(EMPTY_SERVICE);
+  const [serviceSubmitting, setServiceSubmitting] = useState(false);
+  const [serviceFormError, setServiceFormError] = useState<string | null>(null);
+  const [archiveService, setArchiveService] = useState<ExtraService | null>(null);
   const [archiving, setArchiving] = useState(false);
 
   const toast = useToast();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchPackageMatrix();
+      setMatrix({
+        extraServices: data.extraServices,
+        packages: data.packages.map((pkg) => ({
+          packageId: pkg.id,
+          title: pkg.title,
+          description: pkg.description,
+          priceInPaise: pkg.priceInPaise,
+          isRecommended: pkg.isRecommended,
+          isActive: pkg.isActive,
+          isCustomizable: pkg.isCustomizable,
+          items: data.extraServices.map((svc) => {
+            const existing = pkg.serviceItems.find((i) => i.extraServiceId === svc.id);
+            return {
+              extraServiceId: svc.id,
+              isIncluded: existing?.isIncluded ?? false,
+            };
+          }),
+        })),
+      });
+      setDirty(false);
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.message : "Could not load package matrix.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (searchParams.get("create") === "1") {
-      openCreate();
-      router.replace("/dashboard/cms/packages");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    void load();
+  }, [load]);
 
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY_FORM);
-    setFormError(null);
-    setDirty(false);
-    setDrawerOpen(true);
-  }
-
-  function openEdit(row: Package) {
-    setEditing(row);
-    setForm({
-      title: row.title,
-      slug: row.slug,
-      priceInPaise: row.priceInPaise,
-      tierRank: row.tierRank,
-      isRecommended: row.isRecommended,
-      isActive: row.isActive,
-      isCustomizable: row.isCustomizable,
-      displayOrder: row.displayOrder,
-      description: row.description,
+  function patchPackage(packageId: string, patch: Partial<PackageMatrixRow>) {
+    setMatrix((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        packages: current.packages.map((p) =>
+          p.packageId === packageId ? { ...p, ...patch } : p,
+        ),
+      };
     });
-    setFormError(null);
-    setDirty(false);
-    setDrawerOpen(true);
-  }
-
-  function patchForm(patch: Partial<PackageInput>) {
-    setForm((f) => ({ ...f, ...patch }));
     setDirty(true);
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setFormError(null);
+  function patchInclusion(packageId: string, extraServiceId: string, isIncluded: boolean) {
+    setMatrix((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        packages: current.packages.map((p) =>
+          p.packageId === packageId
+            ? {
+                ...p,
+                items: p.items.map((item) =>
+                  item.extraServiceId === extraServiceId ? { ...item, isIncluded } : item,
+                ),
+              }
+            : p,
+        ),
+      };
+    });
+    setDirty(true);
+  }
+
+  function patchServicePrice(extraServiceId: string, customizationPriceInPaise: number) {
+    setMatrix((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        extraServices: current.extraServices.map((svc) =>
+          svc.id === extraServiceId ? { ...svc, customizationPriceInPaise } : svc,
+        ),
+      };
+    });
+    setDirty(true);
+  }
+
+  async function onSaveMatrix() {
+    if (!matrix) return;
+    setSaving(true);
     try {
-      if (editing) {
-        await packagesRepo.update(editing.id, form);
-        toast({ tone: "success", title: "Package updated" });
-      } else {
-        await packagesRepo.create(form);
-        toast({ tone: "success", title: "Package created" });
-      }
-      setDrawerOpen(false);
+      await savePackageMatrix({
+        packages: matrix.packages,
+        extraServices: matrix.extraServices.map((svc) => ({
+          id: svc.id,
+          customizationPriceInPaise: svc.customizationPriceInPaise,
+        })),
+      });
+      toast({ tone: "success", title: "Packages saved" });
       setDirty(false);
-      reload();
+      await load();
     } catch (err) {
-      setFormError(err instanceof AdminApiError ? err.message : "Could not save this package.");
+      toast({
+        tone: "error",
+        title: "Could not save packages",
+        description: err instanceof AdminApiError ? err.message : undefined,
+      });
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
-  async function onArchiveConfirm() {
-    if (!archiveTarget) return;
+  function openCreateService() {
+    setEditingService(null);
+    setServiceForm({
+      ...EMPTY_SERVICE,
+      displayOrder: (matrix?.extraServices.length ?? 0) + 1,
+    });
+    setServiceFormError(null);
+    setServiceDrawer(true);
+  }
+
+  function openEditService(svc: ExtraService) {
+    setEditingService(svc);
+    setServiceForm({
+      label: svc.label,
+      description: svc.description ?? "",
+      requirements: svc.requirements ?? "",
+      customizationPriceInPaise: svc.customizationPriceInPaise,
+      displayOrder: svc.displayOrder,
+      isActive: svc.isActive,
+    });
+    setServiceFormError(null);
+    setServiceDrawer(true);
+  }
+
+  async function onServiceSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setServiceSubmitting(true);
+    setServiceFormError(null);
+    try {
+      const body = {
+        ...serviceForm,
+        description: serviceForm.description || null,
+        requirements: serviceForm.requirements || null,
+      };
+      if (editingService) {
+        await extraServicesRepo.update(editingService.id, body);
+        toast({ tone: "success", title: "Extra service updated" });
+      } else {
+        await extraServicesRepo.create(body);
+        toast({ tone: "success", title: "Extra service added" });
+      }
+      setServiceDrawer(false);
+      await load();
+    } catch (err) {
+      setServiceFormError(err instanceof AdminApiError ? err.message : "Could not save extra service.");
+    } finally {
+      setServiceSubmitting(false);
+    }
+  }
+
+  async function onArchiveServiceConfirm() {
+    if (!archiveService) return;
     setArchiving(true);
     try {
-      await packagesRepo.archive(archiveTarget.id);
-      toast({ tone: "success", title: "Package archived" });
-      setArchiveTarget(null);
-      reload();
+      await extraServicesRepo.archive(archiveService.id);
+      toast({ tone: "success", title: "Extra service archived" });
+      setArchiveService(null);
+      await load();
     } catch (err) {
-      toast({ tone: "error", title: "Could not archive package", description: err instanceof AdminApiError ? err.message : undefined });
+      toast({
+        tone: "error",
+        title: "Could not archive service",
+        description: err instanceof AdminApiError ? err.message : undefined,
+      });
     } finally {
       setArchiving(false);
     }
   }
 
-  const columns: Column<Package>[] = [
-    { key: "displayOrder", header: "Order", sortable: true, width: "80px", cell: (r) => r.displayOrder },
-    {
-      key: "title",
-      header: "Title",
-      sortable: true,
-      cell: (r) => (
-        <span className="inline-flex items-center gap-1.5 font-medium text-(--color-charcoal)">
-          {r.title}
-          {r.isRecommended && <Star size={13} strokeWidth={2} className="text-(--color-mocha)" aria-label="Recommended" />}
-        </span>
-      ),
-    },
-    { key: "priceInPaise", header: "Price", sortable: true, align: "right", cell: (r) => formatPaise(r.priceInPaise) },
-    { key: "tierRank", header: "Tier", hideBelow: "sm", align: "right", cell: (r) => r.tierRank },
-    { key: "customizationOptionCount", header: "Custom. options", hideBelow: "lg", align: "right", cell: (r) => r.customizationOptionCount },
-    {
-      key: "isActive",
-      header: "Active",
-      cell: (r) => <StatusBadge label={r.isActive ? "Active" : "Inactive"} tone={r.isActive ? "success" : "neutral"} />,
-    },
-  ];
-
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-[1400px]">
       <PageHeader
         eyebrow="Content"
         title="Packages"
-        description="Pricing tiers customers choose from, each with its own features and customization options."
+        description="Manage pricing tiers and the Fiverr-style service matrix. Check services to include them in a package; set one customization price per service for add-ons at checkout."
         actions={
-          <button type="button" onClick={openCreate} className="btn btn-primary px-4 py-2 text-sm">
-            New Package
-          </button>
+          <div className="flex items-center gap-2">
+            {tab === "matrix" && (
+              <button
+                type="button"
+                onClick={() => void onSaveMatrix()}
+                disabled={!dirty || saving || loading}
+                className="btn btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Save matrix
+              </button>
+            )}
+            {tab === "services" && (
+              <button type="button" onClick={openCreateService} className="btn btn-primary px-4 py-2 text-sm">
+                <Plus size={16} /> Add extra service
+              </button>
+            )}
+          </div>
         }
       />
 
-      <AdminDataTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => r.id}
-        total={total}
-        query={query}
-        onQueryChange={setQuery}
-        loading={loading}
-        error={error}
-        onRetry={reload}
-        searchPlaceholder="Search packages…"
-        filters={[
-          {
-            key: "isActive",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "true", label: "Active" },
-              { value: "false", label: "Inactive" },
-            ],
-          },
-        ]}
-        rowActions={[
-          { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
-        ]}
-        empty={{ icon: PackageIcon, title: "No packages yet", description: "Add your first pricing package." }}
-      />
+      <div className="mb-5 flex gap-1 rounded-lg border border-(--color-border) bg-(--color-surface) p-1 w-fit">
+        {(
+          [
+            { id: "matrix" as const, label: "Package matrix" },
+            { id: "services" as const, label: "Extra services" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`cursor-pointer rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.id
+                ? "bg-(--color-mocha) text-white shadow-sm"
+                : "text-(--color-text-muted) hover:text-(--color-charcoal)"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="card mb-4 border-(--color-error) p-4 text-sm text-(--color-error)">
+          {error}{" "}
+          <button type="button" className="underline" onClick={() => void load()}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-(--color-text-muted)">Loading packages…</p>
+      ) : tab === "matrix" && matrix ? (
+        <PackageMatrixEditor
+          matrix={matrix}
+          onPatchPackage={patchPackage}
+          onPatchInclusion={patchInclusion}
+          onPatchServicePrice={patchServicePrice}
+        />
+      ) : tab === "services" && matrix ? (
+        <ExtraServicesList
+          services={matrix.extraServices}
+          onEdit={openEditService}
+          onArchive={setArchiveService}
+        />
+      ) : null}
 
       <AdminDrawerForm
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        title={editing ? "Edit Package" : "New Package"}
-        onSubmit={onSubmit}
-        submitting={submitting}
-        error={formError}
-        dirty={dirty}
+        open={serviceDrawer}
+        onClose={() => setServiceDrawer(false)}
+        title={editingService ? "Edit extra service" : "Add extra service"}
+        onSubmit={onServiceSubmit}
+        submitting={serviceSubmitting}
+        error={serviceFormError}
+        dirty
+        width="lg"
       >
-        <FormField label="Title" htmlFor="pkg-title" required>
-          <TextInput value={form.title} onChange={(e) => patchForm({ title: e.target.value })} required />
+        <FormField label="Label" htmlFor="svc-label" required>
+          <TextInput
+            id="svc-label"
+            value={serviceForm.label}
+            onChange={(e) => setServiceForm({ ...serviceForm, label: e.target.value })}
+            required
+          />
         </FormField>
-        <FormField label="Slug" htmlFor="pkg-slug" required hint="Auto-derived from title; edit to override.">
-          <SlugInput value={form.slug} onChange={(v) => patchForm({ slug: v })} source={form.title} />
+        <FormField label="Description" htmlFor="svc-desc">
+          <TextArea
+            id="svc-desc"
+            value={serviceForm.description ?? ""}
+            onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
+            rows={3}
+          />
         </FormField>
-        <FormField label="Price" htmlFor="pkg-price" required hint="Base price shown to customers before customization.">
-          <PriceInput value={form.priceInPaise} onChange={(paise) => patchForm({ priceInPaise: paise })} required />
+        <FormField
+          label="Requirements"
+          htmlFor="svc-req"
+          hint="What the customer must provide when selecting this service."
+        >
+          <TextArea
+            id="svc-req"
+            value={serviceForm.requirements ?? ""}
+            onChange={(e) => setServiceForm({ ...serviceForm, requirements: e.target.value })}
+            rows={3}
+          />
         </FormField>
-        <FormField label="Tier rank" htmlFor="pkg-tier" required hint="Lower numbers rank first (e.g. Essentials = 1).">
-          <NumberInput value={form.tierRank} onChange={(n) => patchForm({ tierRank: n })} min={1} />
+        <FormField
+          label="Customization price"
+          htmlFor="svc-price"
+          hint="Charged when a guest adds this service to a package that does not include it."
+        >
+          <PriceInput
+            id="svc-price"
+            value={serviceForm.customizationPriceInPaise}
+            onChange={(paise) => setServiceForm({ ...serviceForm, customizationPriceInPaise: paise })}
+          />
         </FormField>
-        <FormField label="Description" htmlFor="pkg-desc">
-          <TextArea value={form.description ?? ""} onChange={(e) => patchForm({ description: e.target.value || null })} rows={3} />
-        </FormField>
-        <FormField label="Display order" htmlFor="pkg-order">
-          <NumberInput value={form.displayOrder} onChange={(n) => patchForm({ displayOrder: n })} />
+        <FormField label="Display order" htmlFor="svc-order">
+          <NumberInput
+            id="svc-order"
+            value={serviceForm.displayOrder}
+            onChange={(n) => setServiceForm({ ...serviceForm, displayOrder: n })}
+            min={0}
+          />
         </FormField>
         <div className="flex items-center justify-between">
-          <label htmlFor="pkg-recommended" className="text-sm font-medium text-(--color-charcoal)">
-            Recommended
-          </label>
-          <ToggleSwitch id="pkg-recommended" checked={form.isRecommended} onChange={(v) => patchForm({ isRecommended: v })} />
-        </div>
-        <div className="flex items-center justify-between">
-          <label htmlFor="pkg-customizable" className="text-sm font-medium text-(--color-charcoal)">
-            Customizable
-          </label>
-          <ToggleSwitch id="pkg-customizable" checked={form.isCustomizable} onChange={(v) => patchForm({ isCustomizable: v })} />
-        </div>
-        <div className="flex items-center justify-between">
-          <label htmlFor="pkg-active" className="text-sm font-medium text-(--color-charcoal)">
+          <label htmlFor="svc-active" className="text-sm font-medium text-(--color-charcoal)">
             Active
           </label>
-          <ToggleSwitch id="pkg-active" checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
+          <ToggleSwitch
+            id="svc-active"
+            checked={serviceForm.isActive}
+            onChange={(isActive) => setServiceForm({ ...serviceForm, isActive })}
+          />
         </div>
       </AdminDrawerForm>
 
       <AdminConfirmDialog
-        open={!!archiveTarget}
-        title="Archive this package?"
+        open={!!archiveService}
+        title="Archive this extra service?"
         message={
           <>
-            Archive <strong>{archiveTarget?.title}</strong>? It will no longer be offered to customers.
+            Archive <strong>{archiveService?.label}</strong>? It will be removed from the matrix for new
+            configurations.
           </>
         }
         submitting={archiving}
-        onConfirm={onArchiveConfirm}
-        onCancel={() => setArchiveTarget(null)}
+        onConfirm={onArchiveServiceConfirm}
+        onCancel={() => setArchiveService(null)}
       />
+    </div>
+  );
+}
+
+function PackageMatrixEditor({
+  matrix,
+  onPatchPackage,
+  onPatchInclusion,
+  onPatchServicePrice,
+}: {
+  matrix: MatrixState;
+  onPatchPackage: (packageId: string, patch: Partial<PackageMatrixRow>) => void;
+  onPatchInclusion: (packageId: string, extraServiceId: string, isIncluded: boolean) => void;
+  onPatchServicePrice: (extraServiceId: string, customizationPriceInPaise: number) => void;
+}) {
+  const colCount = matrix.packages.length + 2;
+
+  return (
+    <div className="card overflow-x-auto p-0">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-(--color-border-soft) bg-(--color-surface)">
+            <th className="sticky left-0 z-10 min-w-[220px] bg-(--color-surface) px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-(--color-text-muted)">
+              Service / Option
+            </th>
+            <th className="min-w-[140px] border-l border-(--color-border-soft) px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-(--color-text-muted)">
+              Customize price
+            </th>
+            {matrix.packages.map((pkg) => (
+              <th
+                key={pkg.packageId}
+                className="min-w-[180px] border-l border-(--color-border-soft) px-4 py-3 text-left align-top"
+              >
+                <div className="space-y-2">
+                  <input
+                    className="input w-full font-semibold"
+                    value={pkg.title}
+                    onChange={(e) => onPatchPackage(pkg.packageId, { title: e.target.value })}
+                  />
+                  <textarea
+                    className="input w-full text-xs"
+                    rows={2}
+                    placeholder="Package description"
+                    value={pkg.description ?? ""}
+                    onChange={(e) =>
+                      onPatchPackage(pkg.packageId, { description: e.target.value || null })
+                    }
+                  />
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase text-(--color-text-muted)">
+                      Package price
+                    </label>
+                    <PriceInput
+                      value={pkg.priceInPaise}
+                      onChange={(paise) => onPatchPackage(pkg.packageId, { priceInPaise: paise })}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={pkg.isRecommended}
+                      onChange={(e) =>
+                        onPatchPackage(pkg.packageId, { isRecommended: e.target.checked })
+                      }
+                    />
+                    Recommended
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={pkg.isCustomizable}
+                      onChange={(e) =>
+                        onPatchPackage(pkg.packageId, { isCustomizable: e.target.checked })
+                      }
+                    />
+                    Customizable
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={pkg.isActive}
+                      onChange={(e) => onPatchPackage(pkg.packageId, { isActive: e.target.checked })}
+                    />
+                    Active
+                  </label>
+                </div>
+              </th>
+            ))}
+          </tr>
+          <tr className="border-b border-(--color-border-soft) bg-(--color-surface)/60">
+            <th className="sticky left-0 z-10 bg-(--color-surface)/60 px-4 py-2 text-left text-[10px] font-semibold uppercase text-(--color-text-muted)">
+              Included
+            </th>
+            <th className="border-l border-(--color-border-soft) px-4 py-2 text-[10px] font-semibold uppercase text-(--color-text-muted)">
+              Add-on price
+            </th>
+            {matrix.packages.map((pkg) => (
+              <th
+                key={`inc-${pkg.packageId}`}
+                className="border-l border-(--color-border-soft) px-4 py-2 text-center text-[10px] font-semibold uppercase text-(--color-text-muted)"
+              >
+                Include
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.extraServices.map((svc) => (
+            <tr key={svc.id} className="border-b border-(--color-border-soft) hover:bg-(--color-surface)/40">
+              <td className="sticky left-0 z-10 bg-white px-4 py-3 align-top">
+                <p className="font-medium text-(--color-charcoal)">{svc.label}</p>
+                {svc.description && (
+                  <p className="mt-0.5 text-xs text-(--color-text-muted) line-clamp-2">{svc.description}</p>
+                )}
+                {svc.requirements && (
+                  <p className="mt-1 text-[10px] text-(--color-mocha)">Req: {svc.requirements}</p>
+                )}
+              </td>
+              <td className="border-l border-(--color-border-soft) px-4 py-3 align-top">
+                <PriceInput
+                  value={svc.customizationPriceInPaise}
+                  onChange={(paise) => onPatchServicePrice(svc.id, paise)}
+                />
+              </td>
+              {matrix.packages.map((pkg) => {
+                const cell = pkg.items.find((i) => i.extraServiceId === svc.id);
+                if (!cell) return <td key={`${pkg.packageId}-${svc.id}`} />;
+                return (
+                  <td
+                    key={`${pkg.packageId}-${svc.id}`}
+                    className="border-l border-(--color-border-soft) px-4 py-3 text-center align-middle"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={cell.isIncluded}
+                      onChange={(e) =>
+                        onPatchInclusion(pkg.packageId, svc.id, e.target.checked)
+                      }
+                      aria-label={`Include ${svc.label} in ${pkg.title}`}
+                      className="h-4 w-4 cursor-pointer rounded border-(--color-border) accent-(--color-mocha)"
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-(--color-surface)">
+            <td colSpan={colCount} className="px-4 py-3 text-xs text-(--color-text-muted)">
+              Check a box to include a service in that package. The customize price applies when guests add
+              non-included services during a customized purchase.
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function ExtraServicesList({
+  services,
+  onEdit,
+  onArchive,
+}: {
+  services: ExtraService[];
+  onEdit: (svc: ExtraService) => void;
+  onArchive: (svc: ExtraService) => void;
+}) {
+  if (services.length === 0) {
+    return (
+      <div className="card p-12 text-center">
+        <p className="text-sm text-(--color-text-muted)">No extra services yet. Add your first option.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card divide-y divide-(--color-border-soft) p-0">
+      {services.map((svc) => (
+        <div key={svc.id} className="flex items-start justify-between gap-4 px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-(--color-charcoal)">{svc.label}</p>
+              {!svc.isActive && (
+                <span className="rounded bg-(--color-surface-alt) px-2 py-0.5 text-[10px] font-semibold uppercase text-(--color-text-muted)">
+                  Inactive
+                </span>
+              )}
+            </div>
+            {svc.description && (
+              <p className="mt-1 text-sm text-(--color-text-muted)">{svc.description}</p>
+            )}
+            {svc.requirements && (
+              <p className="mt-1 text-xs text-(--color-mocha)">
+                <strong>Requirements:</strong> {svc.requirements}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-(--color-text-muted)">
+              Customize price: ₹{(svc.customizationPriceInPaise / 100).toLocaleString("en-IN")}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              aria-label="Edit"
+              className="btn btn-ghost p-2"
+              onClick={() => onEdit(svc)}
+            >
+              <Pencil size={15} />
+            </button>
+            <button
+              type="button"
+              aria-label="Archive"
+              className="btn btn-ghost p-2 text-(--color-error)"
+              onClick={() => onArchive(svc)}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

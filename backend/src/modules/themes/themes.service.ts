@@ -11,7 +11,16 @@ const publicThemeInclude = {
   sampleAssets: { where: { deletedAt: null }, include: { media: true }, orderBy: { displayOrder: "asc" as const } },
   packages: {
     where: { isActive: true },
-    include: { package: { include: { features: { where: { deletedAt: null }, orderBy: { displayOrder: "asc" as const } } } } },
+    include: {
+      package: {
+        include: {
+          serviceItems: {
+            orderBy: { displayOrder: "asc" },
+            include: { extraService: true },
+          },
+        },
+      },
+    },
   },
   galleryImages: { where: { deletedAt: null, isActive: true }, include: { media: true }, orderBy: { displayOrder: "asc" as const } },
 };

@@ -113,7 +113,7 @@ export async function createBooking(input: CreateBookingInput) {
         guestPhone: input.guestPhone,
         customizations: {
           create: quote.options.map((o) => ({
-            optionId: o.optionId,
+            packageServiceItemId: o.optionId,
             quantity: o.quantity,
             unitPriceInPaise: o.unitPriceInPaise,
           })),
@@ -163,8 +163,19 @@ export async function getBookingByCode(bookingCode: string) {
     where: { bookingCode, deletedAt: null },
     include: {
       theme: true,
-      package: { include: { features: { where: { deletedAt: null } } } },
-      customizations: { include: { option: true } },
+      package: {
+        include: {
+          serviceItems: {
+            orderBy: { displayOrder: "asc" },
+            include: { extraService: true },
+          },
+        },
+      },
+      customizations: {
+        include: {
+          packageServiceItem: { include: { extraService: true } },
+        },
+      },
       customer: true,
       invoice: true,
     },
@@ -185,13 +196,12 @@ export async function getCheckoutSummary(bookingCode: string) {
       id: booking.packageId,
       title: booking.package.title,
       slug: booking.package.slug,
-      features: booking.package.features.map((f) => ({
-        label: f.label,
-        quantity: f.quantity,
-      })),
+      includedServices: booking.package.serviceItems
+        .filter((s) => s.isIncluded)
+        .map((s) => ({ label: s.extraService.label })),
     },
     customizations: booking.customizations.map((c) => ({
-      label: c.option.label,
+      label: c.packageServiceItem.extraService.label,
       quantity: c.quantity,
       unitPriceInPaise: c.unitPriceInPaise,
       lineTotalInPaise: c.unitPriceInPaise * c.quantity,

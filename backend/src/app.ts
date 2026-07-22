@@ -15,6 +15,7 @@ import { healthRouter } from "./modules/health/health.routes";
 import { guestRouter } from "./modules/guest/guest.routes";
 import { themesRouter, adminThemesRouter } from "./modules/themes/themes.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
+import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
 import { pricingRouter } from "./modules/pricing/pricing.routes";
 import { galleryRouter, adminGalleryRouter } from "./modules/gallery/gallery.routes";
 import { contentRouter, adminContentRouter } from "./modules/content/content.routes";
@@ -281,6 +282,7 @@ export function createApp() {
   // noStore prevents browsers / CDN from caching PII or admin data.
   api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
   api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
+  api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
   api.use("/admin/gallery", adminLimiter, noStore, adminGalleryRouter);
   api.use("/admin", adminLimiter, noStore, adminContentRouter);
   api.use("/admin/blog", adminLimiter, noStore, adminBlogRouter);

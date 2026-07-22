@@ -175,8 +175,7 @@ export async function adminListPackages(q: AdminListQuery) {
       include: {
         _count: {
           select: {
-            features: { where: { deletedAt: null } },
-            customizationOptions: { where: { deletedAt: null } },
+            serviceItems: true,
             themeLinks: true,
           },
         },
@@ -199,8 +198,8 @@ export async function adminListPackages(q: AdminListQuery) {
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
     deletedAt: p.deletedAt?.toISOString() ?? null,
-    featureCount: p._count.features,
-    customizationOptionCount: p._count.customizationOptions,
+    serviceItemCount: p._count.serviceItems,
+    includedServiceCount: 0,
     themeCount: p._count.themeLinks,
   }));
 

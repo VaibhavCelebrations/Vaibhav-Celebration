@@ -1,64 +1,65 @@
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { createMockCollection } from "@/lib/mock/store";
-import type { Package, PackageInput } from "@/types/cms";
+import type { ExtraService, ExtraServiceInput, Package, PackageInput, PackageMatrixSavePayload } from "@/types/cms";
 import { USE_MOCK_DATA } from "./config";
 import { qs, type Repository } from "./types";
 
 const ENDPOINT = "/admin/packages";
+const EXTRA_ENDPOINT = "/admin/extra-services";
 
 const seed: Package[] = [
   {
     id: "pkg_1",
-    title: "Essentials",
-    slug: "essentials",
-    priceInPaise: 1500000,
+    title: "Standard",
+    slug: "standard",
+    priceInPaise: 4990000,
     tierRank: 1,
     isRecommended: false,
     isActive: true,
     isCustomizable: true,
     displayOrder: 1,
-    description: "Core decor and coordination for an intimate celebration.",
+    description: "Perfect for intimate celebrations.",
     createdAt: "2026-01-10T09:00:00.000Z",
     updatedAt: "2026-01-10T09:00:00.000Z",
     deletedAt: null,
-    featureCount: 6,
-    customizationOptionCount: 3,
+    serviceItemCount: 11,
+    includedServiceCount: 5,
     themeCount: 4,
   },
   {
     id: "pkg_2",
-    title: "Signature",
-    slug: "signature",
-    priceInPaise: 3500000,
+    title: "Premium",
+    slug: "premium",
+    priceInPaise: 7990000,
     tierRank: 2,
     isRecommended: true,
     isActive: true,
     isCustomizable: true,
     displayOrder: 2,
-    description: "Our most popular package with full theming and activities.",
+    description: "Most loved for memorable celebrations.",
     createdAt: "2026-01-10T09:00:00.000Z",
     updatedAt: "2026-01-10T09:00:00.000Z",
     deletedAt: null,
-    featureCount: 10,
-    customizationOptionCount: 5,
+    serviceItemCount: 11,
+    includedServiceCount: 8,
     themeCount: 4,
   },
   {
     id: "pkg_3",
-    title: "Grand Celebration",
-    slug: "grand-celebration",
-    priceInPaise: 7500000,
+    title: "Lux",
+    slug: "lux",
+    priceInPaise: 11990000,
     tierRank: 3,
     isRecommended: false,
     isActive: true,
     isCustomizable: true,
     displayOrder: 3,
-    description: "Full-scale production with premium add-ons and dedicated staff.",
+    description: "Grand experiences with full support.",
     createdAt: "2026-01-15T09:00:00.000Z",
     updatedAt: "2026-01-15T09:00:00.000Z",
     deletedAt: null,
-    featureCount: 14,
-    customizationOptionCount: 7,
+    serviceItemCount: 11,
+    includedServiceCount: 11,
     themeCount: 3,
   },
 ];
@@ -74,8 +75,8 @@ const mockPackagesRepo = createMockCollection<Package, PackageInput>({
     deletedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    featureCount: 0,
-    customizationOptionCount: 0,
+    serviceItemCount: 0,
+    includedServiceCount: 0,
     themeCount: 0,
     ...input,
   }),
@@ -93,3 +94,36 @@ export const packagesRepo: Repository<Package, PackageInput> = USE_MOCK_DATA
       update: (id, body) => adminFetch<Package>(`${ENDPOINT}/${id}`, { method: "PATCH", body }),
       archive: (id) => adminFetch<void>(`${ENDPOINT}/${id}`, { method: "DELETE" }),
     };
+
+export async function fetchPackageMatrix() {
+  return adminFetch<{
+    packages: Array<
+      Package & {
+        serviceItems: Array<{
+          id: string;
+          extraServiceId: string;
+          isIncluded: boolean;
+          displayOrder: number;
+          extraService: ExtraService;
+        }>;
+      }
+    >;
+    extraServices: ExtraService[];
+  }>(`${ENDPOINT}/matrix`);
+}
+
+export async function savePackageMatrix(payload: PackageMatrixSavePayload) {
+  return adminFetch<unknown>(`${ENDPOINT}/matrix`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export const extraServicesRepo = {
+  list: (includeInactive = true) =>
+    adminFetch<ExtraService[]>(`${EXTRA_ENDPOINT}${includeInactive ? "?includeInactive=true" : ""}`),
+  create: (body: ExtraServiceInput) => adminFetch<ExtraService>(EXTRA_ENDPOINT, { method: "POST", body }),
+  update: (id: string, body: Partial<ExtraServiceInput>) =>
+    adminFetch<ExtraService>(`${EXTRA_ENDPOINT}/${id}`, { method: "PATCH", body }),
+  archive: (id: string) => adminFetch<void>(`${EXTRA_ENDPOINT}/${id}`, { method: "DELETE" }),
+};

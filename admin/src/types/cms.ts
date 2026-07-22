@@ -70,10 +70,10 @@ export type Package = SoftDeletable &
     isCustomizable: boolean;
     displayOrder: number;
     description: string | null;
-    // list-view summary counts
-    featureCount: number;
-    customizationOptionCount: number;
+    serviceItemCount: number;
+    includedServiceCount: number;
     themeCount: number;
+    serviceItems?: PackageServiceItem[];
   };
 
 export type PackageInput = Pick<
@@ -81,6 +81,55 @@ export type PackageInput = Pick<
   "title" | "slug" | "priceInPaise" | "tierRank" | "isRecommended" | "isActive" | "isCustomizable" | "displayOrder" | "description"
 >;
 
+export type ExtraService = SoftDeletable &
+  Timestamped & {
+    id: string;
+    label: string;
+    description: string | null;
+    requirements: string | null;
+    customizationPriceInPaise: Paise;
+    displayOrder: number;
+    isActive: boolean;
+  };
+
+export type ExtraServiceInput = Pick<
+  ExtraService,
+  "label" | "description" | "requirements" | "customizationPriceInPaise" | "displayOrder" | "isActive"
+>;
+
+export type PackageServiceItem = {
+  id?: string;
+  extraServiceId: string;
+  label?: string;
+  description?: string | null;
+  requirements?: string | null;
+  customizationPriceInPaise?: Paise;
+  isIncluded: boolean;
+  displayOrder: number;
+};
+
+export type PackageMatrixCell = {
+  extraServiceId: string;
+  isIncluded: boolean;
+};
+
+export type PackageMatrixRow = {
+  packageId: string;
+  title: string;
+  description: string | null;
+  priceInPaise: number;
+  isRecommended: boolean;
+  isActive: boolean;
+  isCustomizable: boolean;
+  items: PackageMatrixCell[];
+};
+
+export type PackageMatrixSavePayload = {
+  packages: PackageMatrixRow[];
+  extraServices: Array<{ id: string; customizationPriceInPaise: number }>;
+};
+
+/** @deprecated use PackageServiceItem */
 export type PackageFeature = SoftDeletable & {
   id: string;
   packageId: string;
@@ -91,6 +140,7 @@ export type PackageFeature = SoftDeletable & {
   displayOrder: number;
 };
 
+/** @deprecated use PackageServiceItem */
 export type PackageCustomizationOption = SoftDeletable & {
   id: string;
   packageId: string;
@@ -102,6 +152,7 @@ export type PackageCustomizationOption = SoftDeletable & {
   displayOrder: number;
 };
 
+/** @deprecated */
 export type PackageAddOnLink = {
   id: string;
   packageId: string;
