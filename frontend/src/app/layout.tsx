@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Playfair_Display, Poppins } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const inter = Inter({
+const display = Playfair_Display({
+  variable: "--font-display",
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
+const body = Poppins({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default:
-      "Vaibhav Celebrations | Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
+    default: "Vaibhav Celebrations | Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
     template: "%s | Vaibhav Celebrations",
   },
   description:
@@ -43,15 +49,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
-      style={
-        {
-          "--font-display": "var(--font-inter)",
-          "--font-body": "var(--font-inter)",
-        } as React.CSSProperties
-      }
+      className={`${display.variable} ${body.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--color-cream)] text-[var(--color-ink)]">
+      <body className="min-h-full flex flex-col bg-cream text-text font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

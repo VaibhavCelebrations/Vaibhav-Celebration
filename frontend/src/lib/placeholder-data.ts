@@ -57,6 +57,12 @@ export const IMAGES = {
 
 // ── Types ───────────────────────────────────────────────────────────
 
+export interface ThemeHighlight {
+  icon: string;
+  title: string;
+  description: string;
+}
+
 export interface PlaceholderTheme {
   id: string;
   title: string;
@@ -72,6 +78,11 @@ export interface PlaceholderTheme {
   seoDescription: string;
   accentColor: string;
   tags: string[];
+  // New admin-friendly fields
+  themeCategory: string;
+  themeVibe: string;
+  galleryImages: string[];
+  highlights: ThemeHighlight[];
 }
 
 export interface PlaceholderPackageFeature {
@@ -122,9 +133,13 @@ export interface PlaceholderEvent {
   theme: string;
   date: string;
   shortDescription: string;
-  content: string;
   coverImage: string;
   gallery: string[];
+  // Optional testimonial (toggleable in admin)
+  testimonialName?: string;
+  testimonialContent?: string;
+  testimonialRating?: number;
+  showTestimonial?: boolean;
 }
 
 export interface PlaceholderBlog {
@@ -146,7 +161,7 @@ export const placeholderThemes: PlaceholderTheme[] = [
     slug: "space-theme",
     tagline: "Launch into an unforgettable celebration where every child becomes the hero of their own space adventure.",
     shortDescription: "A cosmic adventure beyond imagination! Turn your child's birthday into an exciting space mission filled with imagination, discovery, and unforgettable memories.",
-    fullDescription: "Turn your child's birthday into an exciting space mission filled with imagination, discovery, and unforgettable memories. Our Space Birthday Theme creates an immersive celebration where every detail follows one carefully crafted story. From personalised invitations that build excitement before the big day to themed experiences, thoughtful keepsakes, and memorable moments afterwards, the entire celebration feels connected from start to finish. Designed especially for curious young explorers, this premium birthday experience combines creativity, fun, and thoughtful planning to create a celebration children will remember long after the countdown ends.",
+    fullDescription: "Our Space Birthday Theme creates an immersive celebration where every detail follows one carefully crafted story — from personalised invitations to themed experiences and thoughtful keepsakes.",
     heroImageUrl: IMAGES.spaceTheme,
     cardImageUrl: IMAGES.spaceTheme2,
     isActive: true,
@@ -155,6 +170,15 @@ export const placeholderThemes: PlaceholderTheme[] = [
     seoDescription: "Launch into an unforgettable space birthday celebration — immersive, themed, and memorable for curious young explorers.",
     accentColor: "space",
     tags: ["Adventure", "Discovery", "Ages 4-10"],
+    themeCategory: "Birthday",
+    themeVibe: "Cosmic & Adventurous",
+    galleryImages: [IMAGES.spaceTheme, IMAGES.spaceTheme2, IMAGES.gallery1, IMAGES.gallery4, IMAGES.gallery11, IMAGES.gallery12],
+    highlights: [
+      { icon: "mail", title: "Custom Invitations", description: "Personalised digital invitations that set the mood before the party." },
+      { icon: "palette", title: "Themed Backdrop", description: "A stunning, fully branded backdrop designed for your theme." },
+      { icon: "gamepad", title: "Activity Corner", description: "Engaging games and activities to keep kids entertained throughout." },
+      { icon: "gift", title: "Return Gifts", description: "Curated, theme-matching return gifts every child will love." },
+    ],
   },
   {
     id: "theme-2",
@@ -162,7 +186,7 @@ export const placeholderThemes: PlaceholderTheme[] = [
     slug: "cocomelon-theme",
     tagline: "A joyful celebration where music, laughter, learning, and little smiles come together beautifully.",
     shortDescription: "Fun, colors and joy with Cocomelon & friends! Bring your child's favourite Cocomelon world to life with a thoughtfully designed birthday celebration.",
-    fullDescription: "Bring your child's favourite Cocomelon world to life with a thoughtfully designed birthday celebration that feels joyful from beginning to end. Every element follows one beautiful theme, creating a seamless experience that children love and parents genuinely enjoy. From personalised invitations before the celebration to engaging moments during the party and meaningful keepsakes afterwards, every detail is carefully planned with love. Whether you're celebrating a toddler's first, second, or third birthday, our Cocomelon Birthday Theme transforms an ordinary party into a memorable experience filled with laughter, colours, connection, and unforgettable moments.",
+    fullDescription: "Every element follows one beautiful theme, creating a seamless experience that children love and parents genuinely enjoy — from personalised invitations to engaging moments and meaningful keepsakes.",
     heroImageUrl: IMAGES.cocomelonTheme,
     cardImageUrl: IMAGES.cocomelonTheme2,
     isActive: true,
@@ -171,6 +195,15 @@ export const placeholderThemes: PlaceholderTheme[] = [
     seoDescription: "A joyful Cocomelon birthday celebration with music, laughter, and beautifully planned details for toddlers.",
     accentColor: "cocomelon",
     tags: ["Toddler", "Music", "Ages 1-4"],
+    themeCategory: "Toddler Birthday",
+    themeVibe: "Musical & Joyful",
+    galleryImages: [IMAGES.cocomelonTheme, IMAGES.cocomelonTheme2, IMAGES.gallery3, IMAGES.gallery5, IMAGES.gallery6, IMAGES.gallery10],
+    highlights: [
+      { icon: "music", title: "Musical Setup", description: "Cocomelon songs and sing-along corner for the little ones." },
+      { icon: "palette", title: "Colorful Décor", description: "Bright, cheerful decorations that bring the Cocomelon world alive." },
+      { icon: "cake", title: "Custom Cake", description: "A themed birthday cake designed to match the celebration perfectly." },
+      { icon: "gift", title: "Return Gifts", description: "Fun, age-appropriate goodies for every tiny guest." },
+    ],
   },
   {
     id: "theme-3",
@@ -178,7 +211,7 @@ export const placeholderThemes: PlaceholderTheme[] = [
     slug: "princess-theme",
     tagline: "Because every little princess deserves a celebration straight out of her favourite fairytale.",
     shortDescription: "An enchanting fairytale celebration! Create a magical birthday experience where dreams become reality for your little princess.",
-    fullDescription: "Create a magical birthday experience where dreams become reality, and every little guest feels part of an enchanting fairytale. Our Princess Birthday Theme is thoughtfully designed to make your child feel truly special through elegant details, personalised experiences, and beautifully coordinated moments from beginning to end. Every part of the celebration reflects the same magical theme, creating memories that families cherish for years. Perfect for young dreamers who love castles, crowns, sparkle, and imagination, this premium birthday celebration is filled with elegance, joy, and unforgettable moments.",
+    fullDescription: "Our Princess Birthday Theme is thoughtfully designed to make your child feel truly special through elegant details, personalised experiences, and beautifully coordinated moments from beginning to end.",
     heroImageUrl: IMAGES.princessTheme,
     cardImageUrl: IMAGES.princessTheme2,
     isActive: true,
@@ -187,6 +220,15 @@ export const placeholderThemes: PlaceholderTheme[] = [
     seoDescription: "A magical princess birthday celebration with enchanting fairytale details for young dreamers.",
     accentColor: "princess",
     tags: ["Fairytale", "Elegant", "Ages 3-8"],
+    themeCategory: "Kids Birthday",
+    themeVibe: "Magical & Elegant",
+    galleryImages: [IMAGES.princessTheme, IMAGES.princessTheme2, IMAGES.gallery7, IMAGES.gallery9, IMAGES.gallery2, IMAGES.gallery8],
+    highlights: [
+      { icon: "crown", title: "Royal Dress-Up", description: "Crown-making and dress-up station for the little royals." },
+      { icon: "palette", title: "Fairytale Décor", description: "Enchanting pink & gold decorations with floral accents." },
+      { icon: "camera", title: "Photo Booth", description: "A themed photo booth with princess props and backdrops." },
+      { icon: "gift", title: "Royal Favors", description: "Elegant keepsakes and return gifts fit for royalty." },
+    ],
   },
   {
     id: "theme-4",
@@ -194,7 +236,7 @@ export const placeholderThemes: PlaceholderTheme[] = [
     slug: "jungle-safari-theme",
     tagline: "A wild adventure filled with roaring fun, exciting discoveries, and unforgettable birthday memories.",
     shortDescription: "Step into a world of adventure! A celebration inspired by the beauty of the jungle for little explorers and animal lovers.",
-    fullDescription: "Step into a world of adventure where curious explorers discover a birthday celebration inspired by the beauty of the jungle. Our Jungle Safari Birthday Theme creates an exciting experience filled with imagination, storytelling, and meaningful moments that children absolutely love. Every part of the celebration follows one beautifully connected theme — from personalised invitations before the party to immersive experiences during the celebration and thoughtful keepsakes afterwards. Designed for young animal lovers and adventurous little explorers, this celebration transforms an ordinary birthday into an unforgettable jungle adventure.",
+    fullDescription: "Every part of the celebration follows one beautifully connected theme — from personalised invitations to immersive experiences and thoughtful keepsakes for young animal lovers.",
     heroImageUrl: IMAGES.jungleTheme,
     cardImageUrl: IMAGES.jungleTheme2,
     isActive: true,
@@ -203,6 +245,15 @@ export const placeholderThemes: PlaceholderTheme[] = [
     seoDescription: "A wild jungle safari birthday adventure with immersive experiences for young animal lovers.",
     accentColor: "jungle",
     tags: ["Adventure", "Animals", "Ages 2-8"],
+    themeCategory: "Kids Birthday",
+    themeVibe: "Wild & Fun",
+    galleryImages: [IMAGES.jungleTheme, IMAGES.jungleTheme2, IMAGES.gallery4, IMAGES.gallery8, IMAGES.gallery5, IMAGES.gallery11],
+    highlights: [
+      { icon: "trees", title: "Safari Setup", description: "Lush greenery, animal cutouts, and immersive jungle décor." },
+      { icon: "gamepad", title: "Explorer Games", description: "Treasure hunts, animal spotting, and hands-on activities." },
+      { icon: "camera", title: "Safari Photo Zone", description: "An adventure-themed photo booth with jungle props." },
+      { icon: "gift", title: "Wild Goodies", description: "Animal-themed return gifts and nature-inspired keepsakes." },
+    ],
   },
 ];
 
@@ -346,10 +397,13 @@ export const placeholderEvents: PlaceholderEvent[] = [
     location: "Fairmont Hotel, Jaipur",
     theme: "Royal Princess",
     date: "November 12, 2024",
-    shortDescription: "A magical and elegant first birthday celebration featuring custom floral installations and a bespoke dessert table.",
-    content: "When we were approached to design a first birthday celebration at the Fairmont Hotel, the mandate was clear: elegant, magical, and unforgettable. The 'Royal Princess' theme was brought to life not with cliché bright pinks, but with a sophisticated palette of blush, ivory, and soft gold.\n\nThe venue was completely transformed with thousands of fresh florals cascading from the ceiling and framing the entrance. We designed a bespoke 12-foot dessert table that served as the centerpiece of the room, featuring a magnificent 4-tier castle cake. \n\nFor the little guests, we created a magical 'Royal Court' activity area complete with crown decorating, a soft-play ball pit matching the theme colors, and a whimsical photo booth. Every detail, from the personalized return gifts to the ambient lighting, was carefully curated to ensure both children and parents had an extraordinary experience.",
+    shortDescription: "A magical and elegant first birthday celebration featuring custom floral installations, a bespoke dessert table, and a fully immersive Royal Princess experience for 80 guests.",
     coverImage: IMAGES.princessTheme,
-    gallery: [IMAGES.gallery1, IMAGES.gallery2, IMAGES.gallery3, IMAGES.gallery7, IMAGES.gallery10, IMAGES.gallery12]
+    gallery: [IMAGES.gallery1, IMAGES.gallery2, IMAGES.gallery3, IMAGES.gallery7, IMAGES.gallery10, IMAGES.gallery12],
+    showTestimonial: true,
+    testimonialName: "Neha & Rahul Sharma",
+    testimonialContent: "The team turned our vision into something far beyond what we imagined. Our daughter's first birthday was truly magical — every guest was in awe. We couldn't have asked for a more perfect celebration.",
+    testimonialRating: 5,
   }
 ];
 

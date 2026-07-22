@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calendar, MapPin, Sparkles } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Sparkles, Star, Quote } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CTABand } from "@/components/home/CTABand";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { SimpleGalleryGrid } from "@/components/shared/SimpleGalleryGrid";
 import { placeholderEvents } from "@/lib/placeholder-data";
-import { MasonryGallery } from "@/components/gallery/MasonryGallery";
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -25,37 +25,26 @@ export default async function EventDetailPage({ params }: Props) {
   const event = placeholderEvents.find((e) => e.slug === slug);
   if (!event) notFound();
 
-  // Convert the simple string array to the object structure MasonryGallery expects
-  const galleryImages = event.gallery.map((url, i) => ({
-    id: `event-gal-${i}`,
-    imageUrl: url,
-    caption: `${event.title} - Highlight ${i + 1}`,
-    altText: `Photo from ${event.title}`,
-    tags: [event.theme],
-    aspectRatio: i % 3 === 0 ? "portrait" : i % 2 === 0 ? "landscape" : "square" as any
-  }));
-
   return (
     <>
-      {/* We make the Navbar transparent at the top since we have a full-bleed hero image */}
       <Navbar />
-      
+
       <main className="bg-surface min-h-screen">
-        {/* Full-width Hero Image with smooth blend into content */}
-        <section className="relative w-full h-[60vh] md:h-[70vh] min-h-[400px]">
-          <Image 
-            src={event.coverImage} 
-            alt={event.title} 
-            fill 
-            className="object-cover" 
+
+        {/* ── Section 1: Full-Width Hero ──────────────────────────── */}
+        <section className="relative w-full h-[55vh] md:h-[65vh] min-h-[380px]">
+          <Image
+            src={event.coverImage}
+            alt={event.title}
+            fill
+            className="object-cover"
             priority
             sizes="100vw"
           />
-          {/* Smooth blend gradient that fades into the surface color */}
-          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent" />
-          
+          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-charcoal/20" />
+
           <div className="absolute inset-0 flex flex-col justify-end">
-            <div className="max-w-4xl mx-auto px-5 md:px-10 w-full pb-10 md:pb-16 text-center">
+            <div className="max-w-4xl mx-auto px-5 md:px-10 w-full pb-10 md:pb-14 text-center">
               <ScrollReveal>
                 <Link href="/events" className="inline-flex items-center gap-1.5 text-sm text-mocha hover:text-mocha-dark font-medium mb-6 transition-colors">
                   <ArrowLeft size={16} /> All Events
@@ -63,57 +52,99 @@ export default async function EventDetailPage({ params }: Props) {
                 <h1 className="font-display text-4xl md:text-5xl lg:text-7xl text-charcoal font-bold leading-tight mb-6">
                   {event.title}
                 </h1>
-                
-                {/* Event Metadata */}
-                <div className="flex flex-wrap justify-center gap-6 text-sm font-medium text-mocha uppercase tracking-widest mt-8">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={16} />
+
+                {/* Metadata pills */}
+                <div className="flex flex-wrap justify-center gap-4 md:gap-6">
+                  <span className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm text-charcoal text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm">
+                    <MapPin size={15} className="text-mocha" />
                     {event.location}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} />
+                  </span>
+                  <span className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm text-charcoal text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm">
+                    <Sparkles size={15} className="text-mocha" />
                     {event.theme}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} />
+                  </span>
+                  <span className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm text-charcoal text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm">
+                    <Calendar size={15} className="text-mocha" />
                     {event.date}
-                  </div>
+                  </span>
                 </div>
               </ScrollReveal>
             </div>
           </div>
         </section>
 
-        {/* Content Section */}
-        <section className="pb-16 md:pb-24 -mt-4 relative z-10">
-          <div className="max-w-3xl mx-auto px-5 md:px-10">
-            <ScrollReveal delay={100}>
-              <div className="prose prose-lg md:prose-xl prose-p:text-text-muted prose-p:leading-relaxed prose-headings:font-display prose-headings:text-charcoal prose-headings:font-semibold max-w-none whitespace-pre-wrap text-center">
-                {event.content}
+        {/* ── Section 2: Short Description ────────────────────────── */}
+        <section className="py-12 md:py-16 border-b border-border-light">
+          <div className="max-w-3xl mx-auto px-5 md:px-10 text-center">
+            <ScrollReveal>
+              <p className="text-text-muted text-lg md:text-xl leading-relaxed">
+                {event.shortDescription}
+              </p>
+              <div className="flex justify-center gap-4 mt-10">
+                <Link href="/consultation" className="btn-primary text-sm px-8 py-4 shadow-lg hover:shadow-xl transition-all">
+                  Plan a Similar Event
+                </Link>
+                <Link href="/contact" className="btn-outline text-sm px-8 py-4 transition-all">
+                  Get In Touch
+                </Link>
               </div>
             </ScrollReveal>
           </div>
         </section>
 
-        {/* Gallery Section */}
-        <section className="pb-20 md:pb-32 bg-cream">
-          <div className="max-w-7xl mx-auto px-5 md:px-10 pt-16 md:pt-24">
+        {/* ── Section 3: Photo Gallery ────────────────────────────── */}
+        <section className="py-16 md:py-24 bg-cream">
+          <div className="max-w-6xl mx-auto px-5 md:px-10">
             <ScrollReveal>
               <div className="text-center mb-12">
-                <h2 className="font-display text-3xl md:text-4xl text-charcoal font-bold mb-4">
+                <p className="text-xs font-bold text-mocha uppercase tracking-[0.2em] mb-3">Gallery</p>
+                <h2 className="font-display text-3xl md:text-4xl text-charcoal font-bold">
                   Event Highlights
                 </h2>
-                <div className="h-px w-24 bg-mocha/30 mx-auto" />
               </div>
             </ScrollReveal>
-            
             <ScrollReveal delay={100}>
-              <MasonryGallery images={galleryImages} />
+              <SimpleGalleryGrid images={event.gallery} altPrefix={event.title} />
             </ScrollReveal>
           </div>
         </section>
 
+        {/* ── Section 4: Client Testimonial (Toggleable) ──────────── */}
+        {event.showTestimonial && event.testimonialContent && (
+          <section className="py-16 md:py-24 bg-surface">
+            <div className="max-w-3xl mx-auto px-5 md:px-10">
+              <ScrollReveal>
+                <div className="bg-cream border border-border-light rounded-[2rem] p-10 md:p-14 text-center relative">
+                  {/* Decorative quote mark */}
+                  <div className="w-14 h-14 rounded-full bg-mocha/10 flex items-center justify-center mx-auto mb-6">
+                    <Quote className="text-mocha" size={24} />
+                  </div>
+
+                  <blockquote className="font-display text-xl md:text-2xl text-charcoal font-medium leading-relaxed mb-8 italic">
+                    &ldquo;{event.testimonialContent}&rdquo;
+                  </blockquote>
+
+                  {/* Star rating */}
+                  {event.testimonialRating && (
+                    <div className="flex items-center justify-center gap-1 mb-4">
+                      {Array.from({ length: event.testimonialRating }).map((_, i) => (
+                        <Star key={i} size={18} className="text-gold-accent fill-gold-accent" />
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-mocha font-bold text-sm uppercase tracking-wider">
+                    {event.testimonialName}
+                  </p>
+                </div>
+              </ScrollReveal>
+            </div>
+          </section>
+        )}
+
+        {/* ── Section 5: CTA Band ─────────────────────────────────── */}
         <CTABand />
+
       </main>
       <Footer />
       <WhatsAppFAB />
