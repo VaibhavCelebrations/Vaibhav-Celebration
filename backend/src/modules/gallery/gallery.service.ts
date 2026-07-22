@@ -1,6 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import { cached, cacheKey, delPattern } from "../../lib/redis";
+
+const PUB_TTL = 5 * 60;
 
 const include = {
   media: true,
@@ -53,16 +56,19 @@ async function resolveTagIds(input: {
 }
 
 export function listGallery(tag?: string, themeId?: string) {
-  return prisma.galleryImage.findMany({
-    where: {
-      deletedAt: null,
-      isActive: true,
-      ...(themeId ? { themeId } : {}),
-      ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
-    },
-    include,
-    orderBy: { displayOrder: "asc" },
-  });
+  const key = `pub:gallery:list:${cacheKey({ tag, themeId })}`;
+  return cached(key, PUB_TTL, () =>
+    prisma.galleryImage.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        ...(themeId ? { themeId } : {}),
+        ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
+      },
+      include,
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 }
 
 export async function createGalleryImage(
@@ -75,7 +81,7 @@ export async function createGalleryImage(
     tagNames,
     themeId: data.themeId as string | null | undefined,
   });
-  return prisma.galleryImage.create({
+  const img = await prisma.galleryImage.create({
     data: {
       ...data,
       tags: resolvedTagIds.length
@@ -84,6 +90,8 @@ export async function createGalleryImage(
     },
     include,
   });
+  void delPattern("pub:gallery:*");
+  return img;
 }
 
 export async function updateGalleryImage(
@@ -130,7 +138,9 @@ export async function updateGalleryImage(
     }
   });
 
-  return prisma.galleryImage.findUniqueOrThrow({ where: { id }, include });
+  const updated = await prisma.galleryImage.findUniqueOrThrow({ where: { id }, include });
+  void delPattern("pub:gallery:*");
+  return updated;
 }
 
 export async function deleteGalleryImage(id: string) {
@@ -139,6 +149,7 @@ export async function deleteGalleryImage(id: string) {
     data: { deletedAt: new Date(), isActive: false },
   });
   if (!result.count) throw new NotFoundError("Gallery image not found");
+  void delPattern("pub:gallery:*");
 }
 
 /** Ensures a GalleryTag exists for a theme title (used on theme create/update). */

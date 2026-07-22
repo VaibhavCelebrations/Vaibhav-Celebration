@@ -139,7 +139,7 @@ export function ResourceScreen({
       : []),
   ];
 
-  return <div className="max-w-5xl">
+  return <div className="w-full">
     <PageHeader
       eyebrow="Administration"
       title={title}

@@ -77,7 +77,7 @@ export default function SettingsPage() {
   const number = (key: string) => Number(values[key as keyof typeof values] ?? 0);
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <PageHeader
         eyebrow="Settings"
         title="Operational Settings"

@@ -1,21 +1,28 @@
 import { BlogStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import { cached, delPattern } from "../../lib/redis";
+
 const include = {
   categories: { include: { category: true } },
   tags: { include: { tag: true } },
 };
 export const listPublishedPosts = () =>
-  prisma.blogPost.findMany({
-    where: { deletedAt: null, status: BlogStatus.PUBLISHED },
-    include,
-    orderBy: { publishedAt: "desc" },
-  });
+  cached("pub:blog:list", 3 * 60, () =>
+    prisma.blogPost.findMany({
+      where: { deletedAt: null, status: BlogStatus.PUBLISHED },
+      include,
+      orderBy: { publishedAt: "desc" },
+    }),
+  );
 export async function getPublishedPost(slug: string) {
-  const post = await prisma.blogPost.findFirst({
-    where: { slug, deletedAt: null, status: BlogStatus.PUBLISHED },
-    include,
-  });
+  const key = `pub:blog:slug:${slug}`;
+  const post = await cached(key, 5 * 60, () =>
+    prisma.blogPost.findFirst({
+      where: { slug, deletedAt: null, status: BlogStatus.PUBLISHED },
+      include,
+    }),
+  );
   if (!post) throw new NotFoundError("Blog post not found");
   return post;
 }
@@ -24,6 +31,7 @@ export function createPost(
   categoryIds: string[],
   tagIds: string[],
 ) {
+  void delPattern("pub:blog:*");
   return prisma.blogPost.create({
     data: {
       ...data,
@@ -43,7 +51,7 @@ export async function updatePost(
     where: { id, deletedAt: null },
   });
   if (!existing) throw new NotFoundError("Blog post not found");
-  return prisma.blogPost.update({
+  const result = await prisma.blogPost.update({
     where: { id },
     data: {
       ...data,
@@ -66,6 +74,8 @@ export async function updatePost(
     },
     include,
   });
+  void delPattern("pub:blog:*");
+  return result;
 }
 export async function deletePost(id: string) {
   const result = await prisma.blogPost.updateMany({
@@ -73,4 +83,5 @@ export async function deletePost(id: string) {
     data: { deletedAt: new Date(), status: BlogStatus.UNPUBLISHED },
   });
   if (!result.count) throw new NotFoundError("Blog post not found");
+  void delPattern("pub:blog:*");
 }

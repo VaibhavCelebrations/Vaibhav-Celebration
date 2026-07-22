@@ -1,6 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import { cached, cacheKey, delPattern } from "../../lib/redis";
+
+const PUB_TTL = 5 * 60;
 
 const detailInclude = {
   serviceItems: {
@@ -12,11 +15,13 @@ const detailInclude = {
 };
 
 export async function listPackages() {
-  return prisma.package.findMany({
-    where: { deletedAt: null, isActive: true },
-    include: detailInclude,
-    orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
-  });
+  return cached("pub:packages:list", PUB_TTL, () =>
+    prisma.package.findMany({
+      where: { deletedAt: null, isActive: true },
+      include: detailInclude,
+      orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
+    }),
+  );
 }
 
 export async function comparePackages(ids: string[]) {
@@ -28,36 +33,44 @@ export async function comparePackages(ids: string[]) {
 }
 
 export async function getPackageBySlug(slug: string) {
-  const item = await prisma.package.findFirst({
-    where: { slug, deletedAt: null, isActive: true },
-    include: detailInclude,
-  });
+  const key = `pub:packages:slug:${slug}`;
+  const item = await cached(key, PUB_TTL, () =>
+    prisma.package.findFirst({
+      where: { slug, deletedAt: null, isActive: true },
+      include: detailInclude,
+    }),
+  );
   if (!item) throw new NotFoundError("Package not found");
   return item;
 }
 
 export async function getPackageMatrix() {
-  const [packages, extraServices] = await Promise.all([
-    prisma.package.findMany({
-      where: { deletedAt: null },
-      include: {
-        serviceItems: {
-          orderBy: { displayOrder: "asc" },
-          include: { extraService: true },
+  return cached(`pub:packages:matrix`, PUB_TTL, () =>
+    Promise.all([
+      prisma.package.findMany({
+        where: { deletedAt: null },
+        include: {
+          serviceItems: {
+            orderBy: { displayOrder: "asc" },
+            include: { extraService: true },
+          },
         },
-      },
-      orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
-    }),
-    prisma.extraService.findMany({
-      where: { deletedAt: null },
-      orderBy: [{ displayOrder: "asc" }, { label: "asc" }],
-    }),
-  ]);
-  return { packages, extraServices };
+        orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
+      }),
+      prisma.extraService.findMany({
+        where: { deletedAt: null },
+        orderBy: [{ displayOrder: "asc" }, { label: "asc" }],
+      }),
+    ]).then(([packages, extraServices]) => ({ packages, extraServices })),
+  );
 }
 
-export const createPackage = (data: Prisma.PackageUncheckedCreateInput) =>
-  prisma.package.create({ data });
+export const createPackage = async (data: Prisma.PackageUncheckedCreateInput) => {
+  const pkg = await prisma.package.create({ data });
+  void delPattern("pub:packages:*");
+  void delPattern("adm:packages:*");
+  return pkg;
+};
 
 export async function updatePackage(
   id: string,
@@ -68,7 +81,10 @@ export async function updatePackage(
     data,
   });
   if (!updated.count) throw new NotFoundError("Package not found");
-  return prisma.package.findUniqueOrThrow({ where: { id } });
+  const pkg = await prisma.package.findUniqueOrThrow({ where: { id } });
+  void delPattern("pub:packages:*");
+  void delPattern("adm:packages:*");
+  return pkg;
 }
 
 export async function deletePackage(id: string) {
@@ -77,6 +93,8 @@ export async function deletePackage(id: string) {
     data: { deletedAt: new Date(), isActive: false },
   });
   if (!updated.count) throw new NotFoundError("Package not found");
+  void delPattern("pub:packages:*");
+  void delPattern("adm:packages:*");
 }
 
 export type ServiceItemInput = {

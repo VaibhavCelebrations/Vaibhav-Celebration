@@ -151,7 +151,7 @@ export function CapacityScreen() {
   ];
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <PageHeader
         eyebrow="Settings"
         title="Capacity Rules"

@@ -47,6 +47,7 @@ import {
   adminCapacityRouter,
   adminSettingsRouter,
   adminAuditRouter,
+  adminCacheRouter,
 } from "./modules/admin/admin-ops.routes";
 
 export function createApp() {
@@ -304,6 +305,7 @@ export function createApp() {
   api.use("/admin/capacity-rules", adminLimiter, noStore, adminCapacityRouter);
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
+  api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);
 
   app.use(env.API_PREFIX, api);
 

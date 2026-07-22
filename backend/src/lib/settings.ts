@@ -1,16 +1,27 @@
 import { prisma } from "../db/prisma";
 import { env } from "../config/env";
+import { cached, delPattern } from "./redis";
 
-const cache = new Map<string, { value: string; at: number }>();
-const TTL_MS = 60_000;
+// ─── In-memory fallback (used when Redis is unavailable) ─────────────────────
+const _memCache = new Map<string, { value: string; at: number }>();
+const MEM_TTL_MS = 60_000;
+
+async function _getSettingFromDb(key: string, fallback: string): Promise<string> {
+  // Try Redis first via cached() helper (TTL = 5 min)
+  const redisKey = `settings:${key}`;
+  return cached<string>(redisKey, 300, async () => {
+    const row = await prisma.operationalSetting.findUnique({ where: { key } });
+    return row?.value ?? fallback;
+  });
+}
 
 export async function getSetting(key: string, fallback: string): Promise<string> {
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+  // Check in-memory cache as hot-layer above Redis
+  const mem = _memCache.get(key);
+  if (mem && Date.now() - mem.at < MEM_TTL_MS) return mem.value;
 
-  const row = await prisma.operationalSetting.findUnique({ where: { key } });
-  const value = row?.value ?? fallback;
-  cache.set(key, { value, at: Date.now() });
+  const value = await _getSettingFromDb(key, fallback);
+  _memCache.set(key, { value, at: Date.now() });
   return value;
 }
 
@@ -33,7 +44,9 @@ export async function getMinConsultationAdvanceDays(): Promise<number> {
 }
 
 export function invalidateSettingsCache() {
-  cache.clear();
+  _memCache.clear();
+  // Also purge Redis settings keys (non-blocking)
+  void delPattern("settings:*");
 }
 
 export function gstOn(amountInPaise: number, gstPercent: number): number {

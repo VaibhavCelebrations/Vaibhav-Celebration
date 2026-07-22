@@ -227,7 +227,7 @@ export function PackagesScreen() {
   }
 
   return (
-    <div className="max-w-[1400px]">
+    <div className="w-full">
       <PageHeader
         eyebrow="Content"
         title="Packages"

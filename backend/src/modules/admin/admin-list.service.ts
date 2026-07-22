@@ -1,5 +1,8 @@
 import { prisma } from "../../db/prisma";
 import { parsePagination } from "../../lib/response";
+import { cached, cacheKey, delPattern } from "../../lib/redis";
+
+const ADM_TTL = 30; // 30 seconds for admin lists
 
 export type AdminListQuery = {
   page?: number;
@@ -46,46 +49,49 @@ export async function adminListThemes(q: AdminListQuery) {
         ? { updatedAt: q.dir ?? ("desc" as const) }
         : { displayOrder: "asc" as const };
 
-  const [rows, total] = await Promise.all([
-    prisma.theme.findMany({
-      where,
-      skip,
-      take,
-      orderBy,
-      include: {
-        heroImage: true,
-        _count: {
-          select: {
-            packages: true,
-            galleryImages: { where: { deletedAt: null } },
+  const key = `adm:themes:${cacheKey(q)}`;
+  return cached(key, ADM_TTL, async () => {
+    const [rows, total] = await Promise.all([
+      prisma.theme.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        include: {
+          heroImage: true,
+          _count: {
+            select: {
+              packages: true,
+              galleryImages: { where: { deletedAt: null } },
+            },
           },
         },
-      },
-    }),
-    prisma.theme.count({ where }),
-  ]);
+      }),
+      prisma.theme.count({ where }),
+    ]);
 
-  const items = rows.map((t) => ({
-    id: t.id,
-    title: t.title,
-    slug: t.slug,
-    shortDescription: t.shortDescription,
-    storyDescription: t.storyDescription,
-    audienceNote: t.audienceNote,
-    heroImage: toMediaRef(t.heroImage),
-    isActive: t.isActive,
-    displayOrder: t.displayOrder,
-    seoTitle: t.seoTitle,
-    seoDescription: t.seoDescription,
-    ogImage: null,
-    createdAt: t.createdAt.toISOString(),
-    updatedAt: t.updatedAt.toISOString(),
-    deletedAt: t.deletedAt?.toISOString() ?? null,
-    packageCount: t._count.packages,
-    galleryCount: t._count.galleryImages,
-  }));
+    const items = rows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      slug: t.slug,
+      shortDescription: t.shortDescription,
+      storyDescription: t.storyDescription,
+      audienceNote: t.audienceNote,
+      heroImage: toMediaRef(t.heroImage),
+      isActive: t.isActive,
+      displayOrder: t.displayOrder,
+      seoTitle: t.seoTitle,
+      seoDescription: t.seoDescription,
+      ogImage: null,
+      createdAt: t.createdAt.toISOString(),
+      updatedAt: t.updatedAt.toISOString(),
+      deletedAt: t.deletedAt?.toISOString() ?? null,
+      packageCount: t._count.packages,
+      galleryCount: t._count.galleryImages,
+    }));
 
-  return listResult(items, total, page, pageSize);
+    return listResult(items, total, page, pageSize);
+  });
 }
 
 export async function adminGetTheme(id: string) {
@@ -166,44 +172,47 @@ export async function adminListPackages(q: AdminListQuery) {
       : {}),
   };
 
-  const [rows, total] = await Promise.all([
-    prisma.package.findMany({
-      where,
-      skip,
-      take,
-      orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
-      include: {
-        _count: {
-          select: {
-            serviceItems: true,
-            themeLinks: true,
+  const key = `adm:packages:${cacheKey(q)}`;
+  return cached(key, ADM_TTL, async () => {
+    const [rows, total] = await Promise.all([
+      prisma.package.findMany({
+        where,
+        skip,
+        take,
+        orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
+        include: {
+          _count: {
+            select: {
+              serviceItems: true,
+              themeLinks: true,
+            },
           },
         },
-      },
-    }),
-    prisma.package.count({ where }),
-  ]);
+      }),
+      prisma.package.count({ where }),
+    ]);
 
-  const items = rows.map((p) => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    priceInPaise: p.priceInPaise,
-    tierRank: p.tierRank,
-    isRecommended: p.isRecommended,
-    isActive: p.isActive,
-    isCustomizable: p.isCustomizable,
-    displayOrder: p.displayOrder,
-    description: p.description,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt.toISOString(),
-    deletedAt: p.deletedAt?.toISOString() ?? null,
-    serviceItemCount: p._count.serviceItems,
-    includedServiceCount: 0,
-    themeCount: p._count.themeLinks,
-  }));
+    const items = rows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      priceInPaise: p.priceInPaise,
+      tierRank: p.tierRank,
+      isRecommended: p.isRecommended,
+      isActive: p.isActive,
+      isCustomizable: p.isCustomizable,
+      displayOrder: p.displayOrder,
+      description: p.description,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+      deletedAt: p.deletedAt?.toISOString() ?? null,
+      serviceItemCount: p._count.serviceItems,
+      includedServiceCount: 0,
+      themeCount: p._count.themeLinks,
+    }));
 
-  return listResult(items, total, page, pageSize);
+    return listResult(items, total, page, pageSize);
+  });
 }
 
 export async function adminListFaqs(q: AdminListQuery & { category?: string }) {
@@ -224,20 +233,23 @@ export async function adminListFaqs(q: AdminListQuery & { category?: string }) {
       : {}),
   };
 
-  const [rows, total] = await Promise.all([
-    prisma.fAQ.findMany({ where, skip, take, orderBy: { displayOrder: "asc" } }),
-    prisma.fAQ.count({ where }),
-  ]);
+  const key = `adm:faqs:${cacheKey(q)}`;
+  return cached(key, ADM_TTL, async () => {
+    const [rows, total] = await Promise.all([
+      prisma.fAQ.findMany({ where, skip, take, orderBy: { displayOrder: "asc" } }),
+      prisma.fAQ.count({ where }),
+    ]);
 
-  const items = rows.map((f) => ({
-    id: f.id,
-    question: f.question,
-    answer: f.answer,
-    category: f.category,
-    displayOrder: f.displayOrder,
-    isActive: f.isActive,
-    deletedAt: f.deletedAt?.toISOString() ?? null,
-  }));
+    const items = rows.map((f) => ({
+      id: f.id,
+      question: f.question,
+      answer: f.answer,
+      category: f.category,
+      displayOrder: f.displayOrder,
+      isActive: f.isActive,
+      deletedAt: f.deletedAt?.toISOString() ?? null,
+    }));
 
-  return listResult(items, total, page, pageSize);
+    return listResult(items, total, page, pageSize);
+  });
 }

@@ -62,6 +62,12 @@ const envSchema = z.object({
   GIFT_REGISTRY_VALIDITY_DAYS: z.coerce.number().default(30),
   SENTRY_DSN: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  REDIS_CACHE_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false")
+    .default("true"),
 });
 
 const parsed = envSchema.safeParse(process.env);

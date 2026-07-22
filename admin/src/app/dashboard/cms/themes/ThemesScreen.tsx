@@ -139,7 +139,7 @@ export function ThemesScreen() {
   ];
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <PageHeader
         eyebrow="Content"
         title="Themes"
