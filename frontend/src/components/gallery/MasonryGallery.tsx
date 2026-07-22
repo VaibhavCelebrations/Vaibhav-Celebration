@@ -4,10 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Expand } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import {
-  placeholderGalleryImages,
-  getGalleryTags,
-} from "@/lib/placeholder-data";
+import { placeholderGalleryImages, getGalleryTags } from "@/lib/placeholder-data";
 
 const heightMap: Record<string, string> = {
   portrait: "aspect-[3/4]",
@@ -30,9 +27,7 @@ export function MasonryGallery() {
         <button
           onClick={() => setActiveTag(null)}
           className={`text-xs font-medium tracking-wide uppercase px-4 py-2 rounded-full transition-premium ${
-            !activeTag
-              ? "bg-mocha text-white"
-              : "bg-cream-dark text-text hover:bg-blush"
+            !activeTag ? "bg-mocha text-white" : "bg-cream-dark text-text hover:bg-blush"
           }`}
         >
           All
@@ -42,9 +37,7 @@ export function MasonryGallery() {
             key={tag}
             onClick={() => setActiveTag(tag)}
             className={`text-xs font-medium tracking-wide uppercase px-4 py-2 rounded-full transition-premium ${
-              activeTag === tag
-                ? "bg-mocha text-white"
-                : "bg-cream-dark text-text hover:bg-blush"
+              activeTag === tag ? "bg-mocha text-white" : "bg-cream-dark text-text hover:bg-blush"
             }`}
           >
             {tag}
@@ -67,9 +60,7 @@ export function MasonryGallery() {
                 />
               </div>
               <figcaption className="absolute inset-0 flex items-end justify-between p-4 bg-gradient-to-t from-charcoal/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-premium">
-                <span className="text-white text-xs font-medium tracking-wide">
-                  {img.caption}
-                </span>
+                <span className="text-white text-xs font-medium tracking-wide">{img.caption}</span>
                 <span className="w-8 h-8 shrink-0 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white translate-y-2 group-hover:translate-y-0 transition-premium">
                   <Expand size={14} />
                 </span>

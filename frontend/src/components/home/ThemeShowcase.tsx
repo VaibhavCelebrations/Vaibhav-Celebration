@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { placeholderThemes } from "@/lib/placeholder-data";
 
-/* -- Local theme background images -------------------------------- */
+/* ── Local theme background images ──────────────────────────────── */
 import spaceBg from "@/assets/theme/space_theme.png";
 import cocomelonBg from "@/assets/theme/cocomelon_theme.png";
 import princessBg from "@/assets/theme/princess_theme.png";
@@ -57,11 +57,13 @@ export function ThemeShowcase() {
       <section
         className="sticky flex flex-col items-center justify-center overflow-hidden"
         style={{
-          top: "0",
+          top: "96px",
           zIndex: 1,
           backgroundColor: "#1a1a1a",
           borderRadius: "2.5rem 2.5rem 0 0",
           height: "60vh",
+          paddingBottom: "4rem", // Extends background down
+          marginBottom: "-4rem", // Pulls next section up to overlap
           boxShadow: "0 -20px 40px rgba(0,0,0,0.15)",
         }}
       >
@@ -89,7 +91,7 @@ export function ThemeShowcase() {
             key={theme.id}
             className="sticky h-screen overflow-hidden"
             style={{
-              top: "0",
+              top: "96px",
               zIndex: 2 + i,
               backgroundColor: s.fallbackColor,
               borderRadius: "2rem 2rem 0 0",
@@ -133,7 +135,7 @@ export function ThemeShowcase() {
       <section
         className="sticky min-h-screen overflow-hidden flex flex-col items-center justify-center text-center"
         style={{
-          top: "0",
+          top: "96px",
           zIndex: 10,
           borderRadius: "2rem 2rem 0 0",
           backgroundColor: "#755846", // Solid mocha color
@@ -152,7 +154,7 @@ export function ThemeShowcase() {
           <h3 className="font-display text-6xl md:text-7xl lg:text-8xl !text-white font-bold mb-8 leading-[1.1]">
             Can&apos;t find your<br />perfect theme?
           </h3>
-          
+
           <p className="text-white/80 text-lg md:text-xl lg:text-2xl max-w-3xl mx-auto leading-relaxed mb-12">
             We have many more magical themes waiting. From jungle safaris to
             superhero quests — discover celebrations designed to wow your little one.

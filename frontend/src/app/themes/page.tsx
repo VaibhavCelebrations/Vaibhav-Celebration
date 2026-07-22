@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
+import Image, { StaticImageData } from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -12,7 +12,7 @@ import spaceBg from "@/assets/theme/space_theme.png";
 import cocomelonBg from "@/assets/theme/cocomelon_theme.png";
 import princessBg from "@/assets/theme/princess_theme.png";
 
-const bgMap: Record<string, any> = {
+const bgMap: Record<string, StaticImageData> = {
   space: spaceBg,
   cocomelon: cocomelonBg,
   princess: princessBg,

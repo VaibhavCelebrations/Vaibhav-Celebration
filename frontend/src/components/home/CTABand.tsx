@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Phone, Mail } from "lucide-react";
+import { Phone, Mail } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 export function CTABand() {
