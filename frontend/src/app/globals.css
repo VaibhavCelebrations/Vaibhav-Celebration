@@ -239,9 +239,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   width: 100%;
   margin: 0 auto;
   border-radius: 0;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--color-border-light);
   box-shadow: none;
-  background-color: transparent;
+  background-color: rgba(245, 243, 230, 0.5); /* 50% transparent cream */
+  backdrop-filter: blur(8px);
   transition:
     width 0.8s var(--ease-premium),
     margin 0.8s var(--ease-premium),

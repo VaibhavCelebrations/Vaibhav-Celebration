@@ -39,7 +39,7 @@ export function Navbar() {
     >
       <div className="nav-shell">
         <div className="max-w-7xl mx-auto px-5 md:px-10">
-          <div className="nav-inner flex items-center justify-between h-[96px] md:h-[112px]">
+          <div className="nav-inner flex items-center justify-between h-[80px] md:h-[88px]">
             {/* Logo */}
             <Link
               href="/"
