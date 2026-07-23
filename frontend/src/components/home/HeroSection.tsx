@@ -7,7 +7,7 @@ import heroBg from "@/assets/bg-1.png";
 export function HeroSection() {
   return (
     <section 
-      className="relative min-h-[90dvh] w-full flex overflow-hidden pt-[160px] pb-[100px] md:pt-[200px]"
+      className="relative min-h-[90dvh] w-full flex overflow-hidden pt-[110px] pb-[100px] md:pt-[130px]"
       style={{
         backgroundImage: `url(${heroBg.src})`,
         backgroundSize: "cover",

@@ -150,6 +150,10 @@ export interface PlaceholderBlog {
   content: string;
   coverImage: string;
   date: string;
+  category: string;
+  readTime: string;
+  author: string;
+  tags: string[];
 }
 
 // ── Theme Data (from client's Theme Content PDF) ────────────────────
@@ -378,12 +382,55 @@ export const placeholderFAQs: PlaceholderFAQ[] = [
 export const placeholderBlogs: PlaceholderBlog[] = [
   {
     id: "blog-1",
-    title: "5 Magical Ideas for Your Child's Next Birthday",
-    slug: "magical-birthday-ideas",
-    shortDescription: "Discover how to transform an ordinary celebration into a magical memory with these simple yet highly effective themed ideas.",
-    content: "Planning a child's birthday can be both exciting and overwhelming. To make the day truly special, it's not just about the decorations, but about creating an immersive experience that tells a story. From personalised invitations that set the tone, to curated activities that keep the kids engaged, every detail matters. \n\n1. Establish a Storyline: Instead of just picking a color scheme, pick a storyline. If it's a space theme, the invitations are 'mission briefings', the entrance is a 'spaceship airlock', and the cake cutting is 'landing on Mars'.\n\n2. Interactive Food Stations: Kids love feeling independent. A DIY cupcake decorating station or a build-your-own trail mix bar acts as both food and an activity.\n\n3. Experiential Return Gifts: Instead of plastic toys, give them an experience to take home. A small potted plant they can grow, or a mini DIY telescope kit from the space mission.\n\nBy focusing on the narrative rather than just the visuals, you create a memory that lasts long after the balloons have deflated.",
-    coverImage: IMAGES.spaceTheme,
-    date: "August 16, 2024"
+    title: "5 Magical Themes for Your Child's Next Birthday (2026 Guide)",
+    slug: "5-magical-themes-for-kids-birthday",
+    shortDescription: "Discover how to transform an ordinary celebration into a magical memory with our top 5 theme recommendations for 2026, including Space and Cocomelon.",
+    content: "Planning a child's birthday can be both exciting and overwhelming. To make the day truly special, it's not just about the decorations, but about creating an immersive experience that tells a story. From personalised invitations that set the tone, to curated activities that keep the kids engaged, every detail matters.\n\n### 1. The Space Explorer Experience\nInstead of just picking a color scheme, pick a storyline. For a space theme, the invitations are 'mission briefings', the entrance is a 'spaceship airlock', and the cake cutting is 'landing on Mars'.\n\n### 2. The Cocomelon Sing-Along\nPerfect for toddlers, this vibrant theme brings their favorite characters to life with bright pastel colors, musical activity corners, and personalized learning games.\n\n### 3. Royal Princess Castle\nA classic that never goes out of style. Elevate it with a bespoke dessert table, custom floral installations, and a crowning ceremony.\n\n> \"Every celebration is thoughtfully designed around a child's interests, personality, likes, and imagination, ensuring that each event becomes a cherished memory.\"\n\nBy focusing on the narrative rather than just the visuals, you create a memory that lasts long after the balloons have deflated.",
+    coverImage: "https://images.unsplash.com/photo-1530103862676-de8892cb7369?q=80&w=800&auto=format&fit=crop",
+    date: "August 16, 2026",
+    category: "Theme Ideas",
+    readTime: "5 min read",
+    author: "Vaibhav Celebrations",
+    tags: ["Theme Ideas", "Planning Guide", "Birthday"]
+  },
+  {
+    id: "blog-2",
+    title: "How to Choose the Perfect Personalized Return Gifts for Kids",
+    slug: "perfect-personalized-return-gifts",
+    shortDescription: "Return gifts are more than just toys; they are lasting memories. Here is how to pick personalized gifts that children will treasure.",
+    content: "Return gifts are the final touch to a memorable celebration. They are a way to thank your guests and leave them with a lasting piece of the magic.\n\n> \"Our approach goes beyond decoration by creating personalized experiences that children remember and families treasure.\"\n\n### Experiential Return Gifts\nInstead of generic plastic toys, consider giving them an experience to take home. A small potted plant they can grow, or a mini DIY telescope kit from a space mission theme party.\n\n### Personalization is Key\nAdding a child's name or matching the gift perfectly to the theme makes it special. Think customized activity kits, themed stationery, or personalized storybooks.",
+    coverImage: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?q=80&w=800&auto=format&fit=crop",
+    date: "July 22, 2026",
+    category: "Return Gifts",
+    readTime: "4 min read",
+    author: "Vaibhav Celebrations",
+    tags: ["Return Gifts", "Keepsakes", "Planning Guide"]
+  },
+  {
+    id: "blog-3",
+    title: "The Ultimate Checklist for a Stress-Free 1st Birthday Celebration",
+    slug: "1st-birthday-celebration-checklist",
+    shortDescription: "Planning your baby's first birthday? Follow this comprehensive checklist to ensure a stress-free and memorable milestone celebration.",
+    content: "A first birthday is as much a celebration for the parents as it is for the child. It marks a year of incredible milestones and memories.\n\n> \"We create meaningful and stress-free celebration experiences for parents by offering carefully designed birthday concepts.\"\n\n### Planning Timeline\nStart planning at least 6-8 weeks in advance. This gives you ample time to finalize the venue, theme, and guest list without rushing.\n\n### Essential Elements\n1. Meaningful Theme: Choose something that reflects your baby's current interests, whether that's stars, animals, or a favorite lullaby.\n2. Guest Comfort: Ensure there's a quiet zone for naps and nursing, and age-appropriate food for the little ones.\n3. The Smash Cake: A must-have for those adorable, messy photos!",
+    coverImage: "https://images.unsplash.com/photo-1519689680058-324335c77eba?q=80&w=800&auto=format&fit=crop",
+    date: "June 10, 2026",
+    category: "Milestone Moments",
+    readTime: "6 min read",
+    author: "Vaibhav Celebrations",
+    tags: ["1st Birthday", "Planning", "Milestone Moments"]
+  },
+  {
+    id: "blog-4",
+    title: "Why Activity-Based Birthdays Are the New Trend",
+    slug: "activity-based-birthdays-trend",
+    shortDescription: "Move beyond traditional parties with activity-based celebrations that keep kids engaged, learning, and having fun.",
+    content: "Modern parents are looking for more than just a beautifully decorated room; they want engaging experiences for their children.\n\n> \"At Vaibhav Celebrations, we believe that celebrations should not only look beautiful but should also feel meaningful, thoughtful, and unforgettable.\"\n\n### Interactive Stations\nKids love feeling independent. A DIY cupcake decorating station or a build-your-own trail mix bar acts as both food and an activity.\n\n### Themed Activity Kits\nInstead of hiring a traditional entertainer, we curate themed activity kits that align with the party's storyline, keeping kids engaged while sparking their creativity.",
+    coverImage: "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?q=80&w=800&auto=format&fit=crop",
+    date: "May 28, 2026",
+    category: "Activity Experiences",
+    readTime: "4 min read",
+    author: "Vaibhav Celebrations",
+    tags: ["Activity Experiences", "Trends", "Birthday"]
   }
 ];
 

@@ -4,9 +4,13 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Expand, X } from "lucide-react";
-import { gsap, useGSAP } from "@/lib/gsap-register";
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-register";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 // High quality demo images for the homepage gallery
 const demoImages = [
