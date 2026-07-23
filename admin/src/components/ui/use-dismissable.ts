@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type MouseEventHandler, type RefObject } from "react";
+import { useCallback, useEffect, useId, useRef, type MouseEventHandler, type RefObject } from "react";
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
@@ -22,6 +22,12 @@ export function useDismissable({ open, onClose, closeOnBackdrop = true }: UseDis
   const titleId = useId();
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
+  // Keep onClose in a ref so the effect doesn't re-run (and re-steal focus)
+  // every time the callback identity changes — which happens on every render
+  // because requestClose captures mutable state like `dirty`.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
 
@@ -33,7 +39,7 @@ export function useDismissable({ open, onClose, closeOnBackdrop = true }: UseDis
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !container) return;
@@ -59,11 +65,11 @@ export function useDismissable({ open, onClose, closeOnBackdrop = true }: UseDis
       document.body.style.overflow = prevOverflow;
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
-  const onBackdropMouseDown: MouseEventHandler = (e) => {
-    if (closeOnBackdrop && e.target === e.currentTarget) onClose();
-  };
+  const onBackdropMouseDown: MouseEventHandler = useCallback((e) => {
+    if (closeOnBackdrop && e.target === e.currentTarget) onCloseRef.current();
+  }, [closeOnBackdrop]);
 
   return { containerRef, titleId, onBackdropMouseDown };
 }
