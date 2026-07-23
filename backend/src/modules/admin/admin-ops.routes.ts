@@ -9,6 +9,7 @@ import { toDateOnly } from "../../lib/validators";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { invalidateSettingsCache } from "../../lib/settings";
+import { delPattern, isRedisReady, getRedisClient } from "../../lib/redis";
 
 export const adminCapacityRouter = Router();
 adminCapacityRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN));
@@ -175,3 +176,31 @@ adminAuditRouter.get(
     }
   },
 );
+
+// ── Cache Purge ──────────────────────────────────────────────────────────────
+export const adminCacheRouter = Router();
+adminCacheRouter.use(requireAdmin, requireRoles(AdminRole.SUPER_ADMIN));
+
+/**
+ * POST /admin/cache/purge
+ * Flushes all pub:*, adm:*, settings:*, avail:* keys from Redis.
+ * Use after bulk imports, emergency fixes, or schema changes.
+ */
+adminCacheRouter.post("/purge", async (_req, res, next) => {
+  try {
+    const redis = getRedisClient();
+    if (!redis || !isRedisReady()) {
+      return ok(res, { purged: false, reason: "Redis unavailable" });
+    }
+    await Promise.all([
+      delPattern("pub:*"),
+      delPattern("adm:*"),
+      delPattern("settings:*"),
+      delPattern("avail:*"),
+    ]);
+    invalidateSettingsCache();
+    return ok(res, { purged: true, timestamp: new Date().toISOString() });
+  } catch (err) {
+    return next(err);
+  }
+});

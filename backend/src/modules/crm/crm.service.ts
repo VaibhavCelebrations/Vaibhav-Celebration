@@ -23,6 +23,7 @@ export async function createContactLead(input: {
 }
 
 export async function listLeads(filters: {
+  search?: string;
   status?: LeadStatus;
   source?: LeadSource;
   page: number;
@@ -31,6 +32,13 @@ export async function listLeads(filters: {
   const where: Prisma.LeadWhereInput = { deletedAt: null };
   if (filters.status) where.status = filters.status;
   if (filters.source) where.source = filters.source;
+  if (filters.search) {
+    where.OR = [
+      { name: { contains: filters.search, mode: "insensitive" } },
+      { email: { contains: filters.search, mode: "insensitive" } },
+      { phone: { contains: filters.search } },
+    ];
+  }
 
   const [total, items] = await Promise.all([
     prisma.lead.count({ where }),

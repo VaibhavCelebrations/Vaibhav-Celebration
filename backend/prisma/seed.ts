@@ -49,10 +49,8 @@ async function clearDevData() {
     "GalleryImageTag",
     "GalleryImage",
     "GalleryTag",
-    "PackageCustomizationOption",
-    "PackageAddOn",
-    "AddOnService",
-    "PackageFeature",
+    "PackageServiceItem",
+    "ExtraService",
     "ThemePackage",
     "ThemeSampleAsset",
     "Theme",
@@ -61,6 +59,7 @@ async function clearDevData() {
     "BookingCapacityRule",
     "OperationalSetting",
     "SequenceCounter",
+    "AdminRefreshToken",
     "AdminUser",
   ] as const;
 
@@ -288,146 +287,201 @@ async function main() {
     gallery3Media,
   ] = mediaAssets;
 
-  // ── Packages ─────────────────────────────────────────────────────────────────
-  const silverPkg = await prisma.package.create({
+  // ── Packages (Standard / Premium / Lux) ─────────────────────────────────────
+  const standardPkg = await prisma.package.create({
     data: {
-      title: "Silver Celebration",
-      slug: "silver-celebration",
-      priceInPaise: 14990000,
+      title: "Standard",
+      slug: "standard",
+      priceInPaise: 4990000,
       tierRank: 1,
       isRecommended: false,
       isActive: true,
       isCustomizable: true,
       displayOrder: 1,
-      description:
-        "An elegant package for up to 100 guests with essential décor, seating, and coordination support.",
+      description: "Perfect for intimate celebrations with essential décor and coordination.",
     },
   });
 
-  const goldPkg = await prisma.package.create({
+  const premiumPkg = await prisma.package.create({
     data: {
-      title: "Gold Celebration",
-      slug: "gold-celebration",
-      priceInPaise: 24990000,
+      title: "Premium",
+      slug: "premium",
+      priceInPaise: 7990000,
       tierRank: 2,
       isRecommended: true,
       isActive: true,
       isCustomizable: true,
       displayOrder: 2,
-      description:
-        "Premium décor, extended hours, and dedicated event manager for up to 200 guests.",
+      description: "Most loved for memorable celebrations with themed décor and personalized touches.",
     },
   });
 
-  const platinumPkg = await prisma.package.create({
+  const luxPkg = await prisma.package.create({
     data: {
-      title: "Platinum Celebration",
-      slug: "platinum-celebration",
-      priceInPaise: 39990000,
+      title: "Lux",
+      slug: "lux",
+      priceInPaise: 11990000,
       tierRank: 3,
       isRecommended: false,
       isActive: true,
       isCustomizable: true,
       displayOrder: 3,
-      description:
-        "Full-day celebration with premium themes, add-ons included, and VIP guest experience for up to 350 guests.",
+      description: "Grand, unforgettable experiences with premium décor, activities, and full support.",
     },
   });
 
-  await prisma.packageFeature.createMany({
-    data: [
-      { packageId: silverPkg.id, label: "Basic floral décor", quantity: 1, unit: "set", displayOrder: 1 },
-      { packageId: silverPkg.id, label: "Standard seating", quantity: 100, unit: "guests", displayOrder: 2 },
-      { packageId: silverPkg.id, label: "Venue access", quantity: 6, unit: "hours", displayOrder: 3 },
-      { packageId: goldPkg.id, label: "Premium theme selection", quantity: 1, displayOrder: 1 },
-      { packageId: goldPkg.id, label: "Dedicated event manager", quantity: 1, displayOrder: 2 },
-      { packageId: goldPkg.id, label: "Venue access", quantity: 8, unit: "hours", displayOrder: 3 },
-      { packageId: goldPkg.id, label: "Welcome drink station", quantity: 1, displayOrder: 4 },
-      { packageId: platinumPkg.id, label: "All Gold features included", quantity: 1, displayOrder: 1 },
-      { packageId: platinumPkg.id, label: "Custom theme design", quantity: 1, displayOrder: 2 },
-      { packageId: platinumPkg.id, label: "Full-day venue access", quantity: 12, unit: "hours", displayOrder: 3 },
-      { packageId: platinumPkg.id, label: "Bridal suite access", quantity: 1, displayOrder: 4 },
-      { packageId: platinumPkg.id, label: "Complimentary photography hour", quantity: 1, unit: "hour", displayOrder: 5, sampleAssetType: SampleAssetType.OTHER },
-    ],
-  });
-
-  // ── Add-On Services ──────────────────────────────────────────────────────────
-  const djAddon = await prisma.addOnService.create({
+  // ── Extra Services (global catalog — Fiverr-style rows) ─────────────────────
+  const svcReturnGift = await prisma.extraService.create({
     data: {
-      title: "DJ & Sound System",
-      priceInPaise: 3500000,
-      isActive: true,
-      minQuantity: 1,
-      maxQuantity: 1,
-    },
-  });
-
-  const photoAddon = await prisma.addOnService.create({
-    data: {
-      title: "Photography Package",
-      priceInPaise: 7500000,
-      isActive: true,
-      minQuantity: 1,
-      maxQuantity: 1,
-    },
-  });
-
-  const cateringAddon = await prisma.addOnService.create({
-    data: {
-      title: "Premium Catering",
-      priceInPaise: 12000000,
-      isActive: true,
-      minQuantity: 1,
-      maxQuantity: 200,
-    },
-  });
-
-  await prisma.packageAddOn.createMany({
-    data: [
-      { packageId: silverPkg.id, addOnServiceId: djAddon.id, isDefaultIncluded: false },
-      { packageId: silverPkg.id, addOnServiceId: photoAddon.id, isDefaultIncluded: false },
-      { packageId: goldPkg.id, addOnServiceId: djAddon.id, isDefaultIncluded: true },
-      { packageId: goldPkg.id, addOnServiceId: photoAddon.id, isDefaultIncluded: false },
-      { packageId: platinumPkg.id, addOnServiceId: djAddon.id, isDefaultIncluded: true },
-      { packageId: platinumPkg.id, addOnServiceId: photoAddon.id, isDefaultIncluded: true },
-      { packageId: platinumPkg.id, addOnServiceId: cateringAddon.id, isDefaultIncluded: true },
-    ],
-  });
-
-  const extraColumnOption = await prisma.packageCustomizationOption.create({
-    data: {
-      packageId: goldPkg.id,
-      label: "Extra floral column",
-      extraPriceInPaise: 1500000,
-      minQuantity: 0,
-      maxQuantity: 4,
-      isActive: true,
+      label: "Return gift",
+      description: "Curated return gifts matching your theme and guest count.",
+      requirements: "Guest count and theme preference required at least 7 days before the event.",
       displayOrder: 1,
+      isActive: true,
     },
   });
 
-  await prisma.packageCustomizationOption.create({
+  const svcVideoInvites = await prisma.extraService.create({
     data: {
-      packageId: goldPkg.id,
-      label: "Premium stage backdrop upgrade",
-      extraPriceInPaise: 2500000,
-      minQuantity: 0,
-      maxQuantity: 1,
-      isActive: true,
+      label: "Video invites",
+      description: "Animated or live-action video invitations for your celebration.",
+      requirements: "Provide child name, event date, venue, and theme artwork references.",
       displayOrder: 2,
+      isActive: true,
     },
   });
 
-  await prisma.packageCustomizationOption.create({
+  const svcThemeDecor = await prisma.extraService.create({
     data: {
-      packageId: platinumPkg.id,
-      label: "Fireworks display",
-      extraPriceInPaise: 5000000,
-      minQuantity: 0,
-      maxQuantity: 1,
+      label: "Theme based decorations",
+      description: "Full theme-aligned décor including backdrop, props, and table styling.",
+      requirements: "Theme selection and venue walkthrough recommended.",
+      displayOrder: 3,
       isActive: true,
-      displayOrder: 1,
     },
+  });
+
+  const svcDigitalInvites = await prisma.extraService.create({
+    data: {
+      label: "Digital invites",
+      description: "Shareable digital invitation cards for WhatsApp and social media.",
+      requirements: "Event details, RSVP contact, and preferred colour palette.",
+      displayOrder: 4,
+      isActive: true,
+    },
+  });
+
+  const svcCustomBackdrop = await prisma.extraService.create({
+    data: {
+      label: "Custom backdrop",
+      description: "Personalised photo backdrop with name, age, and theme elements.",
+      requirements: "Child name, age, and high-resolution theme assets if available.",
+      displayOrder: 5,
+      isActive: true,
+    },
+  });
+
+  const svcPersonalized = await prisma.extraService.create({
+    data: {
+      label: "Personalized details",
+      description: "Custom signage, name boards, cake toppers, and themed printables.",
+      requirements: "Spelling of names and any special messages to include.",
+      displayOrder: 6,
+      isActive: true,
+    },
+  });
+
+  const svcActivities = await prisma.extraService.create({
+    data: {
+      label: "Activities & games",
+      description: "Hosted games, craft stations, and age-appropriate party activities.",
+      requirements: "Guest age range and headcount; outdoor space details if applicable.",
+      displayOrder: 7,
+      isActive: true,
+    },
+  });
+
+  const svcOrganiser = await prisma.extraService.create({
+    data: {
+      label: "Organiser support",
+      description: "Dedicated on-day coordinator to manage vendors, timeline, and guests.",
+      requirements: "Final run-sheet shared 48 hours before the event.",
+      displayOrder: 8,
+      isActive: true,
+    },
+  });
+
+  const svcPhotoDoc = await prisma.extraService.create({
+    data: {
+      label: "Photo documentation",
+      description: "Professional photo coverage of décor, candid moments, and cake cutting.",
+      requirements: "Coverage hours and key moments list.",
+      displayOrder: 9,
+      isActive: true,
+    },
+  });
+
+  const svcBalloons = await prisma.extraService.create({
+    data: {
+      label: "Balloons & props",
+      description: "Balloon garlands, arches, and themed prop sets.",
+      displayOrder: 10,
+      isActive: true,
+    },
+  });
+
+  const svcWelcomeBoard = await prisma.extraService.create({
+    data: {
+      label: "Welcome board",
+      description: "Entrance welcome board with theme styling.",
+      displayOrder: 11,
+      isActive: true,
+    },
+  });
+
+type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: boolean; customPrice: number };
+
+  const matrix: MatrixRow[] = [
+    { svcId: svcReturnGift.id, standard: true, premium: true, lux: true, customPrice: 250000 },
+    { svcId: svcVideoInvites.id, standard: false, premium: true, lux: true, customPrice: 500000 },
+    { svcId: svcThemeDecor.id, standard: true, premium: true, lux: true, customPrice: 0 },
+    { svcId: svcDigitalInvites.id, standard: true, premium: true, lux: true, customPrice: 150000 },
+    { svcId: svcCustomBackdrop.id, standard: false, premium: true, lux: true, customPrice: 800000 },
+    { svcId: svcPersonalized.id, standard: false, premium: true, lux: true, customPrice: 600000 },
+    { svcId: svcActivities.id, standard: false, premium: false, lux: true, customPrice: 1200000 },
+    { svcId: svcOrganiser.id, standard: false, premium: false, lux: true, customPrice: 1500000 },
+    { svcId: svcPhotoDoc.id, standard: false, premium: false, lux: true, customPrice: 1000000 },
+    { svcId: svcBalloons.id, standard: true, premium: true, lux: true, customPrice: 300000 },
+    { svcId: svcWelcomeBoard.id, standard: true, premium: true, lux: true, customPrice: 200000 },
+  ];
+
+  for (const row of matrix) {
+    await prisma.extraService.update({
+      where: { id: row.svcId },
+      data: { customizationPriceInPaise: row.customPrice },
+    });
+  }
+
+  const packageServiceItems: Array<{
+    packageId: string;
+    extraServiceId: string;
+    isIncluded: boolean;
+    displayOrder: number;
+  }> = [];
+
+  for (let i = 0; i < matrix.length; i++) {
+    const row = matrix[i]!;
+    packageServiceItems.push(
+      { packageId: standardPkg.id, extraServiceId: row.svcId, isIncluded: row.standard, displayOrder: i },
+      { packageId: premiumPkg.id, extraServiceId: row.svcId, isIncluded: row.premium, displayOrder: i },
+      { packageId: luxPkg.id, extraServiceId: row.svcId, isIncluded: row.lux, displayOrder: i },
+    );
+  }
+
+  await prisma.packageServiceItem.createMany({ data: packageServiceItems });
+
+  const premiumVideoItem = await prisma.packageServiceItem.findFirst({
+    where: { packageId: premiumPkg.id, extraServiceId: svcVideoInvites.id },
   });
 
   // ── Themes ───────────────────────────────────────────────────────────────────
@@ -481,13 +535,13 @@ async function main() {
 
   await prisma.themePackage.createMany({
     data: [
-      { themeId: royalTheme.id, packageId: silverPkg.id },
-      { themeId: royalTheme.id, packageId: goldPkg.id },
-      { themeId: royalTheme.id, packageId: platinumPkg.id },
-      { themeId: gardenTheme.id, packageId: goldPkg.id, priceOverrideInPaise: 25990000 },
-      { themeId: gardenTheme.id, packageId: platinumPkg.id },
-      { themeId: minimalTheme.id, packageId: silverPkg.id },
-      { themeId: minimalTheme.id, packageId: goldPkg.id },
+      { themeId: royalTheme.id, packageId: standardPkg.id },
+      { themeId: royalTheme.id, packageId: premiumPkg.id },
+      { themeId: royalTheme.id, packageId: luxPkg.id },
+      { themeId: gardenTheme.id, packageId: premiumPkg.id, priceOverrideInPaise: 8590000 },
+      { themeId: gardenTheme.id, packageId: luxPkg.id },
+      { themeId: minimalTheme.id, packageId: standardPkg.id },
+      { themeId: minimalTheme.id, packageId: premiumPkg.id },
     ],
   });
 
@@ -592,7 +646,7 @@ async function main() {
           "The Gold package was perfect value — everything was handled professionally from consultation to the final goodbye.",
         rating: 5,
         subjectType: TestimonialSubjectType.PACKAGE,
-        packageId: goldPkg.id,
+        packageId: premiumPkg.id,
         isFeatured: true,
         isActive: true,
       },
@@ -698,7 +752,7 @@ async function main() {
     {
       pageKey: "packages",
       metaTitle: "Wedding Packages & Pricing | Vaibhav Celebrations",
-      metaDescription: "Silver, Gold, and Platinum wedding packages starting from ₹1.49L.",
+      metaDescription: "Standard, Premium, and Lux celebration packages for unforgettable birthdays.",
       canonicalUrl: "https://vaibhavcelebrations.in/packages",
     },
     {
@@ -974,7 +1028,7 @@ async function main() {
     data: {
       path: [
         { step: "welcome", answer: null },
-        { step: "package_interest", answer: "Gold Celebration" },
+        { step: "package_interest", answer: "Premium" },
         { step: "guest_count", answer: "180" },
         { step: "contact", answer: "+919555555555" },
       ],
@@ -995,7 +1049,7 @@ async function main() {
         phone: `+91900000${String(i).padStart(4, "0")}`,
         source,
         status: leadStatuses[i % leadStatuses.length]!,
-        interestArea: i % 2 === 0 ? "Gold Celebration" : "Royal Mandap",
+        interestArea: i % 2 === 0 ? "Premium" : "Royal Mandap",
         message: `Inquiry via ${source}. Looking for wedding venue in Delhi NCR.`,
         customerId: i === 0 ? customer1.id : undefined,
         chatbotSessionId: source === LeadSource.CHATBOT ? chatbotSession.id : undefined,
@@ -1039,7 +1093,7 @@ async function main() {
       email: "confirmed@example.com",
       phone: "+919876555666",
       eventDate: new Date("2027-12-05"),
-      childOrEventDetails: "Platinum wedding, 280 guests",
+      childOrEventDetails: "Lux celebration, 80 guests",
       customRequirements: "Outdoor ceremony preferred with indoor backup.",
       advanceNoticeDays: 500,
       belowMinimumNotice: false,
@@ -1168,14 +1222,14 @@ async function main() {
       bookingCode: "BOOKING-2026-0001",
       customerId: customer1.id,
       themeId: royalTheme.id,
-      packageId: goldPkg.id,
+      packageId: premiumPkg.id,
       eventDate: new Date("2027-02-14"),
       status: BookingStatus.CONFIRMED,
       paymentStatus: PaymentStatus.PARTIALLY_REFUNDED,
-      basePriceInPaise: 24990000,
-      customizationTotalInPaise: 1500000,
-      gstInPaise: 4768200,
-      totalPriceInPaise: 31258200,
+      basePriceInPaise: 7990000,
+      customizationTotalInPaise: 500000,
+      gstInPaise: 1528200,
+      totalPriceInPaise: 10018200,
       guestEmail: customer1.email,
       guestPhone: customer1.phone,
       razorpayOrderId: "order_dev_bk001",
@@ -1183,14 +1237,16 @@ async function main() {
     },
   });
 
-  await prisma.bookingCustomization.create({
-    data: {
-      bookingId: booking1.id,
-      optionId: extraColumnOption.id,
-      quantity: 1,
-      unitPriceInPaise: 1500000,
-    },
-  });
+  if (premiumVideoItem) {
+    await prisma.bookingCustomization.create({
+      data: {
+        bookingId: booking1.id,
+        packageServiceItemId: premiumVideoItem.id,
+        quantity: 1,
+        unitPriceInPaise: 500000,
+      },
+    });
+  }
 
   await prisma.invoice.create({
     data: {
@@ -1198,9 +1254,9 @@ async function main() {
       linkedType: InvoiceLinkedType.BOOKING,
       bookingId: booking1.id,
       customerId: customer1.id,
-      subtotalInPaise: 26490000,
-      gstInPaise: 4768200,
-      totalInPaise: 31258200,
+      subtotalInPaise: 8490000,
+      gstInPaise: 1528200,
+      totalInPaise: 10018200,
       pdfUrl: img("invoices/INVOICE-2026-27-0001.pdf"),
       emailSentAt: new Date(),
       issuedAt: new Date(),
@@ -1212,14 +1268,14 @@ async function main() {
       bookingCode: "BOOKING-2026-0002",
       customerId: customer2.id,
       themeId: gardenTheme.id,
-      packageId: platinumPkg.id,
+      packageId: luxPkg.id,
       eventDate: new Date("2027-11-20"),
       status: BookingStatus.SCHEDULED,
       paymentStatus: PaymentStatus.PENDING,
-      basePriceInPaise: 39990000,
+      basePriceInPaise: 11990000,
       customizationTotalInPaise: 0,
-      gstInPaise: 7198200,
-      totalPriceInPaise: 47188200,
+      gstInPaise: 2158200,
+      totalPriceInPaise: 14148200,
       guestEmail: customer2.email,
       guestPhone: customer2.phone,
     },
@@ -1231,9 +1287,9 @@ async function main() {
       linkedType: InvoiceLinkedType.BOOKING,
       bookingId: booking2.id,
       customerId: customer2.id,
-      subtotalInPaise: 39990000,
-      gstInPaise: 7198200,
-      totalInPaise: 47188200,
+      subtotalInPaise: 11990000,
+      gstInPaise: 2158200,
+      totalInPaise: 14148200,
       issuedAt: new Date(),
     },
   });
@@ -1243,14 +1299,14 @@ async function main() {
       bookingCode: "BOOKING-2026-0003",
       customerId: customer3.id,
       themeId: minimalTheme.id,
-      packageId: silverPkg.id,
+      packageId: standardPkg.id,
       eventDate: new Date("2026-12-05"),
       status: BookingStatus.COMPLETED,
       paymentStatus: PaymentStatus.PAID,
-      basePriceInPaise: 14990000,
+      basePriceInPaise: 4990000,
       customizationTotalInPaise: 0,
-      gstInPaise: 2698200,
-      totalPriceInPaise: 17688200,
+      gstInPaise: 898200,
+      totalPriceInPaise: 5888200,
       guestEmail: customer3.email,
       guestPhone: customer3.phone,
       razorpayOrderId: "order_dev_bk003",
@@ -1264,9 +1320,9 @@ async function main() {
       linkedType: InvoiceLinkedType.BOOKING,
       bookingId: booking3.id,
       customerId: customer3.id,
-      subtotalInPaise: 14990000,
-      gstInPaise: 2698200,
-      totalInPaise: 17688200,
+      subtotalInPaise: 4990000,
+      gstInPaise: 898200,
+      totalInPaise: 5888200,
       pdfUrl: img("invoices/INVOICE-2026-27-0003.pdf"),
       emailSentAt: new Date(),
       whatsappSentAt: new Date(),

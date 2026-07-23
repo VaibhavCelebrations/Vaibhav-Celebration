@@ -26,6 +26,34 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     });
   }
 
+  // express-rate-limit sends a plain object (not an Error instance) when the
+  // limit is exceeded. Normalise it into our standard envelope so the admin
+  // UI always receives a consistent shape.
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "status" in err &&
+    (err as { status: unknown }).status === 429
+  ) {
+    const rateLimitErr = err as {
+      status: number;
+      message?: string | { error?: { code?: string; message?: string } };
+    };
+    const body =
+      typeof rateLimitErr.message === "object"
+        ? rateLimitErr.message
+        : undefined;
+    return res.status(429).json({
+      success: false,
+      error: {
+        code: body?.error?.code ?? "RATE_LIMITED",
+        message:
+          body?.error?.message ??
+          (typeof rateLimitErr.message === "string" ? rateLimitErr.message : "Too many requests"),
+      },
+    });
+  }
+
   logger.error({ err }, "Unhandled error");
   return res.status(500).json({
     success: false,

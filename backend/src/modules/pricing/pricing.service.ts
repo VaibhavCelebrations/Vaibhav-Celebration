@@ -23,7 +23,12 @@ export type QuoteResult = {
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
-  features: Array<{ label: string; quantity: number | null }>;
+  includedServices: Array<{ label: string; extraServiceId: string }>;
+  availableCustomizations: Array<{
+    optionId: string;
+    label: string;
+    customizationPriceInPaise: number;
+  }>;
 };
 
 /**
@@ -38,8 +43,10 @@ export async function computeQuote(input: {
   const pkg = await prisma.package.findFirst({
     where: { id: input.packageId, deletedAt: null, isActive: true },
     include: {
-      features: { where: { deletedAt: null }, orderBy: { displayOrder: "asc" } },
-      customizationOptions: { where: { deletedAt: null }, orderBy: { displayOrder: "asc" } },
+      serviceItems: {
+        orderBy: { displayOrder: "asc" },
+        include: { extraService: true },
+      },
     },
   });
   if (!pkg) throw new NotFoundError("Package not found");
@@ -63,25 +70,34 @@ export async function computeQuote(input: {
     }
   }
 
-  const optionMap = new Map(pkg.customizationOptions.map((o) => [o.id, o]));
+  const includedServices = pkg.serviceItems
+    .filter((s) => s.isIncluded && s.extraService.isActive && !s.extraService.deletedAt)
+    .map((s) => ({ label: s.extraService.label, extraServiceId: s.extraServiceId }));
+
+  const customizableItems = pkg.serviceItems.filter(
+    (s) =>
+      !s.isIncluded &&
+      s.extraService.customizationPriceInPaise > 0 &&
+      s.extraService.isActive &&
+      !s.extraService.deletedAt,
+  );
+
+  const optionMap = new Map(customizableItems.map((s) => [s.id, s]));
   const options: QuoteResult["options"] = [];
 
   for (const sel of input.selectedOptions ?? []) {
     if (sel.quantity <= 0) continue;
-    const opt = optionMap.get(sel.optionId);
-    if (!opt) throw new ValidationError(`Unknown customization option: ${sel.optionId}`);
-    const maxQty = opt.maxQuantity ?? 99;
-    if (sel.quantity < opt.minQuantity || sel.quantity > maxQty) {
-      throw new ValidationError(
-        `Quantity for "${opt.label}" must be between ${opt.minQuantity} and ${maxQty}`,
-      );
+    const item = optionMap.get(sel.optionId);
+    if (!item) throw new ValidationError(`Unknown customization option: ${sel.optionId}`);
+    if (sel.quantity !== 1) {
+      throw new ValidationError(`Quantity for "${item.extraService.label}" must be 1`);
     }
-    const lineTotalInPaise = opt.extraPriceInPaise * sel.quantity;
+    const lineTotalInPaise = item.extraService.customizationPriceInPaise;
     options.push({
-      optionId: opt.id,
-      label: opt.label,
+      optionId: item.id,
+      label: item.extraService.label,
       quantity: sel.quantity,
-      unitPriceInPaise: opt.extraPriceInPaise,
+      unitPriceInPaise: item.extraService.customizationPriceInPaise,
       lineTotalInPaise,
     });
   }
@@ -105,6 +121,11 @@ export async function computeQuote(input: {
     gstPercent,
     gstInPaise,
     totalInPaise,
-    features: pkg.features.map((f) => ({ label: f.label, quantity: f.quantity })),
+    includedServices,
+    availableCustomizations: customizableItems.map((s) => ({
+      optionId: s.id,
+      label: s.extraService.label,
+      customizationPriceInPaise: s.extraService.customizationPriceInPaise,
+    })),
   };
 }

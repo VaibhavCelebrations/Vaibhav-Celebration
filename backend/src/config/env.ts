@@ -43,16 +43,31 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   WHATSAPP_PROVIDER: z.enum(["meta", "twilio", "none"]).default("none"),
   WHATSAPP_BUSINESS_NUMBER: z.string().optional(),
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().optional(),
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().optional(),
+  CLOUDFLARE_R2_BUCKET: z.string().optional(),
+  CLOUDFLARE_R2_PUBLIC_BASE_URL: z.string().optional(),
+  CLOUDFLARE_IMAGES_ACCOUNT_HASH: z.string().optional(),
   REVALIDATE_SECRET: z.string().optional(),
   FRONTEND_REVALIDATE_URL: z.string().optional(),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(600_000),
   RATE_LIMIT_MAX_PUBLIC: z.coerce.number().default(100),
+  RATE_LIMIT_MAX_ADMIN: z.coerce.number().default(1000),
+  RATE_LIMIT_MAX_UPLOAD: z.coerce.number().default(100),
   DEFAULT_GST_PERCENT: z.coerce.number().default(18),
   DEFAULT_MAX_BOOKINGS_PER_DAY: z.coerce.number().default(2),
   MIN_CONSULTATION_ADVANCE_DAYS: z.coerce.number().default(15),
   GIFT_REGISTRY_VALIDITY_DAYS: z.coerce.number().default(30),
   SENTRY_DSN: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  REDIS_CACHE_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false")
+    .default("true"),
 });
 
 const parsed = envSchema.safeParse(process.env);

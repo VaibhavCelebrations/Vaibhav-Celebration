@@ -33,7 +33,7 @@ export default function BlogPage() {
                 Celebration Ideas & Tips
               </h1>
               <p className="text-text-muted max-w-2xl mx-auto text-lg">
-                Discover inspiration, planning tips, and magical ideas for your child's next unforgettable birthday celebration.
+                Discover inspiration, planning tips, and magical ideas for your child&apos;s next unforgettable birthday celebration.
               </p>
             </div>
           </ScrollReveal>

@@ -2,7 +2,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/
 
 const ACCESS_TOKEN_KEY = "vbc_admin_access";
 
-export type ApiSuccess<T> = { success: true; data: T };
+export type ApiSuccess<T> = { success: true; data: T; meta?: Record<string, unknown> };
 export type ApiFailure = {
   success: false;
   error: { code: string; message: string; details?: unknown };
@@ -42,10 +42,9 @@ async function tryRefresh(): Promise<string | null> {
   return json.data.accessToken;
 }
 
-export async function adminFetch<T>(
-  path: string,
-  options: { method?: string; body?: unknown; auth?: boolean } = {},
-): Promise<T> {
+type FetchOptions = { method?: string; body?: unknown; auth?: boolean };
+
+async function rawAdminFetch(path: string, options: FetchOptions = {}) {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -70,7 +69,7 @@ export async function adminFetch<T>(
     }
   }
 
-  const json = (await res.json()) as ApiSuccess<T> | ApiFailure;
+  const json = (await res.json()) as ApiSuccess<unknown> | ApiFailure;
   if (!res.ok || !json.success) {
     const failure = json as ApiFailure;
     throw new AdminApiError(
@@ -79,7 +78,53 @@ export async function adminFetch<T>(
       res.status,
     );
   }
-  return json.data;
+  return json as ApiSuccess<unknown>;
+}
+
+export async function adminFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
+  const json = await rawAdminFetch(path, options);
+  return json.data as T;
+}
+
+/** Normalizes both `{ items, total }` payloads and raw arrays (+ meta.pagination). */
+export async function adminFetchList<T>(
+  path: string,
+  fallback: { page: number; pageSize: number },
+): Promise<{ items: T[]; total: number; page: number; pageSize: number }> {
+  const json = await rawAdminFetch(path);
+  const data = json.data;
+  const pagination = (json.meta?.pagination ?? {}) as {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+  };
+
+  if (Array.isArray(data)) {
+    return {
+      items: data as T[],
+      total: pagination.total ?? data.length,
+      page: pagination.page ?? fallback.page,
+      pageSize: pagination.pageSize ?? fallback.pageSize,
+    };
+  }
+
+  if (data && typeof data === "object") {
+    const obj = data as {
+      items?: T[];
+      total?: number;
+      page?: number;
+      pageSize?: number;
+    };
+    const items = Array.isArray(obj.items) ? obj.items : [];
+    return {
+      items,
+      total: obj.total ?? pagination.total ?? items.length,
+      page: obj.page ?? pagination.page ?? fallback.page,
+      pageSize: obj.pageSize ?? pagination.pageSize ?? fallback.pageSize,
+    };
+  }
+
+  return { items: [], total: 0, page: fallback.page, pageSize: fallback.pageSize };
 }
 
 export type AdminUser = {

@@ -76,14 +76,23 @@ export async function createConsultation(input: {
 }
 
 export async function listConsultations(filters: {
+  search?: string;
   status?: ConsultationStatus;
   page: number;
   pageSize: number;
 }) {
-  const where = {
-    deletedAt: null as null,
-    ...(filters.status ? { status: filters.status } : {}),
-  };
+  const where: any = { deletedAt: null as null };
+  if (filters.status) where.status = filters.status;
+  if (filters.search) {
+    // Check if the search looks like a date (yyyy-mm-dd)
+    const isDate = /^\d{4}-\d{2}-\d{2}$/.test(filters.search.trim());
+    where.OR = [
+      { name: { contains: filters.search, mode: "insensitive" } },
+      { email: { contains: filters.search, mode: "insensitive" } },
+      { phone: { contains: filters.search } },
+      ...(isDate ? [{ eventDate: new Date(filters.search.trim()) }] : []),
+    ];
+  }
   const [total, items] = await Promise.all([
     prisma.consultationRequest.count({ where }),
     prisma.consultationRequest.findMany({

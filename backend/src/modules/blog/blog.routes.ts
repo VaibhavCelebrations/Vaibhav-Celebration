@@ -6,12 +6,131 @@ import { created, ok } from "../../lib/response";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { triggerRevalidate } from "../../integrations/revalidate/client";
-import { createPost, deletePost, getPublishedPost, listPublishedPosts, updatePost } from "./blog.service";
-const roles = [requireAdmin, requireRoles(AdminRole.CONTENT_EDITOR, AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN)];
-const schema = z.object({ title: z.string().min(1), slug: z.string().min(1), featuredImageId: z.string().optional().nullable(), contentHtml: z.string().min(1), excerpt: z.string().optional().nullable(), authorName: z.string().optional().nullable(), status: z.nativeEnum(BlogStatus).optional(), publishedAt: z.coerce.date().optional().nullable(), seoTitle: z.string().optional().nullable(), seoDescription: z.string().optional().nullable(), categoryIds: z.array(z.string()).default([]), tagIds: z.array(z.string()).default([]) });
+import {
+  createPost,
+  deletePost,
+  getPublishedPost,
+  listPublishedPosts,
+  updatePost,
+} from "./blog.service";
+const roles = [
+  requireAdmin,
+  requireRoles(
+    AdminRole.CONTENT_EDITOR,
+    AdminRole.OPERATIONS,
+    AdminRole.SUPER_ADMIN,
+  ),
+];
+const schema = z.object({
+  title: z.string().min(1),
+  slug: z.string().min(1),
+  featuredImageId: z.string().optional().nullable(),
+  contentHtml: z.string().min(1),
+  excerpt: z.string().optional().nullable(),
+  authorName: z.string().optional().nullable(),
+  status: z.nativeEnum(BlogStatus).optional(),
+  publishedAt: z.coerce.date().optional().nullable(),
+  seoTitle: z.string().optional().nullable(),
+  seoDescription: z.string().optional().nullable(),
+  categoryIds: z.array(z.string()).default([]),
+  tagIds: z.array(z.string()).default([]),
+});
 export const blogRouter = Router();
-blogRouter.get("/",async(_req,res,next)=>{try{return ok(res,await listPublishedPosts());}catch(e){return next(e);}}); blogRouter.get("/:slug",async(req,res,next)=>{try{return ok(res,await getPublishedPost(param(req, "slug")));}catch(e){return next(e);}});
-export const adminBlogRouter = Router(); adminBlogRouter.use(...roles);
-adminBlogRouter.post("/",validate(schema),async(req,res,next)=>{try{const {categoryIds,tagIds,...data}=req.body;const item=await createPost(data,categoryIds,tagIds);void triggerRevalidate(["/blog",`/blog/${item.slug}`]);return created(res,item);}catch(e){return next(e);}});
-adminBlogRouter.put("/:id",validate(z.object({id:z.string().min(1)}),"params"),validate(schema.partial()),async(req,res,next)=>{try{const {categoryIds,tagIds,...data}=req.body;const item=await updatePost(param(req, "id"),data,categoryIds,tagIds);void triggerRevalidate(["/blog",`/blog/${item.slug}`]);return ok(res,item);}catch(e){return next(e);}});
-adminBlogRouter.delete("/:id",validate(z.object({id:z.string().min(1)}),"params"),async(req,res,next)=>{try{await deletePost(param(req, "id"));void triggerRevalidate(["/blog"]);return ok(res,{deleted:true});}catch(e){return next(e);}});
+blogRouter.get("/", async (_req, res, next) => {
+  try {
+    return ok(res, await listPublishedPosts());
+  } catch (e) {
+    return next(e);
+  }
+});
+blogRouter.get("/:slug", async (req, res, next) => {
+  try {
+    return ok(res, await getPublishedPost(param(req, "slug")));
+  } catch (e) {
+    return next(e);
+  }
+});
+export const adminBlogRouter = Router();
+adminBlogRouter.use(...roles);
+adminBlogRouter.get("/", async (req, res, next) => {
+  try {
+    const { prisma } = await import("../../db/prisma");
+    const { parsePagination, paginationMeta } = await import("../../lib/response");
+    const q = req.query as { page?: string; pageSize?: string; search?: string; status?: string };
+    const { page, pageSize, skip, take } = parsePagination({
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+    });
+    const where = {
+      deletedAt: null as null,
+      ...(q.status ? { status: q.status as never } : {}),
+      ...(q.search
+        ? {
+            OR: [
+              { title: { contains: q.search, mode: "insensitive" as const } },
+              { slug: { contains: q.search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.blogPost.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { updatedAt: "desc" },
+        include: {
+          categories: { include: { category: true } },
+          tags: { include: { tag: true } },
+        },
+      }),
+      prisma.blogPost.count({ where }),
+    ]);
+    return ok(res, { items, total, page, pageSize }, { pagination: paginationMeta(page, pageSize, total) });
+  } catch (e) {
+    return next(e);
+  }
+});
+adminBlogRouter.post("/", validate(schema), async (req, res, next) => {
+  try {
+    const { categoryIds, tagIds, ...data } = req.body;
+    const item = await createPost(data, categoryIds, tagIds);
+    void triggerRevalidate(["/blog", `/blog/${item.slug}`]);
+    return created(res, item);
+  } catch (e) {
+    return next(e);
+  }
+});
+adminBlogRouter.put(
+  "/:id",
+  validate(z.object({ id: z.string().min(1) }), "params"),
+  validate(schema.partial()),
+  async (req, res, next) => {
+    try {
+      const { categoryIds, tagIds, ...data } = req.body;
+      const item = await updatePost(
+        param(req, "id"),
+        data,
+        categoryIds,
+        tagIds,
+      );
+      void triggerRevalidate(["/blog", `/blog/${item.slug}`]);
+      return ok(res, item);
+    } catch (e) {
+      return next(e);
+    }
+  },
+);
+adminBlogRouter.delete(
+  "/:id",
+  validate(z.object({ id: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      await deletePost(param(req, "id"));
+      void triggerRevalidate(["/blog"]);
+      return ok(res, { deleted: true });
+    } catch (e) {
+      return next(e);
+    }
+  },
+);

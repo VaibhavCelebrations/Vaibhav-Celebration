@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="prose prose-sm md:prose-base prose-stone max-w-none">
       <h2 className="font-display text-2xl text-charcoal">1. Information We Collect</h2>
       <p>
-        We collect personal information that you provide to us when booking a consultation or celebration. This may include your name, email address, phone number, child's name, and age.
+        We collect personal information that you provide to us when booking a consultation or celebration. This may include your name, email address, phone number, child&apos;s name, and age.
       </p>
 
       <h2 className="font-display text-2xl text-charcoal">2. How We Use Your Information</h2>

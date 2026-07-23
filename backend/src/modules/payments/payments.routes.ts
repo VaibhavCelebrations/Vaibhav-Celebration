@@ -81,6 +81,7 @@ adminInvoicesRouter.get(
   "/",
   validate(
     paginationQuerySchema.extend({
+      search: z.string().optional(),
       from: z.string().optional(),
       to: z.string().optional(),
       customerId: z.string().optional(),
@@ -90,6 +91,7 @@ adminInvoicesRouter.get(
   async (req, res, next) => {
     try {
       const q = req.query as unknown as {
+        search?: string;
         page?: number;
         pageSize?: number;
         from?: string;

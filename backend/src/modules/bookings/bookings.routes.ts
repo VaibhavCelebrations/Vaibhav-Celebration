@@ -76,6 +76,7 @@ adminBookingsRouter.get(
   "/",
   validate(
     paginationQuerySchema.extend({
+      search: z.string().optional(),
       status: z.nativeEnum(BookingStatus).optional(),
       paymentStatus: z.nativeEnum(PaymentStatus).optional(),
       themeId: z.string().optional(),
@@ -88,6 +89,7 @@ adminBookingsRouter.get(
   async (req, res, next) => {
     try {
       const q = req.query as unknown as {
+        search?: string;
         page?: number;
         pageSize?: number;
         status?: BookingStatus;
