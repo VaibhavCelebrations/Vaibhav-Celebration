@@ -8,17 +8,7 @@ import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { placeholderThemes } from "@/lib/placeholder-data";
 
-import spaceBg from "@/assets/theme/space_theme.png";
-import cocomelonBg from "@/assets/theme/cocomelon_theme.png";
-import princessBg from "@/assets/theme/princess_theme.png";
 
-const bgMap: Record<string, StaticImageData> = {
-  space: spaceBg,
-  cocomelon: cocomelonBg,
-  princess: princessBg,
-  "jungle-safari": spaceBg,
-  superhero: cocomelonBg,
-};
 
 export const metadata: Metadata = {
   title: "Celebration Themes",
@@ -56,7 +46,7 @@ export default function ThemesPage() {
               <ScrollReveal key={theme.id} delay={i * 80}>
                 <Link href={`/themes/${theme.slug}`} className="group block relative rounded-[2rem] overflow-hidden shadow-card aspect-[4/3] hover:shadow-hover transition-all duration-300 hover:-translate-y-2">
                   <Image 
-                    src={bgMap[theme.slug] || spaceBg} 
+                    src={theme.cardImageUrl} 
                     alt={theme.title} 
                     fill 
                     className="object-cover transition-transform duration-1000 group-hover:scale-105" 

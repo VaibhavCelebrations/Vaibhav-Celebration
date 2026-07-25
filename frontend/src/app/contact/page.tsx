@@ -15,30 +15,20 @@ export default function ContactPage() {
   return (
     <>
       <Navbar />
-      <main className="pt-28 md:pt-36 pb-20 md:pb-32 bg-surface min-h-screen">
-        <div className="max-w-6xl mx-auto px-5 md:px-10">
-          
-          <ScrollReveal>
-            <div className="mb-12">
-              <SectionHeader 
-                eyebrow="Get in Touch" 
-                title="Let's Plan Something Magical" 
-                description="Whether you have a fully formed vision or just the seed of an idea, we're here to bring your child's dream celebration to life." 
-              />
-            </div>
-          </ScrollReveal>
+      <main className="pt-24 md:pt-28 pb-10 bg-surface min-h-[calc(100vh-80px)] flex flex-col justify-center">
+        <div className="max-w-6xl w-full mx-auto px-5 md:px-10">
 
           <ScrollReveal delay={100}>
             <div className="bg-white rounded-[2rem] overflow-hidden shadow-2xl grid lg:grid-cols-5 border border-border-light relative">
               
               {/* Left Column: Contact Information (Dark Theme) */}
-              <div className="lg:col-span-2 bg-charcoal relative p-10 md:p-12 lg:p-16 flex flex-col overflow-hidden">
+              <div className="lg:col-span-2 bg-charcoal relative p-8 md:p-10 lg:p-12 flex flex-col overflow-hidden">
                 {/* Decorative background blur */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-mocha/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-gold-soft/10 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/3" />
                 
                 <div className="relative z-10">
-                  <h3 className="font-display text-3xl text-white font-semibold mb-2">Contact Info</h3>
+                  <h3 className="font-display text-3xl !text-white font-semibold mb-2">Contact Info</h3>
                   <p className="text-white/70 text-sm mb-12">Fill out the form and our team will get back to you within 24 hours.</p>
                   
                   <div className="space-y-8">
@@ -47,7 +37,7 @@ export default function ContactPage() {
                         <Phone size={20} className="text-gold-soft" />
                       </div>
                       <div className="pt-1">
-                        <h4 className="text-xs uppercase tracking-wider text-white/50 font-semibold mb-1">Phone</h4>
+                        <h4 className="text-xs uppercase tracking-wider !text-white/50 font-semibold mb-1">Phone</h4>
                         <p className="text-white font-medium text-lg">+91 00000 00000</p>
                       </div>
                     </div>
@@ -57,7 +47,7 @@ export default function ContactPage() {
                         <Mail size={20} className="text-gold-soft" />
                       </div>
                       <div className="pt-1">
-                        <h4 className="text-xs uppercase tracking-wider text-white/50 font-semibold mb-1">Email</h4>
+                        <h4 className="text-xs uppercase tracking-wider !text-white/50 font-semibold mb-1">Email</h4>
                         <p className="text-white font-medium text-lg">hello@vaibhavcelebrations.in</p>
                       </div>
                     </div>
@@ -67,7 +57,7 @@ export default function ContactPage() {
                         <MapPin size={20} className="text-gold-soft" />
                       </div>
                       <div className="pt-1">
-                        <h4 className="text-xs uppercase tracking-wider text-white/50 font-semibold mb-1">Location</h4>
+                        <h4 className="text-xs uppercase tracking-wider !text-white/50 font-semibold mb-1">Location</h4>
                         <p className="text-white font-medium text-lg">Jaipur, Rajasthan, India</p>
                       </div>
                     </div>
@@ -77,7 +67,7 @@ export default function ContactPage() {
                         <Clock size={20} className="text-gold-soft" />
                       </div>
                       <div className="pt-1">
-                        <h4 className="text-xs uppercase tracking-wider text-white/50 font-semibold mb-1">Business Hours</h4>
+                        <h4 className="text-xs uppercase tracking-wider !text-white/50 font-semibold mb-1">Business Hours</h4>
                         <p className="text-white font-medium text-lg">Mon – Sun: 10 AM – 6 PM</p>
                       </div>
                     </div>
@@ -95,7 +85,7 @@ export default function ContactPage() {
               </div>
 
               {/* Right Column: Form (Light Theme) */}
-              <div className="lg:col-span-3 p-10 md:p-12 lg:p-16 bg-white">
+              <div className="lg:col-span-3 p-8 md:p-10 lg:p-12 bg-white flex flex-col justify-center">
                 <form className="space-y-6">
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -103,8 +93,8 @@ export default function ContactPage() {
                       <input 
                         id="contact-first-name" 
                         type="text" 
-                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2.5 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
-                        placeholder="John"
+                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
+                        placeholder="Enter your first name"
                       />
                     </div>
                     <div className="space-y-2">
@@ -112,8 +102,8 @@ export default function ContactPage() {
                       <input 
                         id="contact-last-name" 
                         type="text" 
-                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2.5 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
-                        placeholder="Doe"
+                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
+                        placeholder="Enter your last name"
                       />
                     </div>
                   </div>
@@ -124,8 +114,8 @@ export default function ContactPage() {
                       <input 
                         id="contact-email" 
                         type="email" 
-                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2.5 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
-                        placeholder="john@example.com"
+                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
+                        placeholder="Enter your email address"
                       />
                     </div>
                     <div className="space-y-2">
@@ -133,8 +123,8 @@ export default function ContactPage() {
                       <input 
                         id="contact-phone" 
                         type="tel" 
-                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2.5 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
-                        placeholder="+91 00000 00000"
+                        className="w-full border-b-2 border-border-light bg-transparent px-0 py-2 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none" 
+                        placeholder="Enter your phone number"
                       />
                     </div>
                   </div>
@@ -161,9 +151,9 @@ export default function ContactPage() {
                     <label htmlFor="contact-message" className="block text-sm font-semibold text-charcoal">Message</label>
                     <textarea 
                       id="contact-message" 
-                      rows={4} 
-                      className="w-full border-b-2 border-border-light bg-transparent px-0 py-2.5 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none resize-none" 
-                      placeholder="Tell us a little bit about the celebration you're planning..."
+                      rows={3} 
+                      className="w-full border-b-2 border-border-light bg-transparent px-0 py-2 text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha transition-colors rounded-none resize-none" 
+                      placeholder="Write your message here..."
                     />
                   </div>
 

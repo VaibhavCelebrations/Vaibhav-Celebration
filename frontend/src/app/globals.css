@@ -321,3 +321,23 @@ header.scrolled .nav-inner { height: 4.75rem; }
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Utilities ──────────────────────────────────────────────────── */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

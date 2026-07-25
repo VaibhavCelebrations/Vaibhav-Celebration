@@ -83,7 +83,7 @@ export function OurStory() {
 
               <Link
                 href="/about"
-                className="inline-flex items-center gap-3 bg-charcoal text-white font-bold px-8 py-4 rounded-full mt-10 transition-all duration-300 hover:bg-mocha hover:shadow-lg text-sm uppercase tracking-wider group"
+                className="flex w-full md:w-auto justify-center items-center gap-3 bg-charcoal text-white font-bold px-8 py-4 rounded-full mt-10 transition-all duration-300 hover:bg-mocha hover:shadow-lg text-sm uppercase tracking-wider group"
               >
                 Know More About Us 
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />

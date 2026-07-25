@@ -4,7 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import { Expand } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { placeholderGalleryImages, getGalleryTags } from "@/lib/placeholder-data";
+import { placeholderGalleryImages } from "@/lib/placeholder-data";
+import { Lightbox } from "./Lightbox";
 
 const heightMap: Record<string, string> = {
   portrait: "aspect-[3/4]",
@@ -12,9 +13,12 @@ const heightMap: Record<string, string> = {
   square: "aspect-square",
 };
 
+/* Theme-based tags derived from gallery data */
+const THEME_TAGS = ["Space", "Cocomelon", "Princess", "Jungle Safari", "General"];
+
 export function MasonryGallery() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const tags = getGalleryTags();
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const filtered = activeTag
     ? placeholderGalleryImages.filter((img) => img.tags.includes(activeTag))
@@ -32,7 +36,7 @@ export function MasonryGallery() {
         >
           All
         </button>
-        {tags.map((tag) => (
+        {THEME_TAGS.map((tag) => (
           <button
             key={tag}
             onClick={() => setActiveTag(tag)}
@@ -49,7 +53,10 @@ export function MasonryGallery() {
       <div className="masonry columns-2 sm:columns-3 lg:columns-4">
         {filtered.map((img, i) => (
           <ScrollReveal key={img.id} delay={i * 40}>
-            <figure className="masonry-item group relative cursor-pointer overflow-hidden rounded-2xl shadow-soft transition-premium hover:shadow-card">
+            <figure
+              className="masonry-item group relative cursor-pointer overflow-hidden rounded-2xl shadow-soft transition-premium hover:shadow-card"
+              onClick={() => setLightboxIndex(i)}
+            >
               <div className={`relative w-full ${heightMap[img.aspectRatio]}`}>
                 <Image
                   src={img.imageUrl}
@@ -69,6 +76,15 @@ export function MasonryGallery() {
           </ScrollReveal>
         ))}
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={filtered}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </>
   );
 }

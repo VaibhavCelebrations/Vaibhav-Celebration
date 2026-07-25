@@ -12,16 +12,18 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
 }
 
+import { IMAGES } from "@/lib/placeholder-data";
+
 // High quality demo images for the homepage gallery
 const demoImages = [
-  { id: 1, url: "https://images.unsplash.com/photo-1530103862676-de8892cb7369?q=80&w=800&auto=format&fit=crop", caption: "Magical Setup" },
-  { id: 2, url: "https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=800&auto=format&fit=crop", caption: "Joyful Moments" },
-  { id: 3, url: "https://images.unsplash.com/photo-1528605248644-14dd04022da1?q=80&w=800&auto=format&fit=crop", caption: "Themed Cakes" },
-  { id: 4, url: "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?q=80&w=800&auto=format&fit=crop", caption: "Return Gifts" },
-  { id: 5, url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop", caption: "Grand Entrance" },
-  { id: 6, url: "https://images.unsplash.com/photo-1602631985686-1bb0e9a8696e?q=80&w=800&auto=format&fit=crop", caption: "Personalized Details" },
-  { id: 7, url: "https://images.unsplash.com/photo-1551914948-e866a9dfce2b?q=80&w=800&auto=format&fit=crop", caption: "Sweet Treats" },
-  { id: 8, url: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=800&auto=format&fit=crop", caption: "Outdoor Fun" },
+  { id: 1, url: IMAGES.gallery1, caption: "Magical Setup" },
+  { id: 2, url: IMAGES.gallery2, caption: "Joyful Moments" },
+  { id: 3, url: IMAGES.gallery3, caption: "Themed Cakes" },
+  { id: 4, url: IMAGES.gallery4, caption: "Return Gifts" },
+  { id: 5, url: IMAGES.gallery5, caption: "Grand Entrance" },
+  { id: 6, url: IMAGES.gallery6, caption: "Personalized Details" },
+  { id: 7, url: IMAGES.gallery7, caption: "Sweet Treats" },
+  { id: 8, url: IMAGES.gallery8, caption: "Outdoor Fun" },
 ];
 
 export function GalleryPreview() {
@@ -34,27 +36,33 @@ export function GalleryPreview() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const track = trackRef.current;
-    // Calculate how far to move left
-    // the gap is 20px (gap-5) + padding 40px (px-10)
-    const scrollWidth = track.scrollWidth - window.innerWidth + 80;
+    let mm = gsap.matchMedia();
 
-    gsap.to(track, {
-      x: -scrollWidth,
-      ease: "none",
-      scrollTrigger: {
-        trigger: sectionRef.current,
-        start: "top top", // Pin at the top of the viewport
-        end: () => `+=${scrollWidth}`,
-        scrub: 1,
-        pin: true, // This stops vertical scroll and pins the section
-        anticipatePin: 1,
-      },
+    mm.add("(min-width: 768px)", () => {
+      // Calculate how far to move left
+      // the gap is 20px (gap-5) + padding 40px (px-10)
+      const scrollWidth = track.scrollWidth - window.innerWidth + 80;
+
+      gsap.to(track, {
+        x: -scrollWidth,
+        ease: "none",
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: "top top", // Pin at the top of the viewport
+          end: () => `+=${scrollWidth}`,
+          scrub: 1,
+          pin: true, // This stops vertical scroll and pins the section
+          anticipatePin: 1,
+        },
+      });
     });
+
+    return () => mm.revert();
   }, { scope: sectionRef });
 
   return (
     <>
-      <section id="gallery-preview" ref={sectionRef} className="py-16 md:py-24 bg-surface h-screen flex flex-col justify-center overflow-hidden">
+      <section id="gallery-preview" ref={sectionRef} className="py-16 md:py-24 bg-surface md:h-screen flex flex-col justify-center md:overflow-hidden">
         <div className="max-w-7xl w-full mx-auto px-5 md:px-10 shrink-0">
           <ScrollReveal>
             <SectionHeader eyebrow="@vaibhavcelebrations" title="Moments We've Curated" description="A closer look at the details — tap any photo to explore." />
@@ -62,12 +70,12 @@ export function GalleryPreview() {
         </div>
 
         {/* Gallery Track container */}
-        <div className="mt-14 w-full relative">
-          <div ref={trackRef} className="flex gap-5 px-5 md:px-10 will-change-transform w-max">
+        <div className="mt-10 md:mt-14 w-full relative overflow-x-auto md:overflow-visible hide-scrollbar snap-x snap-mandatory pb-8 md:pb-0">
+          <div ref={trackRef} className="flex gap-5 px-5 md:px-10 md:will-change-transform w-max">
             {demoImages.map((img) => (
               <div 
                 key={img.id} 
-                className="shrink-0 w-[280px] md:w-[400px] group cursor-pointer"
+                className="shrink-0 w-[280px] md:w-[400px] group cursor-pointer snap-center"
                 onClick={() => setActiveImage(img.url.replace("w=800", "w=1600"))}
               >
                 <div className="relative overflow-hidden rounded-2xl shadow-card aspect-[4/5] bg-cream transition-premium hover:-translate-y-2">
@@ -90,7 +98,7 @@ export function GalleryPreview() {
             ))}
 
             {/* CTA card at the end of the track */}
-            <div className="shrink-0 w-[280px] md:w-[400px] flex items-center justify-center px-4">
+            <div className="shrink-0 w-[280px] md:w-[400px] flex items-center justify-center px-4 snap-center">
               <Link href="/gallery" className="text-center group flex flex-col items-center">
                 <div className="w-24 h-24 rounded-full bg-mocha/10 flex items-center justify-center group-hover:bg-mocha group-hover:scale-110 transition-all duration-300">
                   <ArrowRight size={32} className="text-mocha group-hover:text-white transition-colors" />

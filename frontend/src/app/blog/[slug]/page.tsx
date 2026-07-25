@@ -91,7 +91,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
             {/* Category Pill */}
             <div className="mb-6">
-              <span className="inline-block px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-xs font-bold uppercase tracking-wider">
+              <span className="inline-block px-4 py-1.5 rounded-full bg-cream border border-border-light text-mocha text-xs font-bold uppercase tracking-wider">
                 {post.category || "Cost Guides"}
               </span>
             </div>
@@ -121,7 +121,7 @@ export default async function BlogDetailPage({ params }: Props) {
             {post.tags && post.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-12">
                 {post.tags.map((tag) => (
-                  <span key={tag} className="px-4 py-1.5 rounded-full bg-blue-50/50 border border-blue-100 text-blue-500 text-xs font-medium">
+                  <span key={tag} className="px-4 py-1.5 rounded-full bg-cream border border-border-light text-mocha text-xs font-medium">
                     {tag}
                   </span>
                 ))}

@@ -6,38 +6,39 @@ import { ArrowRight } from "lucide-react";
 import { placeholderThemes } from "@/lib/placeholder-data";
 
 /* ── Local theme background images ──────────────────────────────── */
-import spaceBg from "@/assets/theme/space_theme.png";
-import cocomelonBg from "@/assets/theme/cocomelon_theme.png";
-import princessBg from "@/assets/theme/princess_theme.png";
+import themeExploreBg from "@/assets/Theme_explore.png";
 
 /* ── Per-theme styling ──────────────────────────────────────────── */
 const themePanelStyles = [
   {
-    bg: spaceBg,
+    objectPos: "object-[80%_center] md:object-center",
     fallbackColor: "#0d0d2b",
     titleColor: "!text-white",
     titleShadow: "drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]",
     descColor: "text-white/90",
     tagBorder: "border-white/30 text-white",
     btnClass: "bg-white text-charcoal hover:bg-cream",
+    overlayGradient: "bg-gradient-to-r from-[#0d0d2b]/90 via-[#0d0d2b]/50 to-transparent",
   },
   {
-    bg: cocomelonBg,
+    objectPos: "object-[75%_center] md:object-center",
     fallbackColor: "#4aa84a",
     titleColor: "!text-charcoal",
     titleShadow: "",
     descColor: "text-charcoal/80",
     tagBorder: "border-charcoal/30 text-charcoal",
     btnClass: "bg-charcoal text-white hover:bg-charcoal-light",
+    overlayGradient: "bg-gradient-to-r from-white/80 via-white/40 to-transparent",
   },
   {
-    bg: princessBg,
+    objectPos: "object-[80%_center] md:object-center",
     fallbackColor: "#e8a4c8",
     titleColor: "!text-purple-950",
     titleShadow: "",
     descColor: "text-purple-900/80",
     tagBorder: "border-purple-900/30 text-purple-950",
     btnClass: "bg-purple-900 text-white hover:bg-purple-800",
+    overlayGradient: "bg-gradient-to-r from-pink-100/85 via-pink-100/40 to-transparent",
   },
 ];
 
@@ -89,7 +90,7 @@ export function ThemeShowcase() {
         return (
           <section
             key={theme.id}
-            className="sticky h-screen overflow-hidden"
+            className="sticky h-[100dvh] md:h-screen overflow-hidden"
             style={{
               top: "96px",
               zIndex: 2 + i,
@@ -99,22 +100,24 @@ export function ThemeShowcase() {
             }}
           >
             <Image
-              src={s.bg}
-              alt={`${theme.title} background`}
+              src={theme.cardImageUrl}
+              alt={theme.title}
               fill
-              className="object-cover"
+              className={`object-cover ${s.objectPos}`}
               sizes="100vw"
-              placeholder="blur"
               priority={i === 0}
             />
 
+            {/* Gradient overlay for text readability */}
+            <div className={`absolute inset-0 ${s.overlayGradient}`} />
+
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full lg:w-[50%] px-8 md:px-16 lg:px-20">
-                <h3 className={`font-display text-4xl md:text-5xl lg:text-7xl font-bold leading-[1.05] mb-6 ${s.titleColor} ${s.titleShadow}`}>
+              <div className="w-full md:w-[65%] lg:w-[50%] px-6 md:px-12 lg:px-24">
+                <h3 className={`font-display text-3xl md:text-5xl lg:text-7xl font-bold leading-[1.05] mb-4 md:mb-6 ${s.titleColor} ${s.titleShadow}`}>
                   {theme.title}
                 </h3>
 
-                <p className={`text-sm md:text-base lg:text-lg max-w-md leading-relaxed mb-10 ${s.descColor}`}>
+                <p className={`text-sm md:text-base lg:text-lg max-w-md leading-relaxed mb-6 md:mb-10 ${s.descColor}`}>
                   {theme.shortDescription}
                 </p>
 
@@ -133,12 +136,13 @@ export function ThemeShowcase() {
 
       {/* ── Panel 4: Redesigned Simple CTA Section ─────────────────────────── */}
       <section
-        className="sticky min-h-screen overflow-hidden flex flex-col items-center justify-center text-center"
+        className="sticky min-h-screen overflow-hidden flex flex-col items-center justify-center text-center bg-cover bg-[70%_center] md:bg-center"
         style={{
           top: "96px",
           zIndex: 10,
           borderRadius: "2rem 2rem 0 0",
-          backgroundColor: "#755846", // Solid mocha color
+          backgroundColor: "#755846", // Solid mocha color fallback
+          backgroundImage: `url(${themeExploreBg.src})`,
           boxShadow: "0 -20px 50px rgba(0,0,0,0.4)",
         }}
       >
@@ -151,7 +155,7 @@ export function ThemeShowcase() {
             <div className="h-px w-10 md:w-16 bg-gradient-to-l from-transparent to-white/40" />
           </div>
 
-          <h3 className="font-display text-6xl md:text-7xl lg:text-8xl !text-white font-bold mb-8 leading-[1.1]">
+          <h3 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl !text-white font-bold mb-8 leading-[1.1]">
             Can&apos;t find your<br />perfect theme?
           </h3>
 

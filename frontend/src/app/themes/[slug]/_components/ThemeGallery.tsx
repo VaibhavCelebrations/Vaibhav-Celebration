@@ -22,9 +22,9 @@ export function ThemeGallery({ images }: { images: string[] }) {
   }, [nextImage]);
 
   return (
-    <div className="flex flex-col-reverse lg:flex-row gap-4 h-full sticky top-24">
+    <div className="flex flex-col-reverse lg:flex-row gap-4 h-full w-full">
       {/* Thumbnails */}
-      <div className="flex lg:flex-col gap-3 overflow-x-auto lg:overflow-y-auto lg:w-24 xl:w-28 shrink-0 no-scrollbar pb-2 lg:pb-0 max-h-[80vh]">
+      <div className="flex lg:flex-col gap-3 overflow-x-auto lg:overflow-y-auto lg:w-24 xl:w-28 shrink-0 hide-scrollbar pb-2 lg:pb-0 lg:max-h-[80vh]">
         {images.map((src, idx) => (
           <button
             key={idx}
@@ -45,7 +45,7 @@ export function ThemeGallery({ images }: { images: string[] }) {
       </div>
 
       {/* Main Image */}
-      <div className="relative w-full aspect-[4/3] lg:aspect-[3/4] xl:aspect-[4/5] rounded-[2rem] overflow-hidden group shadow-card max-h-[85vh]">
+      <div className="relative w-full aspect-[4/3] lg:aspect-[3/4] xl:aspect-[4/5] rounded-[2rem] overflow-hidden group shadow-card lg:max-h-[85vh]">
         <Image
           key={images[currentIndex]} // Key to trigger re-render on change
           src={images[currentIndex]}
