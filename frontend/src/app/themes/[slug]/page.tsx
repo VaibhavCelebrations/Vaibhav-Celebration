@@ -11,6 +11,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { placeholderThemes, placeholderPackages } from "@/lib/placeholder-data";
 import { ThemeGallery } from "./_components/ThemeGallery";
 import { PackageInclusions } from "./_components/PackageInclusions";
+import { ThemeGalleryStrip } from "@/components/gallery/ThemeGalleryStrip";
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -32,7 +33,7 @@ export default async function ThemeDetailPage({ params }: Props) {
   return (
     <>
       <Navbar />
-      <main className="bg-surface min-h-screen selection:bg-mocha/20 selection:text-charcoal pt-24 pb-0">
+      <main className="bg-surface min-h-screen selection:bg-mocha/20 selection:text-charcoal pt-24 pb-0 overflow-x-clip">
         
         {/* ── Breadcrumb ── */}
         <div className="max-w-7xl mx-auto px-5 md:px-10 mb-8">
@@ -42,20 +43,20 @@ export default async function ThemeDetailPage({ params }: Props) {
         </div>
 
         {/* ── Split Layout: Left Gallery & Right Details ── */}
-        <section className="max-w-7xl mx-auto px-5 md:px-10 mb-20 lg:mb-32">
+        <section className="max-w-7xl w-full mx-auto px-5 md:px-10 mb-20 lg:mb-32">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             
             {/* LEFT COLUMN: Sticky Image Gallery */}
-            <div className="w-full relative z-10 lg:sticky lg:top-24 h-auto lg:h-[calc(100vh-8rem)]">
+            <div className="w-full min-w-0 relative z-10 lg:sticky lg:top-24 h-auto lg:h-[calc(100vh-8rem)]">
               <ThemeGallery images={theme.galleryImages} />
             </div>
 
             {/* RIGHT COLUMN: Scrollable Details */}
-            <div className="w-full flex flex-col space-y-12 pb-10">
+            <div className="w-full min-w-0 flex flex-col space-y-12 pb-10">
               
               {/* 1. Header Info */}
               <ScrollReveal>
-                <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-charcoal font-bold leading-[1.1] mb-4">
+                <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-charcoal font-bold leading-[1.1] mb-4 break-words">
                   {theme.title}
                 </h1>
                 <p className="font-sans text-xl text-mocha font-semibold mb-6">
@@ -152,6 +153,9 @@ export default async function ThemeDetailPage({ params }: Props) {
           </div>
         </section>
 
+        {/* ── Theme Gallery Strip ── */}
+        <ThemeGalleryStrip images={theme.galleryImages} themeName={theme.title.replace(/ Theme| Birthday/g, '')} />
+
         {/* ── Other Themes Section ── */}
         <section className="py-16 md:py-24 bg-cream border-t border-border-light">
           <div className="max-w-7xl mx-auto px-5 md:px-10">
@@ -175,21 +179,29 @@ export default async function ThemeDetailPage({ params }: Props) {
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
               {otherThemes.map((t, idx) => (
-                <ScrollReveal key={t.id} delay={idx * 100}>
-                  <Link href={`/themes/${t.slug}`} className="block group">
-                    <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden mb-5">
-                      <Image
-                        src={t.cardImageUrl}
-                        alt={t.title}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-105"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    </div>
-                    <div>
-                      <h3 className="font-display text-xl font-bold text-charcoal mb-1 group-hover:text-mocha transition-colors">{t.title}</h3>
-                      <p className="text-text-muted text-sm">{t.themeCategory}</p>
+                <ScrollReveal key={t.id} delay={idx * 80}>
+                  <Link href={`/themes/${t.slug}`} className="group block relative rounded-[2rem] overflow-hidden shadow-card aspect-[4/3] hover:shadow-hover transition-all duration-300 hover:-translate-y-2">
+                    <Image 
+                      src={t.cardImageUrl} 
+                      alt={t.title} 
+                      fill 
+                      className="object-cover transition-transform duration-1000 group-hover:scale-105" 
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                    {/* Overlay gradient identical to home page logic */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/95 via-charcoal/30 to-transparent transition-opacity duration-500" />
+                    
+                    <div className="absolute inset-0 p-6 flex flex-col justify-end text-left">
+                      <h3 className="font-display text-2xl lg:text-3xl font-bold !text-white mb-2 group-hover:text-gold-soft transition-colors leading-[1.15]">
+                        {t.title}
+                      </h3>
+                      <p className="text-white/80 text-sm leading-relaxed line-clamp-2 mb-6">
+                        {t.shortDescription}
+                      </p>
+                      
+                      <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white font-bold px-5 py-2.5 rounded-full transition-all text-xs uppercase tracking-wider w-max">
+                        Explore Theme <ArrowRight size={14} />
+                      </div>
                     </div>
                   </Link>
                 </ScrollReveal>

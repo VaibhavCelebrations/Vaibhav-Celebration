@@ -5,20 +5,29 @@ import { MapPin, Mail, Phone, Clock } from "lucide-react";
 const exploreLinks = [
   { label: "Home", href: "/" },
   { label: "About Us", href: "/about" },
-  { label: "Events", href: "/events" },
-  { label: "Themes", href: "/themes" },
+  { label: "Gallery", href: "/gallery" },
   { label: "Packages", href: "/packages" },
-  { label: "Blog", href: "/blog" },
+  { label: "Contact Us", href: "/contact" },
 ];
 
-const eventLinks = [
-  { label: "All Events", href: "/events" },
-  { label: "Grand 1st Birthday", href: "/events/grand-1st-birthday" },
+const themeLinks = [
+  { label: "Space Theme", href: "/themes/space-theme" },
+  { label: "Cocomelon Theme", href: "/themes/cocomelon-theme" },
+  { label: "Princess Theme", href: "/themes/princess-theme" },
+  { label: "Jungle Safari Theme", href: "/themes/jungle-safari-theme" },
+  { label: "All Themes", href: "/themes" },
+];
+
+const blogLinks = [
+  { label: "Magical Birthday Themes", href: "/blog/5-magical-themes-for-kids-birthday" },
+  { label: "Personalized Return Gifts", href: "/blog/perfect-personalized-return-gifts" },
+  { label: "1st Birthday Checklist", href: "/blog/1st-birthday-celebration-checklist" },
+  { label: "Activity-Based Birthdays", href: "/blog/activity-based-birthdays-trend" },
+  { label: "All Articles", href: "/blog" },
 ];
 
 const supportLinks = [
   { label: "FAQs", href: "/faq" },
-  { label: "Contact Us", href: "/contact" },
   { label: "Privacy Policy", href: "/legal/privacy-policy" },
   { label: "Refund & Cancellation", href: "/legal/refund-policy" },
   { label: "Terms & Conditions", href: "/legal/terms-of-service" },
@@ -27,9 +36,9 @@ const supportLinks = [
 export function Footer() {
   return (
     <footer className="bg-cream pt-16 md:pt-20 pb-8 border-t border-border">
-      <div className="max-w-7xl mx-auto px-5 md:px-10 grid sm:grid-cols-2 lg:grid-cols-5 gap-10">
+      <div className="max-w-7xl mx-auto px-5 md:px-10 grid sm:grid-cols-2 lg:grid-cols-6 gap-10">
         {/* Brand */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
           <Link href="/" className="flex items-center gap-2 mb-2">
             <Image src="/logo.png" alt="Vaibhav Celebrations" width={192} height={192} className="shrink-0 w-48 h-auto" />
           </Link>
@@ -37,6 +46,13 @@ export function Footer() {
             Vaibhav Celebrations is a thoughtfully curated kids celebration brand
             specializing in customized birthday parties and milestone celebrations.
           </p>
+          {/* Contact info */}
+          <ul className="mt-6 space-y-2.5 text-xs text-text-muted">
+            <li className="flex items-start gap-2"><MapPin size={13} className="shrink-0 mt-0.5 text-mocha" />Jaipur, Rajasthan, India</li>
+            <li className="flex items-center gap-2"><Phone size={13} className="shrink-0 text-mocha" />+91 00000 00000</li>
+            <li className="flex items-center gap-2"><Mail size={13} className="shrink-0 text-mocha" />hello@vaibhavcelebrations.in</li>
+            <li className="flex items-center gap-2"><Clock size={13} className="shrink-0 text-mocha" />Mon - Sun: 10 AM - 6 PM</li>
+          </ul>
         </div>
 
         {/* Quick Links */}
@@ -47,35 +63,28 @@ export function Footer() {
           </ul>
         </div>
 
-        {/* Events */}
+        {/* Themes */}
         <div>
-          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Events</h4>
+          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Themes</h4>
           <ul className="space-y-2.5 text-sm text-text-muted">
-            {eventLinks.map((l) => (<li key={l.label}><Link href={l.href} className="hover:text-mocha transition-colors">{l.label}</Link></li>))}
+            {themeLinks.map((l) => (<li key={l.label}><Link href={l.href} className="hover:text-mocha transition-colors">{l.label}</Link></li>))}
           </ul>
         </div>
 
-        {/* Contact */}
+        {/* Blog */}
         <div>
-          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Contact Us</h4>
-          <ul className="space-y-3 text-sm text-text-muted">
-            <li className="flex items-start gap-2"><MapPin size={14} className="shrink-0 mt-0.5 text-mocha" />Jaipur, Rajasthan, India</li>
-            <li className="flex items-center gap-2"><Phone size={14} className="shrink-0 text-mocha" />+91 00000 00000</li>
-            <li className="flex items-center gap-2"><Mail size={14} className="shrink-0 text-mocha" />hello@vaibhavcelebrations.in</li>
-            <li className="flex items-center gap-2"><Clock size={14} className="shrink-0 text-mocha" />Mon - Sun: 10:00 AM - 6:00 PM</li>
+          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Blog</h4>
+          <ul className="space-y-2.5 text-sm text-text-muted">
+            {blogLinks.map((l) => (<li key={l.label}><Link href={l.href} className="hover:text-mocha transition-colors">{l.label}</Link></li>))}
           </ul>
         </div>
 
-        {/* Newsletter */}
+        {/* Support */}
         <div>
-          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Newsletter</h4>
-          <p className="text-sm text-text-muted mb-4">Subscribe to get updates and exclusive offers.</p>
-          <div className="flex">
-            <input type="email" placeholder="Enter your email" className="flex-1 min-w-0 rounded-l-lg border border-border bg-surface px-3 py-2.5 text-sm text-charcoal placeholder:text-text-light focus:outline-none focus:border-mocha" />
-            <button className="bg-mocha hover:bg-mocha-dark text-white px-4 rounded-r-lg transition-colors" aria-label="Subscribe">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </button>
-          </div>
+          <h4 className="text-xs font-semibold tracking-wider uppercase text-charcoal mb-4">Support</h4>
+          <ul className="space-y-2.5 text-sm text-text-muted">
+            {supportLinks.map((l) => (<li key={l.label}><Link href={l.href} className="hover:text-mocha transition-colors">{l.label}</Link></li>))}
+          </ul>
         </div>
       </div>
 

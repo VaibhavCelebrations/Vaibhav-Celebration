@@ -35,7 +35,7 @@ export function Navbar() {
   return (
     <header
       id="site-header"
-      className={`fixed top-0 inset-x-0 z-50 ${scrolled ? "scrolled" : ""}`}
+      className={`fixed top-0 inset-x-0 z-50 ${scrolled && !mobileOpen ? "scrolled" : ""}`}
     >
       <div className="nav-shell">
         <div className="max-w-7xl mx-auto px-5 md:px-10">

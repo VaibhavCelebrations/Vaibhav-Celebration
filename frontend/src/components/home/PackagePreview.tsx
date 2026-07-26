@@ -27,7 +27,7 @@ export function PackagePreview() {
           {placeholderPackages.map((pkg, i) => (
             <ScrollReveal key={pkg.id} delay={i * 100} className="h-full">
               <div
-                className={`rounded-2xl p-8 flex flex-col h-full transition-premium hover:-translate-y-2 text-center ${
+                className={`rounded-2xl p-6 md:p-8 flex flex-col h-full transition-premium hover:-translate-y-2 text-center ${
                   pkg.isRecommended
                     ? "bg-cream-dark border-2 border-mocha relative shadow-card hover:shadow-hover"
                     : "bg-cream border border-border hover:shadow-card"

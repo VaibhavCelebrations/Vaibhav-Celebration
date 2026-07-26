@@ -17,7 +17,7 @@ interface MobileMenuProps {
 export function MobileMenu({ isOpen, onClose, links }: MobileMenuProps) {
   return (
     <div
-      className={`lg:hidden fixed inset-0 top-[72px] z-40 transition-all duration-500 ${
+      className={`lg:hidden fixed inset-0 top-[80px] z-40 transition-all duration-500 ${
         isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       }`}
     >
