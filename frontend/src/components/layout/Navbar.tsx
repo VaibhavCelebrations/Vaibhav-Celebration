@@ -3,9 +3,10 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, Phone, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
+import { useCart } from "@/context/cart-context";
 
 type NavLink = {
   label: string;
@@ -20,6 +21,7 @@ const navLinks: NavLink[] = [
   { label: "Themes", href: "/themes" },
   { label: "Packages", href: "/packages" },
   { label: "Gallery", href: "/gallery" },
+  { label: "Gifts", href: "/gifts" },
   { label: "Blog", href: "/blog" },
   { label: "Contact Us", href: "/contact" },
 ];
@@ -28,6 +30,7 @@ export function Navbar() {
   const { scrolled } = useScrollDirection();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
+  const { itemCount, openCart } = useCart();
 
   const toggleMobile = useCallback(() => setMobileOpen((prev) => !prev), []);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -58,7 +61,7 @@ export function Navbar() {
 
             {/* Desktop nav */}
             <nav
-              className="hidden lg:flex items-center gap-8 text-[15px] font-semibold text-charcoal"
+              className="hidden lg:flex items-center gap-4 xl:gap-6 text-sm font-semibold text-charcoal"
               aria-label="Primary"
             >
               {navLinks.map((link) => (
@@ -95,31 +98,51 @@ export function Navbar() {
               ))}
             </nav>
 
-            <div className="hidden lg:flex items-center gap-5">
+            <div className="hidden lg:flex items-center gap-4">
+              {/* Cart Icon */}
+              <button
+                onClick={openCart}
+                className="relative w-10 h-10 rounded-full border border-border flex items-center justify-center text-charcoal hover:text-mocha hover:border-mocha transition-colors cursor-pointer"
+                aria-label="Open cart"
+              >
+                <ShoppingCart size={18} />
+                {itemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-mocha text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {itemCount > 9 ? '9+' : itemCount}
+                  </span>
+                )}
+              </button>
               <Link
                 href="/consultation"
                 className="btn-primary text-sm px-6 py-2.5 transition-all"
               >
                 Book a Celebration
               </Link>
-              <a
-                href="tel:+910000000000"
-                className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-charcoal hover:text-mocha hover:border-mocha transition-colors"
-                aria-label="Call us"
-              >
-                <Phone size={18} />
-              </a>
             </div>
 
-            {/* Mobile toggle */}
-            <button
-              onClick={toggleMobile}
-              className="lg:hidden text-charcoal p-2 -mr-2"
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? <X size={26} /> : <Menu size={26} />}
-            </button>
+            {/* Mobile: cart + toggle */}
+            <div className="lg:hidden flex items-center gap-2">
+              <button
+                onClick={openCart}
+                className="relative w-10 h-10 rounded-full flex items-center justify-center text-charcoal cursor-pointer"
+                aria-label="Open cart"
+              >
+                <ShoppingCart size={22} />
+                {itemCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-mocha text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {itemCount > 9 ? '9+' : itemCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={toggleMobile}
+                className="text-charcoal p-2 -mr-2"
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? <X size={26} /> : <Menu size={26} />}
+              </button>
+            </div>
           </div>
         </div>
       </div>

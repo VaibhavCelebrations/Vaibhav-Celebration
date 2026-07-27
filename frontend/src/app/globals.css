@@ -341,3 +341,18 @@ header.scrolled .nav-inner { height: 4.75rem; }
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes customFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-slide-in-right {
+  animation: slideInFromRight 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.animate-fade-in {
+  animation: customFadeIn 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

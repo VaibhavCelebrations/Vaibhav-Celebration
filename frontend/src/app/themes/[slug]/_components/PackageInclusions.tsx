@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { CheckCircle2, Minus } from "lucide-react";
 import { PlaceholderPackage } from "@/lib/placeholder-data";
+import Link from "next/link";
 
-export function PackageInclusions({ packages }: { packages: PlaceholderPackage[] }) {
+export function PackageInclusions({ packages, themeSlug }: { packages: PlaceholderPackage[], themeSlug: string }) {
   const [selectedPkgId, setSelectedPkgId] = useState(packages[0]?.id);
 
   const selectedPkg = packages.find((p) => p.id === selectedPkgId) || packages[0];
@@ -38,7 +39,7 @@ export function PackageInclusions({ packages }: { packages: PlaceholderPackage[]
 
       {/* Features List */}
       <div className="p-6 md:p-8">
-        <ul className="space-y-4">
+        <ul className="space-y-4 mb-8">
           {selectedPkg?.features.map((feature, idx) => (
             <li key={idx} className="flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 50}ms`, animationFillMode: "both" }}>
               <div className="mt-1 shrink-0">
@@ -54,6 +55,14 @@ export function PackageInclusions({ packages }: { packages: PlaceholderPackage[]
             </li>
           ))}
         </ul>
+
+        {/* Checkout Button */}
+        <Link
+          href={`/build-package?package=${selectedPkg.slug}&theme=${themeSlug}`}
+          className="btn-primary w-full py-4 text-center font-semibold text-sm block"
+        >
+          Checkout with {selectedPkg.title} Package
+        </Link>
       </div>
     </div>
   );

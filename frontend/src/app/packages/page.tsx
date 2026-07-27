@@ -70,14 +70,14 @@ export default function PackagesPage() {
                   </ul>
 
                   <Link
-                    href="/consultation"
+                    href={`/build-package?package=${pkg.slug}`}
                     className={`mt-8 text-sm font-semibold px-6 py-3.5 rounded-lg text-center ${
                       pkg.isRecommended
                         ? "btn-primary"
                         : "btn-outline"
                     }`}
                   >
-                    Choose {pkg.title.charAt(0) + pkg.title.slice(1).toLowerCase()}
+                    Proceed to Checkout
                   </Link>
                 </div>
               </ScrollReveal>

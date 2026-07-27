@@ -95,6 +95,7 @@ export interface PlaceholderPackage {
   title: string;
   slug: string;
   priceLabel: string;
+  basePrice: number;
   tierRank: number;
   isRecommended: boolean;
   description: string;
@@ -269,6 +270,7 @@ export const placeholderPackages: PlaceholderPackage[] = [
     title: "STANDARD",
     slug: "standard",
     priceLabel: "₹ XX,XXX",
+    basePrice: 15000,
     tierRank: 1,
     isRecommended: false,
     description: "Perfect for intimate celebrations",
@@ -288,6 +290,7 @@ export const placeholderPackages: PlaceholderPackage[] = [
     title: "PREMIUM",
     slug: "premium",
     priceLabel: "₹ XX,XXX",
+    basePrice: 25000,
     tierRank: 2,
     isRecommended: true,
     description: "Most loved for memorable celebrations",
@@ -307,6 +310,7 @@ export const placeholderPackages: PlaceholderPackage[] = [
     title: "LUX",
     slug: "lux",
     priceLabel: "₹ XX,XXX",
+    basePrice: 40000,
     tierRank: 3,
     isRecommended: false,
     description: "For grand & unforgettable experiences",

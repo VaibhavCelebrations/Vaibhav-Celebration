@@ -12,6 +12,7 @@ import { placeholderThemes, placeholderPackages } from "@/lib/placeholder-data";
 import { ThemeGallery } from "./_components/ThemeGallery";
 import { PackageInclusions } from "./_components/PackageInclusions";
 import { ThemeGalleryStrip } from "@/components/gallery/ThemeGalleryStrip";
+import { ThemeReturnGifts } from "@/components/ecom/ThemeReturnGifts";
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -67,9 +68,7 @@ export default async function ThemeDetailPage({ params }: Props) {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <Link href="/consultation" className="btn-primary w-full sm:w-auto px-10 py-4 shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-1 transition-all text-base font-semibold justify-center">
-                    Book This Theme
-                  </Link>
+                  {/* Checkout button moved to PackageInclusions */}
                 </div>
               </ScrollReveal>
 
@@ -146,7 +145,7 @@ export default async function ThemeDetailPage({ params }: Props) {
                   <h3 className="font-display text-3xl font-bold text-charcoal mb-2">Packages & Inclusions</h3>
                   <p className="text-text-muted">Choose the package that fits your celebration.</p>
                 </div>
-                <PackageInclusions packages={placeholderPackages} />
+                <PackageInclusions packages={placeholderPackages} themeSlug={theme.slug} />
               </ScrollReveal>
 
             </div>
@@ -155,6 +154,9 @@ export default async function ThemeDetailPage({ params }: Props) {
 
         {/* ── Theme Gallery Strip ── */}
         <ThemeGalleryStrip images={theme.galleryImages} themeName={theme.title.replace(/ Theme| Birthday/g, '')} />
+
+        {/* ── Return Gifts for This Theme ── */}
+        <ThemeReturnGifts themeSlug={theme.slug} themeTitle={theme.title} />
 
         {/* ── Other Themes Section ── */}
         <section className="py-16 md:py-24 bg-cream border-t border-border-light">
