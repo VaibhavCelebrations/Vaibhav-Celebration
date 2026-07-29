@@ -81,10 +81,11 @@ function buildBlogUpdateData(
   const data = { ...scalarFields } as Prisma.BlogPostUpdateInput;
 
   if (featuredImageId !== undefined) {
-    data.featuredImage =
-      featuredImageId == null
-        ? { disconnect: true }
-        : { connect: { id: featuredImageId } };
+    if (featuredImageId === null) {
+      data.featuredImage = { disconnect: true };
+    } else if (typeof featuredImageId === "string") {
+      data.featuredImage = { connect: { id: featuredImageId } };
+    }
   }
 
   if (categoryIds) {

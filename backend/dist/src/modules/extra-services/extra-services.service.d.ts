@@ -1,0 +1,50 @@
+import { Prisma } from "@prisma/client";
+export declare function listExtraServices(includeInactive?: boolean): Promise<{
+    id: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    displayOrder: number;
+    description: string | null;
+    label: string;
+    requirements: string | null;
+    customizationPriceInPaise: number;
+}[]>;
+export declare function getExtraService(id: string): Promise<{
+    id: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    displayOrder: number;
+    description: string | null;
+    label: string;
+    requirements: string | null;
+    customizationPriceInPaise: number;
+}>;
+export declare function createExtraService(data: Prisma.ExtraServiceUncheckedCreateInput): Promise<{
+    id: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    displayOrder: number;
+    description: string | null;
+    label: string;
+    requirements: string | null;
+    customizationPriceInPaise: number;
+}>;
+export declare function updateExtraService(id: string, data: Prisma.ExtraServiceUncheckedUpdateInput): Promise<{
+    id: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt: Date | null;
+    displayOrder: number;
+    description: string | null;
+    label: string;
+    requirements: string | null;
+    customizationPriceInPaise: number;
+}>;
+export declare function deleteExtraService(id: string): Promise<void>;

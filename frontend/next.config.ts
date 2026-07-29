@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
+const cmsCdnHost = process.env.NEXT_PUBLIC_CDN_HOST ?? "cdn.vaibhavcelebrations.in";
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "picsum.photos", pathname: "/**" },
-      { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
-      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
-      { protocol: "https", hostname: "cdn.vaibhavcelebrations.in", pathname: "/**" },
+      { protocol: "https", hostname: cmsCdnHost, port: "", pathname: "/**" },
+      { protocol: "https", hostname: "picsum.photos", port: "", pathname: "/**" },
+      { protocol: "https", hostname: "res.cloudinary.com", port: "", pathname: "/**" },
+      { protocol: "https", hostname: "images.unsplash.com", port: "", pathname: "/**" },
       { protocol: "http", hostname: "localhost", port: "4000", pathname: "/uploads/**" },
       { protocol: "http", hostname: "127.0.0.1", port: "4000", pathname: "/uploads/**" },
     ],

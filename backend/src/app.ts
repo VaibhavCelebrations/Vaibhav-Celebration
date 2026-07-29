@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { corsOrigins, env } from "./config/env";
@@ -158,7 +158,7 @@ export function createApp() {
         // fall through to IP
       }
     }
-    return `ip:${req.ip ?? "unknown"}`;
+    return `ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
   }
 
   /** Public CMS endpoints — keyed by IP. */

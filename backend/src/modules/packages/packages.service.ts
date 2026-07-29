@@ -197,7 +197,7 @@ export type PackageMatrixSaveInput = {
 
 /** Bulk-save matrix for all packages at once (Fiverr-style admin UI). */
 export async function savePackageMatrix({ packages, extraServices }: PackageMatrixSaveInput) {
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       if (extraServices?.length) {
         await Promise.all(
@@ -229,6 +229,9 @@ export async function savePackageMatrix({ packages, extraServices }: PackageMatr
     },
     { timeout: 30_000 },
   );
+  await delPattern("pub:packages:*");
+  await delPattern("adm:packages:*");
+  return result;
 }
 
 export async function getPackageDetail(id: string) {
