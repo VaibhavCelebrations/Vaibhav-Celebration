@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma";
 import { parsePagination } from "../../lib/response";
+import { loadMediaMap } from "../../lib/media-ref";
 import { cached, cacheKey, delPattern } from "../../lib/redis";
 
 const ADM_TTL = 30; // 30 seconds for admin lists
@@ -70,6 +71,8 @@ export async function adminListThemes(q: AdminListQuery) {
       prisma.theme.count({ where }),
     ]);
 
+    const ogMap = await loadMediaMap(rows.map((t) => t.ogImageId));
+
     const items = rows.map((t) => ({
       id: t.id,
       title: t.title,
@@ -82,7 +85,7 @@ export async function adminListThemes(q: AdminListQuery) {
       displayOrder: t.displayOrder,
       seoTitle: t.seoTitle,
       seoDescription: t.seoDescription,
-      ogImage: null,
+      ogImage: t.ogImageId ? ogMap.get(t.ogImageId) ?? null : null,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
       deletedAt: t.deletedAt?.toISOString() ?? null,
@@ -116,6 +119,8 @@ export async function adminGetTheme(id: string) {
     },
   });
   if (!t) return null;
+  const { loadMediaById } = await import("../../lib/media-ref");
+  const ogImage = await loadMediaById(t.ogImageId);
   return {
     id: t.id,
     title: t.title,
@@ -128,7 +133,7 @@ export async function adminGetTheme(id: string) {
     displayOrder: t.displayOrder,
     seoTitle: t.seoTitle,
     seoDescription: t.seoDescription,
-    ogImage: null,
+    ogImage,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
     deletedAt: t.deletedAt?.toISOString() ?? null,

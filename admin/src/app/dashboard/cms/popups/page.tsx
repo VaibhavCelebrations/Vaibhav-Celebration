@@ -1,9 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { RoleGate } from "@/components/AdminSessionContext";
+import { PopupsScreen } from "./PopupsScreen";
 
-import { ResourceScreen } from "@/components/ResourceScreen";
-import { popupsRepo } from "@/lib/data/resources";
+export const metadata: Metadata = { title: "Popups | Vaibhav Celebrations Admin" };
 
 export default function PopupsPage() {
-  return <ResourceScreen title="Popups" noun="Popup" description="Manage time-bound calls to action across public pages." repo={popupsRepo} fields={["title", "description", "isActive"]} />;
+  return (
+    <RoleGate allow={["SUPER_ADMIN", "CONTENT_EDITOR"]}>
+      <Suspense fallback={<div className="skeleton h-64 w-full rounded-(--radius-md)" />}>
+        <PopupsScreen />
+      </Suspense>
+    </RoleGate>
+  );
 }
-

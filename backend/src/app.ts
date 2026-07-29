@@ -43,6 +43,8 @@ import {
   adminCustomersRouter,
 } from "./modules/crm/crm.routes";
 import { chatbotRouter, adminChatbotRouter } from "./modules/chatbot/chatbot.routes";
+import { pagesRouter, adminPagesRouter } from "./modules/pages/pages.routes";
+import { publicSettingsRouter } from "./modules/settings/public-settings.routes";
 import {
   adminCapacityRouter,
   adminSettingsRouter,
@@ -265,6 +267,8 @@ export function createApp() {
   api.use("/pricing", publicLimiter, pricingRouter);
   api.use("/gallery", publicLimiter, galleryRouter);
   api.use(contentRouter); // no extra limiter — served via static-ish reads
+  api.use("/pages", publicLimiter, pagesRouter);
+  api.use("/settings", publicLimiter, publicSettingsRouter);
   api.use("/blog", publicLimiter, blogRouter);
   api.use("/events", publicLimiter, eventsRouter);
 
@@ -286,6 +290,7 @@ export function createApp() {
   api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
   api.use("/admin/gallery", adminLimiter, noStore, adminGalleryRouter);
   api.use("/admin", adminLimiter, noStore, adminContentRouter);
+  api.use("/admin/pages", adminLimiter, noStore, adminPagesRouter);
   api.use("/admin/blog", adminLimiter, noStore, adminBlogRouter);
   api.use("/admin/events", adminLimiter, noStore, adminEventsRouter);
   // Media router: general browsing uses adminLimiter; upload paths get an

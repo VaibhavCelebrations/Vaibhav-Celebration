@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { placeholderThemes } from "@/lib/placeholder-data";
+import { CmsImage } from "@/components/ui/CmsImage";
+import type { ThemeCard } from "@/lib/cms/types";
 
 /* ── Local theme background images ──────────────────────────────── */
 import themeExploreBg from "@/assets/Theme_explore.png";
@@ -42,8 +42,12 @@ const themePanelStyles = [
   },
 ];
 
-export function ThemeShowcase() {
-  const topThemes = placeholderThemes.slice(0, 3);
+type ThemeShowcaseProps = {
+  themes: ThemeCard[];
+};
+
+export function ThemeShowcase({ themes }: ThemeShowcaseProps) {
+  const topThemes = themes.slice(0, 3);
 
   return (
     <div
@@ -90,7 +94,7 @@ export function ThemeShowcase() {
         return (
           <section
             key={theme.id}
-            className="sticky h-[100dvh] md:h-screen overflow-hidden"
+            className="sticky relative h-[100dvh] md:h-screen overflow-hidden"
             style={{
               top: "96px",
               zIndex: 2 + i,
@@ -99,7 +103,7 @@ export function ThemeShowcase() {
               boxShadow: "0 -20px 50px rgba(0,0,0,0.4)",
             }}
           >
-            <Image
+            <CmsImage
               src={theme.cardImageUrl}
               alt={theme.title}
               fill

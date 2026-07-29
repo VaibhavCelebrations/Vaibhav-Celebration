@@ -12,7 +12,7 @@ import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
-import { SelectInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
+import { SelectInput, TextArea, TextInput, ToggleSwitch, NumberInput } from "@/components/ui/fields";
 import type { MediaRef } from "@/types/common";
 
 type GalleryTheme = { id: string; title: string; slug: string };
@@ -23,6 +23,8 @@ type GalleryItem = {
   caption: string | null;
   altText: string;
   themeId: string | null;
+  ctaType?: string;
+  ctaTargetSlug?: string | null;
   isActive: boolean;
   displayOrder: number;
   media?: MediaRef & { id: string };
@@ -36,6 +38,9 @@ type FormState = {
   caption: string;
   themeId: string;
   tagNames: string[];
+  ctaType: string;
+  ctaTargetSlug: string;
+  displayOrder: number;
   isActive: boolean;
 };
 
@@ -45,12 +50,15 @@ const EMPTY: FormState = {
   caption: "",
   themeId: "",
   tagNames: [],
+  ctaType: "NONE",
+  ctaTargetSlug: "",
+  displayOrder: 0,
   isActive: true,
 };
 
 export function GalleryScreen() {
   const { query, setQuery } = useListQuery({ sort: "displayOrder", dir: "asc", pageSize: 48 });
-  const { items, total, loading, error, reload } = useRepoList(galleryRepo.list, query);
+  const { items, total, loading, error, reload, reloadTick } = useRepoList(galleryRepo.list, query);
   const rows = items as GalleryItem[];
 
   const [themes, setThemes] = useState<GalleryTheme[]>([]);
@@ -79,7 +87,7 @@ export function GalleryScreen() {
     void adminFetch<GalleryTag[]>("/admin/gallery/tags")
       .then(setAllTags)
       .catch(() => setAllTags([]));
-  }, [reload]);
+  }, [reloadTick]);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -136,6 +144,9 @@ export function GalleryScreen() {
       caption: row.caption ?? "",
       themeId: row.themeId ?? "",
       tagNames: (row.tags ?? []).map((t) => t.tag.name),
+      ctaType: row.ctaType ?? "NONE",
+      ctaTargetSlug: row.ctaTargetSlug ?? "",
+      displayOrder: row.displayOrder ?? 0,
       isActive: row.isActive,
     });
     setDirty(false);
@@ -161,6 +172,9 @@ export function GalleryScreen() {
         altText: form.altText.trim(),
         caption: form.caption.trim() || null,
         themeId: form.themeId || null,
+        ctaType: form.ctaType,
+        ctaTargetSlug: form.ctaTargetSlug.trim() || null,
+        displayOrder: form.displayOrder,
         isActive: form.isActive,
         tagNames: form.tagNames,
       };
@@ -408,6 +422,32 @@ export function GalleryScreen() {
             </datalist>
           </div>
         </FormField>
+        <FormField label="Display order" htmlFor="gallery-order">
+          <NumberInput value={form.displayOrder} onChange={(n) => patch({ displayOrder: n })} />
+        </FormField>
+        <FormField label="CTA type" htmlFor="gallery-cta">
+          <SelectInput
+            id="gallery-cta"
+            value={form.ctaType}
+            onChange={(event) => patch({ ctaType: event.target.value })}
+            options={[
+              { value: "NONE", label: "None" },
+              { value: "THEME", label: "Theme" },
+              { value: "PACKAGE", label: "Package" },
+              { value: "EVENT", label: "Event" },
+              { value: "BOOKING", label: "Booking" },
+            ]}
+          />
+        </FormField>
+        {form.ctaType !== "NONE" && form.ctaType !== "BOOKING" && (
+          <FormField label="CTA target slug" htmlFor="gallery-cta-slug" hint="Slug of the theme, package, or event to link to.">
+            <TextInput
+              id="gallery-cta-slug"
+              value={form.ctaTargetSlug}
+              onChange={(event) => patch({ ctaTargetSlug: event.target.value })}
+            />
+          </FormField>
+        )}
         <div className="flex items-center justify-between">
           <label htmlFor="gallery-active" className="text-sm font-medium text-(--color-charcoal)">
             Active on public site

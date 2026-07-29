@@ -13,10 +13,12 @@ import { adminGetTheme, adminListThemes } from "../admin/admin-list.service";
 import {
   addSampleAsset,
   createTheme,
+  deleteSampleAsset,
   deleteTheme,
   getThemeBySlug,
   listThemes,
   reorderThemes,
+  setThemePackages,
   updateTheme,
 } from "./themes.service";
 
@@ -161,6 +163,47 @@ adminThemesRouter.post(
       });
       void triggerRevalidate(["/themes"]);
       return created(res, item);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+adminThemesRouter.put(
+  "/:id/packages",
+  validate(idSchema, "params"),
+  validate(
+    z.object({
+      links: z.array(
+        z.object({
+          packageId: z.string().min(1),
+          priceOverrideInPaise: z.number().int().optional().nullable(),
+          isActive: z.boolean().optional(),
+        }),
+      ),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      await setThemePackages(param(req, "id"), req.body.links);
+      await audit(req as AuthenticatedRequest, "UPDATE_PACKAGES", param(req, "id"), req.body);
+      void triggerRevalidate(["/themes"]);
+      return ok(res, await adminGetTheme(param(req, "id")));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+adminThemesRouter.delete(
+  "/:id/sample-assets/:assetId",
+  validate(z.object({ id: z.string().min(1), assetId: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      await deleteSampleAsset(param(req, "id"), param(req, "assetId"));
+      await audit(req as AuthenticatedRequest, "DELETE_SAMPLE_ASSET", param(req, "id"));
+      void triggerRevalidate(["/themes"]);
+      return ok(res, { deleted: true });
     } catch (err) {
       return next(err);
     }

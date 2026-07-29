@@ -11,6 +11,7 @@ import {
   deleteEvent,
   EVENT_PAGE_TEMPLATES,
   getEvent,
+  getEventById,
   listEvents,
   listRegistrations,
   registerEvent,
@@ -147,6 +148,14 @@ adminEventsRouter.post("/", validate(eventSchema), async (req, res, next) => {
 adminEventsRouter.get("/:id/registrations", async (req, res, next) => {
   try {
     return ok(res, await listRegistrations(param(req, "id")));
+  } catch (e) {
+    return next(e);
+  }
+});
+
+adminEventsRouter.get("/:id", async (req, res, next) => {
+  try {
+    return ok(res, await getEventById(param(req, "id")));
   } catch (e) {
     return next(e);
   }

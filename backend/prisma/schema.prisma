@@ -119,9 +119,14 @@ model MediaAsset {
   uploadedByAdminUserId String?
   createdAt             DateTime           @default(now())
   deletedAt             DateTime?
-  themeHeroes   Theme[]            @relation("ThemeHero")
-  sampleAssets  ThemeSampleAsset[]
-  galleryImages GalleryImage[]
+  themeHeroes       Theme[]            @relation("ThemeHero")
+  themeOgImages     Theme[]            @relation("ThemeOgImage")
+  sampleAssets      ThemeSampleAsset[]
+  galleryImages     GalleryImage[]
+  blogFeaturedImages BlogPost[]        @relation("BlogFeatured")
+  eventBanners      Event[]            @relation("EventBanner")
+  popupImages       Popup[]            @relation("PopupImage")
+  metadataOgImages  SiteMetadata[]     @relation("MetadataOgImage")
 
   @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@index([cdnKey(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -143,6 +148,7 @@ model Theme {
   seoTitle         String?
   seoDescription   String?
   ogImageId        String?
+  ogImage          MediaAsset?        @relation("ThemeOgImage", fields: [ogImageId], references: [id])
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   deletedAt        DateTime?
@@ -345,6 +351,7 @@ model Popup {
   title               String
   bodyText            String?
   imageId             String?
+  image               MediaAsset?      @relation("PopupImage", fields: [imageId], references: [id])
   ctaLabel            String?
   ctaUrl              String?
   placements          PopupPlacement[]
@@ -374,14 +381,22 @@ model LegalPage {
 }
 
 model SiteMetadata {
-  id              String   @id @default(cuid())
-  pageKey         String   @unique
+  id              String      @id @default(cuid())
+  pageKey         String      @unique
   metaTitle       String?
   metaDescription String?
   ogImageId       String?
+  ogImage         MediaAsset? @relation("MetadataOgImage", fields: [ogImageId], references: [id])
   canonicalUrl    String?
   schemaJsonLd    Json?
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime    @updatedAt
+}
+
+model PageContent {
+  id        String   @id @default(cuid())
+  pageKey   String   @unique
+  sections  Json
+  updatedAt DateTime @updatedAt
 }
 
 // ─── Blog ───────────────────────────────────────────────────────────────────
@@ -397,11 +412,13 @@ model BlogPost {
   title           String
   slug            String             @unique
   featuredImageId String?
+  featuredImage   MediaAsset?        @relation("BlogFeatured", fields: [featuredImageId], references: [id])
   contentHtml     String             @db.Text
   excerpt         String?
   authorName      String?
   status          BlogStatus         @default(DRAFT)
   publishedAt     DateTime?
+  isFeatured      Boolean            @default(false)
   seoTitle        String?
   seoDescription  String?
   createdAt       DateTime           @default(now())
@@ -467,6 +484,7 @@ model Event {
   title                  String
   slug                   String              @unique
   bannerMediaId          String?
+  bannerMedia            MediaAsset?         @relation("EventBanner", fields: [bannerMediaId], references: [id])
   description            String              @db.Text
   activities             Json?
   ageGroup               String?

@@ -1,10 +1,12 @@
 import Link from "next/link";
-import Image from "next/image";
-import { Check, X, ArrowRight } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { placeholderPackages, IMAGES } from "@/lib/placeholder-data";
+import type { PackageCard } from "@/lib/cms/types";
 
-export function PackagePreview() {
+type PackagePreviewProps = {
+  packages: PackageCard[];
+};
+
+export function PackagePreview({ packages }: PackagePreviewProps) {
   return (
     <section id="packages" className="py-16 md:py-24 bg-surface border-y border-border-light">
       <div className="max-w-7xl mx-auto px-5 md:px-10">
@@ -24,7 +26,7 @@ export function PackagePreview() {
         </ScrollReveal>
 
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 max-w-5xl mx-auto">
-          {placeholderPackages.map((pkg, i) => (
+          {packages.map((pkg, i) => (
             <ScrollReveal key={pkg.id} delay={i * 100} className="h-full">
               <div
                 className={`rounded-2xl p-6 md:p-8 flex flex-col h-full transition-premium hover:-translate-y-2 text-center ${

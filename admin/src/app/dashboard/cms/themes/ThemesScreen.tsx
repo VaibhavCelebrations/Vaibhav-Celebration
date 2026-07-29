@@ -77,6 +77,7 @@ export function ThemesScreen() {
       seoTitle: row.seoTitle,
       seoDescription: row.seoDescription,
       heroImageId: row.heroImage?.id ?? null,
+      ogImageId: row.ogImage?.id ?? null,
     });
     setFormError(null);
     setDirty(false);
@@ -209,6 +210,13 @@ export function ThemesScreen() {
             kind="themes"
             value={form.heroImageId ? (editing?.heroImage?.id === form.heroImageId ? editing.heroImage : { id: form.heroImageId, url: form.heroImageId }) : null}
             onChange={(media) => patchForm({ heroImageId: media?.id ?? null })}
+          />
+        </FormField>
+        <FormField label="OG image" htmlFor="theme-og" hint="Social share preview image (optional).">
+          <MediaPicker
+            kind="themes"
+            value={form.ogImageId ? (editing?.ogImage?.id === form.ogImageId ? editing.ogImage : { id: form.ogImageId, url: form.ogImageId }) : null}
+            onChange={(media) => patchForm({ ogImageId: media?.id ?? null })}
           />
         </FormField>
         <FormField label="Display order" htmlFor="theme-order">

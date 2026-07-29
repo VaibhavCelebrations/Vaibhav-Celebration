@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { PartyPopper, Palette, Gift, Gamepad2, Mail, Award, ArrowRight } from "lucide-react";
+import { PartyPopper, Palette, Gift, Gamepad2, Mail, Award } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import type { HomeDeliverablesSection } from "@/lib/cms/types";
 
 const services = [
   { slug: "customized-celebrations", icon: PartyPopper, title: "Customized Celebrations", desc: "Every detail curated around your child." },
@@ -11,9 +12,21 @@ const services = [
   { slug: "milestone-moments", icon: Award, title: "Milestone Moments", desc: "Cherishing every big moment beautifully." },
 ];
 
-export function DeliverableStrip() {
+type DeliverableStripProps = {
+  content?: HomeDeliverablesSection;
+};
+
+export function DeliverableStrip({ content }: DeliverableStripProps) {
   return (
     <section className="py-16 md:py-20 bg-surface">
+      {(content?.title || content?.subtitle) && (
+        <div className="max-w-7xl mx-auto px-5 md:px-10 mb-10 text-center">
+          {content.title && (
+            <h2 className="font-display text-3xl md:text-4xl text-charcoal font-semibold">{content.title}</h2>
+          )}
+          {content.subtitle && <p className="mt-3 text-text-muted">{content.subtitle}</p>}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-5 md:px-10">
         {/* Desktop View */}
         <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-6">

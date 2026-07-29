@@ -26,6 +26,8 @@ import {
   ScrollText,
   LogOut,
   LayoutDashboard,
+  FileText,
+  Scale,
   ChevronDown,
   ChevronRight,
   type LucideIcon,
@@ -69,9 +71,21 @@ const NAV: NavItem[] = [
   },
   {
     section: "CMS",
+    href: "/dashboard/cms/pages",
+    label: "Site Pages",
+    icon: FileText,
+  },
+  {
+    section: "CMS",
     href: "/dashboard/cms/blog",
     label: "Blog",
     icon: Newspaper,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/legal",
+    label: "Legal",
+    icon: Scale,
   },
   {
     section: "CMS",

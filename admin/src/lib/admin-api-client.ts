@@ -30,16 +30,30 @@ export function setStoredAccessToken(token: string | null) {
   else window.localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
+let refreshInFlight: Promise<string | null> | null = null;
+
 async function tryRefresh(): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/auth/admin/refresh`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as ApiSuccess<{ accessToken: string }>;
-  if (!json.success) return null;
-  setStoredAccessToken(json.data.accessToken);
-  return json.data.accessToken;
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/admin/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as ApiSuccess<{ accessToken: string }>;
+      if (!json.success) return null;
+      setStoredAccessToken(json.data.accessToken);
+      return json.data.accessToken;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 type FetchOptions = { method?: string; body?: unknown; auth?: boolean };
@@ -59,24 +73,47 @@ async function rawAdminFetch(path: string, options: FetchOptions = {}) {
       credentials: "include",
     });
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch {
+    throw new AdminApiError(
+      "NETWORK_ERROR",
+      "Unable to reach the API. Please check that the backend is running.",
+      0,
+    );
+  }
 
   if (res.status === 401 && options.auth !== false) {
     token = await tryRefresh();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
-      res = await doFetch();
+      try {
+        res = await doFetch();
+      } catch {
+        throw new AdminApiError(
+          "NETWORK_ERROR",
+          "Unable to reach the API. Please check that the backend is running.",
+          0,
+        );
+      }
     }
   }
 
-  const json = (await res.json()) as ApiSuccess<unknown> | ApiFailure;
+  let json: ApiSuccess<unknown> | ApiFailure;
+  try {
+    json = (await res.json()) as ApiSuccess<unknown> | ApiFailure;
+  } catch {
+    throw new AdminApiError("INVALID_RESPONSE", "Received an invalid response from the API.", res.status);
+  }
   if (!res.ok || !json.success) {
     const failure = json as ApiFailure;
-    throw new AdminApiError(
-      failure.error?.code ?? "REQUEST_FAILED",
-      failure.error?.message ?? "Request failed",
-      res.status,
-    );
+    const code = failure.error?.code ?? "REQUEST_FAILED";
+    const message =
+      res.status === 429
+        ? "Rate limit reached — please wait a moment and retry."
+        : (failure.error?.message ?? "Request failed");
+    throw new AdminApiError(code, message, res.status);
   }
   return json as ApiSuccess<unknown>;
 }

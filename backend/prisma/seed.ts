@@ -42,6 +42,7 @@ async function clearDevData() {
     "BlogTag",
     "BlogCategory",
     "SiteMetadata",
+    "PageContent",
     "LegalPage",
     "Popup",
     "FAQ",
@@ -806,6 +807,20 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     });
   }
 
+  // ── Page Content (Home / About / Contact) ───────────────────────────────────
+  const { defaultPageSections } = await import("../src/modules/pages/pages.service");
+  for (const pageKey of ["home", "about", "contact"] as const) {
+    const sections = JSON.parse(JSON.stringify(defaultPageSections[pageKey])) as {
+      hero?: { backgroundImage?: { mediaId: string } };
+    };
+    if (pageKey === "home" && sections.hero) {
+      sections.hero.backgroundImage = { mediaId: heroMedia.id };
+    }
+    await prisma.pageContent.create({
+      data: { pageKey, sections: sections as object },
+    });
+  }
+
   // ── Blog ─────────────────────────────────────────────────────────────────────
   const catPlanning = await prisma.blogCategory.create({ data: { name: "Wedding Planning" } });
   const catTrends = await prisma.blogCategory.create({ data: { name: "Trends & Inspiration" } });
@@ -825,6 +840,7 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       authorName: "Content Editor",
       status: BlogStatus.PUBLISHED,
       publishedAt: new Date("2026-01-15"),
+      isFeatured: true,
       seoTitle: "Top 10 Wedding Trends 2026 | Vaibhav Celebrations",
       seoDescription: "Discover the hottest wedding trends for 2026 at Vaibhav Celebrations.",
     },

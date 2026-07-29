@@ -5,13 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, CheckCircle2, Package, Truck, PartyPopper } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
+import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CheckoutStepper } from "@/components/ecom/CheckoutStepper";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
-import { placeholderPackages, placeholderThemes } from "@/lib/placeholder-data";
+import { useCatalog } from "@/context/catalog-context";
 
 const STEPS = [
   { label: "Review Cart" },
@@ -22,6 +22,7 @@ const STEPS = [
 export default function CheckoutPage() {
   const { items, packages, summary, updateQuantity, removeItem, removePackage, clearCart } = useCart();
   const { isAuthenticated, openAuthModal, user } = useAuth();
+  const { themesBySlug, packagesBySlug } = useCatalog();
   const [currentStep, setCurrentStep] = useState(0);
 
   const handleProceedFromCart = () => {
@@ -96,8 +97,8 @@ export default function CheckoutPage() {
                   <div className="lg:col-span-2 space-y-4">
                     {/* Render Packages */}
                     {packages.map((pkg, index) => {
-                      const pkgData = placeholderPackages.find(p => p.slug === pkg.packageId);
-                      const themeData = placeholderThemes.find(t => t.slug === pkg.themeSlug);
+                      const pkgData = packagesBySlug[pkg.packageId];
+                      const themeData = themesBySlug[pkg.themeSlug];
                       if (!pkgData) return null;
                       return (
                         <div key={`pkg-${index}`} className="flex gap-4 p-4 bg-blush/30 rounded-2xl border border-mocha/30 shadow-soft">
@@ -204,8 +205,8 @@ export default function CheckoutPage() {
                       <div className="space-y-3">
                         {/* Packages */}
                         {packages.map((pkg) => {
-                          const pkgData = placeholderPackages.find(p => p.slug === pkg.packageId);
-                          const themeData = placeholderThemes.find(t => t.slug === pkg.themeSlug);
+                          const pkgData = packagesBySlug[pkg.packageId];
+                          const themeData = themesBySlug[pkg.themeSlug];
                           const addons = pkg.addons || [];
                           const addonsTotal = addons.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
                           const packageTotal = pkg.basePrice + addonsTotal;
@@ -358,7 +359,7 @@ export default function CheckoutPage() {
           )}
         </div>
       </main>
-      <Footer />
+      <FooterClient />
       <WhatsAppFAB />
     </>
   );

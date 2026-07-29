@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, Check, Plus, Minus, ShoppingCart, Info, Package, ArrowRight, Trash2, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { placeholderPackages, placeholderThemes } from "@/lib/placeholder-data";
 import { placeholderProducts } from "@/lib/ecom-placeholder-data";
 import { useCart } from "@/context/cart-context";
+import { useCatalog } from "@/context/catalog-context";
 import type { Product } from "@/lib/ecom-types";
 
 // Helper component for local add-on state
@@ -20,6 +20,7 @@ function BuildPackageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { addPackage, addItem, openCart } = useCart();
+  const { themes, packagesBySlug, themesBySlug } = useCatalog();
 
   const pkgSlug = searchParams.get("package");
   const initialThemeSlug = searchParams.get("theme");
@@ -28,8 +29,8 @@ function BuildPackageContent() {
   const [selectedTheme, setSelectedTheme] = useState<string | null>(initialThemeSlug || null);
   const [selectedAddons, setSelectedAddons] = useState<LocalAddon[]>([]);
   
-  const packageData = placeholderPackages.find((p) => p.slug === pkgSlug);
-  const themeData = placeholderThemes.find((t) => t.slug === selectedTheme);
+  const packageData = pkgSlug ? packagesBySlug[pkgSlug] : undefined;
+  const themeData = selectedTheme ? themesBySlug[selectedTheme] : undefined;
 
   // Redirect if invalid package
   useEffect(() => {
@@ -148,7 +149,7 @@ function BuildPackageContent() {
               </h3>
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {placeholderThemes.map((theme) => {
+                {themes.map((theme) => {
                   const isSelected = selectedTheme === theme.slug;
                   return (
                     <button

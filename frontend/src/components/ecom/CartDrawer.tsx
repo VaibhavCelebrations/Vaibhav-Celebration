@@ -5,12 +5,13 @@ import Link from "next/link";
 import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight, Package } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
+import { useCatalog } from "@/context/catalog-context";
 import { useRouter } from "next/navigation";
-import { placeholderThemes, placeholderPackages } from "@/lib/placeholder-data";
 
 export function CartDrawer() {
   const { items, packages, summary, isCartOpen, closeCart, updateQuantity, removeItem, removePackage } = useCart();
   const { isAuthenticated, openAuthModal } = useAuth();
+  const { themesBySlug, packagesBySlug } = useCatalog();
   const router = useRouter();
 
   const handleCheckout = () => {
@@ -78,8 +79,8 @@ export function CartDrawer() {
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 hide-scrollbar">
               {/* Render Packages */}
               {packages.map((pkg) => {
-                const pkgData = placeholderPackages.find(p => p.slug === pkg.packageId);
-                const themeData = placeholderThemes.find(t => t.slug === pkg.themeSlug);
+                const pkgData = packagesBySlug[pkg.packageId];
+                const themeData = themesBySlug[pkg.themeSlug];
                 if (!pkgData) return null;
                 
                 const addons = pkg.addons || [];

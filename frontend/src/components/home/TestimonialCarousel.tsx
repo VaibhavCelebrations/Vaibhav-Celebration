@@ -2,13 +2,16 @@
 
 import { Star } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { placeholderTestimonials } from "@/lib/placeholder-data";
+import type { TestimonialCard } from "@/lib/cms/types";
 
-export function TestimonialCarousel() {
-  const items = placeholderTestimonials;
+type TestimonialCarouselProps = {
+  testimonials: TestimonialCard[];
+};
 
-  // Duplicate items for seamless infinite scroll
-  const renderCard = (t: (typeof items)[0], key: string) => (
+export function TestimonialCarousel({ testimonials }: TestimonialCarouselProps) {
+  const items = testimonials.length ? testimonials : [];
+
+  const renderCard = (t: TestimonialCard, key: string) => (
     <div
       key={key}
       className="w-[320px] md:w-[380px] shrink-0 bg-cream rounded-2xl border border-border p-8 flex flex-col hover:shadow-card transition-shadow"
@@ -26,6 +29,8 @@ export function TestimonialCarousel() {
       <p className="text-sm text-text-light">{t.role}</p>
     </div>
   );
+
+  if (!items.length) return null;
 
   return (
     <section id="testimonials" className="py-16 md:py-24 overflow-hidden">
@@ -46,9 +51,7 @@ export function TestimonialCarousel() {
         </ScrollReveal>
       </div>
 
-      {/* Auto-scrolling marquee */}
       <div className="relative">
-        {/* Fade edges */}
         <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none" />
         <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-surface to-transparent z-10 pointer-events-none" />
 

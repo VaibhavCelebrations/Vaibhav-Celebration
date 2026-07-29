@@ -1,9 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { RoleGate } from "@/components/AdminSessionContext";
+import { BlogScreen } from "./BlogScreen";
 
-import { ResourceScreen } from "@/components/ResourceScreen";
-import { blogRepo } from "@/lib/data/resources";
+export const metadata: Metadata = { title: "Blog | Vaibhav Celebrations Admin" };
 
 export default function BlogPage() {
-  return <ResourceScreen title="Blog" noun="Post" description="Create and manage stories, announcements, and helpful celebration guides." repo={blogRepo} fields={["title", "slug", "content", "status"]} statusOptions={[{ value: "DRAFT", label: "Draft" }, { value: "PUBLISHED", label: "Published" }, { value: "UNPUBLISHED", label: "Unpublished" }]} />;
+  return (
+    <RoleGate allow={["SUPER_ADMIN", "CONTENT_EDITOR"]}>
+      <Suspense fallback={<div className="skeleton h-64 w-full rounded-(--radius-md)" />}>
+        <BlogScreen />
+      </Suspense>
+    </RoleGate>
+  );
 }
-

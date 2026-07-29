@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import type { ListQuery, ListResult } from "@/lib/data/types";
 
@@ -25,6 +25,7 @@ type RepoListState<T> = {
 export function useRepoList<T>(fetcher: (query: ListQuery) => Promise<ListResult<T>>, query: ListQuery) {
   const [state, setState] = useState<RepoListState<T>>({ items: [], total: 0, loading: true, error: null });
   const [reloadTick, setReloadTick] = useState(0);
+  const reload = useCallback(() => setReloadTick((t) => t + 1), []);
 
   useEffect(() => {
     let active = true;
@@ -64,5 +65,5 @@ export function useRepoList<T>(fetcher: (query: ListQuery) => Promise<ListResult
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(query), reloadTick]);
 
-  return { ...state, reload: () => setReloadTick((t) => t + 1) };
+  return { ...state, reload, reloadTick };
 }

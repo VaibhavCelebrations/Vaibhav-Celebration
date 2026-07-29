@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Minus } from "lucide-react";
-import { PlaceholderPackage } from "@/lib/placeholder-data";
 import Link from "next/link";
+import { CheckCircle2, Minus } from "lucide-react";
+import type { PackageCard } from "@/lib/cms/types";
 
-export function PackageInclusions({ packages, themeSlug }: { packages: PlaceholderPackage[], themeSlug: string }) {
+export function PackageInclusions({ packages, themeSlug }: { packages: PackageCard[]; themeSlug: string }) {
   const [selectedPkgId, setSelectedPkgId] = useState(packages[0]?.id);
 
   const selectedPkg = packages.find((p) => p.id === selectedPkgId) || packages[0];

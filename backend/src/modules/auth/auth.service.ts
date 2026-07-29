@@ -29,9 +29,13 @@ function signAccessToken(payload: AdminJwtPayload): string {
 }
 
 function issueRefreshJwt(adminId: string): string {
-  return jwt.sign({ sub: adminId, type: "refresh" }, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions["expiresIn"],
-  });
+  return jwt.sign(
+    { sub: adminId, type: "refresh", jti: crypto.randomUUID() },
+    env.JWT_REFRESH_SECRET,
+    {
+      expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+    },
+  );
 }
 
 /** Convert env string like "7d" / "24h" / "30m" to milliseconds. */
@@ -157,8 +161,13 @@ export async function refreshAccessToken(
     throw new UnauthorizedError("Session has been revoked. Please log in again.");
   }
 
-  // Step 4 — REPLAY DETECTION: token was already used → revoke entire family
+  // Step 4 — Token already rotated (concurrent refresh or replay)
   if (stored.usedAt !== null) {
+    const msSinceUse = Date.now() - stored.usedAt.getTime();
+    // Benign race: another request/tab rotated this token moments ago
+    if (msSinceUse < 10_000) {
+      throw new UnauthorizedError("Session was just refreshed. Please retry your request.");
+    }
     await prisma.adminRefreshToken.updateMany({
       where: { familyId: stored.familyId, revokedAt: null },
       data: { revokedAt: new Date() },
@@ -181,25 +190,28 @@ export async function refreshAccessToken(
     throw new UnauthorizedError("Admin account not found or deactivated");
   }
 
-  // Step 7 — Rotate: mark old as used, issue new token in same family
+  // Step 7 — Rotate atomically: only one concurrent refresh can mark the token used
   const newRawRefreshToken = issueRefreshJwt(admin.id);
 
-  await prisma.$transaction([
-    prisma.adminRefreshToken.update({
-      where: { id: stored.id },
-      data: { usedAt: new Date() },
-    }),
-    prisma.adminRefreshToken.create({
-      data: {
-        adminUserId: admin.id,
-        tokenHash: hashToken(newRawRefreshToken),
-        familyId: stored.familyId, // same session family
-        expiresAt: refreshTokenExpiry(),
-        ipAddress: ipAddress ?? null,
-        userAgent: userAgent ?? null,
-      },
-    }),
-  ]);
+  const rotated = await prisma.adminRefreshToken.updateMany({
+    where: { id: stored.id, usedAt: null, revokedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  if (rotated.count === 0) {
+    throw new UnauthorizedError("Session was just refreshed. Please retry your request.");
+  }
+
+  await prisma.adminRefreshToken.create({
+    data: {
+      adminUserId: admin.id,
+      tokenHash: hashToken(newRawRefreshToken),
+      familyId: stored.familyId,
+      expiresAt: refreshTokenExpiry(),
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+    },
+  });
 
   const accessToken = signAccessToken({
     sub: admin.id,

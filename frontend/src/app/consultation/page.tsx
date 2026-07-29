@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
+import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -90,7 +90,7 @@ export default function ConsultationPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFAB />
+      <WhatsAppFABServer />
     </>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Expand } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { placeholderGalleryImages } from "@/lib/placeholder-data";
+import type { GalleryCard } from "@/lib/cms/types";
 import { Lightbox } from "./Lightbox";
 
 const heightMap: Record<string, string> = {
@@ -13,20 +13,21 @@ const heightMap: Record<string, string> = {
   square: "aspect-square",
 };
 
-/* Theme-based tags derived from gallery data */
-const THEME_TAGS = ["Space", "Cocomelon", "Princess", "Jungle Safari", "General"];
+type MasonryGalleryProps = {
+  images: GalleryCard[];
+};
 
-export function MasonryGallery() {
+export function MasonryGallery({ images }: MasonryGalleryProps) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  const themeTags = Array.from(new Set(images.flatMap((img) => img.tags))).sort();
   const filtered = activeTag
-    ? placeholderGalleryImages.filter((img) => img.tags.includes(activeTag))
-    : placeholderGalleryImages;
+    ? images.filter((img) => img.tags.includes(activeTag))
+    : images;
 
   return (
     <>
-      {/* Filter Chips */}
       <div className="flex flex-wrap gap-2 mb-10 justify-center">
         <button
           onClick={() => setActiveTag(null)}
@@ -36,7 +37,7 @@ export function MasonryGallery() {
         >
           All
         </button>
-        {THEME_TAGS.map((tag) => (
+        {themeTags.map((tag) => (
           <button
             key={tag}
             onClick={() => setActiveTag(tag)}
@@ -49,7 +50,6 @@ export function MasonryGallery() {
         ))}
       </div>
 
-      {/* Masonry Grid */}
       <div className="masonry columns-2 sm:columns-3 lg:columns-4">
         {filtered.map((img, i) => (
           <ScrollReveal key={img.id} delay={i * 40}>
@@ -77,7 +77,6 @@ export function MasonryGallery() {
         ))}
       </div>
 
-      {/* Lightbox */}
       {lightboxIndex !== null && (
         <Lightbox
           images={filtered}

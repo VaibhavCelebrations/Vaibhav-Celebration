@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Poppins } from "next/font/google";
 import { Providers } from "./providers";
+import { listThemes } from "@/lib/cms/themes";
+import { listPackages } from "@/lib/cms/packages";
 import "./globals.css";
 
 const display = Playfair_Display({
@@ -43,16 +45,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const [themes, packages] = await Promise.all([
+    listThemes().catch(() => []),
+    listPackages().catch(() => []),
+  ]);
+
   return (
     <html
       lang="en"
       className={`${display.variable} ${body.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-cream text-text font-sans">
-        <Providers>{children}</Providers>
+        <Providers themes={themes} packages={packages}>{children}</Providers>
       </body>
     </html>
   );

@@ -41,16 +41,34 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    cache: options.cache,
-    next: options.next,
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      cache: options.cache,
+      next: options.next,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiClientError(
+      "NETWORK_ERROR",
+      "Unable to reach the API. Please check that the backend is running.",
+      0,
+    );
+  }
 
-  const json = (await res.json()) as ApiResponse<T>;
+  let json: ApiResponse<T>;
+  try {
+    json = (await res.json()) as ApiResponse<T>;
+  } catch {
+    throw new ApiClientError(
+      "INVALID_RESPONSE",
+      "Received an invalid response from the API.",
+      res.status,
+    );
+  }
 
   if (!res.ok || !json.success) {
     const failure = json as ApiFailure;

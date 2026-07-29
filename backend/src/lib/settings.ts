@@ -32,15 +32,21 @@ export async function getSettingNumber(key: string, fallback: number): Promise<n
 }
 
 export async function getGstPercent(): Promise<number> {
-  return getSettingNumber("GST_PERCENT", env.DEFAULT_GST_PERCENT);
+  const primary = await getSettingNumber("GST_PERCENT", NaN);
+  if (Number.isFinite(primary)) return primary;
+  return getSettingNumber("gst_percent", env.DEFAULT_GST_PERCENT);
 }
 
 export async function getMaxBookingsPerDay(): Promise<number> {
-  return getSettingNumber("MAX_BOOKINGS_PER_DAY", env.DEFAULT_MAX_BOOKINGS_PER_DAY);
+  const primary = await getSettingNumber("MAX_BOOKINGS_PER_DAY", NaN);
+  if (Number.isFinite(primary)) return primary;
+  return getSettingNumber("max_bookings_per_day", env.DEFAULT_MAX_BOOKINGS_PER_DAY);
 }
 
 export async function getMinConsultationAdvanceDays(): Promise<number> {
-  return getSettingNumber("MIN_CONSULTATION_ADVANCE_DAYS", env.MIN_CONSULTATION_ADVANCE_DAYS);
+  const primary = await getSettingNumber("MIN_CONSULTATION_ADVANCE_DAYS", NaN);
+  if (Number.isFinite(primary)) return primary;
+  return getSettingNumber("min_consultation_advance_days", env.MIN_CONSULTATION_ADVANCE_DAYS);
 }
 
 export function invalidateSettingsCache() {

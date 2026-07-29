@@ -3,13 +3,13 @@
 import { useState, useMemo } from "react";
 import { Search, SlidersHorizontal, X, Gift, Palette, Sparkles, PenTool } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
+import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
 import { placeholderProducts, placeholderCategories } from "@/lib/ecom-placeholder-data";
-import { placeholderThemes } from "@/lib/placeholder-data";
+import { useCatalog } from "@/context/catalog-context";
 import type { GiftFilter } from "@/lib/ecom-types";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -27,6 +27,7 @@ const sortOptions = [
 ] as const;
 
 export default function GiftsPage() {
+  const { themes } = useCatalog();
   const [filter, setFilter] = useState<GiftFilter>({
     theme: null,
     category: null,
@@ -163,7 +164,7 @@ export default function GiftsPage() {
               >
                 All Themes
               </button>
-              {placeholderThemes.filter((t) => t.isActive).map((theme) => (
+              {themes.map((theme) => (
                 <button
                   key={theme.id}
                   onClick={() => setFilter({ ...filter, theme: filter.theme === theme.slug ? null : theme.slug })}
@@ -265,7 +266,7 @@ export default function GiftsPage() {
           )}
         </div>
       </main>
-      <Footer />
+      <FooterClient />
       <WhatsAppFAB />
     </>
   );

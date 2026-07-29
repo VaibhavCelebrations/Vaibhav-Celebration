@@ -12,6 +12,8 @@ import { param, queryString } from "../../lib/params";
 import { created, ok } from "../../lib/response";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
+import { triggerRevalidate } from "../../integrations/revalidate/client";
+import { loadMediaById, loadMediaMap } from "../../lib/media-ref";
 
 const roles = [
   requireAdmin,
@@ -72,6 +74,14 @@ const legalTypes: Record<string, LegalPageType> = {
   "privacy-policy": "PRIVACY_POLICY",
   "cancellation-policy": "CANCELLATION_POLICY",
 };
+
+const FAQ_PATHS = ["/faq", "/"];
+const LEGAL_PATHS = [
+  "/legal/privacy-policy",
+  "/legal/terms-of-service",
+  "/legal/refund-policy",
+  "/legal/cancellation-policy",
+];
 
 export const contentRouter = Router();
 contentRouter.get(
@@ -137,9 +147,7 @@ contentRouter.get(
     try {
       const now = new Date();
       const q = req.query as unknown as { placement: PopupPlacement };
-      return ok(
-        res,
-        await prisma.popup.findMany({
+      const popups = await prisma.popup.findMany({
           where: {
             deletedAt: null,
             isActive: true,
@@ -149,7 +157,14 @@ contentRouter.get(
               { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
             ],
           },
-        }),
+        });
+      const imageMap = await loadMediaMap(popups.map((p) => p.imageId));
+      return ok(
+        res,
+        popups.map((p) => ({
+          ...p,
+          image: p.imageId ? imageMap.get(p.imageId) ?? null : null,
+        })),
       );
     } catch (error) {
       return next(error);
@@ -173,7 +188,8 @@ contentRouter.get("/metadata/:pageKey", async (req, res, next) => {
       where: { pageKey: param(req, "pageKey") },
     });
     if (!item) throw new NotFoundError("Metadata not found");
-    return ok(res, item);
+    const ogImage = await loadMediaById(item.ogImageId);
+    return ok(res, { ...item, ogImage });
   } catch (error) {
     return next(error);
   }
@@ -216,7 +232,9 @@ adminContentRouter.post(
   validate(testimonial),
   async (req, res, next) => {
     try {
-      return created(res, await prisma.testimonial.create({ data: req.body }));
+      const item = await prisma.testimonial.create({ data: req.body });
+      void triggerRevalidate(["/", "/about"]);
+      return created(res, item);
     } catch (error) {
       return next(error);
     }
@@ -228,13 +246,29 @@ adminContentRouter.put(
   validate(testimonial.partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.testimonial.update({
-          where: { id: param(req, "id") },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.testimonial.update({
+        where: { id: param(req, "id") },
+        data: req.body,
+      });
+      void triggerRevalidate(["/", "/about"]);
+      return ok(res, item);
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.patch(
+  "/testimonials/:id",
+  validate(id, "params"),
+  validate(testimonial.partial()),
+  async (req, res, next) => {
+    try {
+      const item = await prisma.testimonial.update({
+        where: { id: param(req, "id") },
+        data: req.body,
+      });
+      void triggerRevalidate(["/", "/about"]);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }
@@ -250,6 +284,7 @@ adminContentRouter.delete(
         data: { deletedAt: new Date(), isActive: false },
       });
       if (!result.count) throw new NotFoundError("Content not found");
+      void triggerRevalidate(["/", "/about"]);
       return ok(res, { deleted: true });
     } catch (error) {
       return next(error);
@@ -279,7 +314,9 @@ adminContentRouter.get(
 );
 adminContentRouter.post("/faqs", validate(faq), async (req, res, next) => {
   try {
-    return created(res, await prisma.fAQ.create({ data: req.body }));
+    const item = await prisma.fAQ.create({ data: req.body });
+    void triggerRevalidate(FAQ_PATHS);
+    return created(res, item);
   } catch (error) {
     return next(error);
   }
@@ -290,13 +327,12 @@ adminContentRouter.put(
   validate(faq.partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.fAQ.update({
-          where: { id: param(req, "id") },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.fAQ.update({
+        where: { id: param(req, "id") },
+        data: req.body,
+      });
+      void triggerRevalidate(FAQ_PATHS);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }
@@ -308,13 +344,12 @@ adminContentRouter.patch(
   validate(faq.partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.fAQ.update({
-          where: { id: param(req, "id") },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.fAQ.update({
+        where: { id: param(req, "id") },
+        data: req.body,
+      });
+      void triggerRevalidate(FAQ_PATHS);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }
@@ -330,6 +365,7 @@ adminContentRouter.delete(
         data: { deletedAt: new Date(), isActive: false },
       });
       if (!result.count) throw new NotFoundError("Content not found");
+      void triggerRevalidate(FAQ_PATHS);
       return ok(res, { deleted: true });
     } catch (error) {
       return next(error);
@@ -359,7 +395,9 @@ adminContentRouter.get("/popups", async (req, res, next) => {
 });
 adminContentRouter.post("/popups", validate(popup), async (req, res, next) => {
   try {
-    return created(res, await prisma.popup.create({ data: req.body }));
+    const item = await prisma.popup.create({ data: req.body });
+    void triggerRevalidate(["/"]);
+    return created(res, item);
   } catch (error) {
     return next(error);
   }
@@ -370,13 +408,12 @@ adminContentRouter.put(
   validate(popup.partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.popup.update({
-          where: { id: param(req, "id") },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.popup.update({
+        where: { id: param(req, "id") },
+        data: req.body,
+      });
+      void triggerRevalidate(["/"]);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }
@@ -392,6 +429,7 @@ adminContentRouter.delete(
         data: { deletedAt: new Date(), isActive: false },
       });
       if (!result.count) throw new NotFoundError("Content not found");
+      void triggerRevalidate(["/"]);
       return ok(res, { deleted: true });
     } catch (error) {
       return next(error);
@@ -408,7 +446,12 @@ adminContentRouter.get("/legal", async (_req, res, next) => {
 });
 adminContentRouter.get("/metadata", async (_req, res, next) => {
   try {
-    const items = await prisma.siteMetadata.findMany({ orderBy: { pageKey: "asc" } });
+    const rows = await prisma.siteMetadata.findMany({ orderBy: { pageKey: "asc" } });
+    const imageMap = await loadMediaMap(rows.map((r) => r.ogImageId));
+    const items = rows.map((row) => ({
+      ...row,
+      ogImage: row.ogImageId ? imageMap.get(row.ogImageId) ?? null : null,
+    }));
     return ok(res, { items, total: items.length, page: 1, pageSize: items.length || 20 });
   } catch (error) {
     return next(error);
@@ -416,14 +459,13 @@ adminContentRouter.get("/metadata", async (_req, res, next) => {
 });
 adminContentRouter.post("/legal", validate(legal), async (req, res, next) => {
   try {
-    return created(
-      res,
-      await prisma.legalPage.upsert({
-        where: { type: req.body.type },
-        create: req.body,
-        update: req.body,
-      }),
-    );
+    const item = await prisma.legalPage.upsert({
+      where: { type: req.body.type },
+      create: req.body,
+      update: req.body,
+    });
+    void triggerRevalidate(LEGAL_PATHS);
+    return created(res, item);
   } catch (error) {
     return next(error);
   }
@@ -434,13 +476,12 @@ adminContentRouter.put(
   validate(legal.omit({ type: true }).partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.legalPage.update({
-          where: { type: param(req, "type") as LegalPageType },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.legalPage.update({
+        where: { type: param(req, "type") as LegalPageType },
+        data: req.body,
+      });
+      void triggerRevalidate(LEGAL_PATHS);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }
@@ -451,14 +492,13 @@ adminContentRouter.post(
   validate(metadata),
   async (req, res, next) => {
     try {
-      return created(
-        res,
-        await prisma.siteMetadata.upsert({
-          where: { pageKey: req.body.pageKey },
-          create: req.body,
-          update: req.body,
-        }),
-      );
+      const item = await prisma.siteMetadata.upsert({
+        where: { pageKey: req.body.pageKey },
+        create: req.body,
+        update: req.body,
+      });
+      void triggerRevalidate(["/"]);
+      return created(res, item);
     } catch (error) {
       return next(error);
     }
@@ -470,13 +510,12 @@ adminContentRouter.put(
   validate(metadata.omit({ pageKey: true }).partial()),
   async (req, res, next) => {
     try {
-      return ok(
-        res,
-        await prisma.siteMetadata.update({
-          where: { pageKey: param(req, "pageKey") },
-          data: req.body,
-        }),
-      );
+      const item = await prisma.siteMetadata.update({
+        where: { pageKey: param(req, "pageKey") },
+        data: req.body,
+      });
+      void triggerRevalidate(["/"]);
+      return ok(res, item);
     } catch (error) {
       return next(error);
     }

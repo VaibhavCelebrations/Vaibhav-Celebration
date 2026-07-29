@@ -138,17 +138,21 @@ export async function storeMediaBuffer(input: {
   kind?: MediaPrefixKind;
   scope?: string;
   role?: string;
+  /** When set, uses this exact object key instead of a random suffix. */
+  fixedCdnKey?: string;
   /** @deprecated prefer kind/scope/role */
   folder?: string;
 }): Promise<StoredObject> {
   const kind = input.kind ?? inferKindFromFolder(input.folder);
-  const cdnKey = buildCdnKey({
-    kind,
-    scope: input.scope ?? input.folder?.split("/")[1],
-    role: input.role ?? input.folder?.split("/").pop() ?? "file",
-    originalName: input.originalName,
-    mimeType: input.mimeType,
-  });
+  const cdnKey =
+    input.fixedCdnKey ??
+    buildCdnKey({
+      kind,
+      scope: input.scope ?? input.folder?.split("/")[1],
+      role: input.role ?? input.folder?.split("/").pop() ?? "file",
+      originalName: input.originalName,
+      mimeType: input.mimeType,
+    });
 
   const client = getS3();
   if (client && env.CLOUDFLARE_R2_BUCKET) {

@@ -12,15 +12,31 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as {
     path?: string;
+    paths?: string[];
     tag?: string;
+    tags?: string[];
   };
 
-  if (body.path) revalidatePath(body.path);
-  // Next.js 16 cacheLife profile — "max" = long-lived tag invalidation
-  if (body.tag) revalidateTag(body.tag, "max");
+  const paths = body.paths ?? (body.path ? [body.path] : []);
+  const tags = new Set(body.tags ?? (body.tag ? [body.tag] : []));
+
+  for (const path of paths) {
+    if (!path) continue;
+    revalidatePath(path);
+    if (path === "/blog") tags.add("cms:blog");
+    else if (path.startsWith("/blog/")) tags.add(`cms:blog:${path.slice("/blog/".length)}`);
+    else if (path === "/contact") tags.add("cms:pages:contact");
+    else if (path === "/about") tags.add("cms:pages:about");
+    else if (path === "/") tags.add("cms:pages:home");
+  }
+
+  const tagList = [...tags];
+  for (const tag of tagList) {
+    if (tag) revalidateTag(tag, "max");
+  }
 
   return NextResponse.json({
     success: true,
-    data: { revalidated: true, path: body.path ?? null, tag: body.tag ?? null },
+    data: { revalidated: true, paths, tags: tagList },
   });
 }

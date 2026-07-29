@@ -3,17 +3,22 @@ import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
+import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { placeholderPackages } from "@/lib/placeholder-data";
+import { buildPageMetadata } from "@/lib/cms/metadata";
+import { listPackages } from "@/lib/cms/packages";
 
-export const metadata: Metadata = {
-  title: "Packages & Pricing",
-  description: "Compare our Basic, Standard, and Premium celebration packages — every detail, side by side.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata("packages", {
+    title: "Packages & Pricing",
+    description: "Compare our celebration packages — every detail, side by side.",
+  });
+}
 
-export default function PackagesPage() {
+export default async function PackagesPage() {
+  const packages = await listPackages().catch(() => []);
+
   return (
     <>
       <Navbar />
@@ -24,7 +29,7 @@ export default function PackagesPage() {
           </ScrollReveal>
 
           <div className="mt-16 grid md:grid-cols-3 gap-6 items-start">
-            {placeholderPackages.map((pkg, i) => (
+            {packages.map((pkg, i) => (
               <ScrollReveal key={pkg.id} delay={i * 100}>
                 <div
                   className={`rounded-2xl p-8 flex flex-col h-full transition-premium hover:-translate-y-2 ${
@@ -38,44 +43,22 @@ export default function PackagesPage() {
                       Most Chosen
                     </span>
                   )}
-                  <h3 className="font-display text-2xl font-semibold text-charcoal">
-                    {pkg.title}
-                  </h3>
-                  <p className="text-sm text-text-muted mt-2">
-                    {pkg.description}
-                  </p>
-                  <p className="mt-6 font-display text-3xl text-charcoal font-semibold">
-                    {pkg.priceLabel}
-                  </p>
+                  <h3 className="font-display text-2xl font-semibold text-charcoal">{pkg.title}</h3>
+                  <p className="text-sm text-text-muted mt-2">{pkg.description}</p>
+                  <p className="mt-6 font-display text-3xl text-charcoal font-semibold">{pkg.priceLabel}</p>
                   <p className="text-xs text-text-light mt-1">Onwards</p>
-
                   <hr className="my-6 border-border" />
-
                   <ul className="space-y-4 text-sm flex-1">
                     {pkg.features.map((f) => (
-                      <li
-                        key={f.label}
-                        className={`flex gap-3 ${
-                          f.included ? "text-text" : "text-text-light/50 line-through"
-                        }`}
-                      >
-                        {f.included ? (
-                          <Check size={16} className="text-mocha shrink-0 mt-0.5" />
-                        ) : (
-                          <X size={16} className="shrink-0 mt-0.5" />
-                        )}
+                      <li key={f.label} className={`flex gap-3 ${f.included ? "text-text" : "text-text-light/50 line-through"}`}>
+                        {f.included ? <Check size={16} className="text-mocha shrink-0 mt-0.5" /> : <X size={16} className="shrink-0 mt-0.5" />}
                         <span>{f.label}</span>
                       </li>
                     ))}
                   </ul>
-
                   <Link
                     href={`/build-package?package=${pkg.slug}`}
-                    className={`mt-8 text-sm font-semibold px-6 py-3.5 rounded-lg text-center ${
-                      pkg.isRecommended
-                        ? "btn-primary"
-                        : "btn-outline"
-                    }`}
+                    className={`mt-8 text-sm font-semibold px-6 py-3.5 rounded-lg text-center ${pkg.isRecommended ? "btn-primary" : "btn-outline"}`}
                   >
                     Proceed to Checkout
                   </Link>
@@ -91,7 +74,7 @@ export default function PackagesPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFAB />
+      <WhatsAppFABServer />
     </>
   );
 }

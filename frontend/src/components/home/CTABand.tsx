@@ -1,13 +1,26 @@
 import Link from "next/link";
 import { Phone, Mail } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import type { HomeCtaBandSection } from "@/lib/cms/types";
+import type { PublicSettings } from "@/lib/cms/types";
+import { whatsappHref } from "@/lib/cms/map-media";
 
-export function CTABand() {
+type CTABandProps = {
+  content?: HomeCtaBandSection;
+  settings?: Pick<PublicSettings, "businessPhone" | "businessEmail" | "whatsappNumber">;
+  whatsappNumber?: string;
+};
+
+export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
+  const phone = settings?.businessPhone || "+91 00000 00000";
+  const email = settings?.businessEmail || "hello@vaibhavcelebrations.in";
+  const wa = whatsappNumber || settings?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+
   return (
     <section id="contact-cta" className="py-20 md:py-32 bg-charcoal text-white relative overflow-hidden">
       <div className="pointer-events-none absolute -bottom-32 -right-32 w-96 h-96 bg-mocha/15 rounded-full blur-3xl" />
       <div className="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-mocha/10 rounded-full blur-3xl" />
-      
+
       <div className="max-w-4xl mx-auto px-5 md:px-10 text-center relative z-10">
         <ScrollReveal>
           <div className="flex items-center justify-center gap-4 mb-6">
@@ -17,27 +30,30 @@ export function CTABand() {
             </p>
             <div className="h-px w-10 md:w-16 bg-gradient-to-l from-transparent to-gold-soft/60" />
           </div>
-          
+
           <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.15] !text-white">
-            Let&apos;s create a themed birthday
-            <br className="hidden md:block" /> experience your child will remember
+            {content?.headline ?? (
+              <>
+                Let&apos;s create a themed birthday
+                <br className="hidden md:block" /> experience your child will remember
+              </>
+            )}
           </h2>
-          
+
           <p className="mt-8 text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">
-            Every celebration at Vaibhav Celebrations is thoughtfully designed
-            around one beautiful story — from the first invitation to the final
-            keepsake.
+            {content?.subheadline ??
+              "Every celebration at Vaibhav Celebrations is thoughtfully designed around one beautiful story — from the first invitation to the final keepsake."}
           </p>
-          
+
           <div className="mt-12 flex flex-wrap justify-center items-center gap-4">
             <Link
-              href="/consultation"
+              href={content?.ctaHref ?? "/consultation"}
               className="inline-flex items-center justify-center gap-2 bg-mocha hover:bg-mocha-light text-white font-bold px-10 py-5 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg uppercase tracking-wider text-sm min-w-[240px]"
             >
-              Book Your Celebration
+              {content?.ctaLabel ?? "Book Your Celebration"}
             </Link>
             <a
-              href="https://wa.me/910000000000"
+              href={whatsappHref(wa)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/20 text-white hover:bg-white/10 hover:border-white/40 font-bold px-10 py-5 rounded-full transition-all duration-300 uppercase tracking-wider text-sm min-w-[240px]"
@@ -46,10 +62,10 @@ export function CTABand() {
               WhatsApp Us
             </a>
           </div>
-          
+
           <div className="mt-16 flex flex-wrap justify-center gap-x-10 gap-y-3 text-sm text-white/50">
-            <span className="flex items-center gap-2"><Phone size={16} /> +91 00000 00000</span>
-            <span className="flex items-center gap-2"><Mail size={16} /> hello@vaibhavcelebrations.in</span>
+            <span className="flex items-center gap-2"><Phone size={16} /> {phone}</span>
+            <span className="flex items-center gap-2"><Mail size={16} /> {email}</span>
           </div>
         </ScrollReveal>
       </div>

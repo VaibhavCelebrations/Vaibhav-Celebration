@@ -1,9 +1,18 @@
 "use client";
 
-export function WhatsAppFAB() {
+import { whatsappHref } from "@/lib/cms/map-media";
+
+type WhatsAppFABProps = {
+  phone?: string;
+};
+
+export function WhatsAppFAB({ phone }: WhatsAppFABProps) {
+  const envPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.trim();
+  const href = whatsappHref(phone || envPhone || "");
+
   return (
     <a
-      href="https://wa.me/910000000000"
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"

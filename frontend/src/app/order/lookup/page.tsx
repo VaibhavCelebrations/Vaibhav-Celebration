@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Search, FileQuestion } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
+import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
@@ -60,7 +60,7 @@ export default function OrderLookupPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFAB />
+      <WhatsAppFABServer />
     </>
   );
 }

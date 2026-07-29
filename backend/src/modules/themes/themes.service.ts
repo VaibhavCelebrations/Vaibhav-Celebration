@@ -104,3 +104,34 @@ export async function reorderThemes(items: Array<{ id: string; displayOrder: num
   void delPattern("pub:themes:*");
   void delPattern("adm:themes:*");
 }
+
+export async function setThemePackages(
+  themeId: string,
+  links: Array<{ packageId: string; priceOverrideInPaise?: number | null; isActive?: boolean }>,
+) {
+  const theme = await prisma.theme.findFirst({ where: { id: themeId, deletedAt: null } });
+  if (!theme) throw new NotFoundError("Theme not found");
+  await prisma.themePackage.deleteMany({ where: { themeId } });
+  if (links.length) {
+    await prisma.themePackage.createMany({
+      data: links.map((link) => ({
+        themeId,
+        packageId: link.packageId,
+        priceOverrideInPaise: link.priceOverrideInPaise ?? null,
+        isActive: link.isActive ?? true,
+      })),
+    });
+  }
+  void delPattern("pub:themes:*");
+  void delPattern("adm:themes:*");
+}
+
+export async function deleteSampleAsset(themeId: string, assetId: string) {
+  const result = await prisma.themeSampleAsset.updateMany({
+    where: { id: assetId, themeId, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  if (!result.count) throw new NotFoundError("Sample asset not found");
+  void delPattern("pub:themes:*");
+  void delPattern("adm:themes:*");
+}

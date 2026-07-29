@@ -263,6 +263,7 @@ export type BlogPost = SoftDeletable &
     authorName: string | null;
     status: BlogStatus;
     publishedAt: ISODate | null;
+    isFeatured: boolean;
     seoTitle: string | null;
     seoDescription: string | null;
     categories: BlogCategory[];
@@ -271,7 +272,7 @@ export type BlogPost = SoftDeletable &
 
 export type BlogPostInput = Pick<
   BlogPost,
-  "title" | "slug" | "contentHtml" | "excerpt" | "authorName" | "status" | "publishedAt" | "seoTitle" | "seoDescription"
+  "title" | "slug" | "contentHtml" | "excerpt" | "authorName" | "status" | "publishedAt" | "isFeatured" | "seoTitle" | "seoDescription"
 > & { categoryNames: string[]; tagNames: string[] };
 
 // ─── FAQs ───────────────────────────────────────────────────────────────────
@@ -336,4 +337,46 @@ export type Popup = SoftDeletable & {
 export type PopupInput = Pick<
   Popup,
   "title" | "bodyText" | "ctaLabel" | "ctaUrl" | "placements" | "triggerAfterSeconds" | "linkedEventId" | "isActive" | "startsAt" | "endsAt"
->;
+> & { imageId?: string | null };
+
+// ─── Site metadata ──────────────────────────────────────────────────────────
+
+export type SiteMetadata = {
+  pageKey: string;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  ogImage: MediaRef | null;
+  canonicalUrl: string | null;
+};
+
+export type SiteMetadataInput = Pick<SiteMetadata, "metaTitle" | "metaDescription" | "canonicalUrl"> & {
+  ogImageId?: string | null;
+};
+
+// ─── Legal pages ────────────────────────────────────────────────────────────
+
+export const LEGAL_PAGE_TYPES = [
+  "PRIVACY_POLICY",
+  "TERMS_OF_SERVICE",
+  "REFUND_POLICY",
+  "CANCELLATION_POLICY",
+] as const;
+export type LegalPageType = (typeof LEGAL_PAGE_TYPES)[number];
+
+export type LegalPage = {
+  type: LegalPageType;
+  title: string;
+  bodyHtml: string;
+  publishedAt: ISODate | null;
+};
+
+// ─── Static pages ───────────────────────────────────────────────────────────
+
+export const PAGE_KEYS = ["home", "about", "contact"] as const;
+export type PageKey = (typeof PAGE_KEYS)[number];
+
+export type PageContent = {
+  pageKey: PageKey;
+  sections: Record<string, unknown>;
+  updatedAt?: ISODate;
+};

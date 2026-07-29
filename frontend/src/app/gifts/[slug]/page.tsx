@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
+import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ProductCard } from "@/components/ecom/ProductCard";
@@ -40,7 +40,7 @@ export default function ProductDetailPage({ params }: Props) {
             Back to Gifts
           </Link>
         </main>
-        <Footer />
+        <FooterClient />
       </>
     );
   }
@@ -309,7 +309,7 @@ export default function ProductDetailPage({ params }: Props) {
           )}
         </div>
       </main>
-      <Footer />
+      <FooterClient />
       <WhatsAppFAB />
     </>
   );

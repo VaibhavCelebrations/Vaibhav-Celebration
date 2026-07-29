@@ -1,9 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { RoleGate } from "@/components/AdminSessionContext";
+import { TestimonialsScreen } from "./TestimonialsScreen";
 
-import { ResourceScreen } from "@/components/ResourceScreen";
-import { testimonialsRepo } from "@/lib/data/resources";
+export const metadata: Metadata = { title: "Testimonials | Vaibhav Celebrations Admin" };
 
 export default function TestimonialsPage() {
-  return <ResourceScreen title="Testimonials" noun="Testimonial" description="Review customer feedback before displaying it publicly." repo={testimonialsRepo} fields={["name", "content", "isActive"]} />;
+  return (
+    <RoleGate allow={["SUPER_ADMIN", "CONTENT_EDITOR"]}>
+      <Suspense fallback={<div className="skeleton h-64 w-full rounded-(--radius-md)" />}>
+        <TestimonialsScreen />
+      </Suspense>
+    </RoleGate>
+  );
 }
-
