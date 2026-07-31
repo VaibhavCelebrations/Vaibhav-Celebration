@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronDown, ShoppingCart } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart, User, LogOut } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
 import { useCart } from "@/context/cart-context";
+import { useAuth } from "@/context/auth-context";
 
 type NavLink = {
   label: string;
@@ -30,10 +31,26 @@ export function Navbar() {
   const { scrolled } = useScrollDirection();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const { itemCount, openCart } = useCart();
+  const { isAuthenticated, user, openAuthModal, logout } = useAuth();
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleMobile = useCallback(() => setMobileOpen((prev) => !prev), []);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  // Close account dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const userInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
 
   return (
     <header
@@ -98,7 +115,44 @@ export function Navbar() {
               ))}
             </nav>
 
-            <div className="hidden lg:flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-3">
+              {/* Account Icon */}
+              <div className="relative" ref={accountMenuRef}>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowAccountMenu(!showAccountMenu)}
+                    className="w-10 h-10 rounded-full bg-mocha text-white text-sm font-bold flex items-center justify-center hover:bg-mocha-dark transition-colors cursor-pointer shadow-sm"
+                    aria-label="Account menu"
+                  >
+                    {userInitial}
+                  </button>
+                ) : (
+                  <button
+                    onClick={openAuthModal}
+                    className="relative w-10 h-10 rounded-full border border-border flex items-center justify-center text-charcoal hover:text-mocha hover:border-mocha transition-colors cursor-pointer"
+                    aria-label="Login"
+                  >
+                    <User size={18} />
+                  </button>
+                )}
+
+                {/* Account Dropdown */}
+                {showAccountMenu && isAuthenticated && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
+                    <div className="px-4 py-3 border-b border-border-light">
+                      <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
+                      <p className="text-xs text-text-muted truncate">{user?.email}</p>
+                    </div>
+                    <button
+                      onClick={() => { logout(); setShowAccountMenu(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer"
+                    >
+                      <LogOut size={16} /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Cart Icon */}
               <button
                 onClick={openCart}
@@ -120,8 +174,27 @@ export function Navbar() {
               </Link>
             </div>
 
-            {/* Mobile: cart + toggle */}
+            {/* Mobile: account + cart + toggle */}
             <div className="lg:hidden flex items-center gap-2">
+              {/* Mobile Account */}
+              {isAuthenticated ? (
+                <button
+                  onClick={() => setShowAccountMenu(!showAccountMenu)}
+                  className="w-9 h-9 rounded-full bg-mocha text-white text-xs font-bold flex items-center justify-center cursor-pointer"
+                  aria-label="Account"
+                >
+                  {userInitial}
+                </button>
+              ) : (
+                <button
+                  onClick={openAuthModal}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal cursor-pointer"
+                  aria-label="Login"
+                >
+                  <User size={20} />
+                </button>
+              )}
+
               <button
                 onClick={openCart}
                 className="relative w-10 h-10 rounded-full flex items-center justify-center text-charcoal cursor-pointer"
@@ -146,6 +219,22 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile account dropdown */}
+      {showAccountMenu && isAuthenticated && (
+        <div className="lg:hidden absolute top-[80px] right-4 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
+          <div className="px-4 py-3 border-b border-border-light">
+            <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
+            <p className="text-xs text-text-muted truncate">{user?.email}</p>
+          </div>
+          <button
+            onClick={() => { logout(); setShowAccountMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer"
+          >
+            <LogOut size={16} /> Sign Out
+          </button>
+        </div>
+      )}
 
       <MobileMenu isOpen={mobileOpen} onClose={closeMobile} links={navLinks} />
     </header>

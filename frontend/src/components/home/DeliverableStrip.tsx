@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PartyPopper, Palette, Gift, Gamepad2, Mail, Award } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeDeliverablesSection } from "@/lib/cms/types";

@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { User, QuickFormData } from "@/lib/ecom-types";
+import type { User } from "@/lib/ecom-types";
 
 /* ── Context shape ─────────────────────────────────────────────────── */
 
@@ -19,7 +19,6 @@ interface AuthContextType {
   closeAuthModal: () => void;
   login: (email: string, password: string) => void;
   signup: (name: string, email: string, phone: string, password: string) => void;
-  quickFormSubmit: (data: QuickFormData) => void;
   logout: () => void;
 }
 
@@ -35,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const openAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
   const closeAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const login = useCallback((_email: string, _password: string) => {
     // Mock login — backend will handle real auth
     setUser({
@@ -47,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthModalOpen(false);
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const signup = useCallback((name: string, email: string, phone: string, _password: string) => {
     // Mock signup — backend will handle real auth
     setUser({
@@ -54,18 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name,
       email,
       phone,
-    });
-    setIsAuthenticated(true);
-    setIsAuthModalOpen(false);
-  }, []);
-
-  const quickFormSubmit = useCallback((data: QuickFormData) => {
-    // Mock quick form — backend will auto-create account
-    setUser({
-      id: "user-mock-3",
-      name: data.fullName,
-      email: data.email,
-      phone: data.phone,
     });
     setIsAuthenticated(true);
     setIsAuthModalOpen(false);
@@ -86,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         closeAuthModal,
         login,
         signup,
-        quickFormSubmit,
         logout,
       }}
     >

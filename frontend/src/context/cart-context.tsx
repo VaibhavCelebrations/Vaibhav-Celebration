@@ -88,9 +88,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Hydrate from sessionStorage on mount
   useEffect(() => {
     const data = loadCart();
-    setItems(data.items);
-    setPackages(data.packages);
-    setIsHydrated(true);
+    setTimeout(() => {
+      setItems(data.items);
+      setPackages(data.packages);
+      setIsHydrated(true);
+    }, 0);
   }, []);
 
   // Persist whenever items/packages change (after hydration)
@@ -141,11 +143,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addPackage = useCallback((pkg: Omit<CartPackage, "id">) => {
-    const newPkg: CartPackage = {
-      ...pkg,
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
-    };
-    setPackages((prev) => [...prev, newPkg]);
+    setPackages((prev) => {
+      // Check if a package with the same packageId + themeSlug already exists
+      const existingIndex = prev.findIndex(
+        (p) => p.packageId === pkg.packageId && p.themeSlug === pkg.themeSlug
+      );
+      if (existingIndex >= 0) {
+        // Replace the existing one (update addons)
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          basePrice: pkg.basePrice,
+          addons: pkg.addons,
+        };
+        return updated;
+      }
+      // New package
+      const newPkg: CartPackage = {
+        ...pkg,
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      };
+      return [...prev, newPkg];
+    });
   }, []);
 
   const removePackage = useCallback((id: string) => {

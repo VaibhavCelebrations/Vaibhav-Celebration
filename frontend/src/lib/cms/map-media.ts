@@ -119,6 +119,7 @@ export function mapGalleryCard(image: ApiGalleryImage): GalleryCard {
     caption: image.caption ?? "",
     altText: image.altText,
     tags: image.tags.map((t) => t.tag.name),
+    themeSlug: image.theme?.slug,
     aspectRatio: galleryAspectRatio(image.media),
   };
 }
@@ -163,6 +164,15 @@ export function mapEventCard(event: ApiEvent): EventCard {
     shortDescription: event.description,
     coverImage: cover,
     gallery: (event.gallery ?? []).map((m) => mediaUrl(m)),
+    ageGroup: event.ageGroup ?? undefined,
+    isRegistrationOpen: event.isRegistrationOpen,
+    registrationFeeInPaise: event.registrationFeeInPaise ?? undefined,
+    activities: event.activities,
+    faqItems: event.faqItems,
+    ctaLabel: event.ctaLabel ?? undefined,
+    ctaUrl: event.ctaUrl ?? undefined,
+    seoTitle: event.seoTitle ?? undefined,
+    seoDescription: event.seoDescription ?? undefined,
   };
 }
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Sparkles, Calendar, Truck, ArrowRight } from "lucide-react";
+import { ArrowLeft, Sparkles, Package as PackageIcon, Truck, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CTABand } from "@/components/home/CTABand";
@@ -85,14 +85,14 @@ export default async function ThemeDetailPage({ params }: Props) {
                 <div className="p-6 md:p-8 bg-surface border border-border-light rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-mocha/20 transition-colors">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-cream rounded-bl-full -z-0 opacity-50 group-hover:scale-110 transition-transform duration-500" />
                   <div className="relative z-10">
-                    <h3 className="font-display text-2xl font-bold text-charcoal mb-1">We come & set it up for you</h3>
-                    <p className="text-text-muted text-sm mb-10">A done-for-you decoration service — not a DIY kit</p>
+                    <h3 className="font-display text-2xl font-bold text-charcoal mb-1">How It Works</h3>
+                    <p className="text-text-muted text-sm mb-10">Your celebration kit — curated, packed & delivered</p>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center relative gap-8 sm:gap-0">
                       <div className="hidden sm:block absolute top-6 left-12 right-12 h-[2px] border-t-2 border-dashed border-border-light -z-10" />
                       {[
-                        { icon: Calendar, step: "1", title: "You Book", desc: "Pick date, time & city" },
-                        { icon: Truck, step: "2", title: "We Arrive", desc: "Our team reaches your venue" },
-                        { icon: Sparkles, step: "3", title: "We Decorate", desc: "Full setup — you celebrate" },
+                        { icon: Sparkles, step: "1", title: "You Order", desc: "Pick theme & package" },
+                        { icon: PackageIcon, step: "2", title: "We Curate", desc: "We prepare your kit" },
+                        { icon: Truck, step: "3", title: "We Deliver", desc: "Kit arrives at your door" },
                       ].map(({ icon: Icon, step, title, desc }) => (
                         <div key={step} className="flex flex-row sm:flex-col items-center gap-4 sm:gap-4 text-left sm:text-center z-10 w-full sm:w-auto bg-surface sm:bg-transparent">
                           <div className="relative">
@@ -107,6 +107,9 @@ export default async function ThemeDetailPage({ params }: Props) {
                           </div>
                         </div>
                       ))}
+                    </div>
+                    <div className="mt-8 p-3 bg-mocha/5 border border-mocha/10 rounded-xl text-center">
+                      <p className="text-xs text-mocha font-medium">🏠 Based in Jaipur? Ask about our full decor setup service! <Link href="/contact" className="underline font-bold hover:text-mocha-dark">Contact Us</Link></p>
                     </div>
                   </div>
                 </div>
@@ -148,14 +151,24 @@ export default async function ThemeDetailPage({ params }: Props) {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
               {otherThemes.map((t, idx) => (
                 <ScrollReveal key={t.id} delay={idx * 80}>
-                  <Link href={`/themes/${t.slug}`} className="group block relative rounded-[2rem] overflow-hidden shadow-card aspect-[4/3] hover:shadow-hover transition-all duration-300 hover:-translate-y-2">
-                    <Image src={t.cardImageUrl} alt={t.title} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/95 via-charcoal/30 to-transparent transition-opacity duration-500" />
-                    <div className="absolute inset-0 p-6 flex flex-col justify-end text-left">
-                      <h3 className="font-display text-2xl lg:text-3xl font-bold !text-white mb-2 group-hover:text-gold-soft transition-colors leading-[1.15]">{t.title}</h3>
-                      <p className="text-white/80 text-sm leading-relaxed line-clamp-2 mb-6">{t.shortDescription}</p>
-                      <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white font-bold px-5 py-2.5 rounded-full transition-all text-xs uppercase tracking-wider w-max">
-                        Explore Theme <ArrowRight size={14} />
+                  <Link href={`/themes/${t.slug}`} className="group block">
+                    <div className="relative rounded-[2rem] overflow-hidden bg-white shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-border-light/40 aspect-[4/5] sm:aspect-[3/4]">
+                      
+                      {/* Image Layer */}
+                      <div className="absolute top-0 left-0 right-0 h-[60%] group-hover:h-full transition-all duration-500 overflow-hidden z-0">
+                        <Image src={t.cardImageUrl} alt={t.title} fill className="object-cover transition-transform duration-700 group-hover:scale-110" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      </div>
+                      
+                      {/* Content Box Layer */}
+                      <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-white group-hover:!bg-transparent transition-colors duration-500 z-10 p-5 flex flex-col justify-between">
+                        <div>
+                          <h3 className="font-display text-xl md:text-2xl font-bold text-charcoal group-hover:!text-white drop-shadow-sm transition-colors duration-500 leading-snug mb-2 line-clamp-1">{t.title}</h3>
+                          <p className="text-text-muted text-sm leading-relaxed group-hover:!text-white/85 transition-colors duration-500 line-clamp-2">{t.shortDescription}</p>
+                        </div>
+                        <div className="inline-flex items-center gap-2 bg-charcoal text-white group-hover:!bg-white/20 group-hover:!backdrop-blur-md group-hover:!text-white font-bold px-5 py-2.5 rounded-full text-xs uppercase tracking-wider transition-all duration-500 w-max mt-auto">
+                          Explore <ArrowRight size={14} />
+                        </div>
                       </div>
                     </div>
                   </Link>

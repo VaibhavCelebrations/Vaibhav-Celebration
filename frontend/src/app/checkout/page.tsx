@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, CheckCircle2, Package, Truck, PartyPopper } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, Package, Truck, PartyPopper, Check } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -34,7 +34,7 @@ export default function CheckoutPage() {
   };
 
   const orderTotal = summary.total;
-  const orderId = `VBC-OR-2026-${String(Math.floor(Math.random() * 999999)).padStart(6, "0")}`;
+  const [orderId] = useState(() => `VBC-OR-2026-${String(Math.floor(Math.random() * 999999)).padStart(6, "0")}`);
 
   const handleNext = () => {
     if (currentStep === 0) {
@@ -307,8 +307,8 @@ export default function CheckoutPage() {
           {currentStep === 2 && (
             <div className="max-w-2xl mx-auto text-center">
               <ScrollReveal>
-                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 size={40} className="text-green-600" />
+                <div className="w-24 h-24 rounded-full bg-sage/20 border-8 border-white flex items-center justify-center mx-auto mb-6 shadow-soft">
+                  <Check size={48} strokeWidth={3} className="text-sage-dark" />
                 </div>
                 <h1 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-3">
                   Order Placed Successfully!
@@ -319,29 +319,42 @@ export default function CheckoutPage() {
 
               {/* What Happens Next */}
               <ScrollReveal delay={200}>
-                <div className="bg-surface rounded-2xl border border-border-light p-8 shadow-soft mb-10">
+                <div className="bg-surface rounded-2xl border border-border-light p-8 shadow-soft mb-8">
                   <h3 className="font-display text-xl font-bold text-charcoal mb-8">What Happens Next</h3>
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
                     {[
-                      { icon: <CheckCircle2 size={24} />, title: "Order Confirmed", desc: "We've received your order", color: "text-green-600 bg-green-50" },
-                      { icon: <Package size={24} />, title: "Preparing", desc: "We'll prepare your celebration kit", color: "text-mocha bg-mocha/10" },
-                      { icon: <Truck size={24} />, title: "Delivery", desc: "Delivery before your event date", color: "text-blue-600 bg-blue-50" },
-                      { icon: <PartyPopper size={24} />, title: "Celebrate!", desc: "Create magical memories", color: "text-amber-600 bg-amber-50" },
+                      { icon: <Check size={22} strokeWidth={3} className="text-white" />, title: "Order Confirmed", desc: "We've received your order", color: "bg-sage-dark text-white shadow-md" },
+                      { icon: <Package size={22} strokeWidth={2.5} fill="currentColor" className="text-white" />, title: "Preparing", desc: "We'll curate your celebration kit", color: "bg-blush-deep text-white shadow-md" },
+                      { icon: <Truck size={22} strokeWidth={2.5} fill="currentColor" className="text-white" />, title: "Shipped", desc: "Your kit will be delivered to your doorstep", color: "bg-charcoal text-white shadow-md" },
+                      { icon: <PartyPopper size={22} strokeWidth={2.5} fill="currentColor" className="text-white" />, title: "Celebrate!", desc: "Unbox & create magical memories", color: "bg-mocha text-white shadow-md" },
                     ].map((step, i) => (
                       <div key={step.title} className="flex flex-col items-center text-center flex-1">
-                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${step.color}`}>
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-transform hover:scale-110 ${step.color}`}>
                           {step.icon}
                         </div>
                         <h4 className="font-semibold text-charcoal text-sm">{step.title}</h4>
                         <p className="text-[11px] text-text-muted mt-1">{step.desc}</p>
                         {i < 3 && (
-                          <div className="hidden md:block absolute">
-                            <ArrowRight size={14} className="text-text-light" />
+                          <div className="hidden md:block absolute translate-x-[70px]">
+                            <ArrowRight size={14} className="text-text-light/50" />
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
+                </div>
+              </ScrollReveal>
+
+              <ScrollReveal delay={250}>
+                <div className="bg-cream/40 rounded-2xl border border-mocha/20 p-6 mb-10 text-center">
+                  <h3 className="font-bold text-charcoal mb-2">🏠 Celebrating in Jaipur?</h3>
+                  <p className="text-sm text-text-muted mb-4">
+                    Skip the DIY! We offer complete professional decor setup services in Jaipur. 
+                    Let our team handle everything while you relax.
+                  </p>
+                  <Link href="/contact" className="inline-flex items-center gap-2 text-mocha font-bold text-sm uppercase tracking-wider hover:text-mocha-dark transition-colors">
+                    Request Decor Setup <ArrowRight size={14} />
+                  </Link>
                 </div>
               </ScrollReveal>
 

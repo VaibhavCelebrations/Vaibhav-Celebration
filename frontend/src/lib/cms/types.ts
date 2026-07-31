@@ -252,6 +252,12 @@ export type ApiEvent = {
   ageGroup: string | null;
   bannerMedia: MediaRef | null;
   theme: { id: string; title: string; slug: string } | null;
+  isRegistrationOpen: boolean;
+  registrationFeeInPaise: number | null;
+  activities?: Array<{ title: string; description: string; icon: string | null }>;
+  faqItems?: Array<{ question: string; answer: string }>;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
   gallery?: MediaRef[];
   template?: unknown;
   seoTitle?: string | null;
@@ -291,6 +297,7 @@ export type GalleryCard = {
   caption: string;
   altText: string;
   tags: string[];
+  themeSlug?: string;
   aspectRatio: "portrait" | "landscape" | "square";
 };
 
@@ -327,6 +334,15 @@ export type EventCard = {
   shortDescription: string;
   coverImage: string;
   gallery: string[];
+  ageGroup?: string;
+  isRegistrationOpen?: boolean;
+  registrationFeeInPaise?: number;
+  activities?: string[];
+  faqItems?: Array<{ question: string; answer: string }>;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  seoTitle?: string;
+  seoDescription?: string;
 };
 
 export type ContactFormPayload = {

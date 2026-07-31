@@ -6,6 +6,7 @@ import { ShoppingCart, Heart } from "lucide-react";
 import type { Product } from "@/lib/ecom-types";
 import { getStockStatus } from "@/lib/ecom-types";
 import { useCart } from "@/context/cart-context";
+import { useAuth } from "@/context/auth-context";
 
 interface ProductCardProps {
   product: Product;
@@ -15,6 +16,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, compact = false }: ProductCardProps) {
   const { addItem, getItemQuantity, openCart } = useCart();
+  const { isAuthenticated, openAuthModal } = useAuth();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
   const hasPersonalization = product.personalizationFields.length > 0;
@@ -23,8 +25,12 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     if (stockStatus === "out_of_stock") return;
-
     if (hasPersonalization) return;
+
+    if (!isAuthenticated) {
+      openAuthModal();
+      return;
+    }
 
     addItem(product, 1);
     openCart();

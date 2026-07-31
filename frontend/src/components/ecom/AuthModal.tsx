@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { X, Eye, EyeOff, ArrowRight, Sparkles } from "lucide-react";
+import { X, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import type { QuickFormData } from "@/lib/ecom-types";
 
-type AuthTab = "quick" | "login" | "signup";
+type AuthTab = "login" | "signup";
 
 export function AuthModal() {
-  const { isAuthModalOpen, closeAuthModal, login, signup, quickFormSubmit } = useAuth();
-  const [activeTab, setActiveTab] = useState<AuthTab>("quick");
+  const { isAuthModalOpen, closeAuthModal, login, signup } = useAuth();
+  const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [showPassword, setShowPassword] = useState(false);
 
   // Login form
@@ -22,39 +21,10 @@ export function AuthModal() {
   const [signupPhone, setSignupPhone] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
 
-  // Quick form
-  const [quickForm, setQuickForm] = useState<QuickFormData>({
-    fullName: "",
-    phone: "",
-    email: "",
-    childName: "",
-    childAge: "",
-    birthDate: "",
-    eventDate: "",
-    city: "",
-  });
-
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isAuthModalOpen) return null;
-
-  const validateQuickForm = () => {
-    const newErrors: Record<string, string> = {};
-    if (!quickForm.fullName.trim()) newErrors.fullName = "Name is required";
-    if (!quickForm.phone.trim()) newErrors.phone = "Phone number is required";
-    if (!quickForm.email.trim()) newErrors.email = "Email is required";
-    if (!quickForm.childName.trim()) newErrors.childName = "Child's name is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleQuickSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateQuickForm()) {
-      quickFormSubmit(quickForm);
-    }
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +51,6 @@ export function AuthModal() {
   };
 
   const tabs: { key: AuthTab; label: string }[] = [
-    { key: "quick", label: "Quick Checkout" },
     { key: "login", label: "Login" },
     { key: "signup", label: "Sign Up" },
   ];
@@ -109,12 +78,10 @@ export function AuthModal() {
         {/* Header */}
         <div className="px-8 pt-8 pb-4">
           <h2 className="font-display text-2xl font-bold text-charcoal">
-            {activeTab === "quick" ? "Quick Checkout" : activeTab === "login" ? "Welcome Back" : "Create Account"}
+            {activeTab === "login" ? "Welcome Back" : "Create Account"}
           </h2>
           <p className="text-text-muted text-sm mt-1">
-            {activeTab === "quick"
-              ? "Fill in the details below to proceed — we'll create your account automatically."
-              : activeTab === "login"
+            {activeTab === "login"
               ? "Sign in to your Vaibhav Celebrations account"
               : "Join us to track your celebrations"}
           </p>
@@ -139,64 +106,6 @@ export function AuthModal() {
 
         {/* Form Content */}
         <div className="px-8 py-6 max-h-[60vh] overflow-y-auto hide-scrollbar">
-          {/* ── Quick Checkout Form ── */}
-          {activeTab === "quick" && (
-            <form onSubmit={handleQuickSubmit} className="space-y-4">
-              <div className="flex items-center gap-2 p-3 bg-mocha/5 border border-mocha/10 rounded-xl mb-2">
-                <Sparkles size={16} className="text-mocha shrink-0" />
-                <p className="text-xs text-mocha font-medium">Fastest way! No password needed.</p>
-              </div>
-
-              <div>
-                <input type="text" placeholder="Your Full Name *" value={quickForm.fullName} onChange={(e) => setQuickForm({ ...quickForm, fullName: e.target.value })} className={inputClass} />
-                {errors.fullName && <p className={errorClass}>{errors.fullName}</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <input type="tel" placeholder="Phone Number *" value={quickForm.phone} onChange={(e) => setQuickForm({ ...quickForm, phone: e.target.value })} className={inputClass} />
-                  {errors.phone && <p className={errorClass}>{errors.phone}</p>}
-                </div>
-                <div>
-                  <input type="email" placeholder="Email Address *" value={quickForm.email} onChange={(e) => setQuickForm({ ...quickForm, email: e.target.value })} className={inputClass} />
-                  {errors.email && <p className={errorClass}>{errors.email}</p>}
-                </div>
-              </div>
-
-              <hr className="border-border-light my-2" />
-              <p className="text-xs text-text-muted font-semibold uppercase tracking-wider">Event Details</p>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <input type="text" placeholder="Birthday Child's Name *" value={quickForm.childName} onChange={(e) => setQuickForm({ ...quickForm, childName: e.target.value })} className={inputClass} />
-                  {errors.childName && <p className={errorClass}>{errors.childName}</p>}
-                </div>
-                <div>
-                  <input type="number" placeholder="Child's Age" value={quickForm.childAge} onChange={(e) => setQuickForm({ ...quickForm, childAge: e.target.value ? parseInt(e.target.value) : "" })} className={inputClass} min={1} max={18} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-text-muted mb-1 block">Birth Date</label>
-                  <input type="date" value={quickForm.birthDate} onChange={(e) => setQuickForm({ ...quickForm, birthDate: e.target.value })} className={inputClass} />
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted mb-1 block">Event Date</label>
-                  <input type="date" value={quickForm.eventDate} onChange={(e) => setQuickForm({ ...quickForm, eventDate: e.target.value })} className={inputClass} />
-                </div>
-              </div>
-
-              <div>
-                <input type="text" placeholder="City" value={quickForm.city} onChange={(e) => setQuickForm({ ...quickForm, city: e.target.value })} className={inputClass} />
-              </div>
-
-              <button type="submit" className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-2">
-                Proceed to Checkout <ArrowRight size={16} />
-              </button>
-            </form>
-          )}
-
           {/* ── Login Form ── */}
           {activeTab === "login" && (
             <form onSubmit={handleLogin} className="space-y-4">
