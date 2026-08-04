@@ -25,7 +25,34 @@ export type MediaPrefixKind =
   | "popups"
   | "invoices"
   | "users"
-  | "media";
+  | "media"
+  | "products";
+
+/** All valid category keys — used for sidebar counts and validation */
+export const MEDIA_CATEGORIES: MediaPrefixKind[] = [
+  "gallery",
+  "themes",
+  "blog",
+  "events",
+  "products",
+  "popups",
+  "media",
+  "users",
+  "invoices",
+];
+
+/** Human-readable labels for each category */
+export const MEDIA_CATEGORY_LABELS: Record<MediaPrefixKind, string> = {
+  gallery:  "Gallery",
+  themes:   "Themes",
+  blog:     "Blog",
+  events:   "Events",
+  products: "Products",
+  popups:   "Popups",
+  media:    "General Media",
+  users:    "Users",
+  invoices: "Invoices",
+};
 
 export type StoredObject = {
   url: string;
