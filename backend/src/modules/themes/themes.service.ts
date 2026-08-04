@@ -135,3 +135,45 @@ export async function deleteSampleAsset(themeId: string, assetId: string) {
   void delPattern("pub:themes:*");
   void delPattern("adm:themes:*");
 }
+
+/**
+ * Sync the 'gallery' display images for a theme (Option C).
+ * The heroImage counts as image #1; this manages up to 4 additional gallery images
+ * stored as ThemeSampleAsset rows with type=OTHER and title='gallery-image'.
+ * Maximum 4 extra images (so total with hero ≤ 5).
+ */
+export async function syncThemeGalleryImages(
+  themeId: string,
+  mediaIds: string[],
+) {
+  if (mediaIds.length > 4) {
+    throw Object.assign(new Error("Maximum 4 additional gallery images allowed (5 total including hero)"), {
+      status: 400,
+      code: "VALIDATION_ERROR",
+    });
+  }
+  const theme = await prisma.theme.findFirst({ where: { id: themeId, deletedAt: null } });
+  if (!theme) throw new NotFoundError("Theme not found");
+
+  // Soft-delete all existing gallery-image sample assets
+  await prisma.themeSampleAsset.updateMany({
+    where: { themeId, title: "gallery-image", deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+
+  // Create new ones in order
+  if (mediaIds.length > 0) {
+    await prisma.themeSampleAsset.createMany({
+      data: mediaIds.map((mediaId, idx) => ({
+        themeId,
+        type: "OTHER" as const,
+        title: "gallery-image",
+        mediaId,
+        displayOrder: idx,
+      })),
+    });
+  }
+
+  void delPattern("pub:themes:*");
+  void delPattern("adm:themes:*");
+}

@@ -19,12 +19,19 @@ export type Theme = SoftDeletable &
     // list-view summary counts, computed by the repo
     packageCount: number;
     galleryCount: number;
+    // Gallery display images (up to 4 additional; hero is always #1)
+    galleryImageAssets?: Array<{ id: string; media: MediaRef | null; displayOrder: number }>;
   };
 
 export type ThemeInput = Pick<
   Theme,
   "title" | "slug" | "shortDescription" | "storyDescription" | "audienceNote" | "isActive" | "displayOrder" | "seoTitle" | "seoDescription"
-> & { heroImageId?: string | null; ogImageId?: string | null };
+> & {
+  heroImageId?: string | null;
+  ogImageId?: string | null;
+  /** IDs of up to 4 additional gallery images (hero counts as #1, so max 4 here) */
+  galleryImageIds?: string[];
+};
 
 export const SAMPLE_ASSET_TYPES = [
   "DIGITAL_INVITE",

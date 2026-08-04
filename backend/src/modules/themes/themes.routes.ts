@@ -19,6 +19,7 @@ import {
   listThemes,
   reorderThemes,
   setThemePackages,
+  syncThemeGalleryImages,
   updateTheme,
 } from "./themes.service";
 
@@ -204,6 +205,27 @@ adminThemesRouter.delete(
       await audit(req as AuthenticatedRequest, "DELETE_SAMPLE_ASSET", param(req, "id"));
       void triggerRevalidate(["/themes"]);
       return ok(res, { deleted: true });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+/** PUT /admin/themes/:id/gallery-images — sync display gallery images (max 4, hero counts as #1) */
+adminThemesRouter.put(
+  "/:id/gallery-images",
+  validate(idSchema, "params"),
+  validate(
+    z.object({
+      mediaIds: z.array(z.string().min(1)).max(4, "Maximum 4 additional gallery images"),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      await syncThemeGalleryImages(param(req, "id"), req.body.mediaIds as string[]);
+      await audit(req as AuthenticatedRequest, "UPDATE_GALLERY_IMAGES", param(req, "id"), req.body);
+      void triggerRevalidate(["/themes", `/themes/${param(req, "id")}`]);
+      return ok(res, await adminGetTheme(param(req, "id")));
     } catch (err) {
       return next(err);
     }

@@ -6,9 +6,9 @@ import { AdminApiError, adminFetch } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
 import { formatDate } from "@/lib/format";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
-import { HtmlEditor } from "@/components/ui/HtmlEditor";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { DateInput, TextInput } from "@/components/ui/fields";
@@ -158,26 +158,35 @@ export function LegalPagesScreen() {
           description: "Legal pages will appear here once seeded in the database.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? `Edit — ${TYPE_LABELS[editing.type]}` : "Edit Legal Page"}
+        description="Edit the content of this legal document. Plain text only — no images."
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
         dirty={dirty}
-        width="lg"
+        size="xl"
       >
-        <FormField label="Title" htmlFor="legal-title" required>
-          <TextInput id="legal-title" value={form.title} onChange={(e) => patch({ title: e.target.value })} required />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Title" htmlFor="legal-title" required>
+            <TextInput id="legal-title" value={form.title} onChange={(e) => patch({ title: e.target.value })} required />
+          </FormField>
+          <FormField label="Published date" htmlFor="legal-published">
+            <DateInput id="legal-published" value={form.publishedAt} onChange={(e) => patch({ publishedAt: e.target.value })} />
+          </FormField>
+        </div>
+        <FormField label="Content" htmlFor="legal-body" required hint="Use headings, bold, lists, and links to format the document.">
+          <RichTextEditor
+            id="legal-body"
+            value={form.bodyHtml}
+            onChange={(html) => patch({ bodyHtml: html })}
+            placeholder="Start writing the legal document…"
+            minHeight={400}
+          />
         </FormField>
-        <FormField label="Published date" htmlFor="legal-published">
-          <DateInput id="legal-published" value={form.publishedAt} onChange={(e) => patch({ publishedAt: e.target.value })} />
-        </FormField>
-        <FormField label="Body" htmlFor="legal-body" required>
-          <HtmlEditor id="legal-body" value={form.bodyHtml} onChange={(html) => patch({ bodyHtml: html })} minHeight={320} />
-        </FormField>
-      </AdminDrawerForm>
+      </AdminModalForm>
     </div>
   );
 }

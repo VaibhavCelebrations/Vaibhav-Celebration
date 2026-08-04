@@ -71,10 +71,11 @@ export function mapThemeCard(theme: ApiTheme): ThemeCard {
 }
 
 export function mapThemeDetail(theme: ApiThemeDetail): ThemeCard {
+  const MAX_GALLERY = 5;
   const galleryUrls = theme.galleryImages.map((g) => mediaUrl(g.media));
   const sampleUrls = theme.sampleAssets.map((a) => mediaUrl(a.media));
   const hero = mediaUrl(theme.heroImage);
-  const allGallery = [...new Set([hero, ...galleryUrls, ...sampleUrls].filter(Boolean))];
+  const allGallery = [...new Set([hero, ...galleryUrls, ...sampleUrls].filter(Boolean))].slice(0, MAX_GALLERY);
 
   return {
     id: theme.id,
