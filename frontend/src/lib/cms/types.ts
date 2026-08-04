@@ -254,7 +254,7 @@ export type ApiEvent = {
   theme: { id: string; title: string; slug: string } | null;
   isRegistrationOpen: boolean;
   registrationFeeInPaise: number | null;
-  activities?: Array<{ title: string; description: string; icon: string | null }>;
+  activities?: string[];
   faqItems?: Array<{ question: string; answer: string }>;
   ctaLabel?: string | null;
   ctaUrl?: string | null;
@@ -337,7 +337,7 @@ export type EventCard = {
   ageGroup?: string;
   isRegistrationOpen?: boolean;
   registrationFeeInPaise?: number;
-  activities?: Array<{ title: string; description: string; icon: string | null }>;
+  activities?: string[];
   faqItems?: Array<{ question: string; answer: string }>;
   ctaLabel?: string;
   ctaUrl?: string;
@@ -351,4 +351,16 @@ export type ContactFormPayload = {
   phone?: string;
   message?: string;
   interestArea?: string;
+};
+
+export type Popup = {
+  id: string;
+  title: string;
+  bodyText: string | null;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  image: MediaRef | null;
+  placements: string[];
+  triggerAfterSeconds: number;
+  linkedEventId: string | null;
 };

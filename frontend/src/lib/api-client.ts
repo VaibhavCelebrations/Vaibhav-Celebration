@@ -1,4 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
+const API_BASE =
+  typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? "http://localhost:4000/api/v1")
+    : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1");
 
 export type ApiSuccess<T> = { success: true; data: T; meta?: unknown };
 export type ApiFailure = {

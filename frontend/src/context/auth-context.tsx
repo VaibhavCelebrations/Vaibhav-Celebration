@@ -24,7 +24,7 @@ interface AuthContextType {
    *  (e.g. to retry an "add to wishlist" action that triggered the gate). */
   openAuthModal: (onSuccess?: () => void) => void;
   closeAuthModal: () => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (name: string, email: string, phone: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -107,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const nextUser = await authApi.login({ email, password });
+    async (email: string, password: string, rememberMe?: boolean) => {
+      const nextUser = await authApi.login({ email, password, rememberMe });
       handleAuthSuccess(nextUser);
     },
     [handleAuthSuccess],

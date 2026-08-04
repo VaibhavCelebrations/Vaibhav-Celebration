@@ -15,6 +15,7 @@ import { ThemeGallery } from "./_components/ThemeGallery";
 import { PackageInclusions } from "./_components/PackageInclusions";
 import { ThemeGalleryStrip } from "@/components/gallery/ThemeGalleryStrip";
 import { ThemeReturnGifts } from "@/components/ecom/ThemeReturnGifts";
+import { ThemeCookieSetter } from "./_components/ThemeCookieSetter";
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -54,6 +55,7 @@ export default async function ThemeDetailPage({ params }: Props) {
     <>
       <Navbar />
       <main className="bg-surface min-h-screen selection:bg-mocha/20 selection:text-charcoal pt-24 pb-0 overflow-x-clip">
+        <ThemeCookieSetter slug={slug} />
         <div className="max-w-7xl mx-auto px-5 md:px-10 mb-8">
           <Link href="/themes" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold tracking-wide uppercase transition-colors group">
             <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Themes

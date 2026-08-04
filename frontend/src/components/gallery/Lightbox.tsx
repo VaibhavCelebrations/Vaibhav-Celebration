@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { X, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 
 interface LightboxProps {
-  images: { imageUrl: string; altText: string; caption: string }[];
+  images: { imageUrl: string; altText: string; caption: string; themeSlug?: string | null }[];
   initialIndex: number;
   onClose: () => void;
 }
@@ -83,12 +84,23 @@ export function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
         />
       </div>
 
-      {/* Caption */}
-      {img.caption && (
-        <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 text-white/80 text-sm font-medium bg-charcoal/60 backdrop-blur-sm px-6 py-2 rounded-full z-20">
-          {img.caption}
-        </div>
-      )}
+      {/* Caption & Theme Link */}
+      <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-20">
+        {img.themeSlug && (
+          <a
+            href={`/themes/${img.themeSlug}`}
+            className="h-10 px-6 rounded-full bg-mocha text-white text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-2 hover:bg-mocha-dark shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Explore Theme <ArrowRight size={14} />
+          </a>
+        )}
+        {img.caption && (
+          <div className="text-white/80 text-sm font-medium bg-charcoal/60 backdrop-blur-sm px-6 py-2 rounded-full">
+            {img.caption}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

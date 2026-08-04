@@ -37,15 +37,19 @@ export async function sendEmail(payload: MailPayload): Promise<{ sent: boolean; 
     return { sent: false, skipped: true };
   }
 
-  await tx.sendMail({
-    from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
-    to: payload.to,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text,
-  });
-
-  return { sent: true };
+  try {
+    await tx.sendMail({
+      from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+    });
+    return { sent: true };
+  } catch (error) {
+    logger.error({ err: error, to: payload.to }, "Failed to send email");
+    return { sent: false };
+  }
 }
 
 export function otpEmailHtml(otp: string, referenceCode: string) {

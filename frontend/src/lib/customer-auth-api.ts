@@ -16,7 +16,7 @@ export async function signup(input: { name: string; email: string; phone?: strin
   return res.user;
 }
 
-export async function login(input: { email: string; password: string }): Promise<User> {
+export async function login(input: { email: string; password: string; rememberMe?: boolean }): Promise<User> {
   const res = await apiFetch<{ user: User }>(`${BASE}/login`, { method: "POST", body: input });
   return res.user;
 }

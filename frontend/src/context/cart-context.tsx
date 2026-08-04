@@ -14,6 +14,7 @@ import type { CartQuote, ServerCartItem } from "@/lib/shop-types";
 import { toRupees } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
 import { ApiClientError } from "@/lib/api-client";
+import { CacheStore } from "@/lib/cache-store";
 import { useAuth } from "./auth-context";
 import { useToast } from "@/components/ui/Toast";
 
@@ -50,18 +51,22 @@ const CartContext = createContext<CartContextType | null>(null);
 const PACKAGES_KEY = "vc_cart_packages";
 
 function loadPackages(): CartPackage[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = sessionStorage.getItem(PACKAGES_KEY);
-    return raw ? (JSON.parse(raw) as CartPackage[]) : [];
-  } catch {
-    return [];
-  }
+  return CacheStore.getSessionItem<CartPackage[]>(PACKAGES_KEY, []);
 }
 
 function savePackages(packages: CartPackage[]) {
-  if (typeof window === "undefined") return;
-  sessionStorage.setItem(PACKAGES_KEY, JSON.stringify(packages));
+  CacheStore.setSessionItem(PACKAGES_KEY, packages);
+}
+
+const CART_ITEMS_KEY = "vc_cart_items";
+
+async function loadOfflineCart(): Promise<{ items: ServerCartItem[], quote: CartQuote }> {
+  const data = await CacheStore.getIDBItem(CART_ITEMS_KEY, { items: [], quote: EMPTY_QUOTE });
+  return data;
+}
+
+async function saveOfflineCart(items: ServerCartItem[], quote: CartQuote) {
+  await CacheStore.setIDBItem(CART_ITEMS_KEY, { items, quote });
 }
 
 /* ── Provider ──────────────────────────────────────────────────────── */
@@ -91,12 +96,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [packages]);
 
   const refreshCart = useCallback(async () => {
+    setIsLoading(true);
     if (!isAuthenticated) {
-      setItems([]);
-      setQuote(EMPTY_QUOTE);
+      const offlineCart = await loadOfflineCart();
+      setItems(offlineCart.items);
+      setQuote(offlineCart.quote);
+      setIsLoading(false);
       return;
     }
-    setIsLoading(true);
     try {
       const cart = await shopApi.getCart();
       setItems(cart.items);
@@ -119,6 +126,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItem = useCallback(
     async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[]) => {
       if (!isAuthenticated) {
+        // Fallback: we could implement full client-side cart logic here, but for now we prompt login
         openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues));
         return;
       }

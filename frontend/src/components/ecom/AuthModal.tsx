@@ -24,12 +24,14 @@ export function AuthModal() {
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Signup form
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -53,7 +55,7 @@ export function AuthModal() {
 
     setIsSubmitting(true);
     try {
-      await login(loginEmail.trim(), loginPassword);
+      await login(loginEmail.trim(), loginPassword, rememberMe);
       setLoginEmail("");
       setLoginPassword("");
     } catch (err) {
@@ -70,6 +72,7 @@ export function AuthModal() {
     if (!signupEmail.trim()) newErrors.signupEmail = "Email is required";
     if (signupPassword && !isStrongPassword(signupPassword)) newErrors.signupPassword = PASSWORD_HINT;
     if (!signupPassword.trim()) newErrors.signupPassword = "Password is required";
+    if (signupPassword !== signupConfirmPassword) newErrors.signupConfirmPassword = "Passwords do not match";
     setErrors(newErrors);
     setFormError("");
     if (Object.keys(newErrors).length > 0) return;
@@ -81,6 +84,7 @@ export function AuthModal() {
       setSignupEmail("");
       setSignupPhone("");
       setSignupPassword("");
+      setSignupConfirmPassword("");
     } catch (err) {
       setFormError(friendlyAuthError(err));
     } finally {
@@ -157,14 +161,20 @@ export function AuthModal() {
                 <input type="email" placeholder="Enter your email address" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="email" />
                 {errors.loginEmail && <p className={errorClass}>{errors.loginEmail}</p>}
               </div>
-              <div className="relative">
-                <input type={showPassword ? "text" : "password"} placeholder="Enter your password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="current-password" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              <div>
+                <div className="relative">
+                  <input type={showPassword ? "text" : "password"} placeholder="Enter your password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="current-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
                 {errors.loginPassword && <p className={errorClass}>{errors.loginPassword}</p>}
               </div>
-              <div className="text-right -mt-2">
+              <div className="flex items-center justify-between mt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 text-mocha border-border-light rounded focus:ring-mocha focus:ring-2 accent-mocha" />
+                  <span className="text-xs text-charcoal font-medium">Stay signed in</span>
+                </label>
                 <Link href="/forgot-password" onClick={closeAuthModal} className="text-xs text-mocha font-semibold hover:underline">
                   Forgot password?
                 </Link>
@@ -194,15 +204,28 @@ export function AuthModal() {
                 <input type="tel" placeholder="Phone number (optional)" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="tel" />
                 {errors.signupPhone && <p className={errorClass}>{errors.signupPhone}</p>}
               </div>
-              <div className="relative">
-                <input type={showPassword ? "text" : "password"} placeholder="Create a password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              <div>
+                <div className="relative">
+                  <input type={showPassword ? "text" : "password"} placeholder="Create a password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
                 {errors.signupPassword ? (
                   <p className={errorClass}>{errors.signupPassword}</p>
                 ) : (
                   <p className="text-text-light text-[11px] mt-1">{PASSWORD_HINT}</p>
+                )}
+              </div>
+              <div>
+                <div className="relative">
+                  <input type={showPassword ? "text" : "password"} placeholder="Confirm password" value={signupConfirmPassword} onChange={(e) => setSignupConfirmPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.signupConfirmPassword && (
+                  <p className={errorClass}>{errors.signupConfirmPassword}</p>
                 )}
               </div>
               <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
