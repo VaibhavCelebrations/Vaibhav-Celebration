@@ -54,7 +54,7 @@ export async function listProductCategories(): Promise<ProductCategory[]> {
 /* ── Cart (requires customer auth cookie) ─────────────────────────── */
 
 export async function getCart(): Promise<ServerCart> {
-  return apiFetch<ServerCart>("/cart");
+  return apiFetch<ServerCart>("/cart", { cache: "no-store" });
 }
 
 export async function addCartItem(
@@ -80,7 +80,7 @@ export async function clearServerCart(): Promise<ServerCart> {
 /* ── Wishlist (requires customer auth cookie) ─────────────────────── */
 
 export async function listWishlist(): Promise<WishlistItemDto[]> {
-  return apiFetch<WishlistItemDto[]>("/wishlist");
+  return apiFetch<WishlistItemDto[]>("/wishlist", { cache: "no-store" });
 }
 
 export async function addToWishlist(productId: string): Promise<WishlistItemDto[]> {
@@ -94,7 +94,7 @@ export async function removeFromWishlist(productId: string): Promise<WishlistIte
 /* ── Checkout & Orders (requires customer auth cookie) ────────────── */
 
 export async function getCheckoutQuote(): Promise<CheckoutQuoteResult> {
-  return apiFetch<CheckoutQuoteResult>("/shop/checkout/quote");
+  return apiFetch<CheckoutQuoteResult>("/shop/checkout/quote", { cache: "no-store" });
 }
 
 export async function createShopOrder(input: {
@@ -110,17 +110,17 @@ export async function createShopOrder(input: {
 }
 
 export async function listMyOrders(page = 1, pageSize = 10): Promise<{ items: OrderDto[]; total: number; page: number; pageSize: number }> {
-  return apiFetch(`/account/orders?page=${page}&pageSize=${pageSize}`);
+  return apiFetch(`/account/orders?page=${page}&pageSize=${pageSize}`, { cache: "no-store" });
 }
 
 export async function getMyOrder(orderCode: string): Promise<OrderDto> {
-  return apiFetch<OrderDto>(`/account/orders/${encodeURIComponent(orderCode)}`);
+  return apiFetch<OrderDto>(`/account/orders/${encodeURIComponent(orderCode)}`, { cache: "no-store" });
 }
 
 /* ── Gift Registry (owner-facing, requires customer auth cookie) ─────── */
 
 export async function listMyRegistries(): Promise<GiftRegistryDto[]> {
-  return apiFetch<GiftRegistryDto[]>("/account/registries");
+  return apiFetch<GiftRegistryDto[]>("/account/registries", { cache: "no-store" });
 }
 
 export async function createRegistry(input: {
@@ -134,7 +134,7 @@ export async function createRegistry(input: {
 }
 
 export async function getMyRegistry(id: string): Promise<GiftRegistryDetailDto> {
-  return apiFetch<GiftRegistryDetailDto>(`/account/registries/${encodeURIComponent(id)}`);
+  return apiFetch<GiftRegistryDetailDto>(`/account/registries/${encodeURIComponent(id)}`, { cache: "no-store" });
 }
 
 export async function updateMyRegistry(
@@ -165,7 +165,7 @@ export async function deleteRegistryItem(id: string, itemId: string): Promise<vo
 /* ── Public registry share view ───────────────────────────────────── */
 
 export async function getPublicRegistry(code: string, password: string): Promise<PublicRegistryDto> {
-  return apiFetch<PublicRegistryDto>(`/registry/${encodeURIComponent(code)}/view`, { method: "POST", body: { password } });
+  return apiFetch<PublicRegistryDto>(`/registry/${encodeURIComponent(code)}/view`, { method: "POST", body: { password }, cache: "no-store" });
 }
 
 export async function giftRegistryItem(

@@ -128,7 +128,7 @@ adminProductsRouter.get(
   async (req, res, next) => {
     try {
       const result = await adminListProducts(req.query as never);
-      return ok(res, result.items, { pagination: paginationMeta(result.page, result.pageSize, result.total) });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }
@@ -214,7 +214,7 @@ adminProductsRouter.get(
   async (req, res, next) => {
     try {
       const result = await getInventoryHistory(param(req, "id"), req.query as never);
-      return ok(res, result.items, { pagination: paginationMeta(result.page, result.pageSize, result.total) });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }

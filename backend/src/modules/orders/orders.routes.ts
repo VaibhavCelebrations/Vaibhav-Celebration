@@ -62,7 +62,7 @@ accountOrdersRouter.use(requireCustomer);
 accountOrdersRouter.get("/", validate(paginationQuerySchema, "query"), async (req, res, next) => {
   try {
     const result = await listOrdersForUser(customerId(req), req.query as never);
-    return ok(res, result.items, { pagination: paginationMeta(result.page, result.pageSize, result.total) });
+    return ok(res, result);
   } catch (err) {
     return next(err);
   }

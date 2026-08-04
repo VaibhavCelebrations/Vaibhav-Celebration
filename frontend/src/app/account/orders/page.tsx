@@ -39,11 +39,13 @@ export default function OrderHistoryPage() {
       setIsLoading(true);
       try {
         const result = await shopApi.listMyOrders(page, pageSize);
+        console.log("OrderHistoryPage: listMyOrders result:", result);
         if (!cancelled) {
-          setOrders(result.items);
-          setTotal(result.total);
+          setOrders(result.items || []); // Defensive fallback
+          setTotal(result.total || 0);
         }
-      } catch {
+      } catch (err) {
+        console.error("OrderHistoryPage: error fetching orders", err);
         if (!cancelled) setOrders([]);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -95,7 +97,7 @@ export default function OrderHistoryPage() {
                   </span>
                 </div>
                 <p className="text-xs text-text-muted mt-1">
-                  {order.items.length} item{order.items.length !== 1 ? "s" : ""} · Placed {new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? "s" : ""} · Placed {new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
               <div className="text-right shrink-0">

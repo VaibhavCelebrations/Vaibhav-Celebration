@@ -192,7 +192,7 @@ adminRegistryRouter.get(
   async (req, res, next) => {
     try {
       const result = await adminListRegistries(req.query as never);
-      return ok(res, result.items, { pagination: paginationMeta(result.page, result.pageSize, result.total) });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }

@@ -337,7 +337,7 @@ export type EventCard = {
   ageGroup?: string;
   isRegistrationOpen?: boolean;
   registrationFeeInPaise?: number;
-  activities?: string[];
+  activities?: Array<{ title: string; description: string; icon: string | null }>;
   faqItems?: Array<{ question: string; answer: string }>;
   ctaLabel?: string;
   ctaUrl?: string;

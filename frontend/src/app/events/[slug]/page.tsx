@@ -131,7 +131,8 @@ export default async function EventDetailPage({ params }: Props) {
                     <div className="w-14 h-14 shrink-0 bg-cream-dark rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 group-hover:bg-mocha/10">
                       <CheckCircle2 size={24} className="text-mocha" />
                     </div>
-                    <p className="font-bold text-charcoal text-xl md:text-2xl leading-tight group-hover:text-mocha-dark transition-colors">{act}</p>
+                    <p className="font-bold text-charcoal text-xl md:text-2xl leading-tight group-hover:text-mocha-dark transition-colors">{act.title}</p>
+                    {act.description && <p className="text-text-muted text-sm leading-relaxed">{act.description}</p>}
                   </div>
                 </ScrollReveal>
               ))}
