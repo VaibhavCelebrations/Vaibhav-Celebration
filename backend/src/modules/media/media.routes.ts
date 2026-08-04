@@ -49,7 +49,7 @@ mediaRouter.get("/health", (_req, res) => {
   return ok(res, getMediaHealth());
 });
 
-/** GET /admin/media/categories — counts per category for sidebar badges */
+/** GET /admin/media/categories — per-category asset counts for sidebar badges */
 mediaRouter.get("/categories", async (_req, res, next) => {
   try {
     const rows = await prisma.mediaAsset.groupBy({
@@ -57,7 +57,8 @@ mediaRouter.get("/categories", async (_req, res, next) => {
       where: { deletedAt: null },
       _count: { id: true },
     });
-    // Build a complete map including zeros for all known categories
+
+    // Seed zeros for all known categories, then fill from DB
     const counts: Record<string, number> = {};
     for (const cat of MEDIA_CATEGORIES) counts[cat] = 0;
     let total = 0;
@@ -72,6 +73,7 @@ mediaRouter.get("/categories", async (_req, res, next) => {
   }
 });
 
+/** GET /admin/media — paginated list with optional category/folder/search/type filters */
 mediaRouter.get(
   "/",
   validate(
@@ -170,7 +172,11 @@ mediaRouter.post(
         category?: MediaPrefixKind;
         folder?: string | null;
       };
-      if (!body.contentType.startsWith("image/") && !body.contentType.startsWith("video/") && body.contentType !== "application/pdf") {
+      if (
+        !body.contentType.startsWith("image/") &&
+        !body.contentType.startsWith("video/") &&
+        body.contentType !== "application/pdf"
+      ) {
         throw new ValidationError("Only images, video, and PDF are allowed");
       }
       const presign = await createPresignedUpload({
@@ -220,8 +226,8 @@ mediaRouter.post(
         sizeBytes?: number | null;
         url?: string;
       };
-      // Infer category from cdnKey prefix if not provided
-      const inferredCategory = body.category ?? (body.cdnKey.split("/")[0] as MediaPrefixKind | undefined);
+      // Infer category from cdnKey prefix if not explicitly provided
+      const inferredCategory = (body.category ?? body.cdnKey.split("/")[0]) as MediaPrefixKind | undefined;
       const item = await prisma.mediaAsset.create({
         data: {
           cdnKey: body.cdnKey,
@@ -295,7 +301,6 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
     const buffer = req.file?.buffer ?? (Buffer.isBuffer(req.body) ? req.body : null);
     if (!cdnKey || !buffer) throw new ValidationError("x-cdn-key header and body required");
 
-    // Re-store under the exact key by writing locally / putting to R2 with fixed key
     const stored = await storeMediaBuffer({
       buffer,
       originalName: pathFromKey(cdnKey),
@@ -304,7 +309,6 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
       scope: "binary",
       role: "upload",
     });
-    // Prefer the client-provided key semantics: overwrite response with requested key URL
     return ok(res, {
       cdnKey: stored.cdnKey,
       publicUrl: stored.url,
@@ -315,7 +319,7 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
   }
 });
 
-/** PATCH /admin/media/:id — update altText, category, folder on an existing asset */
+/** PATCH /admin/media/:id — update altText, category, or folder on an existing asset */
 mediaRouter.patch(
   "/:id",
   validate(z.object({ id: z.string().min(1) }), "params"),
@@ -357,7 +361,6 @@ mediaRouter.delete(
   async (req, res, next) => {
     try {
       const { prefix } = req.body as { prefix: string };
-      // Soft-delete DB rows under prefix
       await prisma.mediaAsset.updateMany({
         where: { deletedAt: null, cdnKey: { startsWith: prefix.replace(/^\//, "") } },
         data: { deletedAt: new Date() },
@@ -379,7 +382,6 @@ mediaRouter.delete(
       const asset = await prisma.mediaAsset.findFirst({ where: { id, deletedAt: null } });
       if (!asset) throw new NotFoundError("Media asset not found");
       await prisma.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });
-      // Best-effort object delete — soft-delete already protects the app
       void deleteObjectByKey(asset.cdnKey).catch(() => undefined);
       return ok(res, { deleted: true });
     } catch (e) {

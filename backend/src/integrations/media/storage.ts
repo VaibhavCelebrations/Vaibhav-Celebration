@@ -28,8 +28,8 @@ export type MediaPrefixKind =
   | "media"
   | "products";
 
-/** Ordered list used for UI dropdowns and validation. */
-export const MEDIA_CATEGORIES: readonly MediaPrefixKind[] = [
+/** All valid category keys — used for sidebar counts and validation */
+export const MEDIA_CATEGORIES: MediaPrefixKind[] = [
   "gallery",
   "themes",
   "blog",
@@ -39,20 +39,20 @@ export const MEDIA_CATEGORIES: readonly MediaPrefixKind[] = [
   "media",
   "users",
   "invoices",
-] as const;
+];
 
+/** Human-readable labels for each category */
 export const MEDIA_CATEGORY_LABELS: Record<MediaPrefixKind, string> = {
-  gallery: "Gallery",
-  themes: "Themes",
-  blog: "Blog",
-  events: "Events",
+  gallery:  "Gallery",
+  themes:   "Themes",
+  blog:     "Blog",
+  events:   "Events",
   products: "Products",
-  popups: "Popups",
-  media: "General Media",
-  users: "Users",
+  popups:   "Popups",
+  media:    "General Media",
+  users:    "Users",
   invoices: "Invoices",
 };
-
 
 export type StoredObject = {
   url: string;
@@ -149,8 +149,6 @@ export function buildCdnKey(input: {
       return `popups/${scope}/${role}-${id}${ext}`;
     case "invoices":
       return `invoices/${scope}/${role}-${id}${ext}`;
-    case "products":
-      return `products/${scope}/${role}-${id}${ext}`;
     default:
       return `media/${scope}/${role}-${id}${ext}`;
   }
@@ -227,7 +225,6 @@ function inferKindFromFolder(folder?: string): MediaPrefixKind {
   if (root === "popups") return "popups";
   if (root === "invoices") return "invoices";
   if (root === "users") return "users";
-  if (root === "products") return "products";
   return "media";
 }
 
