@@ -26,6 +26,26 @@ async function clearDevData() {
   const tables = [
     "AuditLog",
     "GuestVerificationToken",
+    "GiftRegistryContribution",
+    "GiftRegistryItem",
+    "GiftRegistry",
+    "OrderItem",
+    "Order",
+    "WishlistItem",
+    "CartItem",
+    "Cart",
+    "InventoryLedgerEntry",
+    "InventoryRecord",
+    "ProductPersonalizationField",
+    "ProductImage",
+    "ProductThemeTag",
+    "ProductCategoryTag",
+    "Product",
+    "ProductCategory",
+    "EmailVerificationToken",
+    "PasswordResetToken",
+    "CustomerSession",
+    "User",
     "BookingCustomization",
     "Invoice",
     "Booking",
@@ -571,6 +591,118 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       });
     }
   }
+
+  // ── Shop: Product Categories & Products (gift registry catalog) ─────────────
+  const catReturnGifts = await prisma.productCategory.create({ data: { name: "Return Gifts", slug: "return-gifts", displayOrder: 1 } });
+  const catDecor = await prisma.productCategory.create({ data: { name: "Decor & Keepsakes", slug: "decor-keepsakes", displayOrder: 2 } });
+  const catPersonalized = await prisma.productCategory.create({ data: { name: "Personalized Gifts", slug: "personalized-gifts", displayOrder: 3 } });
+
+  const productDefs: Array<{
+    title: string;
+    sku: string;
+    description: string;
+    priceInPaise: number;
+    compareAtPriceInPaise?: number;
+    categoryId: string;
+    themeIds: string[];
+    mediaId: string;
+    quantity: number;
+    personalization?: boolean;
+  }> = [
+    {
+      title: "Engraved Photo Frame",
+      sku: "VBC-PF-001",
+      description: "A handcrafted wooden photo frame, laser-engraved with names and a special date. A timeless keepsake for the celebration.",
+      priceInPaise: 129900,
+      compareAtPriceInPaise: 159900,
+      categoryId: catPersonalized.id,
+      themeIds: [royalTheme.id, minimalTheme.id],
+      mediaId: minimalMedia.id,
+      quantity: 40,
+      personalization: true,
+    },
+    {
+      title: "Royal Mandap Return Gift Box",
+      sku: "VBC-RG-002",
+      description: "Curated return gift box themed to Royal Mandap — dry fruits, a scented candle, and a thank-you card.",
+      priceInPaise: 59900,
+      categoryId: catReturnGifts.id,
+      themeIds: [royalTheme.id],
+      mediaId: royalMedia.id,
+      quantity: 120,
+    },
+    {
+      title: "Garden Bloom Table Centerpiece",
+      sku: "VBC-DC-003",
+      description: "Artificial floral centerpiece matching the Garden Bloom theme — reusable and long-lasting.",
+      priceInPaise: 249900,
+      categoryId: catDecor.id,
+      themeIds: [gardenTheme.id],
+      mediaId: gardenMedia.id,
+      quantity: 15,
+    },
+    {
+      title: "Personalized Name Cushion",
+      sku: "VBC-PC-004",
+      description: "Soft velvet cushion embroidered with the celebrant's name — a cozy, personal keepsake gift.",
+      priceInPaise: 89900,
+      categoryId: catPersonalized.id,
+      themeIds: [minimalTheme.id],
+      mediaId: gallery3Media.id,
+      quantity: 60,
+      personalization: true,
+    },
+    {
+      title: "Minimal Elegance Candle Set",
+      sku: "VBC-DC-005",
+      description: "A set of three scented soy candles in minimalist ceramic jars, matching the Minimal Elegance palette.",
+      priceInPaise: 179900,
+      categoryId: catDecor.id,
+      themeIds: [minimalTheme.id],
+      mediaId: minimalMedia.id,
+      quantity: 8,
+    },
+    {
+      title: "Welcome Guest Hamper",
+      sku: "VBC-RG-006",
+      description: "A festive welcome hamper with local sweets, a mini succulent, and a handwritten welcome note.",
+      priceInPaise: 74900,
+      categoryId: catReturnGifts.id,
+      themeIds: [royalTheme.id, gardenTheme.id],
+      mediaId: gallery1Media.id,
+      quantity: 0,
+    },
+  ];
+
+  for (const def of productDefs) {
+    const product = await prisma.product.create({
+      data: {
+        title: def.title,
+        slug: def.sku.toLowerCase(),
+        sku: def.sku,
+        description: def.description,
+        priceInPaise: def.priceInPaise,
+        compareAtPriceInPaise: def.compareAtPriceInPaise,
+        isActive: true,
+        categoryTags: { create: [{ categoryId: def.categoryId }] },
+        themeTags: { create: def.themeIds.map((themeId) => ({ themeId })) },
+        images: { create: [{ mediaId: def.mediaId, displayOrder: 0 }] },
+        personalizationFields: def.personalization
+          ? { create: [{ fieldKey: "name", label: "Name to engrave/embroider", fieldType: "text", isRequired: true, maxLength: 40 }] }
+          : undefined,
+      },
+    });
+    await prisma.inventoryRecord.create({
+      data: {
+        productId: product.id,
+        quantityAvailable: def.quantity,
+        lowStockThreshold: 10,
+        statusFlag: def.quantity <= 0 ? "OUT_OF_STOCK" : def.quantity <= 10 ? "LOW_STOCK" : "IN_STOCK",
+      },
+    });
+  }
+
+  console.log("Products & categories seeded");
 
   // ── Gallery ──────────────────────────────────────────────────────────────────
   const tagWedding = await prisma.galleryTag.create({ data: { name: "Wedding" } });

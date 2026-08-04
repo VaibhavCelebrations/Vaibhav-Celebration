@@ -3,17 +3,17 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, Check, Plus, Minus, ShoppingCart, Package, CheckCircle2, LogIn, Palette, Gift, Puzzle } from "lucide-react";
-import { placeholderProducts } from "@/lib/ecom-placeholder-data";
+import { ArrowLeft, ArrowRight, Check, Plus, Minus, ShoppingCart, Package, CheckCircle2, LogIn, Palette, Gift, Loader2 } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
+import * as shopApi from "@/lib/shop-api";
+import { formatPaise, getMaxPurchasable, productImageUrl } from "@/lib/shop-types";
+import type { Product } from "@/lib/shop-types";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
-import type { Product } from "@/lib/ecom-types";
 
-// Helper component for local add-on state
 type LocalAddon = {
   product: Product;
   quantity: number;
@@ -22,8 +22,7 @@ type LocalAddon = {
 const JOURNEY_STEPS = [
   { label: "Login", icon: LogIn },
   { label: "Theme", icon: Palette },
-  { label: "Return Gifts", icon: Gift },
-  { label: "Activity Kits", icon: Puzzle },
+  { label: "Gifts & Extras", icon: Gift },
   { label: "Review", icon: CheckCircle2 },
 ];
 
@@ -34,7 +33,7 @@ function JourneyStepper({ currentStep, onStepClick }: { currentStep: number; onS
         const isCompleted = index < currentStep;
         const isActive = index === currentStep;
         const Icon = step.icon;
-        const canClick = index < currentStep; // only completed steps are clickable
+        const canClick = index < currentStep;
 
         return (
           <div key={step.label} className="flex items-center flex-1 last:flex-none">
@@ -61,7 +60,6 @@ function JourneyStepper({ currentStep, onStepClick }: { currentStep: number; onS
               </span>
             </div>
 
-            {/* Connector Line */}
             {index < JOURNEY_STEPS.length - 1 && (
               <div className="flex-1 h-[2px] mx-2 md:mx-3 relative">
                 <div className="absolute inset-0 bg-border-light rounded-full" />
@@ -89,23 +87,22 @@ function BuildPackageContent() {
   const initialThemeSlug = searchParams.get("theme");
   const initialStep = searchParams.get("step");
 
-  // Determine starting step
   const getInitialStep = () => {
     if (initialStep) return parseInt(initialStep);
     if (!isAuthenticated) return 0;
-    if (initialThemeSlug) return 2; // Skip to gifts if theme pre-selected
+    if (initialThemeSlug) return 2;
     return 1;
   };
 
   const [currentStep, setCurrentStep] = useState(getInitialStep);
   const [selectedTheme, setSelectedTheme] = useState<string | null>(initialThemeSlug || null);
-  const [selectedGifts, setSelectedGifts] = useState<LocalAddon[]>([]);
-  const [selectedKits, setSelectedKits] = useState<LocalAddon[]>([]);
+  const [selectedAddons, setSelectedAddons] = useState<LocalAddon[]>([]);
+  const [themeProducts, setThemeProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   const packageData = pkgSlug ? packagesBySlug[pkgSlug] : undefined;
   const themeData = selectedTheme ? themesBySlug[selectedTheme] : undefined;
 
-  // Auto-advance past login when authenticated
   useEffect(() => {
     if (isAuthenticated && currentStep === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -113,35 +110,51 @@ function BuildPackageContent() {
     }
   }, [isAuthenticated, currentStep]);
 
-  // Redirect if invalid package
   useEffect(() => {
     if (!packageData) {
       router.push("/packages");
     }
   }, [packageData, router]);
 
+  useEffect(() => {
+    if (!selectedTheme) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setThemeProducts([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setIsLoadingProducts(true);
+      try {
+        const result = await shopApi.listProducts({ theme: selectedTheme, pageSize: 60 });
+        if (!cancelled) setThemeProducts(result.items);
+      } catch {
+        if (!cancelled) setThemeProducts([]);
+      } finally {
+        if (!cancelled) setIsLoadingProducts(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTheme]);
+
   if (!packageData) return null;
 
-  // Filter products by theme and category
-  const themeProducts = selectedTheme
-    ? placeholderProducts.filter((p) => p.themeTags.includes(selectedTheme) && p.isActive)
-    : [];
-  const returnGifts = themeProducts.filter((p) => p.categoryTags.includes("return-gifts") || p.categoryTags.includes("personalized-items"));
-  const activityKits = themeProducts.filter((p) => p.categoryTags.includes("activity-kits") || p.categoryTags.includes("stationery"));
-
-  const handleToggleAddon = (product: Product, list: LocalAddon[], setter: React.Dispatch<React.SetStateAction<LocalAddon[]>>) => {
-    setter((prev) => {
+  const handleToggleAddon = (product: Product) => {
+    setSelectedAddons((prev) => {
       const exists = prev.find((a) => a.product.id === product.id);
       if (exists) return prev.filter((a) => a.product.id !== product.id);
       return [...prev, { product, quantity: 1 }];
     });
   };
 
-  const handleUpdateQuantity = (productId: string, delta: number, setter: React.Dispatch<React.SetStateAction<LocalAddon[]>>) => {
-    setter((prev) =>
+  const handleUpdateQuantity = (productId: string, delta: number) => {
+    setSelectedAddons((prev) =>
       prev.map((a) => {
         if (a.product.id === productId) {
-          const newQ = Math.max(1, Math.min(a.product.stock, a.product.maxOrderQuantity, a.quantity + delta));
+          const maxQ = getMaxPurchasable(a.product);
+          const newQ = Math.max(1, Math.min(maxQ, a.quantity + delta));
           return { ...a, quantity: newQ };
         }
         return a;
@@ -170,12 +183,11 @@ function BuildPackageContent() {
 
   const handleAddToCart = () => {
     if (!selectedTheme) return;
-    const allAddons = [...selectedGifts, ...selectedKits];
     addPackage({
       packageId: packageData.slug,
       themeSlug: selectedTheme,
       basePrice: packageData.basePrice,
-      addons: allAddons.map((a) => ({
+      addons: selectedAddons.map((a) => ({
         product: a.product,
         quantity: a.quantity,
         personalizationValues: [],
@@ -184,28 +196,28 @@ function BuildPackageContent() {
     openCart();
   };
 
-  // Compute totals
-  const giftsTotal = selectedGifts.reduce((acc, curr) => acc + curr.product.price * curr.quantity, 0);
-  const kitsTotal = selectedKits.reduce((acc, curr) => acc + curr.product.price * curr.quantity, 0);
-  const grandTotal = packageData.basePrice + giftsTotal + kitsTotal;
+  const addonsTotalRupees = selectedAddons.reduce((acc, curr) => acc + (curr.product.priceInPaise / 100) * curr.quantity, 0);
+  const grandTotal = packageData.basePrice + addonsTotalRupees;
 
-  const renderProductGrid = (
-    products: Product[],
-    selected: LocalAddon[],
-    setter: React.Dispatch<React.SetStateAction<LocalAddon[]>>,
-    emptyMessage: string
-  ) => {
-    if (products.length === 0) {
+  const renderProductGrid = () => {
+    if (isLoadingProducts) {
+      return (
+        <div className="flex justify-center py-16">
+          <Loader2 size={28} className="animate-spin text-mocha" />
+        </div>
+      );
+    }
+    if (themeProducts.length === 0) {
       return (
         <div className="text-center py-16 bg-cream/50 rounded-2xl border border-dashed border-border-light">
-          <p className="text-text-muted">{emptyMessage}</p>
+          <p className="text-text-muted">No matching gifts or extras found for this theme yet.</p>
         </div>
       );
     }
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {products.map((product) => {
-          const isSelected = selected.some((a) => a.product.id === product.id);
+        {themeProducts.map((product) => {
+          const isSelected = selectedAddons.some((a) => a.product.id === product.id);
           return (
             <div
               key={product.id}
@@ -214,9 +226,9 @@ function BuildPackageContent() {
               }`}
             >
               <div className="relative aspect-square w-full">
-                <Image src={product.images[0]} alt={product.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 33vw" />
+                <Image src={productImageUrl(product)} alt={product.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 33vw" />
                 <button
-                  onClick={() => handleToggleAddon(product, selected, setter)}
+                  onClick={() => handleToggleAddon(product)}
                   className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm cursor-pointer ${
                     isSelected ? "bg-mocha text-white" : "bg-white text-text-muted hover:text-mocha"
                   }`}
@@ -226,16 +238,16 @@ function BuildPackageContent() {
               </div>
               <div className="p-4 flex-1 flex flex-col">
                 <h4 className="font-bold text-charcoal line-clamp-1">{product.title}</h4>
-                <p className="text-xs text-text-muted mb-3 flex-1 line-clamp-2">{product.shortDescription}</p>
+                <p className="text-xs text-text-muted mb-3 flex-1 line-clamp-2">{product.description}</p>
                 <div className="flex items-center justify-between mt-auto">
-                  <span className="font-bold text-charcoal">₹{product.price.toLocaleString("en-IN")}</span>
+                  <span className="font-bold text-charcoal">{formatPaise(product.priceInPaise)}</span>
                   {isSelected && (
                     <div className="flex items-center gap-1 bg-cream rounded-lg border border-border-light p-0.5">
-                      <button onClick={() => handleUpdateQuantity(product.id, -1, setter)} className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer">
+                      <button onClick={() => handleUpdateQuantity(product.id, -1)} className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer">
                         <Minus size={12} />
                       </button>
-                      <span className="w-6 text-center text-xs font-bold">{selected.find((a) => a.product.id === product.id)?.quantity || 1}</span>
-                      <button onClick={() => handleUpdateQuantity(product.id, 1, setter)} className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer">
+                      <span className="w-6 text-center text-xs font-bold">{selectedAddons.find((a) => a.product.id === product.id)?.quantity || 1}</span>
+                      <button onClick={() => handleUpdateQuantity(product.id, 1)} className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer">
                         <Plus size={12} />
                       </button>
                     </div>
@@ -286,7 +298,7 @@ function BuildPackageContent() {
                 Sign in or create an account to build your personalized celebration package.
               </p>
               <button
-                onClick={openAuthModal}
+                onClick={() => openAuthModal()}
                 className="btn-primary px-10 py-4 text-sm font-bold uppercase tracking-wider gap-2 cursor-pointer"
               >
                 Login / Sign Up <ArrowRight size={16} />
@@ -332,38 +344,23 @@ function BuildPackageContent() {
             </div>
           )}
 
-          {/* ═══ STEP 2: Select Return Gifts ═══ */}
+          {/* ═══ STEP 2: Add Gifts & Extras ═══ */}
           {currentStep === 2 && (
             <div className="animate-fade-in">
               <div className="text-center mb-10">
                 <h2 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-3">
-                  Add Return Gifts
+                  Add Gifts & Extras
                 </h2>
                 <p className="text-text-muted">
-                  Select matching return gifts for <span className="text-mocha font-semibold">{themeData?.title}</span>. This step is optional.
+                  Select return gifts and activity kits for <span className="text-mocha font-semibold">{themeData?.title}</span>. This step is optional.
                 </p>
               </div>
-              {renderProductGrid(returnGifts, selectedGifts, setSelectedGifts, "No matching return gifts found for this theme.")}
+              {renderProductGrid()}
             </div>
           )}
 
-          {/* ═══ STEP 3: Select Activity Kits ═══ */}
+          {/* ═══ STEP 3: Review ═══ */}
           {currentStep === 3 && (
-            <div className="animate-fade-in">
-              <div className="text-center mb-10">
-                <h2 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-3">
-                  Add Activity Kits
-                </h2>
-                <p className="text-text-muted">
-                  Choose fun activity kits for <span className="text-mocha font-semibold">{themeData?.title}</span>. This step is optional.
-                </p>
-              </div>
-              {renderProductGrid(activityKits, selectedKits, setSelectedKits, "No matching activity kits found for this theme.")}
-            </div>
-          )}
-
-          {/* ═══ STEP 4: Review ═══ */}
-          {currentStep === 4 && (
             <div className="animate-fade-in">
               <div className="text-center mb-10">
                 <h2 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-3">
@@ -404,21 +401,21 @@ function BuildPackageContent() {
                 </div>
 
                 {/* Selected Add-ons */}
-                {(selectedGifts.length > 0 || selectedKits.length > 0) && (
+                {selectedAddons.length > 0 && (
                   <div className="bg-white border border-border-light rounded-2xl p-6 shadow-soft">
                     <h3 className="font-display text-xl font-bold text-charcoal mb-4">Selected Add-ons</h3>
                     <div className="space-y-3">
-                      {[...selectedGifts, ...selectedKits].map((addon) => (
+                      {selectedAddons.map((addon) => (
                         <div key={addon.product.id} className="flex gap-4 p-3 bg-cream/50 rounded-xl items-center">
                           <div className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0">
-                            <Image src={addon.product.images[0]} alt={addon.product.title} fill className="object-cover" sizes="56px" />
+                            <Image src={productImageUrl(addon.product)} alt={addon.product.title} fill className="object-cover" sizes="56px" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-charcoal text-sm line-clamp-1">{addon.product.title}</h4>
                             <p className="text-xs text-text-muted">Qty: {addon.quantity}</p>
                           </div>
                           <div className="font-bold text-charcoal text-sm shrink-0">
-                            ₹{(addon.product.price * addon.quantity).toLocaleString("en-IN")}
+                            {formatPaise(addon.product.priceInPaise * addon.quantity)}
                           </div>
                         </div>
                       ))}
@@ -434,16 +431,10 @@ function BuildPackageContent() {
                       <span>Base Package</span>
                       <span className="font-semibold text-charcoal">₹{packageData.basePrice.toLocaleString("en-IN")}</span>
                     </div>
-                    {giftsTotal > 0 && (
+                    {addonsTotalRupees > 0 && (
                       <div className="flex justify-between text-text-muted">
-                        <span>Return Gifts ({selectedGifts.length})</span>
-                        <span className="font-semibold text-charcoal">₹{giftsTotal.toLocaleString("en-IN")}</span>
-                      </div>
-                    )}
-                    {kitsTotal > 0 && (
-                      <div className="flex justify-between text-text-muted">
-                        <span>Activity Kits ({selectedKits.length})</span>
-                        <span className="font-semibold text-charcoal">₹{kitsTotal.toLocaleString("en-IN")}</span>
+                        <span>Gifts & Extras ({selectedAddons.length})</span>
+                        <span className="font-semibold text-charcoal">₹{addonsTotalRupees.toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     <hr className="border-border-light" />
@@ -464,16 +455,16 @@ function BuildPackageContent() {
             <div className="container-custom max-w-5xl mx-auto flex items-center justify-between">
               <div>
                 <p className="text-sm text-text-muted mb-0.5">
-                  {currentStep === 4 ? "Grand Total" : "Package Base"}
+                  {currentStep === 3 ? "Grand Total" : "Package Base"}
                 </p>
                 <p className="font-display text-xl md:text-2xl font-bold text-charcoal leading-none">
-                  ₹{(currentStep === 4 ? grandTotal : packageData.basePrice).toLocaleString("en-IN")}
-                  {currentStep < 4 && <span className="text-xs font-normal text-text-light ml-2">+ Add-ons</span>}
+                  ₹{(currentStep === 3 ? grandTotal : packageData.basePrice).toLocaleString("en-IN")}
+                  {currentStep < 3 && <span className="text-xs font-normal text-text-light ml-2">+ Add-ons</span>}
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                {currentStep > 1 && currentStep < 4 && (
+                {currentStep === 2 && (
                   <button
                     onClick={() => goNext()}
                     className="text-sm text-text-muted hover:text-mocha font-semibold cursor-pointer hidden sm:block"
@@ -481,7 +472,7 @@ function BuildPackageContent() {
                     Skip this step →
                   </button>
                 )}
-                {currentStep === 4 ? (
+                {currentStep === 3 ? (
                   <button
                     onClick={handleAddToCart}
                     className="btn-primary py-3 px-6 md:px-10 gap-2 shadow-lg shadow-mocha/20 cursor-pointer"

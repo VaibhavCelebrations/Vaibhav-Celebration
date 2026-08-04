@@ -11,6 +11,7 @@ import { generateInvoicePdf } from "../../integrations/invoice/pdf";
 import { invoiceEmailHtml, sendEmail } from "../../integrations/email/mailer";
 import { sendWhatsAppMessage } from "../../integrations/whatsapp/client";
 import { notifyBookingConfirmed } from "../bookings/bookings.service";
+import { cancelOrderAndRestock, findOrderByRazorpayOrderId, markOrderPaid } from "../orders/orders.service";
 import { logger } from "../../lib/logger";
 
 export async function createPaymentOrder(input: {
@@ -113,6 +114,18 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
         data: { paymentStatus: PaymentStatus.FAILED },
       });
       return { handled: true, type: "BOOKING_FAILED", id: booking.id };
+    }
+  }
+
+  const shopOrder = await findOrderByRazorpayOrderId(orderId);
+  if (shopOrder) {
+    if (event === "payment.captured" || payment?.status === "captured") {
+      await markOrderPaid(shopOrder.id, payment?.id);
+      return { handled: true, type: "SHOP_ORDER", id: shopOrder.id };
+    }
+    if (event === "payment.failed") {
+      await cancelOrderAndRestock(shopOrder.id, "Payment failed");
+      return { handled: true, type: "SHOP_ORDER_FAILED", id: shopOrder.id };
     }
   }
 

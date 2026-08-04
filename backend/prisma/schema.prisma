@@ -22,18 +22,18 @@ enum AdminRole {
 }
 
 model AdminUser {
-  id             String               @id @default(cuid())
-  name           String
-  email          String               @unique
-  passwordHash   String
-  role           AdminRole            @default(OPERATIONS)
-  isActive       Boolean              @default(true)
-  lastLoginAt    DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  deletedAt      DateTime?
-  auditLogs      AuditLog[]
-  refreshTokens  AdminRefreshToken[]
+  id            String              @id @default(cuid())
+  name          String
+  email         String              @unique
+  passwordHash  String
+  role          AdminRole           @default(OPERATIONS)
+  isActive      Boolean             @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  deletedAt     DateTime?
+  auditLogs     AuditLog[]
+  refreshTokens AdminRefreshToken[]
 }
 
 model AuditLog {
@@ -113,21 +113,27 @@ model MediaAsset {
   cdnKey                String
   type                  String
   altText               String?
+  /// Semantic folder type: gallery | themes | blog | events | popups | products | media | users | invoices
+  category              String?
+  /// Sub-folder / scope within category (e.g. theme slug, event id, "general")
+  folder                String?
   width                 Int?
   height                Int?
   sizeBytes             Int?
   uploadedByAdminUserId String?
   createdAt             DateTime           @default(now())
   deletedAt             DateTime?
-  themeHeroes       Theme[]            @relation("ThemeHero")
-  themeOgImages     Theme[]            @relation("ThemeOgImage")
-  sampleAssets      ThemeSampleAsset[]
-  galleryImages     GalleryImage[]
-  blogFeaturedImages BlogPost[]        @relation("BlogFeatured")
-  eventBanners      Event[]            @relation("EventBanner")
-  popupImages       Popup[]            @relation("PopupImage")
-  metadataOgImages  SiteMetadata[]     @relation("MetadataOgImage")
+  themeHeroes           Theme[]            @relation("ThemeHero")
+  themeOgImages         Theme[]            @relation("ThemeOgImage")
+  sampleAssets          ThemeSampleAsset[]
+  galleryImages         GalleryImage[]
+  blogFeaturedImages    BlogPost[]         @relation("BlogFeatured")
+  eventBanners          Event[]            @relation("EventBanner")
+  popupImages           Popup[]            @relation("PopupImage")
+  metadataOgImages      SiteMetadata[]     @relation("MetadataOgImage")
+  productImages         ProductImage[]
 
+  @@index([category])
   @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@index([cdnKey(ops: raw("gin_trgm_ops"))], type: Gin)
 }
@@ -158,6 +164,7 @@ model Theme {
   bookings         Booking[]
   testimonials     Testimonial[]
   events           Event[]
+  productTags      ProductThemeTag[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
   @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -308,18 +315,18 @@ enum TestimonialSubjectType {
 }
 
 model Testimonial {
-  id           String                  @id @default(cuid())
+  id           String                 @id @default(cuid())
   customerName String
-  content      String                  @db.Text
+  content      String                 @db.Text
   rating       Int?
   subjectType  TestimonialSubjectType
   themeId      String?
-  theme        Theme?                  @relation(fields: [themeId], references: [id])
+  theme        Theme?                 @relation(fields: [themeId], references: [id])
   packageId    String?
-  package      Package?                @relation(fields: [packageId], references: [id])
-  isFeatured   Boolean                 @default(false)
-  isActive     Boolean                 @default(true)
-  createdAt    DateTime                @default(now())
+  package      Package?               @relation(fields: [packageId], references: [id])
+  isFeatured   Boolean                @default(false)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
   deletedAt    DateTime?
 
   @@index([customerName(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -474,9 +481,9 @@ enum PaymentStatus {
 
 /// Three curated landing-page layouts; admin picks one per event (not a page-builder).
 enum EventPageTemplate {
-  CLASSIC_HERO       // Full-bleed hero → story sections → registration (warm, traditional)
-  EDITORIAL_SPLIT    // Split editorial layout with accent rail (magazine / premium)
-  FESTIVE_IMMERSIVE  // Immersive full-bleed festive with bold typography (campaign / ads)
+  CLASSIC_HERO // Full-bleed hero → story sections → registration (warm, traditional)
+  EDITORIAL_SPLIT // Split editorial layout with accent rail (magazine / premium)
+  FESTIVE_IMMERSIVE // Immersive full-bleed festive with bold typography (campaign / ads)
 }
 
 model Event {
@@ -536,12 +543,12 @@ model EventRegistration {
 // ─── CRM ────────────────────────────────────────────────────────────────────
 
 model Customer {
-  id            String                 @id @default(cuid())
+  id            String                @id @default(cuid())
   fullName      String
   email         String
   phone         String
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
   deletedAt     DateTime?
   bookings      Booking[]
   consultations ConsultationRequest[]
@@ -646,30 +653,31 @@ enum BookingStatus {
 }
 
 model Booking {
-  id                        String                  @id @default(cuid())
-  bookingCode               String                  @unique
+  id                        String                 @id @default(cuid())
+  bookingCode               String                 @unique
   customerId                String
-  customer                  Customer                @relation(fields: [customerId], references: [id])
+  customer                  Customer               @relation(fields: [customerId], references: [id])
   themeId                   String
-  theme                     Theme                   @relation(fields: [themeId], references: [id])
+  theme                     Theme                  @relation(fields: [themeId], references: [id])
   packageId                 String
-  package                   Package                 @relation(fields: [packageId], references: [id])
-  eventDate                 DateTime                @db.Date
-  status                    BookingStatus           @default(SCHEDULED)
-  paymentStatus             PaymentStatus           @default(PENDING)
+  package                   Package                @relation(fields: [packageId], references: [id])
+  eventDate                 DateTime               @db.Date
+  status                    BookingStatus          @default(SCHEDULED)
+  paymentStatus             PaymentStatus          @default(PENDING)
   basePriceInPaise          Int
-  customizationTotalInPaise Int                     @default(0)
-  gstInPaise                Int                     @default(0)
+  customizationTotalInPaise Int                    @default(0)
+  gstInPaise                Int                    @default(0)
   totalPriceInPaise         Int
   razorpayOrderId           String?
   razorpayPaymentId         String?
   guestEmail                String
   guestPhone                String
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
   deletedAt                 DateTime?
   customizations            BookingCustomization[]
   invoice                   Invoice?
+  giftRegistry              GiftRegistry?
 
   @@index([eventDate])
   @@index([bookingCode])
@@ -730,4 +738,368 @@ model Invoice {
   deletedAt          DateTime?
 
   @@index([issuedAt])
+}
+
+// ─── Customer Accounts & Auth ───────────────────────────────────────────────
+//
+// Deliberately separate from `Customer` (CRM contact record, created ad-hoc
+// per booking, not unique on email). `User` is the login identity for the
+// e-commerce platform: Cart/Wishlist/Order/GiftRegistry all FK to User.id.
+// This avoids a risky unique-email migration on existing CRM data.
+
+enum UserStatus {
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+model User {
+  id               String     @id @default(cuid())
+  name             String
+  email            String     @unique
+  phone            String?
+  passwordHash     String
+  status           UserStatus @default(ACTIVE)
+  emailVerifiedAt  DateTime?
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  sessions                CustomerSession[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  cart                    Cart?
+  wishlistItems           WishlistItem[]
+  orders                  Order[]
+  giftRegistries          GiftRegistry[]
+  giftContributions       GiftRegistryContribution[]
+
+  @@index([email])
+}
+
+// Sliding, rotating refresh-token session — mirrors AdminRefreshToken's
+// family-based reuse-detection model exactly (see auth.service.ts).
+model CustomerSession {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  /// SHA-256 hex of the raw opaque session token — raw token never stored
+  tokenHash         String    @unique
+  /// All tokens from the same login share this id; reuse of a rotated token
+  /// revokes the entire family (theft/replay detection)
+  familyId          String
+  /// Set when the token is consumed (rotated); null means still valid
+  usedAt            DateTime?
+  /// Sliding expiry — extended on every successful refresh
+  expiresAt         DateTime
+  /// Absolute re-auth ceiling from login, independent of activity
+  absoluteExpiresAt DateTime
+  revokedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  ipAddress         String?
+  userAgent         String?
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  requestIp String?
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ─── Catalog: Products, Categories, Inventory ───────────────────────────────
+
+model ProductCategory {
+  id           String               @id @default(cuid())
+  name         String               @unique
+  slug         String               @unique
+  displayOrder Int                  @default(0)
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  products     ProductCategoryTag[]
+}
+
+model Product {
+  id                    String    @id @default(cuid())
+  title                 String
+  slug                  String    @unique
+  sku                   String    @unique
+  description           String    @db.Text
+  priceInPaise          Int
+  compareAtPriceInPaise Int?
+  isActive              Boolean   @default(true)
+  minOrderQuantity      Int       @default(1)
+  maxOrderQuantity      Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  images                ProductImage[]
+  categoryTags          ProductCategoryTag[]
+  themeTags             ProductThemeTag[]
+  personalizationFields ProductPersonalizationField[]
+  inventory             InventoryRecord?
+  cartItems             CartItem[]
+  wishlistItems         WishlistItem[]
+  orderItems            OrderItem[]
+  registryItems         GiftRegistryItem[]            @relation("InternalProductLink")
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([sku(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+model ProductImage {
+  id           String     @id @default(cuid())
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  mediaId      String
+  media        MediaAsset @relation(fields: [mediaId], references: [id])
+  displayOrder Int        @default(0)
+}
+
+model ProductCategoryTag {
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id])
+  categoryId String
+  category   ProductCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([productId, categoryId])
+}
+
+model ProductThemeTag {
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  themeId   String
+  theme     Theme   @relation(fields: [themeId], references: [id])
+
+  @@id([productId, themeId])
+}
+
+model ProductPersonalizationField {
+  id         String  @id @default(cuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  fieldKey   String
+  label      String
+  fieldType  String
+  isRequired Boolean @default(false)
+  maxLength  Int?
+}
+
+enum StockStatusFlag {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+model InventoryRecord {
+  id                String                 @id @default(cuid())
+  productId         String                 @unique
+  product           Product                @relation(fields: [productId], references: [id])
+  quantityAvailable Int
+  lowStockThreshold Int                    @default(10)
+  statusFlag        StockStatusFlag        @default(IN_STOCK)
+  lastRestockedAt   DateTime?
+  updatedAt         DateTime               @updatedAt
+  ledgerEntries     InventoryLedgerEntry[]
+}
+
+enum InventoryLedgerReason {
+  RESTOCK
+  SALE
+  MANUAL_ADJUSTMENT
+  RETURN
+}
+
+model InventoryLedgerEntry {
+  id                String                @id @default(cuid())
+  inventoryRecordId String
+  inventoryRecord   InventoryRecord       @relation(fields: [inventoryRecordId], references: [id])
+  changeQuantity    Int
+  reason            InventoryLedgerReason
+  orderItemId       String?
+  note              String?
+  adminUserId       String?
+  createdAt         DateTime              @default(now())
+}
+
+// ─── Cart & Wishlist ─────────────────────────────────────────────────────────
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+  createdAt DateTime   @default(now())
+}
+
+model CartItem {
+  id                    String   @id @default(cuid())
+  cartId                String
+  cart                  Cart     @relation(fields: [cartId], references: [id])
+  productId             String
+  product               Product  @relation(fields: [productId], references: [id])
+  quantity              Int
+  personalizationValues Json?
+  addedAt               DateTime @default(now())
+
+  @@unique([cartId, productId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  addedAt   DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderCode         String      @unique
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  status            OrderStatus @default(PENDING_PAYMENT)
+  subtotalInPaise   Int
+  gstInPaise        Int
+  totalInPaise      Int
+  shippingAddress   Json
+  contactEmail      String
+  contactPhone      String
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  invoiceNumber     String?     @unique
+  invoicePdfUrl     String?
+  placedAt          DateTime    @default(now())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items             OrderItem[]
+  giftContributions GiftRegistryContribution[]
+
+  @@index([orderCode])
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id                    String  @id @default(cuid())
+  orderId               String
+  order                 Order   @relation(fields: [orderId], references: [id])
+  productId             String
+  product               Product @relation(fields: [productId], references: [id])
+  quantity              Int
+  unitPriceInPaise      Int
+  personalizationValues Json?
+}
+
+// ─── Gift Registry ───────────────────────────────────────────────────────────
+
+enum RegistryStatus {
+  ACTIVE
+  EXPIRED
+  CLOSED
+}
+
+enum GiftLinkSourceType {
+  EXTERNAL_LINK
+  INTERNAL_PRODUCT
+}
+
+enum GiftItemStatus {
+  AVAILABLE
+  RESERVED
+  PURCHASED
+}
+
+model GiftRegistry {
+  id                 String         @id @default(cuid())
+  registryCode       String         @unique
+  passwordHash       String
+  ownerUserId        String
+  ownerUser          User           @relation(fields: [ownerUserId], references: [id])
+  bookingId          String?        @unique
+  booking            Booking?       @relation(fields: [bookingId], references: [id])
+  childOrPersonName  String?
+  celebrationDetails String?        @db.Text
+  photoMediaId       String?
+  shippingAddress    Json?
+  status             RegistryStatus @default(ACTIVE)
+  activatedAt        DateTime       @default(now())
+  expiresAt          DateTime
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  items GiftRegistryItem[]
+}
+
+model GiftRegistryItem {
+  id                 String             @id @default(cuid())
+  registryId         String
+  registry           GiftRegistry       @relation(fields: [registryId], references: [id])
+  sourceType         GiftLinkSourceType
+  externalUrl        String?
+  manualTitle        String?
+  manualImageUrl     String?
+  manualPriceInPaise Int?
+  internalProductId  String?
+  internalProduct    Product?           @relation("InternalProductLink", fields: [internalProductId], references: [id])
+  status             GiftItemStatus     @default(AVAILABLE)
+  displayOrder       Int                @default(0)
+  createdAt          DateTime           @default(now())
+
+  contributions GiftRegistryContribution[]
+}
+
+model GiftRegistryContribution {
+  id             String           @id @default(cuid())
+  registryItemId String
+  registryItem   GiftRegistryItem @relation(fields: [registryItemId], references: [id])
+  gifterUserId   String
+  gifterUser     User             @relation(fields: [gifterUserId], references: [id])
+  orderId        String?
+  order          Order?           @relation(fields: [orderId], references: [id])
+  createdAt      DateTime         @default(now())
 }

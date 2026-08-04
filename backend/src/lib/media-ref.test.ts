@@ -14,6 +14,8 @@ describe("media-ref", () => {
       cdnKey: "a.jpg",
       sizeBytes: 1000,
       uploadedByAdminUserId: null,
+      category: null,
+      folder: null,
       createdAt: new Date(),
     });
     expect(ref?.url).toBe("https://example.com/a.jpg");

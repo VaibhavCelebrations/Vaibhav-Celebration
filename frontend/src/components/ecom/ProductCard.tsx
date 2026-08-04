@@ -3,10 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart, Heart } from "lucide-react";
-import type { Product } from "@/lib/ecom-types";
-import { getStockStatus } from "@/lib/ecom-types";
+import type { Product } from "@/lib/shop-types";
+import { formatPaise, getStockStatus, productImageUrl } from "@/lib/shop-types";
 import { useCart } from "@/context/cart-context";
-import { useAuth } from "@/context/auth-context";
+import { useWishlist } from "@/context/wishlist-context";
 
 interface ProductCardProps {
   product: Product;
@@ -15,25 +15,25 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, compact = false }: ProductCardProps) {
-  const { addItem, getItemQuantity, openCart } = useCart();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { addItem, getItemQuantity } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
   const hasPersonalization = product.personalizationFields.length > 0;
+  const wishlisted = isWishlisted(product.id);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (stockStatus === "out_of_stock") return;
     if (hasPersonalization) return;
+    void addItem(product.id, 1);
+  };
 
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
-
-    addItem(product, 1);
-    openCart();
+  const handleToggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void toggleWishlist(product.id);
   };
 
   return (
@@ -46,7 +46,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
         {/* Image Container */}
         <div className="relative aspect-[4/3] w-full rounded-[1.5rem] overflow-hidden bg-cream-dark">
           <Image
-            src={product.images[0]}
+            src={productImageUrl(product)}
             alt={product.title}
             fill
             className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -55,21 +55,18 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
 
           {/* Badges */}
           <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-            <span className="bg-[#22c55e] text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-sm tracking-wide w-fit">
-              Trending
-            </span>
             {stockStatus === "low_stock" && (
               <span className="bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm w-fit uppercase tracking-wider">
-                Only {product.stock} left
+                Only {product.stock?.quantityAvailable ?? 0} left
               </span>
             )}
           </div>
 
           {/* Discount Badge */}
-          {product.compareAtPrice && (
+          {product.compareAtPriceInPaise && (
             <div className="absolute top-3 right-3 z-10">
               <span className="bg-mocha text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-sm tracking-wide">
-                {Math.round((1 - product.price / product.compareAtPrice) * 100)}% Off
+                {Math.round((1 - product.priceInPaise / product.compareAtPriceInPaise) * 100)}% Off
               </span>
             </div>
           )}
@@ -93,27 +90,27 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
             
             {/* Heart Button */}
             <button 
-              className="shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center shadow-soft border border-border-light/60 hover:scale-110 hover:bg-cream transition-all cursor-pointer"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              aria-label="Add to wishlist"
+              className={`shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center shadow-soft border border-border-light/60 hover:scale-110 hover:bg-cream transition-all cursor-pointer ${wishlisted ? "border-red-200" : ""}`}
+              onClick={handleToggleWishlist}
+              aria-label={wishlisted ? "Remove from saved products" : "Add to saved products"}
             >
-              <Heart size={18} className="text-red-500" fill="currentColor" />
+              <Heart size={18} className="text-red-500" fill={wishlisted ? "currentColor" : "none"} />
             </button>
           </div>
 
           {!compact && (
             <p className="text-text-muted text-xs sm:text-sm mt-2 line-clamp-2 leading-relaxed pr-10">
-              {product.shortDescription}
+              {product.description}
             </p>
           )}
 
           <div className="flex items-center gap-2 mt-4">
             <span className="font-display text-lg sm:text-xl font-bold text-charcoal">
-              ₹{product.price}
+              {formatPaise(product.priceInPaise)}
             </span>
-            {product.compareAtPrice && (
+            {product.compareAtPriceInPaise && (
               <span className="text-sm text-text-light line-through font-medium">
-                ₹{product.compareAtPrice}
+                {formatPaise(product.compareAtPriceInPaise)}
               </span>
             )}
           </div>

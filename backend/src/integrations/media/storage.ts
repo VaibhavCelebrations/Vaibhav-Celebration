@@ -25,7 +25,34 @@ export type MediaPrefixKind =
   | "popups"
   | "invoices"
   | "users"
-  | "media";
+  | "media"
+  | "products";
+
+/** Ordered list used for UI dropdowns and validation. */
+export const MEDIA_CATEGORIES: readonly MediaPrefixKind[] = [
+  "gallery",
+  "themes",
+  "blog",
+  "events",
+  "products",
+  "popups",
+  "media",
+  "users",
+  "invoices",
+] as const;
+
+export const MEDIA_CATEGORY_LABELS: Record<MediaPrefixKind, string> = {
+  gallery: "Gallery",
+  themes: "Themes",
+  blog: "Blog",
+  events: "Events",
+  products: "Products",
+  popups: "Popups",
+  media: "General Media",
+  users: "Users",
+  invoices: "Invoices",
+};
+
 
 export type StoredObject = {
   url: string;
@@ -122,6 +149,8 @@ export function buildCdnKey(input: {
       return `popups/${scope}/${role}-${id}${ext}`;
     case "invoices":
       return `invoices/${scope}/${role}-${id}${ext}`;
+    case "products":
+      return `products/${scope}/${role}-${id}${ext}`;
     default:
       return `media/${scope}/${role}-${id}${ext}`;
   }
@@ -198,6 +227,7 @@ function inferKindFromFolder(folder?: string): MediaPrefixKind {
   if (root === "popups") return "popups";
   if (root === "invoices") return "invoices";
   if (root === "users") return "users";
+  if (root === "products") return "products";
   return "media";
 }
 

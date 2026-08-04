@@ -2,14 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight, Package } from "lucide-react";
+import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight, Package, Loader2 } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
+import { formatPaise, toRupees } from "@/lib/shop-types";
 import { useRouter } from "next/navigation";
 
 export function CartDrawer() {
-  const { items, packages, summary, isCartOpen, closeCart, updateQuantity, removeItem, removePackage } = useCart();
+  const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
   const { isAuthenticated, openAuthModal } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const router = useRouter();
@@ -17,13 +18,15 @@ export function CartDrawer() {
   const handleCheckout = () => {
     closeCart();
     if (!isAuthenticated) {
-      openAuthModal();
+      openAuthModal(() => router.push("/checkout"));
       return;
     }
     router.push("/checkout");
   };
 
   if (!isCartOpen) return null;
+
+  const combinedTotalRupees = toRupees(quote.totalInPaise) + packagesSubtotalRupees;
 
   return (
     <>
@@ -43,7 +46,7 @@ export function CartDrawer() {
               Your Cart
             </h2>
             <span className="bg-mocha text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {summary.itemCount}
+              {itemCount}
             </span>
           </div>
           <button
@@ -54,8 +57,11 @@ export function CartDrawer() {
           </button>
         </div>
 
-        {/* Cart Items */}
-        {items.length === 0 && packages.length === 0 ? (
+        {isLoading && items.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 size={28} className="animate-spin text-mocha" />
+          </div>
+        ) : items.length === 0 && packages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
             <div className="w-20 h-20 rounded-full bg-cream flex items-center justify-center mb-6">
               <ShoppingCart size={32} className="text-text-light" />
@@ -82,9 +88,9 @@ export function CartDrawer() {
                 const pkgData = packagesBySlug[pkg.packageId];
                 const themeData = themesBySlug[pkg.themeSlug];
                 if (!pkgData) return null;
-                
+
                 const addons = pkg.addons || [];
-                const addonsTotal = addons.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+                const addonsTotal = addons.reduce((sum, item) => sum + toRupees(item.product.priceInPaise) * item.quantity, 0);
                 const packageTotal = pkg.basePrice + addonsTotal;
 
                 return (
@@ -127,14 +133,14 @@ export function CartDrawer() {
                         {addons.map((addon) => (
                           <div key={addon.product.id} className="flex items-center gap-3 bg-white/50 p-2 rounded-lg">
                             <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0">
-                              <Image src={addon.product.images[0]} alt={addon.product.title} fill className="object-cover" sizes="40px" />
+                              <Image src={addon.product.images[0]?.media.url ?? "/placeholder-product.svg"} alt={addon.product.title} fill className="object-cover" sizes="40px" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h5 className="text-xs font-semibold text-charcoal line-clamp-1">{addon.product.title}</h5>
-                              <p className="text-[10px] text-text-muted">{addon.quantity} × ₹{addon.product.price.toLocaleString("en-IN")}</p>
+                              <p className="text-[10px] text-text-muted">{addon.quantity} × {formatPaise(addon.product.priceInPaise)}</p>
                             </div>
                             <div className="text-xs font-bold text-charcoal">
-                              ₹{(addon.quantity * addon.product.price).toLocaleString("en-IN")}
+                              ₹{(addon.quantity * toRupees(addon.product.priceInPaise)).toLocaleString("en-IN")}
                             </div>
                           </div>
                         ))}
@@ -147,14 +153,14 @@ export function CartDrawer() {
               {/* Render Items */}
               {items.map((item) => (
                 <div
-                  key={item.product.id}
+                  key={item.id}
                   className="flex gap-4 p-3 bg-cream/50 rounded-xl border border-border-light"
                 >
                   {/* Thumbnail */}
                   <div className="relative w-20 h-20 rounded-lg overflow-hidden shrink-0">
                     <Image
-                      src={item.product.images[0]}
-                      alt={item.product.title}
+                      src={item.image?.url ?? "/placeholder-product.svg"}
+                      alt={item.title}
                       fill
                       className="object-cover"
                       sizes="80px"
@@ -164,13 +170,17 @@ export function CartDrawer() {
                   {/* Details */}
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-semibold text-charcoal line-clamp-1">
-                      {item.product.title}
+                      {item.title}
                     </h4>
 
+                    {!item.isActive && (
+                      <p className="text-[10px] text-red-500 font-semibold mt-1">No longer available</p>
+                    )}
+
                     {/* Personalization values */}
-                    {item.personalizationValues.length > 0 && (
+                    {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {item.personalizationValues.map((pv) => (
+                        {(item.personalizationValues as Array<{ fieldId: string; label: string; value: string }>).map((pv) => (
                           <span key={pv.fieldId} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
                             {pv.label}: {pv.value}
                           </span>
@@ -179,10 +189,10 @@ export function CartDrawer() {
                     )}
 
                     <p className="text-sm font-bold text-charcoal mt-1.5">
-                      ₹{item.product.price * item.quantity}
+                      {formatPaise(item.unitPriceInPaise * item.quantity)}
                       {item.quantity > 1 && (
                         <span className="text-text-light font-normal text-xs ml-1">
-                          (₹{item.product.price} × {item.quantity})
+                          ({formatPaise(item.unitPriceInPaise)} × {item.quantity})
                         </span>
                       )}
                     </p>
@@ -191,7 +201,7 @@ export function CartDrawer() {
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-1 bg-surface border border-border-light rounded-lg">
                         <button
-                          onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          onClick={() => void updateQuantity(item.productId, item.quantity - 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
                         >
                           <Minus size={12} />
@@ -200,15 +210,15 @@ export function CartDrawer() {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          onClick={() => void updateQuantity(item.productId, item.quantity + 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
-                          disabled={item.quantity >= Math.min(item.product.maxOrderQuantity, item.product.stock)}
+                          disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}
                         >
                           <Plus size={12} />
                         </button>
                       </div>
                       <button
-                        onClick={() => removeItem(item.product.id)}
+                        onClick={() => void removeItem(item.productId)}
                         className="text-text-light hover:text-red-500 transition-colors cursor-pointer"
                       >
                         <Trash2 size={14} />
@@ -223,16 +233,22 @@ export function CartDrawer() {
             <div className="border-t border-border-light px-6 py-5 space-y-3 bg-cream/30 shrink-0">
               <div className="flex justify-between text-sm text-text-muted">
                 <span>Subtotal</span>
-                <span className="font-semibold text-charcoal">₹{summary.subtotal.toLocaleString("en-IN")}</span>
+                <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
               </div>
               <div className="flex justify-between text-sm text-text-muted">
-                <span>GST (18%)</span>
-                <span className="font-semibold text-charcoal">₹{summary.gst.toLocaleString("en-IN")}</span>
+                <span>GST ({quote.gstPercent}%)</span>
+                <span className="font-semibold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
               </div>
+              {packages.length > 0 && (
+                <div className="flex justify-between text-sm text-text-muted">
+                  <span>Event Packages ({packages.length})</span>
+                  <span className="font-semibold text-charcoal">₹{packagesSubtotalRupees.toLocaleString("en-IN")}</span>
+                </div>
+              )}
               <hr className="border-border-light" />
               <div className="flex justify-between text-base font-bold text-charcoal">
                 <span>Total</span>
-                <span className="font-display text-lg">₹{summary.total.toLocaleString("en-IN")}</span>
+                <span className="font-display text-lg">₹{Math.round(combinedTotalRupees).toLocaleString("en-IN")}</span>
               </div>
               <button
                 onClick={handleCheckout}

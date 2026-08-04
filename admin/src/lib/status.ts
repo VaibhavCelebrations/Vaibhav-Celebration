@@ -44,6 +44,12 @@ export const blogStatus = build({
   UNPUBLISHED: { label: "Unpublished", tone: "warning" },
 });
 
+export const stockStatus = build({
+  IN_STOCK: { label: "In Stock", tone: "success" },
+  LOW_STOCK: { label: "Low Stock", tone: "warning" },
+  OUT_OF_STOCK: { label: "Out of Stock", tone: "error" },
+});
+
 export const integrationStatus = build({
   LIVE: { label: "Live", tone: "success" },
   TEST_MODE: { label: "Test Mode", tone: "warning" },

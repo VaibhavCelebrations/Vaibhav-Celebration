@@ -17,6 +17,20 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
+  // --- Customer (storefront) auth — fully cookie-based, separate secret from admin ---
+  JWT_CUSTOMER_ACCESS_SECRET: z.string().min(32),
+  JWT_CUSTOMER_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  /** Sliding session window — extended on every successful refresh while active */
+  CUSTOMER_SESSION_SLIDING_DAYS: z.coerce.number().default(60),
+  /** Absolute re-auth ceiling from login, regardless of activity (defense-in-depth) */
+  CUSTOMER_SESSION_ABSOLUTE_DAYS: z.coerce.number().default(180),
+  /** Password reset link validity — enforced server-side even if JWT-less token */
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().default(10),
+  EMAIL_VERIFICATION_TOKEN_TTL_HOURS: z.coerce.number().default(48),
+  /** Used to build absolute links in transactional emails (reset/verify) */
+  FRONTEND_URL: z.string().default("http://localhost:3000"),
+  CUSTOMER_MAX_FAILED_LOGINS: z.coerce.number().default(5),
+  CUSTOMER_LOCKOUT_MINUTES: z.coerce.number().default(15),
   OTP_EXPIRES_MINUTES: z.coerce.number().default(10),
   OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
   GUEST_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(30),

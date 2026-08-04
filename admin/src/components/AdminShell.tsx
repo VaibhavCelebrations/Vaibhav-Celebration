@@ -7,6 +7,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import {
   Palette,
   Package,
+  ShoppingBag,
   Image as ImageIcon,
   PartyPopper,
   Newspaper,
@@ -56,6 +57,12 @@ const NAV: NavItem[] = [
     href: "/dashboard/cms/packages",
     label: "Packages",
     icon: Package,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/products",
+    label: "Products",
+    icon: ShoppingBag,
   },
   {
     section: "CMS",

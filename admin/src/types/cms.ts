@@ -339,6 +339,87 @@ export type PopupInput = Pick<
   "title" | "bodyText" | "ctaLabel" | "ctaUrl" | "placements" | "triggerAfterSeconds" | "linkedEventId" | "isActive" | "startsAt" | "endsAt"
 > & { imageId?: string | null };
 
+// ─── Products / Shop catalog ────────────────────────────────────────────────
+
+export type ProductCategoryRef = { id: string; name: string; slug: string };
+export type ProductThemeRef = { id: string; title: string; slug: string };
+
+export const PERSONALIZATION_FIELD_TYPES = ["text", "number", "shortText"] as const;
+export type PersonalizationFieldType = (typeof PERSONALIZATION_FIELD_TYPES)[number];
+
+export type ProductPersonalizationField = {
+  id?: string;
+  fieldKey: string;
+  label: string;
+  fieldType: PersonalizationFieldType;
+  isRequired: boolean;
+  maxLength: number | null;
+};
+
+export type ProductImage = { id: string; displayOrder: number; media: MediaRef };
+
+export const STOCK_STATUS_FLAGS = ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"] as const;
+export type StockStatusFlag = (typeof STOCK_STATUS_FLAGS)[number];
+
+export type ProductStock = {
+  quantityAvailable: number;
+  statusFlag: StockStatusFlag;
+  lowStockThreshold: number;
+} | null;
+
+export type Product = SoftDeletable &
+  Timestamped & {
+    id: string;
+    title: string;
+    slug: string;
+    sku: string;
+    description: string;
+    priceInPaise: Paise;
+    compareAtPriceInPaise: Paise | null;
+    isActive: boolean;
+    minOrderQuantity: number;
+    maxOrderQuantity: number | null;
+    images: ProductImage[];
+    categories: ProductCategoryRef[];
+    themes: ProductThemeRef[];
+    personalizationFields: ProductPersonalizationField[];
+    stock: ProductStock;
+  };
+
+export type ProductInput = Pick<
+  Product,
+  "title" | "slug" | "sku" | "description" | "priceInPaise" | "compareAtPriceInPaise" | "isActive" | "minOrderQuantity" | "maxOrderQuantity"
+> & {
+  categoryIds?: string[];
+  themeIds?: string[];
+  imageMediaIds?: string[];
+  personalizationFields?: Omit<ProductPersonalizationField, "id">[];
+  /** Create-only: seeds the inventory record. Ignored on update (use the stock adjust action instead). */
+  initialQuantity?: number;
+  lowStockThreshold?: number;
+};
+
+export type ProductCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  displayOrder: number;
+  isActive: boolean;
+};
+
+export type ProductCategoryInput = Pick<ProductCategory, "name" | "slug" | "displayOrder" | "isActive">;
+
+export const INVENTORY_LEDGER_REASONS = ["RESTOCK", "SALE", "MANUAL_ADJUSTMENT", "RETURN"] as const;
+export type InventoryLedgerReasonType = (typeof INVENTORY_LEDGER_REASONS)[number];
+
+export type InventoryLedgerEntry = {
+  id: string;
+  changeQuantity: number;
+  reason: InventoryLedgerReasonType;
+  note: string | null;
+  createdAt: ISODate;
+};
+
 // ─── Site metadata ──────────────────────────────────────────────────────────
 
 export type SiteMetadata = {

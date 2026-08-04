@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronDown, ShoppingCart, User, LogOut } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart, Gift } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
 import { useCart } from "@/context/cart-context";
@@ -128,7 +128,7 @@ export function Navbar() {
                   </button>
                 ) : (
                   <button
-                    onClick={openAuthModal}
+                    onClick={() => openAuthModal()}
                     className="relative w-10 h-10 rounded-full border border-border flex items-center justify-center text-charcoal hover:text-mocha hover:border-mocha transition-colors cursor-pointer"
                     aria-label="Login"
                   >
@@ -143,9 +143,18 @@ export function Navbar() {
                       <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
                       <p className="text-xs text-text-muted truncate">{user?.email}</p>
                     </div>
+                    <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                      <Package size={16} /> Order History
+                    </Link>
+                    <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                      <Heart size={16} /> Saved Products
+                    </Link>
+                    <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                      <Gift size={16} /> Gift Registry
+                    </Link>
                     <button
                       onClick={() => { logout(); setShowAccountMenu(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer border-t border-border-light mt-1"
                     >
                       <LogOut size={16} /> Sign Out
                     </button>
@@ -187,7 +196,7 @@ export function Navbar() {
                 </button>
               ) : (
                 <button
-                  onClick={openAuthModal}
+                  onClick={() => openAuthModal()}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal cursor-pointer"
                   aria-label="Login"
                 >
@@ -227,9 +236,18 @@ export function Navbar() {
             <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
             <p className="text-xs text-text-muted truncate">{user?.email}</p>
           </div>
+          <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+            <Package size={16} /> Order History
+          </Link>
+          <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+            <Heart size={16} /> Saved Products
+          </Link>
+          <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+            <Gift size={16} /> Gift Registry
+          </Link>
           <button
             onClick={() => { logout(); setShowAccountMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer border-t border-border-light mt-1"
           >
             <LogOut size={16} /> Sign Out
           </button>

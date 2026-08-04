@@ -19,6 +19,18 @@ export async function nextBookingCode(year = new Date().getFullYear()): Promise<
   return `BOOKING-${year}-${String(n).padStart(4, "0")}`;
 }
 
+export async function nextOrderCode(year = new Date().getFullYear()): Promise<string> {
+  const key = `ORDER-${year}`;
+  const n = await nextSequence(key);
+  return `VBC-OR-${year}-${String(n).padStart(6, "0")}`;
+}
+
+export async function nextRegistryCode(year = new Date().getFullYear()): Promise<string> {
+  const key = `REGISTRY-${year}`;
+  const n = await nextSequence(key);
+  return `VBC-GR-${year}-${String(n).padStart(5, "0")}`;
+}
+
 /** Indian FY style: INVOICE-2026-27-0001 */
 export async function nextInvoiceNumber(now = new Date()): Promise<string> {
   const year = now.getFullYear();
