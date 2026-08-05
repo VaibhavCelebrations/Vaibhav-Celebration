@@ -56,17 +56,24 @@ export default async function PackagesPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link
-                    href={`/build-package?package=${pkg.slug}`}
-                    className={`mt-8 text-sm font-semibold px-6 py-3.5 rounded-lg text-center ${pkg.isRecommended ? "btn-primary" : "btn-outline"}`}
-                  >
-                    Proceed to Checkout
-                  </Link>
+                  <div className="mt-8 flex flex-col gap-3">
+                    <Link
+                      href={`/build-package?package=${pkg.slug}`}
+                      className={`text-sm font-semibold px-6 py-3.5 rounded-lg text-center btn-primary`}
+                    >
+                      Customize Package
+                    </Link>
+                  </div>
                 </div>
               </ScrollReveal>
             ))}
           </div>
           <ScrollReveal>
+            <div className="flex flex-col items-center mt-16 mb-8">
+              <Link href="/contact" className="btn-primary text-base px-10 py-4 w-full sm:w-auto">
+                Book Consultation
+              </Link>
+            </div>
             <p className="text-center text-xs text-text-light mt-8">
               *Indicative pricing. Final quote confirmed during consultation based on your exact requirements.
             </p>

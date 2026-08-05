@@ -101,6 +101,14 @@ export async function createShopOrder(input: {
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;
+  eventDetails?: {
+    childName: string;
+    childAge: string;
+    eventDate: string;
+    venue: string;
+    guestCount: string;
+    notes: string;
+  };
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders", {
     method: "POST",

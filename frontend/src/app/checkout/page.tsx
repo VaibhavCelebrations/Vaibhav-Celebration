@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, Package, Truck, PartyPopper, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, Package, Truck, PartyPopper, Check, Loader2, CalendarHeart } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -20,8 +20,7 @@ import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
 
 const STEPS = [
-  { label: "Review Cart" },
-  { label: "Shipping & Payment" },
+  { label: "Checkout" },
   { label: "Confirmation" },
 ];
 
@@ -37,6 +36,16 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState<ShippingAddress>(EMPTY_ADDRESS);
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  
+  const [eventDetails, setEventDetails] = useState({
+    childName: "",
+    childAge: "",
+    eventDate: "",
+    venue: "",
+    guestCount: "",
+    notes: ""
+  });
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed">("idle");
@@ -47,9 +56,6 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (user) {
-      // Pre-fills the shipping form from the account profile once it loads;
-      // subsequent user edits are preserved via the `prev.x ||` fallback.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAddress((prev) => ({ ...prev, fullName: prev.fullName || user.name }));
       setContactEmail((prev) => prev || user.email);
       setContactPhone((prev) => prev || user.phone || "");
@@ -63,15 +69,7 @@ export default function CheckoutPage() {
   const hasItems = items.length > 0;
   const combinedTotalRupees = toRupees(quote.totalInPaise) + packagesSubtotalRupees;
 
-  const handleProceedFromCart = () => {
-    if (!isAuthenticated) {
-      openAuthModal(() => setCurrentStep(1));
-      return;
-    }
-    setCurrentStep(1);
-  };
-
-  const validateAddress = (): boolean => {
+  const validateCheckout = (): boolean => {
     const errors: Record<string, string> = {};
     if (!address.fullName.trim()) errors.fullName = "Full name is required";
     if (!address.line1.trim()) errors.line1 = "Address is required";
@@ -80,6 +78,12 @@ export default function CheckoutPage() {
     if (!/^\d{4,10}$/.test(address.pincode.trim())) errors.pincode = "Enter a valid PIN code";
     if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) errors.contactEmail = "Enter a valid email";
     if (contactPhone.trim().length < 6) errors.contactPhone = "Enter a valid phone number";
+    
+    if (packages.length > 0) {
+      if (!eventDetails.childName.trim()) errors.childName = "Birthday child name is required";
+      if (!eventDetails.eventDate.trim()) errors.eventDate = "Event date is required";
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -98,38 +102,49 @@ export default function CheckoutPage() {
           setPaymentStatus("idle");
           setIsPlacingOrder(false);
           await clearCart();
-          setCurrentStep(2);
+          setCurrentStep(1);
         } else if (attempts >= 20) {
           if (pollTimer.current) clearInterval(pollTimer.current);
           setPaymentStatus("idle");
           setIsPlacingOrder(false);
           push("Payment is taking longer than expected. We'll email you once it's confirmed.", "default");
           setConfirmedOrderCode(orderCode);
-          setCurrentStep(2);
+          setCurrentStep(1);
         }
       } catch {
-        // keep polling — transient network errors shouldn't abort confirmation
+        // keep polling
       }
     }, 2000);
   }
 
   const handlePlaceOrder = async () => {
-    if (!validateAddress()) return;
+    if (!isAuthenticated) {
+      openAuthModal();
+      return;
+    }
+
+    if (!validateCheckout()) {
+      push("Please fill in all required fields.", "error");
+      return;
+    }
 
     if (!hasItems) {
-      // Package-only cart: no real backend order exists yet for the venue/package
-      // booking flow (out of scope here) — record the request locally and let our
-      // team follow up, matching the site's existing consultation-style flow.
       setHadPackagesAtCheckout(packages.length > 0);
       setConfirmedOrderCode(null);
       await clearCart();
-      setCurrentStep(2);
+      setCurrentStep(1);
       return;
     }
 
     setIsPlacingOrder(true);
     try {
-      const order = await shopApi.createShopOrder({ shippingAddress: address, contactEmail: contactEmail.trim(), contactPhone: contactPhone.trim() });
+      const order = await shopApi.createShopOrder({ 
+        shippingAddress: address, 
+        contactEmail: contactEmail.trim(), 
+        contactPhone: contactPhone.trim(),
+        eventDetails
+      });
+      
       const sdkReady = await loadRazorpayScript();
       if (!sdkReady) {
         push("Could not load the payment gateway. Please check your connection and try again.", "error");
@@ -165,10 +180,6 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleBack = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  };
-
   const inputClass = "w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all";
   const errClass = "text-red-500 text-xs mt-1";
 
@@ -176,9 +187,8 @@ export default function CheckoutPage() {
     <>
       <Navbar />
       <main className="pt-28 md:pt-36 pb-16 md:pb-24 bg-cream min-h-screen">
-        <div className="max-w-5xl mx-auto px-5 md:px-10">
-          {/* Back */}
-          {currentStep < 2 && (
+        <div className="max-w-6xl mx-auto px-5 md:px-10">
+          {currentStep < 1 && (
             <Link
               href="/gifts"
               className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold tracking-wide uppercase transition-colors group mb-8"
@@ -187,19 +197,16 @@ export default function CheckoutPage() {
             </Link>
           )}
 
-          {/* Stepper */}
-          {currentStep < 2 && (
+          {currentStep < 1 && (
             <div className="mb-12 md:mb-16">
               <CheckoutStepper steps={STEPS} currentStep={currentStep} />
             </div>
           )}
 
-          {/* ═══ STEP 0: Review Cart ═══ */}
+          {/* ═══ STEP 0: Checkout ═══ */}
           {currentStep === 0 && (
             <div>
-              <h1 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-8">
-                Review Your Cart
-              </h1>
+              <h1 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-8">Checkout</h1>
 
               {items.length === 0 && packages.length === 0 ? (
                 <div className="text-center py-20">
@@ -212,69 +219,170 @@ export default function CheckoutPage() {
                 </div>
               ) : (
                 <div className="grid lg:grid-cols-3 gap-8">
-                  {/* Cart Items */}
-                  <div className="lg:col-span-2 space-y-4">
-                    {/* Render Packages */}
-                    {packages.map((pkg) => {
-                      const pkgData = packagesBySlug[pkg.packageId];
-                      const themeData = themesBySlug[pkg.themeSlug];
-                      if (!pkgData) return null;
-                      return (
-                        <div key={pkg.id} className="flex gap-4 p-4 bg-blush/30 rounded-2xl border border-mocha/30 shadow-soft">
-                          <div className="relative w-24 h-24 rounded-xl bg-mocha/10 flex items-center justify-center shrink-0">
-                            <Package size={40} className="text-mocha" />
-                          </div>
-                          <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <h4 className="font-semibold text-charcoal">{pkgData.title} Package</h4>
-                            {themeData && <p className="text-sm text-mocha mt-1">Theme: {themeData.title}</p>}
-                            <div className="flex items-center justify-between mt-3">
-                              <span className="font-bold text-charcoal">₹{pkg.basePrice.toLocaleString("en-IN")}</span>
-                              <button onClick={() => removePackage(pkg.id)} className="text-text-light hover:text-red-500 cursor-pointer"><Trash2 size={14} /></button>
+                  <div className="lg:col-span-2 space-y-8">
+                    
+                    {/* Cart Items */}
+                    <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
+                      <h3 className="font-display text-lg font-bold text-charcoal mb-4">Cart Items ({itemCount})</h3>
+                      <div className="space-y-4">
+                        {/* Packages */}
+                        {packages.map((pkg) => {
+                          const pkgData = packagesBySlug[pkg.packageId];
+                          const themeData = themesBySlug[pkg.themeSlug];
+                          if (!pkgData) return null;
+                          return (
+                            <div key={pkg.id} className="flex gap-4 p-4 bg-blush/30 rounded-2xl border border-mocha/30 shadow-soft">
+                              <div className="relative w-20 h-20 rounded-xl bg-mocha/10 flex items-center justify-center shrink-0">
+                                <Package size={32} className="text-mocha" />
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <h4 className="font-semibold text-charcoal text-sm">{pkgData.title} Package</h4>
+                                {themeData && <p className="text-xs text-mocha mt-1">Theme: {themeData.title}</p>}
+                                <div className="flex items-center justify-between mt-3">
+                                  <span className="font-bold text-charcoal text-sm">₹{pkg.basePrice.toLocaleString("en-IN")}</span>
+                                  <button onClick={() => removePackage(pkg.id)} className="text-text-light hover:text-red-500 cursor-pointer"><Trash2 size={14} /></button>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
 
-                    {/* Render Items */}
-                    {items.map((item) => (
-                      <div key={item.id} className="flex gap-4 p-4 bg-surface rounded-2xl border border-border-light shadow-soft">
-                        <div className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0">
-                          <Image src={item.image?.url ?? "/placeholder-product.svg"} alt={item.title} fill className="object-cover" sizes="96px" />
+                        {/* Standard Items */}
+                        {items.map((item) => (
+                          <div key={item.id} className="flex items-center gap-4 py-2 border-b border-border-light last:border-0">
+                            <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0">
+                              <Image src={item.image?.url ?? "/placeholder-product.svg"} alt={item.title} fill className="object-cover" sizes="64px" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-charcoal text-sm line-clamp-1">{item.title}</h4>
+                              {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
+                                <p className="text-[10px] text-mocha">
+                                  {(item.personalizationValues as Array<{ label: string; value: string }>).map((pv) => `${pv.label}: ${pv.value}`).join(", ")}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center gap-1 bg-cream rounded-lg border border-border-light h-8">
+                                  <button onClick={() => void updateQuantity(item.productId, item.quantity - 1)} className="w-8 h-full flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer"><Minus size={12} /></button>
+                                  <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
+                                  <button onClick={() => void updateQuantity(item.productId, item.quantity + 1)} className="w-8 h-full flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer" disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}><Plus size={12} /></button>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-charcoal text-sm">{formatPaise(item.unitPriceInPaise * item.quantity)}</span>
+                                  <button onClick={() => void removeItem(item.productId)} className="text-text-light hover:text-red-500 cursor-pointer"><Trash2 size={14} /></button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Event Details Form */}
+                    {packages.length > 0 && (
+                      <ScrollReveal>
+                        <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-mocha/10 flex items-center justify-center text-mocha">
+                              <CalendarHeart size={16} />
+                            </div>
+                            <h3 className="font-display text-lg font-bold text-charcoal">Event Details</h3>
+                          </div>
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Birthday Child's Name <span className="text-red-500">*</span></label>
+                              <input className={inputClass} value={eventDetails.childName} onChange={(e) => setEventDetails({ ...eventDetails, childName: e.target.value })} placeholder="E.g. Aryan" />
+                              {formErrors.childName && <p className={errClass}>{formErrors.childName}</p>}
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Child's Age (Turning)</label>
+                              <input className={inputClass} value={eventDetails.childAge} onChange={(e) => setEventDetails({ ...eventDetails, childAge: e.target.value })} placeholder="E.g. 5" type="number" min={1} />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Event Date <span className="text-red-500">*</span></label>
+                              <input className={inputClass} value={eventDetails.eventDate} onChange={(e) => setEventDetails({ ...eventDetails, eventDate: e.target.value })} type="date" />
+                              {formErrors.eventDate && <p className={errClass}>{formErrors.eventDate}</p>}
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Expected Guest Count</label>
+                              <input className={inputClass} value={eventDetails.guestCount} onChange={(e) => setEventDetails({ ...eventDetails, guestCount: e.target.value })} placeholder="E.g. 150" type="number" />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Venue Address</label>
+                              <input className={inputClass} value={eventDetails.venue} onChange={(e) => setEventDetails({ ...eventDetails, venue: e.target.value })} placeholder="Hotel or home address" />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="text-xs font-semibold text-charcoal mb-1 block">Additional Notes</label>
+                              <textarea className={`${inputClass} resize-none h-24`} value={eventDetails.notes} onChange={(e) => setEventDetails({ ...eventDetails, notes: e.target.value })} placeholder="Any specific requirements or preferences..." />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-charcoal line-clamp-1">{item.title}</h4>
-                          {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(item.personalizationValues as Array<{ fieldId: string; label: string; value: string }>).map((pv) => (
-                                <span key={pv.fieldId} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
-                                  {pv.label}: {pv.value}
-                                </span>
-                              ))}
-                            </div>
+                      </ScrollReveal>
+                    )}
+
+                    {/* Shipping Address Form */}
+                    <ScrollReveal>
+                      <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-display text-lg font-bold text-charcoal">Shipping Details</h3>
+                          {isAuthenticated && (
+                            <span className="text-xs bg-sage/20 text-sage-dark px-3 py-1 rounded-full font-semibold">Using account profile</span>
                           )}
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center gap-1 bg-cream rounded-lg border border-border-light">
-                              <button onClick={() => void updateQuantity(item.productId, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer"><Minus size={12} /></button>
-                              <span className="w-8 text-center text-sm font-bold">{item.quantity}</span>
-                              <button onClick={() => void updateQuantity(item.productId, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center text-charcoal hover:text-mocha cursor-pointer" disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}><Plus size={12} /></button>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <span className="font-bold text-charcoal">{formatPaise(item.unitPriceInPaise * item.quantity)}</span>
-                              <button onClick={() => void removeItem(item.productId)} className="text-text-light hover:text-red-500 cursor-pointer"><Trash2 size={14} /></button>
-                            </div>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Full Name <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} placeholder="Recipient's full name" />
+                            {formErrors.fullName && <p className={errClass}>{formErrors.fullName}</p>}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 1 <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.line1} onChange={(e) => setAddress({ ...address, line1: e.target.value })} placeholder="House no., street" />
+                            {formErrors.line1 && <p className={errClass}>{formErrors.line1}</p>}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 2 (optional)</label>
+                            <input className={inputClass} value={address.line2 ?? ""} onChange={(e) => setAddress({ ...address, line2: e.target.value })} placeholder="Landmark, apartment, etc." />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">City <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} />
+                            {formErrors.city && <p className={errClass}>{formErrors.city}</p>}
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">State <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} />
+                            {formErrors.state && <p className={errClass}>{formErrors.state}</p>}
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">PIN Code <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
+                            {formErrors.pincode && <p className={errClass}>{formErrors.pincode}</p>}
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Country <span className="text-red-500">*</span></label>
+                            <input className={inputClass} value={address.country} onChange={(e) => setAddress({ ...address, country: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Contact Email <span className="text-red-500">*</span></label>
+                            <input type="email" className={inputClass} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+                            {formErrors.contactEmail && <p className={errClass}>{formErrors.contactEmail}</p>}
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-charcoal mb-1 block">Contact Phone <span className="text-red-500">*</span></label>
+                            <input type="tel" className={inputClass} value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+                            {formErrors.contactPhone && <p className={errClass}>{formErrors.contactPhone}</p>}
                           </div>
                         </div>
                       </div>
-                    ))}
+                    </ScrollReveal>
                   </div>
 
-                  {/* Summary Sidebar */}
+                  {/* Payment Summary */}
                   <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft h-fit lg:sticky lg:top-28">
                     <h3 className="font-display text-xl font-bold text-charcoal mb-4">Order Summary</h3>
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between text-text-muted">
-                        <span>Subtotal ({itemCount} items)</span>
+                        <span>Subtotal</span>
                         <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
                       </div>
                       <div className="flex justify-between text-text-muted">
@@ -287,203 +395,51 @@ export default function CheckoutPage() {
                           <span className="font-semibold text-charcoal">₹{packagesSubtotalRupees.toLocaleString("en-IN")}</span>
                         </div>
                       )}
+                      <div className="flex justify-between text-text-muted">
+                        <span>Shipping</span>
+                        <span className="font-semibold text-green-600">FREE</span>
+                      </div>
                       <hr className="border-border-light" />
                       <div className="flex justify-between text-lg font-bold text-charcoal">
                         <span>Total</span>
                         <span className="font-display">₹{Math.round(combinedTotalRupees).toLocaleString("en-IN")}</span>
                       </div>
                     </div>
-                    <button onClick={handleProceedFromCart} disabled={items.length === 0 && packages.length === 0} className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-6">
-                      Continue <ArrowRight size={16} />
-                    </button>
+
+                    {!isAuthenticated ? (
+                      <div className="mt-6 space-y-3">
+                        <button onClick={() => openAuthModal()} className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider">
+                          Login to Checkout
+                        </button>
+                        <p className="text-xs text-text-muted text-center">You must be logged in to place an order</p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handlePlaceOrder}
+                        disabled={isPlacingOrder || paymentStatus === "confirming"}
+                        className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-6 cursor-pointer disabled:opacity-60"
+                      >
+                        {isPlacingOrder || paymentStatus === "confirming" ? (
+                          <><Loader2 size={16} className="animate-spin" /> {paymentStatus === "confirming" ? "Confirming Payment…" : "Processing…"}</>
+                        ) : hasItems ? (
+                          <>Pay Securely <ArrowRight size={16} /></>
+                        ) : (
+                          <>Confirm Booking Request <ArrowRight size={16} /></>
+                        )}
+                      </button>
+                    )}
+
+                    <p className="text-[10px] text-text-light text-center mt-3">
+                      By placing your order, you agree to our Terms & Conditions
+                    </p>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* ═══ STEP 1: Shipping & Payment ═══ */}
+          {/* ═══ STEP 1: Confirmation ═══ */}
           {currentStep === 1 && (
-            <div>
-              <h1 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-8">Shipping & Payment</h1>
-
-              <div className="grid lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Shipping Address Form */}
-                  <ScrollReveal>
-                    <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
-                      <h3 className="font-display text-lg font-bold text-charcoal mb-4">Shipping Details</h3>
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="sm:col-span-2">
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Full Name</label>
-                          <input className={inputClass} value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} placeholder="Recipient's full name" />
-                          {formErrors.fullName && <p className={errClass}>{formErrors.fullName}</p>}
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 1</label>
-                          <input className={inputClass} value={address.line1} onChange={(e) => setAddress({ ...address, line1: e.target.value })} placeholder="House no., street" />
-                          {formErrors.line1 && <p className={errClass}>{formErrors.line1}</p>}
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 2 (optional)</label>
-                          <input className={inputClass} value={address.line2 ?? ""} onChange={(e) => setAddress({ ...address, line2: e.target.value })} placeholder="Landmark, apartment, etc." />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">City</label>
-                          <input className={inputClass} value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} />
-                          {formErrors.city && <p className={errClass}>{formErrors.city}</p>}
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">State</label>
-                          <input className={inputClass} value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} />
-                          {formErrors.state && <p className={errClass}>{formErrors.state}</p>}
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">PIN Code</label>
-                          <input className={inputClass} value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
-                          {formErrors.pincode && <p className={errClass}>{formErrors.pincode}</p>}
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Country</label>
-                          <input className={inputClass} value={address.country} onChange={(e) => setAddress({ ...address, country: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Contact Email</label>
-                          <input type="email" className={inputClass} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-                          {formErrors.contactEmail && <p className={errClass}>{formErrors.contactEmail}</p>}
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-charcoal mb-1 block">Contact Phone</label>
-                          <input type="tel" className={inputClass} value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-                          {formErrors.contactPhone && <p className={errClass}>{formErrors.contactPhone}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  </ScrollReveal>
-
-                  {/* Cart Items */}
-                  <ScrollReveal delay={160}>
-                    <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
-                      <h3 className="font-display text-lg font-bold text-charcoal mb-4">Items ({itemCount})</h3>
-                      <div className="space-y-3">
-                        {/* Packages */}
-                        {packages.map((pkg) => {
-                          const pkgData = packagesBySlug[pkg.packageId];
-                          const themeData = themesBySlug[pkg.themeSlug];
-                          const addons = pkg.addons || [];
-                          const addonsTotal = addons.reduce((sum, item) => sum + toRupees(item.product.priceInPaise) * item.quantity, 0);
-                          const packageTotal = pkg.basePrice + addonsTotal;
-
-                          return (
-                            <div key={`summary-pkg-${pkg.id}`} className="py-3 border-b border-border-light last:border-0">
-                              <div className="flex items-start gap-3">
-                                <div className="relative w-12 h-12 rounded-lg bg-mocha/10 flex items-center justify-center shrink-0 mt-1">
-                                  <Package size={24} className="text-mocha" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-charcoal">{pkgData?.title} Package</p>
-                                  {themeData && <p className="text-[10px] text-mocha font-medium mt-0.5">Theme: {themeData.title}</p>}
-                                  {addons.length > 0 && (
-                                    <div className="mt-2 space-y-1">
-                                      {addons.map((addon) => (
-                                        <div key={addon.product.id} className="text-[11px] text-text-muted flex justify-between">
-                                          <span>{addon.quantity} × {addon.product.title}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <p className="text-sm font-bold text-charcoal">₹{packageTotal.toLocaleString("en-IN")}</p>
-                                  <p className="text-[10px] text-text-muted">Qty: 1 Unit</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {/* Standard Items */}
-                        {items.map((item) => (
-                          <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border-light last:border-0">
-                            <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
-                              <Image src={item.image?.url ?? "/placeholder-product.svg"} alt={item.title} fill className="object-cover" sizes="48px" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-charcoal line-clamp-1">{item.title}</p>
-                              {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
-                                <p className="text-[10px] text-mocha">
-                                  {(item.personalizationValues as Array<{ label: string; value: string }>).map((pv) => `${pv.label}: ${pv.value}`).join(", ")}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-sm font-bold text-charcoal">{formatPaise(item.unitPriceInPaise * item.quantity)}</p>
-                              <p className="text-[10px] text-text-muted">Qty: {item.quantity}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </ScrollReveal>
-                </div>
-
-                {/* Payment Summary */}
-                <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft h-fit lg:sticky lg:top-28">
-                  <h3 className="font-display text-xl font-bold text-charcoal mb-4">Payment Summary</h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between text-text-muted">
-                      <span>Subtotal</span>
-                      <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
-                    </div>
-                    <div className="flex justify-between text-text-muted">
-                      <span>GST ({quote.gstPercent}%)</span>
-                      <span className="font-semibold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
-                    </div>
-                    {packages.length > 0 && (
-                      <div className="flex justify-between text-text-muted">
-                        <span>Event Packages</span>
-                        <span className="font-semibold text-charcoal">₹{packagesSubtotalRupees.toLocaleString("en-IN")}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-text-muted">
-                      <span>Shipping</span>
-                      <span className="font-semibold text-green-600">FREE</span>
-                    </div>
-                    <hr className="border-border-light" />
-                    <div className="flex justify-between text-lg font-bold text-charcoal">
-                      <span>Total</span>
-                      <span className="font-display">₹{Math.round(combinedTotalRupees).toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handlePlaceOrder}
-                    disabled={isPlacingOrder || paymentStatus === "confirming"}
-                    className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-6 cursor-pointer disabled:opacity-60"
-                  >
-                    {isPlacingOrder || paymentStatus === "confirming" ? (
-                      <><Loader2 size={16} className="animate-spin" /> {paymentStatus === "confirming" ? "Confirming Payment…" : "Processing…"}</>
-                    ) : hasItems ? (
-                      <>Pay Securely <ArrowRight size={16} /></>
-                    ) : (
-                      <>Confirm Booking Request <ArrowRight size={16} /></>
-                    )}
-                  </button>
-
-                  <p className="text-[10px] text-text-light text-center mt-3">
-                    By placing your order, you agree to our Terms & Conditions
-                  </p>
-
-                  <button onClick={handleBack} disabled={isPlacingOrder} className="w-full text-center text-sm text-text-muted hover:text-mocha mt-4 cursor-pointer disabled:opacity-50">
-                    ← Back to Cart
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ STEP 2: Confirmation ═══ */}
-          {currentStep === 2 && (
             <div className="max-w-2xl mx-auto text-center">
               <ScrollReveal>
                 <div className="w-24 h-24 rounded-full bg-sage/20 border-8 border-white flex items-center justify-center mx-auto mb-6 shadow-soft">

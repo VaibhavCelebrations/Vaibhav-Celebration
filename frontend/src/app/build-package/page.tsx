@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, Check, Plus, Minus, ShoppingCart, Package, CheckCircle2, LogIn, Palette, Gift, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Plus, Minus, ShoppingCart, Package, CheckCircle2, LogIn, Palette, Gift, Loader2, X, Eye } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
@@ -99,6 +99,7 @@ function BuildPackageContent() {
   const [selectedAddons, setSelectedAddons] = useState<LocalAddon[]>([]);
   const [themeProducts, setThemeProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
 
   const packageData = pkgSlug ? packagesBySlug[pkgSlug] : undefined;
   const themeData = selectedTheme ? themesBySlug[selectedTheme] : undefined;
@@ -225,16 +226,26 @@ function BuildPackageContent() {
                 isSelected ? "border-mocha shadow-md scale-[1.02]" : "border-border-light hover:border-mocha/30"
               }`}
             >
-              <div className="relative aspect-square w-full">
-                <Image src={productImageUrl(product)} alt={product.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 33vw" />
-                <button
-                  onClick={() => handleToggleAddon(product)}
-                  className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm cursor-pointer ${
-                    isSelected ? "bg-mocha text-white" : "bg-white text-text-muted hover:text-mocha"
-                  }`}
-                >
-                  {isSelected ? <Check size={16} /> : <Plus size={16} />}
-                </button>
+              <div className="relative aspect-square w-full group overflow-hidden">
+                <Image src={productImageUrl(product)} alt={product.title} fill className="object-cover transition-transform duration-700 group-hover:scale-110" sizes="(max-width: 640px) 100vw, 33vw" />
+                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => setPreviewProduct(product)}
+                    className="w-10 h-10 rounded-full bg-white text-charcoal flex items-center justify-center hover:bg-mocha hover:text-white transition-colors cursor-pointer shadow-lg"
+                    title="Quick View"
+                  >
+                    <Eye size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleToggleAddon(product)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer shadow-lg ${
+                      isSelected ? "bg-mocha text-white" : "bg-white text-charcoal hover:bg-mocha hover:text-white"
+                    }`}
+                    title={isSelected ? "Remove" : "Add"}
+                  >
+                    {isSelected ? <Check size={18} /> : <Plus size={18} />}
+                  </button>
+                </div>
               </div>
               <div className="p-4 flex-1 flex flex-col">
                 <h4 className="font-bold text-charcoal line-clamp-1">{product.title}</h4>
@@ -495,6 +506,62 @@ function BuildPackageContent() {
       </main>
       <FooterClient />
       <WhatsAppFAB />
+      
+      {/* Quick View Modal */}
+      {previewProduct && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setPreviewProduct(null)}>
+          <div 
+            className="bg-surface rounded-3xl overflow-hidden max-w-4xl w-full flex flex-col md:flex-row max-h-[90vh] shadow-2xl relative animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setPreviewProduct(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-charcoal flex items-center justify-center z-10 shadow-sm cursor-pointer transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <div className="md:w-1/2 relative aspect-square md:aspect-auto md:h-auto shrink-0 bg-cream">
+              <Image src={productImageUrl(previewProduct)} alt={previewProduct.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+            </div>
+            <div className="md:w-1/2 p-8 md:p-10 overflow-y-auto flex flex-col hide-scrollbar">
+              <h2 className="font-display text-3xl font-bold text-charcoal mb-2">{previewProduct.title}</h2>
+              <p className="text-xl font-bold text-mocha mb-6">{formatPaise(previewProduct.priceInPaise)}</p>
+              
+              <div className="prose prose-sm text-text-muted mb-8">
+                <p>{previewProduct.description}</p>
+                {previewProduct.categories?.some((c) => c.id === "gift") && (
+                  <p className="mt-4 text-xs bg-blush/30 px-3 py-2 rounded-lg text-charcoal border border-border-light inline-block">
+                    🎁 Perfect for gifting! Add a personalized message during checkout.
+                  </p>
+                )}
+              </div>
+              
+              <div className="mt-auto pt-6 border-t border-border-light">
+                {selectedAddons.some((a) => a.product.id === previewProduct.id) ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 bg-cream rounded-xl border border-border-light p-1">
+                      <button onClick={() => handleUpdateQuantity(previewProduct.id, -1)} className="w-10 h-10 flex items-center justify-center text-charcoal hover:text-mocha hover:bg-white rounded-lg transition-colors cursor-pointer">
+                        <Minus size={16} />
+                      </button>
+                      <span className="w-8 text-center font-bold">{selectedAddons.find((a) => a.product.id === previewProduct.id)?.quantity || 1}</span>
+                      <button onClick={() => handleUpdateQuantity(previewProduct.id, 1)} className="w-10 h-10 flex items-center justify-center text-charcoal hover:text-mocha hover:bg-white rounded-lg transition-colors cursor-pointer">
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    <button onClick={() => handleToggleAddon(previewProduct)} className="btn-outline px-6 py-3 text-sm">
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => handleToggleAddon(previewProduct)} className="btn-primary w-full py-4 text-sm gap-2">
+                    <Plus size={18} /> Add to Package
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

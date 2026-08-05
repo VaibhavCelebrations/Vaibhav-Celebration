@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "127.0.0.1", port: "4000", pathname: "/uploads/**" },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: "http://localhost:4000/api/v1/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
