@@ -27,6 +27,7 @@ import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./mo
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
 import { pricingRouter } from "./modules/pricing/pricing.routes";
+import { builderRouter } from "./modules/builder/builder.routes";
 import { galleryRouter, adminGalleryRouter } from "./modules/gallery/gallery.routes";
 import { contentRouter, adminContentRouter } from "./modules/content/content.routes";
 import { blogRouter, adminBlogRouter } from "./modules/blog/blog.routes";
@@ -290,6 +291,7 @@ export function createApp() {
   api.use("/product-categories", publicLimiter, productCategoriesRouter);
   api.use("/packages", publicLimiter, packagesRouter);
   api.use("/pricing", publicLimiter, pricingRouter);
+  api.use("/builder", publicLimiter, builderRouter);
   api.use("/gallery", publicLimiter, galleryRouter);
   api.use(contentRouter); // no extra limiter — served via static-ish reads
   api.use("/pages", publicLimiter, pagesRouter);

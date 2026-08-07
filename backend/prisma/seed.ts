@@ -303,10 +303,10 @@ async function main() {
   const eventBannerMedia = gallerySetup;
   const sampleInviteMedia = spaceMedia;
 
-  // ── Packages (Standard / Premium / Lux) ─────────────────────────────────────
+  // ── Packages (Standard / Premium / Luxe) ─────────────────────────────────────
   const standardPkg = await prisma.package.create({
     data: {
-      title: "Standard",
+      title: "Thoughtful Essentials",
       slug: "standard",
       priceInPaise: 4990000,
       tierRank: 1,
@@ -314,13 +314,13 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 1,
-      description: "Perfect for intimate celebrations with essential décor and coordination.",
+      description: "Thoughtful essentials for a coordinated celebration — static invite, one activity, return gift, and basic personalization.",
     },
   });
 
   const premiumPkg = await prisma.package.create({
     data: {
-      title: "Premium",
+      title: "Complete Celebration Experience",
       slug: "premium",
       priceInPaise: 7990000,
       tierRank: 2,
@@ -328,21 +328,21 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 2,
-      description: "Most loved for memorable celebrations with themed décor and personalized touches.",
+      description: "Complete celebration experience with video invite, welcome item, two activities, countdown cards, and gift registry.",
     },
   });
 
   const luxPkg = await prisma.package.create({
     data: {
-      title: "Lux",
-      slug: "lux",
+      title: "The Signature Celebration Experience",
+      slug: "luxe",
       priceInPaise: 11990000,
       tierRank: 3,
       isRecommended: false,
       isActive: true,
       isCustomizable: true,
       displayOrder: 3,
-      description: "Grand, unforgettable experiences with premium décor, activities, and full support.",
+      description: "Signature celebration with keepsake PDF, family activity, custom gift bags, and priority consultation.",
     },
   });
 

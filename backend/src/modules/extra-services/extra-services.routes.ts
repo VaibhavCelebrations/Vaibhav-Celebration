@@ -21,11 +21,35 @@ const roles = [
 const id = z.object({ id: z.string().min(1) });
 const schema = z.object({
   label: z.string().min(1),
+  slug: z.string().min(1).optional().nullable(),
   description: z.string().optional().nullable(),
   requirements: z.string().optional().nullable(),
   customizationPriceInPaise: z.number().int().min(0).optional(),
   displayOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  category: z
+    .enum([
+      "DIGITAL",
+      "KEEPSAKE",
+      "CHILDREN_ACTIVITY",
+      "WELCOME_ITEM",
+      "FAMILY_ACTIVITY",
+      "RETURN_GIFT",
+      "PACKAGING",
+      "THANK_YOU_TAG",
+      "CONSULTATION",
+      "GIFT_REGISTRY",
+      "PERSONALIZATION",
+      "DECOR",
+    ])
+    .optional()
+    .nullable(),
+  pricingMode: z
+    .enum(["FIXED", "PER_CHILD", "PER_CARD", "PER_GROUP", "PER_CHILD_CHOOSABLE"])
+    .optional()
+    .nullable(),
+  locationScope: z.enum(["ALL", "JAIPUR_ONLY", "OUTSIDE_JAIPUR"]).optional(),
+  choiceCount: z.number().int().min(1).optional().nullable(),
 });
 
 async function audit(req: AuthenticatedRequest, action: string, entityId: string) {

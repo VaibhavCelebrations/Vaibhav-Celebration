@@ -230,17 +230,56 @@ model ThemePackage {
   @@unique([themeId, packageId])
 }
 
+enum ExtraServiceCategory {
+  DIGITAL
+  KEEPSAKE
+  CHILDREN_ACTIVITY
+  WELCOME_ITEM
+  FAMILY_ACTIVITY
+  RETURN_GIFT
+  PACKAGING
+  THANK_YOU_TAG
+  CONSULTATION
+  GIFT_REGISTRY
+  PERSONALIZATION
+  DECOR
+}
+
+enum PricingMode {
+  FIXED
+  PER_CHILD
+  PER_CARD
+  PER_GROUP
+  PER_CHILD_CHOOSABLE
+}
+
+enum LocationScope {
+  ALL
+  JAIPUR_ONLY
+  OUTSIDE_JAIPUR
+}
+
 /// Global catalog of extra services / options (Fiverr-style package rows).
 model ExtraService {
-  id                        String               @id @default(cuid())
+  id                        String                @id @default(cuid())
+  /// Stable unique key used for additive upserts (e.g. "digital-invite-std")
+  slug                      String?               @unique
   label                     String
-  description               String?              @db.Text
-  requirements              String?              @db.Text
-  customizationPriceInPaise Int                  @default(0)
-  displayOrder              Int                  @default(0)
-  isActive                  Boolean              @default(true)
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
+  description               String?               @db.Text
+  requirements              String?               @db.Text
+  customizationPriceInPaise Int                   @default(0)
+  displayOrder              Int                   @default(0)
+  isActive                  Boolean               @default(true)
+  /// Semantic category — drives builder UI grouping
+  category                  ExtraServiceCategory?
+  /// How this service is priced in the builder
+  pricingMode               PricingMode?
+  /// Whether this service applies everywhere or only in Jaipur / outside
+  locationScope             LocationScope         @default(ALL)
+  /// For choosable services: how many products the user must pick (e.g. 1 or 2)
+  choiceCount               Int?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
   deletedAt                 DateTime?
   packageItems              PackageServiceItem[]
 

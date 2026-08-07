@@ -106,6 +106,13 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
     features: pkg.serviceItems
       .slice()
       .sort((a, b) => a.displayOrder - b.displayOrder)
+      .filter((item) => {
+        // Packages page: show included non-decor services; hide orphans without slug (old seed)
+        if (!item.isIncluded) return false;
+        const cat = item.extraService.category;
+        if (cat === "DECOR") return false;
+        return true;
+      })
       .map((item) => ({
         label: item.extraService.label,
         included: item.isIncluded,

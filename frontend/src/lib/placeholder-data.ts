@@ -307,13 +307,13 @@ export const placeholderPackages: PlaceholderPackage[] = [
   },
   {
     id: "pkg-3",
-    title: "LUX",
-    slug: "lux",
-    priceLabel: "₹ XX,XXX",
-    basePrice: 40000,
+    title: "The Signature Celebration Experience",
+    slug: "luxe",
+    priceLabel: "₹1,19,900",
+    basePrice: 119900,
     tierRank: 3,
     isRecommended: false,
-    description: "For grand & unforgettable experiences",
+    description: "Signature celebration with keepsake PDF, family activity, and priority consultation",
     features: [
       { label: "Premium Decorations", included: true },
       { label: "Custom Theme Design", included: true },

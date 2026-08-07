@@ -182,8 +182,14 @@ export type ApiPackageServiceItem = {
   displayOrder: number;
   extraService: {
     id: string;
+    slug: string | null;
     label: string;
     description: string | null;
+    category: string | null;
+    pricingMode: string | null;
+    locationScope: string | null;
+    choiceCount: number | null;
+    customizationPriceInPaise?: number;
   };
 };
 

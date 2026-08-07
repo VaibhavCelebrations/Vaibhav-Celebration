@@ -6,10 +6,15 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "../../db/prisma";
-import { ConflictError, NotFoundError } from "../../lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "../../lib/errors";
 import { nextBookingCode } from "../../lib/sequences";
 import { createRazorpayOrder, getRazorpayPublicKey } from "../../integrations/razorpay/client";
 import { computeQuote, type QuoteOptionInput } from "../pricing/pricing.service";
+import {
+  computeBuilderQuote,
+  type BuilderLocation,
+  type BuilderSelections,
+} from "../builder/builder.service";
 import {
   countActiveBookings,
   resolveCapacity,
@@ -19,13 +24,21 @@ import { toDateOnly } from "../../lib/validators";
 import { bookingConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
 
 export type CreateBookingInput = {
-  themeId: string;
-  packageId: string;
+  themeId?: string;
+  packageId?: string;
   eventDate: string;
   selectedOptions?: QuoteOptionInput[];
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  /** New builder path — when present, server recomputes quote from builder state */
+  builder?: {
+    packageSlug: "standard" | "premium" | "luxe";
+    themeSlug: string;
+    guestCount: number;
+    location: BuilderLocation;
+    selections: BuilderSelections;
+  };
 };
 
 async function findOrCreateCustomer(input: {
@@ -60,11 +73,64 @@ async function findOrCreateCustomer(input: {
 
 export async function createBooking(input: CreateBookingInput) {
   const eventDate = toDateOnly(input.eventDate);
-  const quote = await computeQuote({
-    packageId: input.packageId,
-    themeId: input.themeId,
-    selectedOptions: input.selectedOptions,
-  });
+
+  let themeId: string;
+  let packageId: string;
+  let basePriceInPaise: number;
+  let customizationTotalInPaise: number;
+  let gstInPaise: number;
+  let totalInPaise: number;
+  let themeTitle: string | null;
+  let packageTitle: string;
+  let customizationCreates: Array<{
+    packageServiceItemId: string;
+    quantity: number;
+    unitPriceInPaise: number;
+  }> = [];
+  let quotePayload: unknown;
+
+  if (input.builder) {
+    const bq = await computeBuilderQuote(input.builder);
+    themeId = bq.themeId;
+    packageId = bq.packageId;
+    basePriceInPaise = bq.basePriceInPaise;
+    customizationTotalInPaise = bq.customizationTotalInPaise;
+    gstInPaise = bq.gstInPaise;
+    totalInPaise = bq.totalInPaise;
+    themeTitle = bq.themeTitle;
+    packageTitle = bq.packageTitle;
+    quotePayload = bq;
+    customizationCreates = bq.lineItems
+      .filter((l) => l.packageServiceItemId)
+      .map((l) => ({
+        packageServiceItemId: l.packageServiceItemId!,
+        quantity: l.quantity,
+        unitPriceInPaise: l.unitPriceInPaise,
+      }));
+  } else {
+    if (!input.packageId || !input.themeId) {
+      throw new ValidationError("packageId and themeId are required without builder state");
+    }
+    const quote = await computeQuote({
+      packageId: input.packageId,
+      themeId: input.themeId,
+      selectedOptions: input.selectedOptions,
+    });
+    themeId = input.themeId;
+    packageId = input.packageId;
+    basePriceInPaise = quote.basePriceInPaise;
+    customizationTotalInPaise = quote.customizationTotalInPaise;
+    gstInPaise = quote.gstInPaise;
+    totalInPaise = quote.totalInPaise;
+    themeTitle = quote.themeTitle;
+    packageTitle = quote.packageTitle;
+    quotePayload = quote;
+    customizationCreates = quote.options.map((o) => ({
+      packageServiceItemId: o.optionId,
+      quantity: o.quantity,
+      unitPriceInPaise: o.unitPriceInPaise,
+    }));
+  }
 
   const booking = await withDateAdvisoryLock(eventDate, async (tx) => {
     const { max, isBlocked } = await resolveCapacity(eventDate);
@@ -82,6 +148,10 @@ export async function createBooking(input: CreateBookingInput) {
       phone: input.guestPhone,
     });
 
+    const guestNote = input.builder
+      ? ` | guests=${input.builder.guestCount} loc=${input.builder.location}`
+      : "";
+
     await prisma.lead.create({
       data: {
         customerId: customer.id,
@@ -91,7 +161,7 @@ export async function createBooking(input: CreateBookingInput) {
         source: LeadSource.OTHER,
         status: LeadStatus.QUALIFIED,
         interestArea: "BOOKING",
-        message: `Booking started for ${quote.themeTitle} / ${quote.packageTitle}`,
+        message: `Booking started for ${themeTitle} / ${packageTitle}${guestNote}`,
       },
     });
 
@@ -100,23 +170,19 @@ export async function createBooking(input: CreateBookingInput) {
       data: {
         bookingCode,
         customerId: customer.id,
-        themeId: input.themeId,
-        packageId: input.packageId,
+        themeId,
+        packageId,
         eventDate,
         status: BookingStatus.SCHEDULED,
         paymentStatus: PaymentStatus.PENDING,
-        basePriceInPaise: quote.basePriceInPaise,
-        customizationTotalInPaise: quote.customizationTotalInPaise,
-        gstInPaise: quote.gstInPaise,
-        totalPriceInPaise: quote.totalInPaise,
+        basePriceInPaise,
+        customizationTotalInPaise,
+        gstInPaise,
+        totalPriceInPaise: totalInPaise,
         guestEmail: input.guestEmail.toLowerCase(),
         guestPhone: input.guestPhone,
         customizations: {
-          create: quote.options.map((o) => ({
-            packageServiceItemId: o.optionId,
-            quantity: o.quantity,
-            unitPriceInPaise: o.unitPriceInPaise,
-          })),
+          create: customizationCreates,
         },
       },
       include: {
@@ -154,7 +220,7 @@ export async function createBooking(input: CreateBookingInput) {
     amountInPaise: updated.totalPriceInPaise,
     currency: "INR",
     booking: updated,
-    quote,
+    quote: quotePayload,
   };
 }
 
