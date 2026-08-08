@@ -3,7 +3,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
-import { FavoriteButton } from "@/components/ecom/FavoriteButton";
 import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
@@ -60,8 +59,6 @@ export default async function ThemesPage() {
                       {/* Intense Black Gradient that fades in on hover */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                     </div>
-
-                    <FavoriteButton />
 
                     {/* Content Box Layer */}
                     <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-white group-hover:!bg-transparent transition-colors duration-500 z-10 p-5 md:p-6 flex flex-col justify-between">

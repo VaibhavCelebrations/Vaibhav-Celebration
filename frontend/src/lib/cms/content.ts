@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api-client";
-import type { ApiFaq, ApiTestimonial } from "./types";
+import type { ApiFaq, ApiTestimonial, Popup } from "./types";
 import { mapTestimonialCard } from "./map-media";
 import { CMS_TAGS, cmsFetchOptions } from "./tags";
 
@@ -18,6 +18,10 @@ export async function listTestimonials(filters?: { themeId?: string; packageId?:
 export async function listFaqs(category?: string) {
   const qs = category ? `?category=${encodeURIComponent(category)}` : "";
   return apiFetch<ApiFaq[]>(`/faqs${qs}`, cmsFetchOptions(CMS_TAGS.faqs));
+}
+
+export async function listActivePopups(placement: string) {
+  return apiFetch<Popup[]>(`/popups/active?placement=${encodeURIComponent(placement)}`);
 }
 
 export { mapTestimonialCard };

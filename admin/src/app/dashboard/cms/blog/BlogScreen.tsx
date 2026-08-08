@@ -9,9 +9,9 @@ import { useRepoList } from "@/lib/use-repo-list";
 import { formatDate } from "@/lib/format";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
-import { HtmlEditor } from "@/components/ui/HtmlEditor";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -317,35 +317,29 @@ export function BlogScreen() {
           description: "Create the first post to get started.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Post" : "New Post"}
+        description="Write and publish your blog article. Content is saved as formatted HTML."
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
         dirty={dirty}
-        width="lg"
+        size="xl"
       >
-        <FormField label="Title" htmlFor="blog-title" required>
-          <TextInput id="blog-title" value={form.title} onChange={(e) => patch({ title: e.target.value })} required />
-        </FormField>
-        <FormField label="Slug" htmlFor="blog-slug" required>
-          <SlugInput id="blog-slug" value={form.slug} onChange={(v) => patch({ slug: v })} source={form.title} />
-        </FormField>
-        <FormField label="Featured image" htmlFor="blog-featured">
-          <MediaPicker kind="blog" value={featuredImage} onChange={setFeaturedImage} />
-        </FormField>
-        <FormField label="Excerpt" htmlFor="blog-excerpt">
-          <TextArea id="blog-excerpt" value={form.excerpt} onChange={(e) => patch({ excerpt: e.target.value })} />
-        </FormField>
-        <FormField label="Content" htmlFor="blog-content" required>
-          <HtmlEditor id="blog-content" value={form.contentHtml} onChange={(html) => patch({ contentHtml: html })} />
-        </FormField>
-        <FormField label="Author" htmlFor="blog-author">
-          <TextInput id="blog-author" value={form.authorName} onChange={(e) => patch({ authorName: e.target.value })} />
-        </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Title" htmlFor="blog-title" required>
+            <TextInput id="blog-title" value={form.title} onChange={(e) => patch({ title: e.target.value })} required />
+          </FormField>
+          <FormField label="Slug" htmlFor="blog-slug" required>
+            <SlugInput id="blog-slug" value={form.slug} onChange={(v) => patch({ slug: v })} source={form.title} />
+          </FormField>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Author" htmlFor="blog-author">
+            <TextInput id="blog-author" value={form.authorName} onChange={(e) => patch({ authorName: e.target.value })} />
+          </FormField>
           <FormField label="Status" htmlFor="blog-status">
             <SelectInput
               id="blog-status"
@@ -353,6 +347,11 @@ export function BlogScreen() {
               onChange={(e) => patch({ status: e.target.value as BlogStatus })}
               options={statusOptions}
             />
+          </FormField>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Featured image" htmlFor="blog-featured">
+            <MediaPicker kind="blog" value={featuredImage} onChange={setFeaturedImage} />
           </FormField>
           <FormField label="Published at" htmlFor="blog-published">
             <DateTimeInput
@@ -362,46 +361,57 @@ export function BlogScreen() {
             />
           </FormField>
         </div>
-        <div className="flex items-center justify-between rounded-(--radius-md) border border-(--color-border-soft) px-4 py-3">
+        <FormField label="Excerpt" htmlFor="blog-excerpt" hint="Short summary shown on listing cards.">
+          <TextArea id="blog-excerpt" value={form.excerpt} onChange={(e) => patch({ excerpt: e.target.value })} rows={2} />
+        </FormField>
+        <FormField label="Content" htmlFor="blog-content" required hint="What you see is what appears on the blog page. Use the toolbar to format and insert images.">
+          <RichTextEditor
+            id="blog-content"
+            value={form.contentHtml}
+            onChange={(html) => patch({ contentHtml: html })}
+            placeholder="Start writing your article…"
+            minHeight={320}
+            mediaKind="blog"
+          />
+        </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Categories" htmlFor="blog-categories">
+            <MultiSelectInput
+              id="blog-categories"
+              value={form.categoryIds}
+              onChange={(categoryIds) => patch({ categoryIds })}
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              allowCreate
+              placeholder="Select or create categories…"
+            />
+          </FormField>
+          <FormField label="Tags" htmlFor="blog-tags">
+            <MultiSelectInput
+              id="blog-tags"
+              value={form.tagIds}
+              onChange={(tagIds) => patch({ tagIds })}
+              options={tags.map((t) => ({ value: t.id, label: t.name }))}
+              allowCreate
+              placeholder="Select or create tags…"
+            />
+          </FormField>
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border-soft px-4 py-3">
           <div>
             <p className="text-sm font-medium text-(--color-charcoal)">Featured on blog page</p>
-            <p className="text-xs text-(--color-text-muted)">
-              Only one post can be featured. It appears in the hero section on /blog.
-            </p>
+            <p className="text-xs text-(--color-text-muted)">Appears in the hero section on /blog.</p>
           </div>
-          <ToggleSwitch
-            id="blog-is-featured"
-            checked={form.isFeatured}
-            onChange={(isFeatured) => patch({ isFeatured })}
-          />
+          <ToggleSwitch id="blog-is-featured" checked={form.isFeatured} onChange={(isFeatured) => patch({ isFeatured })} />
         </div>
-        <FormField label="Categories" htmlFor="blog-categories">
-          <MultiSelectInput
-            id="blog-categories"
-            value={form.categoryIds}
-            onChange={(categoryIds) => patch({ categoryIds })}
-            options={categories.map((c) => ({ value: c.id, label: c.name }))}
-            allowCreate
-            placeholder="Select or create categories…"
-          />
-        </FormField>
-        <FormField label="Tags" htmlFor="blog-tags">
-          <MultiSelectInput
-            id="blog-tags"
-            value={form.tagIds}
-            onChange={(tagIds) => patch({ tagIds })}
-            options={tags.map((t) => ({ value: t.id, label: t.name }))}
-            allowCreate
-            placeholder="Select or create tags…"
-          />
-        </FormField>
-        <FormField label="SEO title" htmlFor="blog-seo-title">
-          <TextInput id="blog-seo-title" value={form.seoTitle} onChange={(e) => patch({ seoTitle: e.target.value })} />
-        </FormField>
-        <FormField label="SEO description" htmlFor="blog-seo-desc">
-          <TextArea id="blog-seo-desc" value={form.seoDescription} onChange={(e) => patch({ seoDescription: e.target.value })} />
-        </FormField>
-      </AdminDrawerForm>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="SEO title" htmlFor="blog-seo-title">
+            <TextInput id="blog-seo-title" value={form.seoTitle} onChange={(e) => patch({ seoTitle: e.target.value })} />
+          </FormField>
+          <FormField label="SEO description" htmlFor="blog-seo-desc">
+            <TextArea id="blog-seo-desc" value={form.seoDescription} onChange={(e) => patch({ seoDescription: e.target.value })} rows={2} />
+          </FormField>
+        </div>
+      </AdminModalForm>
       <AdminConfirmDialog
         open={!!archiveTarget}
         title="Archive this post?"

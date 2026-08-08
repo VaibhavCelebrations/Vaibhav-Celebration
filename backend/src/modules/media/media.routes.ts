@@ -14,6 +14,7 @@ import {
   deleteObjectByKey,
   getMediaHealth,
   isR2Enabled,
+  MEDIA_CATEGORIES,
   publicUrlForKey,
   storeMediaBuffer,
   type MediaPrefixKind,
@@ -38,6 +39,7 @@ const prefixKindSchema = z.enum([
   "invoices",
   "users",
   "media",
+  "products",
 ]);
 
 export const mediaRouter = Router();
@@ -47,6 +49,31 @@ mediaRouter.get("/health", (_req, res) => {
   return ok(res, getMediaHealth());
 });
 
+/** GET /admin/media/categories — per-category asset counts for sidebar badges */
+mediaRouter.get("/categories", async (_req, res, next) => {
+  try {
+    const rows = await prisma.mediaAsset.groupBy({
+      by: ["category"],
+      where: { deletedAt: null },
+      _count: { id: true },
+    });
+
+    // Seed zeros for all known categories, then fill from DB
+    const counts: Record<string, number> = {};
+    for (const cat of MEDIA_CATEGORIES) counts[cat] = 0;
+    let total = 0;
+    for (const row of rows) {
+      const cat = row.category ?? "media";
+      counts[cat] = (counts[cat] ?? 0) + row._count.id;
+      total += row._count.id;
+    }
+    return ok(res, { counts, total });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+/** GET /admin/media — paginated list with optional category/folder/search/type filters */
 mediaRouter.get(
   "/",
   validate(
@@ -56,6 +83,8 @@ mediaRouter.get(
       search: z.string().optional(),
       prefix: z.string().optional(),
       type: z.string().optional(),
+      category: z.string().optional(),
+      folder: z.string().optional(),
     }),
     "query",
   ),
@@ -67,23 +96,46 @@ mediaRouter.get(
         search?: string;
         prefix?: string;
         type?: string;
+        category?: string;
+        folder?: string;
       };
       const { page, pageSize, skip, take } = parsePagination(q);
       const where = {
         deletedAt: null as null,
         ...(q.prefix ? { cdnKey: { startsWith: q.prefix } } : {}),
         ...(q.type ? { type: { startsWith: q.type } } : {}),
+        ...(q.category ? { category: q.category } : {}),
+        ...(q.folder ? { folder: q.folder } : {}),
         ...(q.search
           ? {
               OR: [
                 { altText: { contains: q.search, mode: "insensitive" as const } },
                 { cdnKey: { contains: q.search, mode: "insensitive" as const } },
+                { folder: { contains: q.search, mode: "insensitive" as const } },
               ],
             }
           : {}),
       };
       const [items, total] = await prisma.$transaction([
-        prisma.mediaAsset.findMany({ where, skip, take, orderBy: { createdAt: "desc" } }),
+        prisma.mediaAsset.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            url: true,
+            cdnKey: true,
+            type: true,
+            altText: true,
+            category: true,
+            folder: true,
+            width: true,
+            height: true,
+            sizeBytes: true,
+            createdAt: true,
+          },
+        }),
         prisma.mediaAsset.count({ where }),
       ]);
       return ok(res, { items, total, page, pageSize }, { pagination: paginationMeta(page, pageSize, total) });
@@ -104,6 +156,8 @@ mediaRouter.post(
       fileName: z.string().min(1),
       contentType: z.string().min(1),
       altText: z.string().optional().nullable(),
+      category: prefixKindSchema.optional(),
+      folder: z.string().max(120).optional().nullable(),
     }),
   ),
   async (req, res, next) => {
@@ -115,13 +169,19 @@ mediaRouter.post(
         fileName: string;
         contentType: string;
         altText?: string | null;
+        category?: MediaPrefixKind;
+        folder?: string | null;
       };
-      if (!body.contentType.startsWith("image/") && !body.contentType.startsWith("video/") && body.contentType !== "application/pdf") {
+      if (
+        !body.contentType.startsWith("image/") &&
+        !body.contentType.startsWith("video/") &&
+        body.contentType !== "application/pdf"
+      ) {
         throw new ValidationError("Only images, video, and PDF are allowed");
       }
       const presign = await createPresignedUpload({
         kind: body.kind,
-        scope: body.scope,
+        scope: body.scope ?? body.folder ?? undefined,
         role: body.role,
         originalName: body.fileName,
         mimeType: body.contentType,
@@ -145,6 +205,8 @@ mediaRouter.post(
       cdnKey: z.string().min(1),
       contentType: z.string().min(1),
       altText: z.string().optional().nullable(),
+      category: prefixKindSchema.optional(),
+      folder: z.string().max(120).optional().nullable(),
       width: z.number().int().positive().optional().nullable(),
       height: z.number().int().positive().optional().nullable(),
       sizeBytes: z.number().int().nonnegative().optional().nullable(),
@@ -157,17 +219,23 @@ mediaRouter.post(
         cdnKey: string;
         contentType: string;
         altText?: string | null;
+        category?: MediaPrefixKind;
+        folder?: string | null;
         width?: number | null;
         height?: number | null;
         sizeBytes?: number | null;
         url?: string;
       };
+      // Infer category from cdnKey prefix if not explicitly provided
+      const inferredCategory = (body.category ?? body.cdnKey.split("/")[0]) as MediaPrefixKind | undefined;
       const item = await prisma.mediaAsset.create({
         data: {
           cdnKey: body.cdnKey,
           url: body.url ?? publicUrlForKey(body.cdnKey),
           type: body.contentType,
           altText: body.altText,
+          category: inferredCategory,
+          folder: body.folder,
           width: body.width ?? undefined,
           height: body.height ?? undefined,
           sizeBytes: body.sizeBytes ?? undefined,
@@ -194,6 +262,8 @@ mediaRouter.post("/upload", upload.single("file"), async (req, res, next) => {
     const scope = (req.body.scope as string | undefined) ?? "general";
     const role = (req.body.role as string | undefined) ?? "file";
     const altText = (req.body.altText as string | undefined) ?? null;
+    const category = (req.body.category as MediaPrefixKind | undefined) ?? kind;
+    const folder = (req.body.folder as string | undefined) ?? scope;
 
     const stored = await storeMediaBuffer({
       buffer: file.buffer,
@@ -210,6 +280,8 @@ mediaRouter.post("/upload", upload.single("file"), async (req, res, next) => {
         cdnKey: stored.cdnKey,
         type: file.mimetype,
         altText,
+        category,
+        folder,
         sizeBytes: stored.sizeBytes,
         uploadedByAdminUserId: (req as AuthenticatedRequest).admin!.sub,
       },
@@ -229,7 +301,6 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
     const buffer = req.file?.buffer ?? (Buffer.isBuffer(req.body) ? req.body : null);
     if (!cdnKey || !buffer) throw new ValidationError("x-cdn-key header and body required");
 
-    // Re-store under the exact key by writing locally / putting to R2 with fixed key
     const stored = await storeMediaBuffer({
       buffer,
       originalName: pathFromKey(cdnKey),
@@ -238,7 +309,6 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
       scope: "binary",
       role: "upload",
     });
-    // Prefer the client-provided key semantics: overwrite response with requested key URL
     return ok(res, {
       cdnKey: stored.cdnKey,
       publicUrl: stored.url,
@@ -249,13 +319,48 @@ mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) 
   }
 });
 
+/** PATCH /admin/media/:id — update altText, category, or folder on an existing asset */
+mediaRouter.patch(
+  "/:id",
+  validate(z.object({ id: z.string().min(1) }), "params"),
+  validate(
+    z.object({
+      altText: z.string().optional().nullable(),
+      category: prefixKindSchema.optional(),
+      folder: z.string().max(120).optional().nullable(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const id = param(req, "id");
+      const body = req.body as {
+        altText?: string | null;
+        category?: MediaPrefixKind;
+        folder?: string | null;
+      };
+      const asset = await prisma.mediaAsset.findFirst({ where: { id, deletedAt: null } });
+      if (!asset) throw new NotFoundError("Media asset not found");
+      const updated = await prisma.mediaAsset.update({
+        where: { id },
+        data: {
+          ...(body.altText !== undefined ? { altText: body.altText } : {}),
+          ...(body.category !== undefined ? { category: body.category } : {}),
+          ...(body.folder !== undefined ? { folder: body.folder } : {}),
+        },
+      });
+      return ok(res, updated);
+    } catch (e) {
+      return next(e);
+    }
+  },
+);
+
 mediaRouter.delete(
   "/prefix",
   validate(z.object({ prefix: z.string().min(1) })),
   async (req, res, next) => {
     try {
       const { prefix } = req.body as { prefix: string };
-      // Soft-delete DB rows under prefix
       await prisma.mediaAsset.updateMany({
         where: { deletedAt: null, cdnKey: { startsWith: prefix.replace(/^\//, "") } },
         data: { deletedAt: new Date() },
@@ -277,7 +382,6 @@ mediaRouter.delete(
       const asset = await prisma.mediaAsset.findFirst({ where: { id, deletedAt: null } });
       if (!asset) throw new NotFoundError("Media asset not found");
       await prisma.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });
-      // Best-effort object delete — soft-delete already protects the app
       void deleteObjectByKey(asset.cdnKey).catch(() => undefined);
       return ok(res, { deleted: true });
     } catch (e) {

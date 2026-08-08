@@ -124,7 +124,28 @@ export const themesRepo: Repository<Theme, ThemeInput> = USE_MOCK_DATA
       list: (query) =>
         adminFetchList<Theme>(`${ENDPOINT}${qs(query)}`, { page: query.page, pageSize: query.pageSize }),
       get: (id) => adminFetch<Theme>(`${ENDPOINT}/${id}`),
-      create: (body) => adminFetch<Theme>(ENDPOINT, { method: "POST", body }),
-      update: (id, body) => adminFetch<Theme>(`${ENDPOINT}/${id}`, { method: "PATCH", body }),
+      create: async (body) => {
+        const { galleryImageIds, ...rest } = body;
+        const theme = await adminFetch<Theme>(ENDPOINT, { method: "POST", body: rest });
+        if (galleryImageIds && galleryImageIds.length > 0) {
+          await adminFetch(`${ENDPOINT}/${theme.id}/gallery-images`, {
+            method: "PUT",
+            body: { mediaIds: galleryImageIds },
+          });
+        }
+        return theme;
+      },
+      update: async (id, body) => {
+        const { galleryImageIds, ...rest } = body;
+        const theme = await adminFetch<Theme>(`${ENDPOINT}/${id}`, { method: "PATCH", body: rest });
+        if (galleryImageIds !== undefined) {
+          await adminFetch(`${ENDPOINT}/${id}/gallery-images`, {
+            method: "PUT",
+            body: { mediaIds: galleryImageIds },
+          });
+        }
+        return theme;
+      },
       archive: (id) => adminFetch<void>(`${ENDPOINT}/${id}`, { method: "DELETE" }),
     };
+

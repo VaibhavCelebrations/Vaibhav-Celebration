@@ -6,197 +6,228 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
-import type { CartItem, CartPackage, CartSummary, PersonalizationValue, Product } from "@/lib/ecom-types";
+import type { CartPackage, PersonalizationValue } from "@/lib/ecom-types";
+import type { CartQuote, ServerCartItem } from "@/lib/shop-types";
+import { toRupees } from "@/lib/shop-types";
+import * as shopApi from "@/lib/shop-api";
+import { ApiClientError } from "@/lib/api-client";
+import { CacheStore } from "@/lib/cache-store";
+import { useAuth } from "./auth-context";
+import { useToast } from "@/components/ui/Toast";
+
+const EMPTY_QUOTE: CartQuote = { subtotalInPaise: 0, gstPercent: 18, gstInPaise: 0, totalInPaise: 0, lines: [] };
 
 /* ── Context shape ─────────────────────────────────────────────────── */
 
 interface CartContextType {
-  items: CartItem[];
+  items: ServerCartItem[];
+  quote: CartQuote;
   packages: CartPackage[];
   itemCount: number;
-  summary: CartSummary;
+  /** Combined rupee total across the real (server) cart and the local event-package cart, for display only. */
+  packagesSubtotalRupees: number;
   isCartOpen: boolean;
+  isLoading: boolean;
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
-  addItem: (product: Product, quantity: number, personalization?: PersonalizationValue[]) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addItem: (productId: string, quantity: number, personalizationValues?: PersonalizationValue[]) => Promise<void>;
+  removeItem: (productId: string) => Promise<void>;
+  updateQuantity: (productId: string, quantity: number) => Promise<void>;
   addPackage: (pkg: Omit<CartPackage, "id">) => void;
   removePackage: (id: string) => void;
-  clearCart: () => void;
+  clearCart: () => Promise<void>;
   getItemQuantity: (productId: string) => number;
+  refreshCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
 
-/* ── Storage helpers (sessionStorage — clears on tab close) ─────── */
+/* ── Local package storage (sessionStorage — unrelated venue/package flow) ── */
 
-const CART_KEY = "vc_cart";
+const PACKAGES_KEY = "vc_cart_packages";
 
-function loadCart(): { items: CartItem[]; packages: CartPackage[] } {
-  if (typeof window === "undefined") return { items: [], packages: [] };
-  try {
-    const raw = sessionStorage.getItem(CART_KEY);
-    if (!raw) return { items: [], packages: [] };
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return { items: parsed, packages: [] }; // backwards compat
-    }
-    return { items: parsed.items || [], packages: parsed.packages || [] };
-  } catch {
-    return { items: [], packages: [] };
-  }
+function loadPackages(): CartPackage[] {
+  return CacheStore.getSessionItem<CartPackage[]>(PACKAGES_KEY, []);
 }
 
-function saveCart(data: { items: CartItem[]; packages: CartPackage[] }) {
-  if (typeof window === "undefined") return;
-  sessionStorage.setItem(CART_KEY, JSON.stringify(data));
+function savePackages(packages: CartPackage[]) {
+  CacheStore.setSessionItem(PACKAGES_KEY, packages);
 }
 
-/* ── Compute summary ───────────────────────────────────────────────── */
+const CART_ITEMS_KEY = "vc_cart_items";
 
-function computeSummary(items: CartItem[], packages: CartPackage[]): CartSummary {
-  const itemsSubtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const packagesSubtotal = packages.reduce((sum, pkg) => {
-    const addons = pkg.addons || [];
-    const addonsTotal = addons.reduce((aSum, addon) => aSum + addon.product.price * addon.quantity, 0);
-    return sum + pkg.basePrice + addonsTotal;
-  }, 0);
-  const subtotal = itemsSubtotal + packagesSubtotal;
-  const gst = Math.round(subtotal * 0.18);
-  return {
-    items,
-    packages,
-    itemCount: items.reduce((sum, item) => sum + item.quantity, 0) + packages.length,
-    subtotal,
-    gst,
-    total: subtotal + gst,
-  };
+async function loadOfflineCart(): Promise<{ items: ServerCartItem[], quote: CartQuote }> {
+  const data = await CacheStore.getIDBItem(CART_ITEMS_KEY, { items: [], quote: EMPTY_QUOTE });
+  return data;
+}
+
+async function saveOfflineCart(items: ServerCartItem[], quote: CartQuote) {
+  await CacheStore.setIDBItem(CART_ITEMS_KEY, { items, quote });
 }
 
 /* ── Provider ──────────────────────────────────────────────────────── */
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const { isAuthenticated, openAuthModal } = useAuth();
+  const { push } = useToast();
+
+  const [items, setItems] = useState<ServerCartItem[]>([]);
+  const [quote, setQuote] = useState<CartQuote>(EMPTY_QUOTE);
   const [packages, setPackages] = useState<CartPackage[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const isHydrated = useRef(false);
 
-  // Hydrate from sessionStorage on mount
   useEffect(() => {
-    const data = loadCart();
-    setTimeout(() => {
-      setItems(data.items);
-      setPackages(data.packages);
-      setIsHydrated(true);
-    }, 0);
+    // sessionStorage is only available client-side, so packages must be hydrated
+    // post-mount rather than via a lazy useState initializer (which would run
+    // during SSR and cause a hydration mismatch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPackages(loadPackages());
+    isHydrated.current = true;
   }, []);
 
-  // Persist whenever items/packages change (after hydration)
   useEffect(() => {
-    if (isHydrated) {
-      saveCart({ items, packages });
-    }
-  }, [items, packages, isHydrated]);
+    if (isHydrated.current) savePackages(packages);
+  }, [packages]);
 
-  const addItem = useCallback(
-    (product: Product, quantity: number, personalization: PersonalizationValue[] = []) => {
-      setItems((prev) => {
-        const existingIndex = prev.findIndex((item) => item.product.id === product.id);
-        if (existingIndex >= 0) {
-          // Update quantity (capped by max)
-          const updated = [...prev];
-          const maxQty = Math.min(product.maxOrderQuantity, product.stock);
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            quantity: Math.min(updated[existingIndex].quantity + quantity, maxQty),
-            personalizationValues: personalization.length > 0 ? personalization : updated[existingIndex].personalizationValues,
-          };
-          return updated;
-        }
-        // New item
-        return [...prev, { product, quantity, personalizationValues: personalization }];
-      });
-    },
-    []
-  );
-
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((item) => item.product.id !== productId));
-  }, []);
-
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems((prev) => prev.filter((item) => item.product.id !== productId));
+  const refreshCart = useCallback(async () => {
+    setIsLoading(true);
+    if (!isAuthenticated) {
+      const offlineCart = await loadOfflineCart();
+      setItems(offlineCart.items);
+      setQuote(offlineCart.quote);
+      setIsLoading(false);
       return;
     }
-    setItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId
-          ? { ...item, quantity: Math.min(quantity, Math.min(item.product.maxOrderQuantity, item.product.stock)) }
-          : item
-      )
-    );
-  }, []);
+    try {
+      const cart = await shopApi.getCart();
+      setItems(cart.items);
+      setQuote(cart.quote);
+    } catch {
+      // Non-fatal — leave previous state, user can retry via cart drawer
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    void (async () => {
+      await refreshCart();
+    })();
+  }, [refreshCart]);
+
+  const addItemRef = useRef<CartContextType["addItem"] | null>(null);
+
+  const addItem = useCallback(
+    async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[]) => {
+      if (!isAuthenticated) {
+        // Fallback: we could implement full client-side cart logic here, but for now we prompt login
+        openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues));
+        return;
+      }
+      try {
+        const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null);
+        setItems(cart.items);
+        setQuote(cart.quote);
+        setIsCartOpen(true);
+      } catch (err) {
+        push(err instanceof ApiClientError ? err.message : "Could not add this item to your cart", "error");
+        throw err;
+      }
+    },
+    [isAuthenticated, openAuthModal, push],
+  );
+  useEffect(() => {
+    addItemRef.current = addItem;
+  }, [addItem]);
+
+  const updateQuantity = useCallback(
+    async (productId: string, quantity: number) => {
+      try {
+        const cart = await shopApi.updateCartItemQuantity(productId, quantity);
+        setItems(cart.items);
+        setQuote(cart.quote);
+      } catch (err) {
+        push(err instanceof ApiClientError ? err.message : "Could not update quantity", "error");
+      }
+    },
+    [push],
+  );
+
+  const removeItem = useCallback(
+    async (productId: string) => {
+      try {
+        const cart = await shopApi.removeCartItem(productId);
+        setItems(cart.items);
+        setQuote(cart.quote);
+      } catch (err) {
+        push(err instanceof ApiClientError ? err.message : "Could not remove item", "error");
+      }
+    },
+    [push],
+  );
 
   const addPackage = useCallback((pkg: Omit<CartPackage, "id">) => {
     setPackages((prev) => {
-      // Check if a package with the same packageId + themeSlug already exists
-      const existingIndex = prev.findIndex(
-        (p) => p.packageId === pkg.packageId && p.themeSlug === pkg.themeSlug
-      );
+      const existingIndex = prev.findIndex((p) => p.packageId === pkg.packageId && p.themeSlug === pkg.themeSlug);
       if (existingIndex >= 0) {
-        // Replace the existing one (update addons)
         const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          basePrice: pkg.basePrice,
-          addons: pkg.addons,
-        };
+        updated[existingIndex] = { ...updated[existingIndex], basePrice: pkg.basePrice, addons: pkg.addons };
         return updated;
       }
-      // New package
-      const newPkg: CartPackage = {
-        ...pkg,
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
-      };
-      return [...prev, newPkg];
+      return [...prev, { ...pkg, id: Date.now().toString() + Math.random().toString(36).substring(2, 9) }];
     });
+    setIsCartOpen(true);
   }, []);
 
   const removePackage = useCallback((id: string) => {
     setPackages((prev) => prev.filter((pkg) => pkg.id !== id));
   }, []);
 
-  const clearCart = useCallback(() => {
+  const clearCart = useCallback(async () => {
+    if (isAuthenticated) {
+      try {
+        await shopApi.clearServerCart();
+      } catch {
+        // ignore — order was already placed/confirmed by the time this is called
+      }
+    }
     setItems([]);
+    setQuote(EMPTY_QUOTE);
     setPackages([]);
-  }, []);
+  }, [isAuthenticated]);
 
   const getItemQuantity = useCallback(
-    (productId: string) => {
-      return items.find((item) => item.product.id === productId)?.quantity ?? 0;
-    },
-    [items]
+    (productId: string) => items.find((i) => i.productId === productId)?.quantity ?? 0,
+    [items],
   );
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
   const toggleCart = useCallback(() => setIsCartOpen((prev) => !prev), []);
 
-  const summary = computeSummary(items, packages);
+  const packagesSubtotalRupees = packages.reduce((sum, pkg) => {
+    const addonsTotal = (pkg.addons || []).reduce((aSum, addon) => aSum + toRupees(addon.product.priceInPaise) * addon.quantity, 0);
+    return sum + pkg.basePrice + addonsTotal;
+  }, 0);
+
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0) + packages.length;
 
   return (
     <CartContext.Provider
       value={{
         items,
+        quote,
         packages,
-        itemCount: summary.itemCount,
-        summary,
+        itemCount,
+        packagesSubtotalRupees,
         isCartOpen,
+        isLoading,
         openCart,
         closeCart,
         toggleCart,
@@ -207,6 +238,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         removePackage,
         clearCart,
         getItemQuantity,
+        refreshCart,
       }}
     >
       {children}

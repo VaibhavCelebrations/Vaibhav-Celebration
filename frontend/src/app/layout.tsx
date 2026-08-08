@@ -3,6 +3,7 @@ import { Playfair_Display, Poppins } from "next/font/google";
 import { Providers } from "./providers";
 import { listThemes } from "@/lib/cms/themes";
 import { listPackages } from "@/lib/cms/packages";
+import { PopupModal } from "@/components/ui/PopupModal";
 import "./globals.css";
 
 const display = Playfair_Display({
@@ -59,7 +60,10 @@ export default async function RootLayout({
       className={`${display.variable} ${body.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-cream text-text font-sans">
-        <Providers themes={themes} packages={packages}>{children}</Providers>
+        <Providers themes={themes} packages={packages}>
+          {children}
+          <PopupModal />
+        </Providers>
       </body>
     </html>
   );

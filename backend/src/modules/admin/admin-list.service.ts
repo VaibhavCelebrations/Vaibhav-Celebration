@@ -139,16 +139,23 @@ export async function adminGetTheme(id: string) {
     deletedAt: t.deletedAt?.toISOString() ?? null,
     packageCount: t._count.packages,
     galleryCount: t._count.galleryImages,
-    sampleAssets: t.sampleAssets.map((s) => ({
-      id: s.id,
-      themeId: s.themeId,
-      type: s.type,
-      title: s.title,
-      media: toMediaRef(s.media),
-      description: s.description,
-      displayOrder: s.displayOrder,
-      deletedAt: s.deletedAt?.toISOString() ?? null,
-    })),
+    // Gallery display images managed via the gallery-images endpoint
+    galleryImageAssets: t.sampleAssets
+      .filter((s) => s.title === "gallery-image")
+      .map((s) => ({ id: s.id, media: toMediaRef(s.media), displayOrder: s.displayOrder })),
+    // Other sample assets (digital invite, video, etc.)
+    sampleAssets: t.sampleAssets
+      .filter((s) => s.title !== "gallery-image")
+      .map((s) => ({
+        id: s.id,
+        themeId: s.themeId,
+        type: s.type,
+        title: s.title,
+        media: toMediaRef(s.media),
+        description: s.description,
+        displayOrder: s.displayOrder,
+        deletedAt: s.deletedAt?.toISOString() ?? null,
+      })),
     packageLinks: t.packages.map((p) => ({
       id: p.id,
       themeId: p.themeId,

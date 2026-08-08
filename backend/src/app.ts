@@ -11,12 +11,23 @@ import { noStore } from "./middleware/no-store";
 import { getUploadDir } from "./integrations/media/storage";
 
 import { authRouter } from "./modules/auth/auth.routes";
+import { customerAuthRouter } from "./modules/customer-auth/customer-auth.routes";
 import { healthRouter } from "./modules/health/health.routes";
 import { guestRouter } from "./modules/guest/guest.routes";
 import { themesRouter, adminThemesRouter } from "./modules/themes/themes.routes";
+import {
+  productsRouter,
+  productCategoriesRouter,
+  adminProductsRouter,
+  adminProductCategoriesRouter,
+} from "./modules/catalog/catalog.routes";
+import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
+import { shopCheckoutRouter, ordersRouter, accountOrdersRouter } from "./modules/orders/orders.routes";
+import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
 import { pricingRouter } from "./modules/pricing/pricing.routes";
+import { builderRouter } from "./modules/builder/builder.routes";
 import { galleryRouter, adminGalleryRouter } from "./modules/gallery/gallery.routes";
 import { contentRouter, adminContentRouter } from "./modules/content/content.routes";
 import { blogRouter, adminBlogRouter } from "./modules/blog/blog.routes";
@@ -197,6 +208,18 @@ export function createApp() {
     },
   });
 
+  /** Customer signup/login/password-reset — keyed by IP, tight (brute-force protection). */
+  const customerAuthLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: "RATE_LIMITED", message: "Too many attempts. Please wait 15 minutes." },
+    },
+  });
+
   /** Guest OTP — keyed by IP, very tight. */
   const otpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -259,18 +282,31 @@ export function createApp() {
 
   // Auth & guest — IP-keyed, tight
   api.use("/auth", authLimiter, authRouter);
+  api.use("/customer/auth", customerAuthLimiter, customerAuthRouter);
   api.use("/guest", otpLimiter, guestRouter);
 
   // Public CMS — IP-keyed, 100/10min
   api.use("/themes", publicLimiter, themesRouter);
+  api.use("/products", publicLimiter, productsRouter);
+  api.use("/product-categories", publicLimiter, productCategoriesRouter);
   api.use("/packages", publicLimiter, packagesRouter);
   api.use("/pricing", publicLimiter, pricingRouter);
+  api.use("/builder", publicLimiter, builderRouter);
   api.use("/gallery", publicLimiter, galleryRouter);
   api.use(contentRouter); // no extra limiter — served via static-ish reads
   api.use("/pages", publicLimiter, pagesRouter);
   api.use("/settings", publicLimiter, publicSettingsRouter);
   api.use("/blog", publicLimiter, blogRouter);
   api.use("/events", publicLimiter, eventsRouter);
+
+  // Customer shop — requireCustomer enforced inside the routers themselves
+  api.use("/cart", publicLimiter, cartRouter);
+  api.use("/wishlist", publicLimiter, wishlistRouter);
+  api.use("/shop/checkout", publicLimiter, shopCheckoutRouter);
+  api.use("/shop/orders", strictLimiter, ordersRouter);
+  api.use("/account/orders", publicLimiter, accountOrdersRouter);
+  api.use("/account/registries", publicLimiter, accountRegistryRouter);
+  api.use("/registry", publicLimiter, registryRouter);
 
   // Booking journey — mix of public & strict
   api.use("/availability", publicLimiter, availabilityRouter);
@@ -286,6 +322,9 @@ export function createApp() {
   // All admin routes: JWT-keyed rate limit + Cache-Control: no-store (P3).
   // noStore prevents browsers / CDN from caching PII or admin data.
   api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
+  api.use("/admin/products", adminLimiter, noStore, adminProductsRouter);
+  api.use("/admin/product-categories", adminLimiter, noStore, adminProductCategoriesRouter);
+  api.use("/admin/registries", adminLimiter, noStore, adminRegistryRouter);
   api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
   api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
   api.use("/admin/gallery", adminLimiter, noStore, adminGalleryRouter);

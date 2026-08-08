@@ -130,6 +130,7 @@ const UPLOAD_MANIFEST: UploadDef[] = [
   },
 ];
 
+
 function cdnKeyPrefix(def: Pick<UploadDef, "kind" | "scope" | "role">) {
   return `${def.kind}/${def.scope}/${def.role}`;
 }

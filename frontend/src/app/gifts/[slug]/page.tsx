@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ProductCard } from "@/components/ecom/ProductCard";
-import { getProductBySlug, placeholderProducts } from "@/lib/ecom-placeholder-data";
-import { getStockStatus, getMaxPurchasable } from "@/lib/ecom-types";
+import * as shopApi from "@/lib/shop-api";
+import { formatPaise, getStockStatus, getMaxPurchasable, productImageUrl } from "@/lib/shop-types";
+import type { Product } from "@/lib/shop-types";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { useCart } from "@/context/cart-context";
+import { useWishlist } from "@/context/wishlist-context";
+import { ApiClientError } from "@/lib/api-client";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -20,17 +23,62 @@ interface Props {
 
 export default function ProductDetailPage({ params }: Props) {
   const { slug } = use(params);
-  const product = getProductBySlug(slug);
 
-  const { addItem, openCart, getItemQuantity } = useCart();
+  const [product, setProduct] = useState<(Product & { related: Product[] }) | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  const { addItem, getItemQuantity } = useCart();
+  const { isWishlisted, toggleWishlist } = useWishlist();
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [personalization, setPersonalization] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [addedToCart, setAddedToCart] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
-  if (!product) {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      setNotFound(false);
+      try {
+        const data = await shopApi.getProductBySlug(slug);
+        if (!cancelled) {
+          setProduct(data);
+          setSelectedImage(0);
+          setQuantity(1);
+          setPersonalization({});
+          setErrors({});
+        }
+      } catch (err) {
+        if (!cancelled) {
+          if (err instanceof ApiClientError && err.status === 404) setNotFound(true);
+          setProduct(null);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <main className="pt-36 pb-24 flex items-center justify-center min-h-screen">
+          <Loader2 size={32} className="animate-spin text-mocha" />
+        </main>
+        <FooterClient />
+      </>
+    );
+  }
+
+  if (notFound || !product) {
     return (
       <>
         <Navbar />
@@ -48,15 +96,13 @@ export default function ProductDetailPage({ params }: Props) {
   const stockStatus = getStockStatus(product);
   const maxPurchasable = getMaxPurchasable(product);
   const inCart = getItemQuantity(product.id);
-  const relatedProducts = placeholderProducts
-    .filter((p) => p.id !== product.id && p.isActive && p.themeTags.some((t) => product.themeTags.includes(t)))
-    .slice(0, 4);
+  const wishlisted = isWishlisted(product.id);
+  const relatedProducts = product.related;
 
-  const handleAddToCart = () => {
-    // Validate personalization fields
+  const handleAddToCart = async () => {
     const newErrors: Record<string, string> = {};
     product.personalizationFields.forEach((field) => {
-      if (field.required && !personalization[field.id]?.trim()) {
+      if (field.isRequired && !personalization[field.id]?.trim()) {
         newErrors[field.id] = `${field.label} is required`;
       }
     });
@@ -71,10 +117,16 @@ export default function ProductDetailPage({ params }: Props) {
         value: personalization[f.id],
       }));
 
-    addItem(product, quantity, pValues);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2000);
-    openCart();
+    setIsAdding(true);
+    try {
+      await addItem(product.id, quantity, pValues);
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 2000);
+    } catch {
+      // toast already surfaced by cart context
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (
@@ -97,7 +149,7 @@ export default function ProductDetailPage({ params }: Props) {
                 {/* Main Image */}
                 <div className="relative aspect-square rounded-[2rem] overflow-hidden bg-surface shadow-card">
                   <Image
-                    src={product.images[selectedImage]}
+                    src={productImageUrl(product, selectedImage)}
                     alt={product.title}
                     fill
                     className="object-cover"
@@ -114,7 +166,7 @@ export default function ProductDetailPage({ params }: Props) {
                   {stockStatus === "low_stock" && (
                     <div className="absolute top-4 left-4">
                       <span className="bg-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-md">
-                        Only {product.stock} left!
+                        Only {product.stock?.quantityAvailable ?? 0} left!
                       </span>
                     </div>
                   )}
@@ -124,7 +176,7 @@ export default function ProductDetailPage({ params }: Props) {
                   <div className="flex gap-3">
                     {product.images.map((img, i) => (
                       <button
-                        key={i}
+                        key={img.id}
                         onClick={() => setSelectedImage(i)}
                         className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
                           selectedImage === i
@@ -132,7 +184,7 @@ export default function ProductDetailPage({ params }: Props) {
                             : "border-transparent opacity-60 hover:opacity-100"
                         }`}
                       >
-                        <Image src={img} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
+                        <Image src={img.media.url} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
                       </button>
                     ))}
                   </div>
@@ -145,20 +197,20 @@ export default function ProductDetailPage({ params }: Props) {
               <div className="space-y-6">
                 {/* Theme tags */}
                 <div className="flex flex-wrap gap-2">
-                  {product.themeTags.map((tag) => (
+                  {product.themes.map((tag) => (
                     <span
-                      key={tag}
+                      key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-mocha bg-mocha/10 px-3 py-1 rounded-full"
                     >
-                      {tag.replace("-theme", "").replace(/-/g, " ")}
+                      {tag.title.replace(/ Theme| Birthday| Celebration/gi, "")}
                     </span>
                   ))}
-                  {product.categoryTags.map((tag) => (
+                  {product.categories.map((tag) => (
                     <span
-                      key={tag}
+                      key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-charcoal bg-cream-dark px-3 py-1 rounded-full"
                     >
-                      {tag.replace(/-/g, " ")}
+                      {tag.name}
                     </span>
                   ))}
                 </div>
@@ -169,12 +221,12 @@ export default function ProductDetailPage({ params }: Props) {
 
                 {/* Price */}
                 <div className="flex items-center gap-3">
-                  <span className="font-display text-3xl font-bold text-charcoal">₹{product.price}</span>
-                  {product.compareAtPrice && (
+                  <span className="font-display text-3xl font-bold text-charcoal">{formatPaise(product.priceInPaise)}</span>
+                  {product.compareAtPriceInPaise && (
                     <>
-                      <span className="text-lg text-text-light line-through">₹{product.compareAtPrice}</span>
+                      <span className="text-lg text-text-light line-through">{formatPaise(product.compareAtPriceInPaise)}</span>
                       <span className="bg-mocha text-white text-xs font-bold px-3 py-1 rounded-full">
-                        {Math.round((1 - product.price / product.compareAtPrice) * 100)}% OFF
+                        {Math.round((1 - product.priceInPaise / product.compareAtPriceInPaise) * 100)}% OFF
                       </span>
                     </>
                   )}
@@ -198,12 +250,12 @@ export default function ProductDetailPage({ params }: Props) {
                     {product.personalizationFields.map((field) => (
                       <div key={field.id}>
                         <label className="text-sm font-semibold text-charcoal mb-1 block">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                          {field.label} {field.isRequired && <span className="text-red-500">*</span>}
                         </label>
                         <input
-                          type={field.type === "number" ? "number" : "text"}
-                          placeholder={field.placeholder}
-                          maxLength={field.maxLength}
+                          type={field.fieldType === "number" ? "number" : "text"}
+                          placeholder={field.label}
+                          maxLength={field.maxLength ?? undefined}
                           value={personalization[field.id] || ""}
                           onChange={(e) => {
                             setPersonalization({ ...personalization, [field.id]: e.target.value });
@@ -247,17 +299,19 @@ export default function ProductDetailPage({ params }: Props) {
                     {/* Add to Cart Button */}
                     <button
                       onClick={handleAddToCart}
-                      disabled={addedToCart}
+                      disabled={addedToCart || isAdding}
                       className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all cursor-pointer ${
                         addedToCart
                           ? "bg-green-600 text-white"
                           : "btn-primary shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-0.5"
                       }`}
                     >
-                      {addedToCart ? (
+                      {isAdding ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : addedToCart ? (
                         <><Check size={18} /> Added to Cart</>
                       ) : (
-                        <><ShoppingCart size={18} /> Add to Cart — ₹{product.price * quantity}</>
+                        <><ShoppingCart size={18} /> Add to Cart — {formatPaise(product.priceInPaise * quantity)}</>
                       )}
                     </button>
                   </div>
@@ -279,10 +333,22 @@ export default function ProductDetailPage({ params }: Props) {
 
                 {/* Share/Wishlist */}
                 <div className="flex items-center gap-4 pt-2">
-                  <button className="flex items-center gap-2 text-text-muted hover:text-mocha text-sm transition-colors cursor-pointer">
-                    <Heart size={16} /> Save for Later
+                  <button
+                    onClick={() => void toggleWishlist(product.id)}
+                    className={`flex items-center gap-2 text-sm transition-colors cursor-pointer ${wishlisted ? "text-red-500" : "text-text-muted hover:text-mocha"}`}
+                  >
+                    <Heart size={16} fill={wishlisted ? "currentColor" : "none"} /> {wishlisted ? "Saved" : "Save for Later"}
                   </button>
-                  <button className="flex items-center gap-2 text-text-muted hover:text-mocha text-sm transition-colors cursor-pointer">
+                  <button
+                    onClick={() => {
+                      if (typeof window !== "undefined" && navigator.share) {
+                        navigator.share({ title: product.title, url: window.location.href }).catch(() => undefined);
+                      } else if (typeof window !== "undefined") {
+                        navigator.clipboard?.writeText(window.location.href);
+                      }
+                    }}
+                    className="flex items-center gap-2 text-text-muted hover:text-mocha text-sm transition-colors cursor-pointer"
+                  >
                     <Share2 size={16} /> Share
                   </button>
                 </div>

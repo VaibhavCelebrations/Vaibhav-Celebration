@@ -127,9 +127,10 @@ export default async function EventDetailPage({ params }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
               {event.activities.map((act, i) => (
                 <ScrollReveal key={i} delay={i * 100}>
-                  <div className="group bg-white rounded-[2rem] p-8 md:p-10 shadow-sm hover:shadow-xl transition-all duration-500 h-full border border-border-light hover:border-mocha/30 flex flex-col gap-6">
-                    <div className="w-14 h-14 shrink-0 bg-cream-dark rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-500 group-hover:bg-mocha/10">
-                      <CheckCircle2 size={24} className="text-mocha" />
+                  <div className="group bg-white rounded-[2rem] p-8 md:p-10 shadow-md hover:shadow-xl transition-all duration-500 h-full border border-border-light hover:border-mocha flex flex-col items-center text-center gap-5 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-mocha-light via-mocha to-mocha-dark opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="w-16 h-16 shrink-0 bg-cream-dark/50 rounded-2xl rotate-3 group-hover:rotate-0 flex items-center justify-center group-hover:scale-110 transition-all duration-500 group-hover:bg-mocha/10">
+                      <CheckCircle2 size={32} className="text-mocha" />
                     </div>
                     <p className="font-bold text-charcoal text-xl md:text-2xl leading-tight group-hover:text-mocha-dark transition-colors">{act}</p>
                   </div>

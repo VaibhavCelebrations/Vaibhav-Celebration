@@ -71,10 +71,11 @@ export function mapThemeCard(theme: ApiTheme): ThemeCard {
 }
 
 export function mapThemeDetail(theme: ApiThemeDetail): ThemeCard {
+  const MAX_GALLERY = 5;
   const galleryUrls = theme.galleryImages.map((g) => mediaUrl(g.media));
   const sampleUrls = theme.sampleAssets.map((a) => mediaUrl(a.media));
   const hero = mediaUrl(theme.heroImage);
-  const allGallery = [...new Set([hero, ...galleryUrls, ...sampleUrls].filter(Boolean))];
+  const allGallery = [...new Set([hero, ...galleryUrls, ...sampleUrls].filter(Boolean))].slice(0, MAX_GALLERY);
 
   return {
     id: theme.id,
@@ -105,6 +106,13 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
     features: pkg.serviceItems
       .slice()
       .sort((a, b) => a.displayOrder - b.displayOrder)
+      .filter((item) => {
+        // Packages page: show included non-decor services; hide orphans without slug (old seed)
+        if (!item.isIncluded) return false;
+        const cat = item.extraService.category;
+        if (cat === "DECOR") return false;
+        return true;
+      })
       .map((item) => ({
         label: item.extraService.label,
         included: item.isIncluded,

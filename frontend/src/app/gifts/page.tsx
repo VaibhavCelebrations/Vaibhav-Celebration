@@ -1,89 +1,106 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal, X, Gift, Palette, Sparkles, PenTool } from "lucide-react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
-import { placeholderProducts, placeholderCategories } from "@/lib/ecom-placeholder-data";
 import { useCatalog } from "@/context/catalog-context";
-import type { GiftFilter } from "@/lib/ecom-types";
-
-const categoryIcons: Record<string, React.ReactNode> = {
-  "return-gifts": <Gift size={20} fill="currentColor" />,
-  "activity-kits": <Palette size={20} fill="currentColor" />,
-  "personalized-items": <Sparkles size={20} fill="currentColor" />,
-  "stationery": <PenTool size={20} fill="currentColor" />,
-};
+import * as shopApi from "@/lib/shop-api";
+import type { GiftFilter, Product, ProductCategory } from "@/lib/shop-types";
 
 const sortOptions = [
-  { value: "popularity", label: "Popularity" },
+  { value: "newest", label: "Newest First" },
   { value: "price_asc", label: "Price: Low → High" },
   { value: "price_desc", label: "Price: High → Low" },
-  { value: "newest", label: "Newest First" },
 ] as const;
 
-export default function GiftsPage() {
+function GiftsPageContent() {
   const { themes } = useCatalog();
+  const searchParams = useSearchParams();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<GiftFilter>({
-    theme: null,
-    category: null,
+    theme: searchParams.get("theme"),
+    category: searchParams.get("category"),
     search: "",
-    sortBy: "popularity",
-    priceRange: null,
+    sortBy: "newest",
   });
   const [showFilters, setShowFilters] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [productsResult, categoriesResult] = await Promise.all([
+          shopApi.listProducts({ pageSize: 100, sort: "newest" }),
+          shopApi.listProductCategories(),
+        ]);
+        if (!cancelled) {
+          setProducts(productsResult.items);
+          setCategories(categoriesResult);
+        }
+      } catch {
+        if (!cancelled) {
+          setProducts([]);
+          setCategories([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filteredProducts = useMemo(() => {
-    let result = placeholderProducts.filter((p) => p.isActive);
+    let result = products.filter((p) => p.isActive);
 
-    // Theme filter
     if (filter.theme) {
-      result = result.filter((p) => p.themeTags.includes(filter.theme!));
+      result = result.filter((p) => p.themes.some((t) => t.slug === filter.theme));
     }
 
-    // Category filter
     if (filter.category) {
-      result = result.filter((p) => p.categoryTags.includes(filter.category!));
+      result = result.filter((p) => p.categories.some((c) => c.slug === filter.category));
     }
 
-    // Search
     if (filter.search.trim()) {
       const q = filter.search.toLowerCase();
       result = result.filter(
         (p) =>
           p.title.toLowerCase().includes(q) ||
-          p.shortDescription.toLowerCase().includes(q) ||
-          p.themeTags.some((t) => t.toLowerCase().includes(q))
+          p.description.toLowerCase().includes(q) ||
+          p.themes.some((t) => t.title.toLowerCase().includes(q))
       );
     }
 
-    // Sort
     switch (filter.sortBy) {
       case "price_asc":
-        result.sort((a, b) => a.price - b.price);
+        result = [...result].sort((a, b) => a.priceInPaise - b.priceInPaise);
         break;
       case "price_desc":
-        result.sort((a, b) => b.price - a.price);
+        result = [...result].sort((a, b) => b.priceInPaise - a.priceInPaise);
         break;
       case "newest":
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
       default:
-        // popularity — keep original order
+        result = [...result].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         break;
     }
 
     return result;
-  }, [filter]);
+  }, [products, filter]);
 
   const activeFilterCount = [filter.theme, filter.category].filter(Boolean).length;
 
   const clearFilters = () => {
-    setFilter({ theme: null, category: null, search: "", sortBy: "popularity", priceRange: null });
+    setFilter({ theme: null, category: null, search: "", sortBy: "newest" });
   };
 
   return (
@@ -132,7 +149,7 @@ export default function GiftsPage() {
             >
               All Products
             </button>
-            {placeholderCategories.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setFilter({ ...filter, category: filter.category === cat.slug ? null : cat.slug })}
@@ -142,9 +159,6 @@ export default function GiftsPage() {
                     : "bg-white text-charcoal hover:bg-cream-dark hover:scale-105 shadow-sm"
                 }`}
               >
-                <div className={filter.category === cat.slug ? "text-mocha" : "text-text-light"}>
-                  {categoryIcons[cat.slug]}
-                </div>
                 {cat.name}
               </button>
             ))}
@@ -223,7 +237,7 @@ export default function GiftsPage() {
               )}
               {filter.category && (
                 <span className="flex items-center gap-1.5 px-3 py-1.5 bg-mocha/10 text-mocha text-xs font-semibold rounded-full">
-                  {placeholderCategories.find((c) => c.slug === filter.category)?.name}
+                  {categories.find((c) => c.slug === filter.category)?.name}
                   <button onClick={() => setFilter({ ...filter, category: null })} className="hover:text-mocha-dark cursor-pointer"><X size={12} /></button>
                 </span>
               )}
@@ -234,21 +248,32 @@ export default function GiftsPage() {
           )}
 
           {/* Results count */}
-          <p className="mt-6 text-sm text-text-muted">
-            Showing <span className="font-semibold text-charcoal">{filteredProducts.length}</span> products
-          </p>
+          {!isLoading && (
+            <p className="mt-6 text-sm text-text-muted">
+              Showing <span className="font-semibold text-charcoal">{filteredProducts.length}</span> products
+            </p>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="mt-16 flex justify-center py-20">
+              <Loader2 size={32} className="animate-spin text-mocha" />
+            </div>
+          )}
 
           {/* Product Grid */}
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {filteredProducts.map((product, i) => (
-              <ScrollReveal key={product.id} delay={i * 50}>
-                <ProductCard product={product} />
-              </ScrollReveal>
-            ))}
-          </div>
+          {!isLoading && (
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {filteredProducts.map((product, i) => (
+                <ScrollReveal key={product.id} delay={i * 50}>
+                  <ProductCard product={product} />
+                </ScrollReveal>
+              ))}
+            </div>
+          )}
 
           {/* Empty State */}
-          {filteredProducts.length === 0 && (
+          {!isLoading && filteredProducts.length === 0 && (
             <div className="mt-16 text-center py-20">
               <div className="w-20 h-20 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
                 <Search size={32} className="text-text-light" />
@@ -269,5 +294,13 @@ export default function GiftsPage() {
       <FooterClient />
       <WhatsAppFAB />
     </>
+  );
+}
+
+export default function GiftsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-cream flex items-center justify-center"><Loader2 size={32} className="animate-spin text-mocha" /></div>}>
+      <GiftsPageContent />
+    </Suspense>
   );
 }

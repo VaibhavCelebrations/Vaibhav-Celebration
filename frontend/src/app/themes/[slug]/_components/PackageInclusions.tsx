@@ -58,10 +58,10 @@ export function PackageInclusions({ packages, themeSlug }: { packages: PackageCa
 
         {/* Checkout Button */}
         <Link
-          href={`/build-package?package=${selectedPkg.slug}&theme=${themeSlug}`}
+          href={`/build-package?pkg=${selectedPkg.slug}&theme=${themeSlug}`}
           className="btn-primary w-full py-4 text-center font-semibold text-sm block"
         >
-          Checkout with {selectedPkg.title} Package
+          Build with {selectedPkg.title} →
         </Link>
       </div>
     </div>

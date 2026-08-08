@@ -182,8 +182,14 @@ export type ApiPackageServiceItem = {
   displayOrder: number;
   extraService: {
     id: string;
+    slug: string | null;
     label: string;
     description: string | null;
+    category: string | null;
+    pricingMode: string | null;
+    locationScope: string | null;
+    choiceCount: number | null;
+    customizationPriceInPaise?: number;
   };
 };
 
@@ -254,7 +260,7 @@ export type ApiEvent = {
   theme: { id: string; title: string; slug: string } | null;
   isRegistrationOpen: boolean;
   registrationFeeInPaise: number | null;
-  activities?: Array<{ title: string; description: string; icon: string | null }>;
+  activities?: string[];
   faqItems?: Array<{ question: string; answer: string }>;
   ctaLabel?: string | null;
   ctaUrl?: string | null;
@@ -351,4 +357,16 @@ export type ContactFormPayload = {
   phone?: string;
   message?: string;
   interestArea?: string;
+};
+
+export type Popup = {
+  id: string;
+  title: string;
+  bodyText: string | null;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  image: MediaRef | null;
+  placements: string[];
+  triggerAfterSeconds: number;
+  linkedEventId: string | null;
 };

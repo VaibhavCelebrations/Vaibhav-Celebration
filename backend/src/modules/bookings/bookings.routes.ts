@@ -18,17 +18,37 @@ import {
   listAdminBookings,
 } from "./bookings.service";
 
-const createSchema = z.object({
-  themeId: z.string().min(1),
-  packageId: z.string().min(1),
-  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  selectedOptions: z
-    .array(z.object({ optionId: z.string().min(1), quantity: z.number().int().min(0) }))
-    .optional(),
-  guestName: z.string().min(1),
-  guestEmail: z.string().email(),
-  guestPhone: z.string().min(8),
-});
+const createSchema = z
+  .object({
+    themeId: z.string().min(1).optional(),
+    packageId: z.string().min(1).optional(),
+    eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    selectedOptions: z
+      .array(z.object({ optionId: z.string().min(1), quantity: z.number().int().min(0) }))
+      .optional(),
+    guestName: z.string().min(1),
+    guestEmail: z.string().email(),
+    guestPhone: z.string().min(8),
+    builder: z
+      .object({
+        packageSlug: z.enum(["standard", "premium", "luxe"]),
+        themeSlug: z.string().min(1),
+        guestCount: z.number().int().min(5).max(200),
+        location: z.enum(["jaipur", "outside"]),
+        selections: z.object({
+          welcomeItem: z.string().min(1).optional().nullable(),
+          activity1: z.string().min(1).optional().nullable(),
+          activity2: z.string().min(1).optional().nullable(),
+          returnGift: z.string().min(1).optional().nullable(),
+          familyActivity: z.string().min(1).optional().nullable(),
+          decor: z.boolean().optional().default(false),
+        }),
+      })
+      .optional(),
+  })
+  .refine((d) => !!d.builder || (!!d.themeId && !!d.packageId), {
+    message: "Provide builder state or themeId+packageId",
+  });
 
 export const bookingsRouter = Router();
 
