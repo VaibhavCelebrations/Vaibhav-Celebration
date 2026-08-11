@@ -1,4 +1,5 @@
-import { ExtraServiceCategory, LocationScope, PricingMode } from "@prisma/client";
+// NOTE: Prisma enums used as string literals below (PER_CARD, CHILDREN_ACTIVITY, etc.)
+// because the generated enum objects are not reliably available at runtime in all contexts.
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { toMediaRef } from "../../lib/media-ref";
@@ -219,7 +220,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     pkg.serviceItems.find((s) => s.extraService.slug === slug && s.isIncluded);
 
   // Countdown PER_CARD — additional charge
-  const countdown = included.find((s) => s.extraService.pricingMode === PricingMode.PER_CARD);
+  const countdown = included.find((s) => s.extraService.pricingMode === "PER_CARD");
   if (countdown && countdown.extraService.choiceCount && countdown.extraService.customizationPriceInPaise > 0) {
     const qty = countdown.extraService.choiceCount;
     const unit = countdown.extraService.customizationPriceInPaise;
@@ -279,10 +280,10 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   const tier = input.packageSlug as "standard" | "premium" | "luxe";
 
   // Validate choosable requirements
-  const activitySvc = included.find((s) => s.extraService.category === ExtraServiceCategory.CHILDREN_ACTIVITY);
-  const welcomeSvc = included.find((s) => s.extraService.category === ExtraServiceCategory.WELCOME_ITEM);
-  const giftSvc = included.find((s) => s.extraService.category === ExtraServiceCategory.RETURN_GIFT);
-  const familySvc = included.find((s) => s.extraService.category === ExtraServiceCategory.FAMILY_ACTIVITY);
+  const activitySvc = included.find((s) => s.extraService.category === "CHILDREN_ACTIVITY");
+  const welcomeSvc = included.find((s) => s.extraService.category === "WELCOME_ITEM");
+  const giftSvc = included.find((s) => s.extraService.category === "RETURN_GIFT");
+  const familySvc = included.find((s) => s.extraService.category === "FAMILY_ACTIVITY");
 
   if (welcomeSvc) {
     if (!sel.welcomeItem) throw new ValidationError("Please choose a welcome item");
@@ -369,7 +370,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     const decorSlug =
       tier === "standard" ? "decor-jaipur-std" : tier === "premium" ? "decor-jaipur-prm" : "decor-jaipur-lux";
     const decorPsi = pkg.serviceItems.find(
-      (s) => s.extraService.slug === decorSlug && s.extraService.locationScope === LocationScope.JAIPUR_ONLY,
+      (s) => s.extraService.slug === decorSlug && s.extraService.locationScope === "JAIPUR_ONLY",
     );
     if (sel.decor && decorPsi) {
       const unit = decorPsi.extraService.customizationPriceInPaise;

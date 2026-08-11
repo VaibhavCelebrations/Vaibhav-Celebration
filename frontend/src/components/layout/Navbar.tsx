@@ -67,11 +67,12 @@ export function Navbar() {
               aria-label="Vaibhav Celebrations — home"
             >
               <Image
-                src="/logo.png"
+                src="/logo-v2.png"
                 alt="Vaibhav Celebrations"
                 width={155}
                 height={155}
-                className="shrink-0 transition-premium group-hover:scale-105"
+                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
+                style={{ width: "auto", height: "auto" }}
                 priority
               />
             </Link>

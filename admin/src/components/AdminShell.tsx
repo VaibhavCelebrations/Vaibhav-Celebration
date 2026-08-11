@@ -248,12 +248,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
           >
             <div className="relative flex h-full w-48 items-center justify-center">
               <Image
-                src="/logo-photoroom.png"
+                src="/logo2.png"
                 alt="Vaibhav Celebrations"
                 width={1264}
                 height={843}
                 priority
-                className="mt-7 h-38 w-auto object-contain scale-[1.35] drop-shadow-sm"
+                className="h-25 w-auto object-contain drop-shadow-sm"
               />
             </div>
           </Link>
@@ -326,7 +326,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                         item.href === "/dashboard/settings"
                           ? pathname === item.href
                           : pathname === item.href ||
-                            pathname.startsWith(item.href + "/");
+                          pathname.startsWith(item.href + "/");
 
                       const ItemIcon = item.icon;
                       return (

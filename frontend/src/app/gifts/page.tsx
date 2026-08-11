@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, X, Loader2, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -19,19 +19,29 @@ const sortOptions = [
   { value: "price_desc", label: "Price: High → Low" },
 ] as const;
 
+const PAGE_SIZE = 12;
+
 function GiftsPageContent() {
   const { themes } = useCatalog();
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
   const [filter, setFilter] = useState<GiftFilter>({
     theme: searchParams.get("theme"),
     category: searchParams.get("category"),
     search: "",
     sortBy: "newest",
   });
+  
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +49,7 @@ function GiftsPageContent() {
       setIsLoading(true);
       try {
         const [productsResult, categoriesResult] = await Promise.all([
-          shopApi.listProducts({ pageSize: 100, sort: "newest" }),
+          shopApi.listProducts({ pageSize: 500, sort: "newest" }),
           shopApi.listProductCategories(),
         ]);
         if (!cancelled) {
@@ -97,18 +107,103 @@ function GiftsPageContent() {
     return result;
   }, [products, filter]);
 
+  const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const activeFilterCount = [filter.theme, filter.category].filter(Boolean).length;
 
   const clearFilters = () => {
     setFilter({ theme: null, category: null, search: "", sortBy: "newest" });
   };
 
+  const SidebarContent = () => (
+    <div className="space-y-8">
+      {/* Search */}
+      <div>
+        <h4 className="text-xs font-bold text-charcoal uppercase tracking-wider mb-3">Search</h4>
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-light" />
+          <input
+            type="text"
+            placeholder="Search gifts..."
+            value={filter.search}
+            onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light bg-surface text-charcoal text-sm focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all"
+          />
+          {filter.search && (
+            <button
+              onClick={() => setFilter({ ...filter, search: "" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Categories */}
+      <div>
+        <h4 className="text-xs font-bold text-charcoal uppercase tracking-wider mb-3">Categories</h4>
+        <div className="flex flex-col gap-1.5">
+          <button
+            onClick={() => setFilter({ ...filter, category: null })}
+            className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left ${
+              !filter.category ? "bg-mocha text-white font-semibold shadow-md shadow-mocha/20" : "text-charcoal hover:bg-cream-dark"
+            }`}
+          >
+            All Products
+            {!filter.category && <Check size={14} />}
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setFilter({ ...filter, category: filter.category === cat.slug ? null : cat.slug })}
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left ${
+                filter.category === cat.slug ? "bg-mocha text-white font-semibold shadow-md shadow-mocha/20" : "text-charcoal hover:bg-cream-dark"
+              }`}
+            >
+              {cat.name}
+              {filter.category === cat.slug && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Themes */}
+      <div>
+        <h4 className="text-xs font-bold text-charcoal uppercase tracking-wider mb-3">Themes</h4>
+        <div className="flex flex-wrap gap-2">
+          {themes.map((theme) => (
+            <button
+              key={theme.id}
+              onClick={() => setFilter({ ...filter, theme: filter.theme === theme.slug ? null : theme.slug })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all border ${
+                filter.theme === theme.slug
+                  ? "bg-charcoal border-charcoal text-white"
+                  : "bg-surface border-border-light text-charcoal hover:border-charcoal hover:bg-cream-dark"
+              }`}
+            >
+              {theme.title.replace(/ Theme| Birthday| Celebration/g, "")}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {activeFilterCount > 0 && (
+        <div className="pt-4 border-t border-border-light">
+          <button onClick={clearFilters} className="text-sm font-semibold text-mocha hover:text-mocha-dark transition-colors cursor-pointer">
+            Clear all filters
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
       <Navbar />
       <main className="pt-28 md:pt-36 pb-16 md:pb-24 bg-cream min-h-screen">
-        <div className="max-w-7xl mx-auto px-5 md:px-10">
-          {/* Header */}
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10">
+          
           <ScrollReveal>
             <SectionHeader
               eyebrow="Shop"
@@ -117,178 +212,163 @@ function GiftsPageContent() {
             />
           </ScrollReveal>
 
-          {/* Search Bar */}
-          <div className="mt-10 max-w-xl mx-auto relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-light" />
-            <input
-              type="text"
-              placeholder="Search gifts, kits, stationery..."
-              value={filter.search}
-              onChange={(e) => setFilter({ ...filter, search: e.target.value })}
-              className="w-full pl-12 pr-4 py-4 rounded-full border border-border-light bg-surface text-charcoal text-sm font-sans placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all shadow-soft"
-            />
-            {filter.search && (
-              <button
-                onClick={() => setFilter({ ...filter, search: "" })}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-
-          {/* Category Tiles */}
-          <div className="mt-10 flex gap-4 overflow-x-auto hide-scrollbar pb-4 px-2 -mx-2">
-            <button
-              onClick={() => setFilter({ ...filter, category: null })}
-              className={`shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all duration-300 cursor-pointer ${
-                !filter.category
-                  ? "bg-mocha text-white shadow-lg shadow-mocha/20 scale-105"
-                  : "bg-white text-charcoal hover:bg-cream-dark hover:scale-105 shadow-sm"
-              }`}
-            >
-              All Products
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setFilter({ ...filter, category: filter.category === cat.slug ? null : cat.slug })}
-                className={`shrink-0 flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all duration-300 cursor-pointer ${
-                  filter.category === cat.slug
-                    ? "bg-mocha text-white shadow-lg shadow-mocha/20 scale-105"
-                    : "bg-white text-charcoal hover:bg-cream-dark hover:scale-105 shadow-sm"
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Theme Filter + Sort Row */}
-          <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            {/* Theme Tags */}
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-              <button
-                onClick={() => setFilter({ ...filter, theme: null })}
-                className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  !filter.theme
-                    ? "bg-charcoal text-white"
-                    : "bg-cream-dark text-charcoal hover:bg-blush"
-                }`}
-              >
-                All Themes
-              </button>
-              {themes.map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={() => setFilter({ ...filter, theme: filter.theme === theme.slug ? null : theme.slug })}
-                  className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                    filter.theme === theme.slug
-                      ? "bg-charcoal text-white"
-                      : "bg-cream-dark text-charcoal hover:bg-blush"
-                  }`}
-                >
-                  {theme.title.replace(/ Theme| Birthday| Celebration/g, "")}
-                </button>
-              ))}
-            </div>
-
-            {/* Sort + Filter button */}
-            <div className="flex items-center gap-3 shrink-0">
-              <select
-                value={filter.sortBy}
-                onChange={(e) => setFilter({ ...filter, sortBy: e.target.value as GiftFilter["sortBy"] })}
-                className="px-4 py-2 rounded-lg border border-border-light bg-surface text-sm font-medium text-charcoal focus:outline-none focus:ring-2 focus:ring-mocha/20 cursor-pointer"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer ${
-                  activeFilterCount > 0
-                    ? "border-mocha bg-mocha/5 text-mocha"
-                    : "border-border-light text-charcoal hover:border-mocha"
-                }`}
-              >
-                <SlidersHorizontal size={14} />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="w-5 h-5 bg-mocha text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Active filter chips */}
-          {activeFilterCount > 0 && (
-            <div className="mt-4 flex items-center gap-2 flex-wrap">
-              {filter.theme && (
-                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-mocha/10 text-mocha text-xs font-semibold rounded-full">
-                  Theme: {filter.theme.replace("-theme", "").replace(/-/g, " ")}
-                  <button onClick={() => setFilter({ ...filter, theme: null })} className="hover:text-mocha-dark cursor-pointer"><X size={12} /></button>
-                </span>
-              )}
-              {filter.category && (
-                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-mocha/10 text-mocha text-xs font-semibold rounded-full">
-                  {categories.find((c) => c.slug === filter.category)?.name}
-                  <button onClick={() => setFilter({ ...filter, category: null })} className="hover:text-mocha-dark cursor-pointer"><X size={12} /></button>
-                </span>
-              )}
-              <button onClick={clearFilters} className="text-xs text-text-muted hover:text-mocha underline cursor-pointer">
-                Clear all
-              </button>
-            </div>
-          )}
-
-          {/* Results count */}
-          {!isLoading && (
-            <p className="mt-6 text-sm text-text-muted">
-              Showing <span className="font-semibold text-charcoal">{filteredProducts.length}</span> products
-            </p>
-          )}
-
-          {/* Loading State */}
-          {isLoading && (
-            <div className="mt-16 flex justify-center py-20">
-              <Loader2 size={32} className="animate-spin text-mocha" />
-            </div>
-          )}
-
-          {/* Product Grid */}
-          {!isLoading && (
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {filteredProducts.map((product, i) => (
-                <ScrollReveal key={product.id} delay={i * 50}>
-                  <ProductCard product={product} />
-                </ScrollReveal>
-              ))}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!isLoading && filteredProducts.length === 0 && (
-            <div className="mt-16 text-center py-20">
-              <div className="w-20 h-20 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
-                <Search size={32} className="text-text-light" />
+          <div className="mt-12 flex flex-col lg:flex-row gap-8 lg:gap-12">
+            
+            {/* Desktop Sidebar */}
+            <aside className="hidden lg:block w-72 shrink-0">
+              <div className="sticky top-32 bg-white/50 backdrop-blur-md p-6 rounded-3xl border border-border-light shadow-sm">
+                <SidebarContent />
               </div>
-              <h3 className="font-display text-2xl font-semibold text-charcoal mb-2">
-                No products found
-              </h3>
-              <p className="text-text-muted text-sm mb-6">
-                Try adjusting your filters or search terms
-              </p>
-              <button onClick={clearFilters} className="btn-outline px-8 py-3 text-sm cursor-pointer">
-                Clear All Filters
-              </button>
+            </aside>
+
+            {/* Mobile Filters Modal */}
+            {showFilters && (
+              <div className="fixed inset-0 z-50 flex lg:hidden">
+                <div className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm" onClick={() => setShowFilters(false)} />
+                <div className="relative w-[85vw] max-w-sm h-full bg-cream p-6 overflow-y-auto shadow-2xl flex flex-col">
+                  <div className="flex items-center justify-between mb-8 pb-4 border-b border-border-light">
+                    <h3 className="font-display text-xl font-bold text-charcoal">Filters</h3>
+                    <button onClick={() => setShowFilters(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-surface text-charcoal hover:bg-cream-dark transition-colors cursor-pointer">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <SidebarContent />
+                  <div className="mt-auto pt-8">
+                    <button onClick={() => setShowFilters(false)} className="btn-primary w-full py-3 text-sm cursor-pointer">
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Main Content Area */}
+            <div className="flex-1 min-w-0">
+              
+              {/* Top Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border-light">
+                <div className="text-sm text-text-muted">
+                  {!isLoading && (
+                    <>Showing <span className="font-semibold text-charcoal">{filteredProducts.length}</span> products</>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <button
+                    onClick={() => setShowFilters(true)}
+                    className="lg:hidden flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 rounded-xl border border-border-light bg-surface text-sm font-bold text-charcoal hover:border-mocha transition-colors cursor-pointer"
+                  >
+                    <SlidersHorizontal size={16} />
+                    Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
+                  </button>
+
+                  <select
+                    value={filter.sortBy}
+                    onChange={(e) => setFilter({ ...filter, sortBy: e.target.value as GiftFilter["sortBy"] })}
+                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl border border-border-light bg-surface text-sm font-semibold text-charcoal focus:outline-none focus:ring-2 focus:ring-mocha/20 cursor-pointer"
+                  >
+                    {sortOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {isLoading && (
+                <div className="flex justify-center py-32">
+                  <Loader2 size={32} className="animate-spin text-mocha" />
+                </div>
+              )}
+
+              {/* Product Grid */}
+              {!isLoading && (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {paginatedProducts.map((product, i) => (
+                    <ScrollReveal key={product.id} delay={(i % 12) * 50}>
+                      <ProductCard product={product} />
+                    </ScrollReveal>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!isLoading && filteredProducts.length === 0 && (
+                <div className="text-center py-24 bg-white/40 rounded-3xl border border-border-light mt-8">
+                  <div className="w-16 h-16 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
+                    <Search size={24} className="text-text-light" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-charcoal mb-2">
+                    No products found
+                  </h3>
+                  <p className="text-text-muted text-sm mb-6">
+                    Try adjusting your filters or search terms
+                  </p>
+                  <button onClick={clearFilters} className="btn-outline px-6 py-2.5 text-sm cursor-pointer">
+                    Clear All Filters
+                  </button>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {!isLoading && totalPages > 1 && (
+                <div className="mt-16 flex items-center justify-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      setCurrentPage(p => Math.max(1, p - 1));
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full border border-border-light bg-surface text-charcoal hover:bg-cream-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  
+                  <div className="flex items-center gap-1 mx-2">
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const page = i + 1;
+                      // Simple pagination truncation logic
+                      if (totalPages > 7 && page !== 1 && page !== totalPages && Math.abs(page - currentPage) > 1) {
+                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-text-light">...</span>;
+                        return null;
+                      }
+                      
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => {
+                            setCurrentPage(page);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold transition-colors cursor-pointer ${
+                            currentPage === page 
+                              ? "bg-mocha text-white shadow-md shadow-mocha/20" 
+                              : "text-charcoal hover:bg-cream-dark"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => {
+                      setCurrentPage(p => Math.min(totalPages, p + 1));
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-full border border-border-light bg-surface text-charcoal hover:bg-cream-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
+
             </div>
-          )}
+          </div>
         </div>
       </main>
       <FooterClient />

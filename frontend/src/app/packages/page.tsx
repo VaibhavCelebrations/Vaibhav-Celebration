@@ -90,7 +90,7 @@ export default async function PackagesPage() {
                       href={`/build-package?pkg=${pkg.slug}`}
                       className="text-sm font-semibold px-6 py-3.5 rounded-lg text-center btn-primary"
                     >
-                      Build with {pkg.title.split(" ")[0]} →
+                      Checkout
                     </Link>
                   </div>
                 </div>
