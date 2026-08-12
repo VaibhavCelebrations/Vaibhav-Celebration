@@ -16,12 +16,19 @@ const error_handler_1 = require("./middleware/error-handler");
 const no_store_1 = require("./middleware/no-store");
 const storage_1 = require("./integrations/media/storage");
 const auth_routes_1 = require("./modules/auth/auth.routes");
+const customer_auth_routes_1 = require("./modules/customer-auth/customer-auth.routes");
 const health_routes_1 = require("./modules/health/health.routes");
 const guest_routes_1 = require("./modules/guest/guest.routes");
 const themes_routes_1 = require("./modules/themes/themes.routes");
+const catalog_routes_1 = require("./modules/catalog/catalog.routes");
+const collections_routes_1 = require("./modules/catalog/collections.routes");
+const shop_routes_1 = require("./modules/shop/shop.routes");
+const orders_routes_1 = require("./modules/orders/orders.routes");
+const registry_routes_1 = require("./modules/registry/registry.routes");
 const packages_routes_1 = require("./modules/packages/packages.routes");
 const extra_services_routes_1 = require("./modules/extra-services/extra-services.routes");
 const pricing_routes_1 = require("./modules/pricing/pricing.routes");
+const builder_routes_1 = require("./modules/builder/builder.routes");
 const gallery_routes_1 = require("./modules/gallery/gallery.routes");
 const content_routes_1 = require("./modules/content/content.routes");
 const blog_routes_1 = require("./modules/blog/blog.routes");
@@ -159,6 +166,17 @@ function createApp() {
             error: { code: "RATE_LIMITED", message: "Too many requests. Please wait and try again." },
         },
     });
+    /** Customer signup/login/password-reset — keyed by IP, tight (brute-force protection). */
+    const customerAuthLimiter = (0, express_rate_limit_1.rateLimit)({
+        windowMs: 15 * 60 * 1000,
+        max: 20,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+            success: false,
+            error: { code: "RATE_LIMITED", message: "Too many attempts. Please wait 15 minutes." },
+        },
+    });
     /** Guest OTP — keyed by IP, very tight. */
     const otpLimiter = (0, express_rate_limit_1.rateLimit)({
         windowMs: 15 * 60 * 1000,
@@ -215,17 +233,30 @@ function createApp() {
     const api = express_1.default.Router();
     // Auth & guest — IP-keyed, tight
     api.use("/auth", authLimiter, auth_routes_1.authRouter);
+    api.use("/customer/auth", customerAuthLimiter, customer_auth_routes_1.customerAuthRouter);
     api.use("/guest", otpLimiter, guest_routes_1.guestRouter);
     // Public CMS — IP-keyed, 100/10min
     api.use("/themes", publicLimiter, themes_routes_1.themesRouter);
+    api.use("/products", publicLimiter, catalog_routes_1.productsRouter);
+    api.use("/product-categories", publicLimiter, catalog_routes_1.productCategoriesRouter);
+    api.use("/collections", publicLimiter, collections_routes_1.productCollectionsRouter);
     api.use("/packages", publicLimiter, packages_routes_1.packagesRouter);
     api.use("/pricing", publicLimiter, pricing_routes_1.pricingRouter);
+    api.use("/builder", publicLimiter, builder_routes_1.builderRouter);
     api.use("/gallery", publicLimiter, gallery_routes_1.galleryRouter);
     api.use(content_routes_1.contentRouter); // no extra limiter — served via static-ish reads
     api.use("/pages", publicLimiter, pages_routes_1.pagesRouter);
     api.use("/settings", publicLimiter, public_settings_routes_1.publicSettingsRouter);
     api.use("/blog", publicLimiter, blog_routes_1.blogRouter);
     api.use("/events", publicLimiter, events_routes_1.eventsRouter);
+    // Customer shop — requireCustomer enforced inside the routers themselves
+    api.use("/cart", publicLimiter, shop_routes_1.cartRouter);
+    api.use("/wishlist", publicLimiter, shop_routes_1.wishlistRouter);
+    api.use("/shop/checkout", publicLimiter, orders_routes_1.shopCheckoutRouter);
+    api.use("/shop/orders", strictLimiter, orders_routes_1.ordersRouter);
+    api.use("/account/orders", publicLimiter, orders_routes_1.accountOrdersRouter);
+    api.use("/account/registries", publicLimiter, registry_routes_1.accountRegistryRouter);
+    api.use("/registry", publicLimiter, registry_routes_1.registryRouter);
     // Booking journey — mix of public & strict
     api.use("/availability", publicLimiter, availability_routes_1.availabilityRouter);
     api.use("/bookings", strictLimiter, bookings_routes_1.bookingsRouter);
@@ -239,6 +270,10 @@ function createApp() {
     // All admin routes: JWT-keyed rate limit + Cache-Control: no-store (P3).
     // noStore prevents browsers / CDN from caching PII or admin data.
     api.use("/admin/themes", adminLimiter, no_store_1.noStore, themes_routes_1.adminThemesRouter);
+    api.use("/admin/products", adminLimiter, no_store_1.noStore, catalog_routes_1.adminProductsRouter);
+    api.use("/admin/product-categories", adminLimiter, no_store_1.noStore, catalog_routes_1.adminProductCategoriesRouter);
+    api.use("/admin/collections", adminLimiter, no_store_1.noStore, collections_routes_1.adminProductCollectionsRouter);
+    api.use("/admin/registries", adminLimiter, no_store_1.noStore, registry_routes_1.adminRegistryRouter);
     api.use("/admin/packages", adminLimiter, no_store_1.noStore, packages_routes_1.adminPackagesRouter);
     api.use("/admin/extra-services", adminLimiter, no_store_1.noStore, extra_services_routes_1.adminExtraServicesRouter);
     api.use("/admin/gallery", adminLimiter, no_store_1.noStore, gallery_routes_1.adminGalleryRouter);
@@ -255,6 +290,7 @@ function createApp() {
     mediaAdminRouter.use(media_routes_1.mediaRouter);
     api.use("/admin/media", mediaAdminRouter);
     api.use("/admin/bookings", adminLimiter, no_store_1.noStore, bookings_routes_1.adminBookingsRouter);
+    api.use("/admin/orders", adminLimiter, no_store_1.noStore, orders_routes_1.adminOrdersRouter);
     api.use("/admin/invoices", adminLimiter, no_store_1.noStore, payments_routes_1.adminInvoicesRouter);
     api.use("/admin/consultations", adminLimiter, no_store_1.noStore, consultations_routes_1.adminConsultationsRouter);
     api.use("/admin/leads", adminLimiter, no_store_1.noStore, crm_routes_1.adminLeadsRouter);

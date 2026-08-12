@@ -16,6 +16,7 @@ const pdf_1 = require("../../integrations/invoice/pdf");
 const mailer_1 = require("../../integrations/email/mailer");
 const client_3 = require("../../integrations/whatsapp/client");
 const bookings_service_1 = require("../bookings/bookings.service");
+const orders_service_1 = require("../orders/orders.service");
 const logger_1 = require("../../lib/logger");
 async function createPaymentOrder(input) {
     if (input.bookingCode) {
@@ -96,6 +97,17 @@ async function handleRazorpayWebhook(rawBody, signature) {
                 data: { paymentStatus: client_1.PaymentStatus.FAILED },
             });
             return { handled: true, type: "BOOKING_FAILED", id: booking.id };
+        }
+    }
+    const shopOrder = await (0, orders_service_1.findOrderByRazorpayOrderId)(orderId);
+    if (shopOrder) {
+        if (event === "payment.captured" || payment?.status === "captured") {
+            await (0, orders_service_1.markOrderPaid)(shopOrder.id, payment?.id);
+            return { handled: true, type: "SHOP_ORDER", id: shopOrder.id };
+        }
+        if (event === "payment.failed") {
+            await (0, orders_service_1.cancelOrderAndRestock)(shopOrder.id, "Payment failed");
+            return { handled: true, type: "SHOP_ORDER_FAILED", id: shopOrder.id };
         }
     }
     const registration = await prisma_1.prisma.eventRegistration.findFirst({

@@ -57,6 +57,8 @@ const EMPTY_FORM: ProductInput = {
   description: "",
   priceInPaise: 0,
   compareAtPriceInPaise: null,
+  personalizationEnabled: false,
+  personalizationCostInPaise: 0,
   isActive: true,
   minOrderQuantity: 1,
   maxOrderQuantity: null,
@@ -138,6 +140,8 @@ export function ProductsScreen() {
       description: row.description,
       priceInPaise: row.priceInPaise,
       compareAtPriceInPaise: row.compareAtPriceInPaise,
+      personalizationEnabled: row.personalizationEnabled,
+      personalizationCostInPaise: row.personalizationCostInPaise,
       isActive: row.isActive,
       minOrderQuantity: row.minOrderQuantity,
       maxOrderQuantity: row.maxOrderQuantity,
@@ -402,8 +406,26 @@ export function ProductsScreen() {
         </FormField>
 
         <div>
-          <p className="mb-1.5 text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization fields</p>
-          <p className="mb-2 text-xs text-(--color-text-muted)">Optional custom fields customers fill in at checkout (e.g. name to engrave).</p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization</p>
+              <p className="text-xs text-(--color-text-muted)">Enable paid customization and define fields customers fill before adding to cart.</p>
+            </div>
+            <ToggleSwitch
+              checked={form.personalizationEnabled}
+              onChange={(v) => patchForm({ personalizationEnabled: v })}
+              label="Personalization enabled"
+            />
+          </div>
+          {form.personalizationEnabled && (
+            <FormField label="Personalization cost" htmlFor="product-personalization-cost" hint="Charged per quantity when the customer chooses personalization.">
+              <PriceInput
+                id="product-personalization-cost"
+                value={form.personalizationCostInPaise}
+                onChange={(paise) => patchForm({ personalizationCostInPaise: paise })}
+              />
+            </FormField>
+          )}
           <div className="flex flex-col gap-3">
             {(form.personalizationFields ?? []).map((f, i) => (
               <div key={i} className="rounded-(--radius-md) border border-(--color-border-soft) p-3">

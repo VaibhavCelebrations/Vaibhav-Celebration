@@ -21,8 +21,9 @@ import {
   adminProductsRouter,
   adminProductCategoriesRouter,
 } from "./modules/catalog/catalog.routes";
+import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
 import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
-import { shopCheckoutRouter, ordersRouter, accountOrdersRouter } from "./modules/orders/orders.routes";
+import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
@@ -289,6 +290,7 @@ export function createApp() {
   api.use("/themes", publicLimiter, themesRouter);
   api.use("/products", publicLimiter, productsRouter);
   api.use("/product-categories", publicLimiter, productCategoriesRouter);
+  api.use("/collections", publicLimiter, productCollectionsRouter);
   api.use("/packages", publicLimiter, packagesRouter);
   api.use("/pricing", publicLimiter, pricingRouter);
   api.use("/builder", publicLimiter, builderRouter);
@@ -324,6 +326,7 @@ export function createApp() {
   api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
   api.use("/admin/products", adminLimiter, noStore, adminProductsRouter);
   api.use("/admin/product-categories", adminLimiter, noStore, adminProductCategoriesRouter);
+  api.use("/admin/collections", adminLimiter, noStore, adminProductCollectionsRouter);
   api.use("/admin/registries", adminLimiter, noStore, adminRegistryRouter);
   api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
   api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
@@ -341,6 +344,7 @@ export function createApp() {
   mediaAdminRouter.use(mediaRouter);
   api.use("/admin/media", mediaAdminRouter);
   api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
+  api.use("/admin/orders", adminLimiter, noStore, adminOrdersRouter);
   api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
   api.use("/admin/consultations", adminLimiter, noStore, adminConsultationsRouter);
   api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);

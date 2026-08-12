@@ -189,13 +189,18 @@ export function CartDrawer() {
                     )}
 
                     <p className="text-sm font-bold text-charcoal mt-1.5">
-                      {formatPaise(item.unitPriceInPaise * item.quantity)}
+                      {formatPaise((item.unitPriceInPaise + item.personalizationCostInPaise) * item.quantity)}
                       {item.quantity > 1 && (
                         <span className="text-text-light font-normal text-xs ml-1">
-                          ({formatPaise(item.unitPriceInPaise)} × {item.quantity})
+                          ({formatPaise(item.unitPriceInPaise + item.personalizationCostInPaise)} × {item.quantity})
                         </span>
                       )}
                     </p>
+                    {item.personalizationCostInPaise > 0 && (
+                      <p className="mt-0.5 text-[10px] font-semibold text-mocha">
+                        Includes {formatPaise(item.personalizationCostInPaise)} personalization per item
+                      </p>
+                    )}
 
                     {/* Quantity + Remove */}
                     <div className="flex items-center justify-between mt-2">

@@ -14,6 +14,7 @@ import type {
   OrderDto,
   Product,
   ProductCategory,
+  ProductCollection,
   ProductListResult,
   PublicRegistryDto,
   ServerCart,
@@ -49,6 +50,17 @@ export async function getProductBySlug(slug: string): Promise<Product & { relate
 
 export async function listProductCategories(): Promise<ProductCategory[]> {
   return apiFetch<ProductCategory[]>("/product-categories", { next: { revalidate: 300 } });
+}
+
+export async function listProductCollections(params: { featured?: boolean } = {}): Promise<ProductCollection[]> {
+  const qs = new URLSearchParams();
+  if (params.featured !== undefined) qs.set("featured", String(params.featured));
+  const query = qs.toString();
+  return apiFetch<ProductCollection[]>(`/collections${query ? `?${query}` : ""}`, { next: { revalidate: 60 } });
+}
+
+export async function getProductCollectionBySlug(slug: string): Promise<ProductCollection> {
+  return apiFetch<ProductCollection>(`/collections/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } });
 }
 
 /* ── Cart (requires customer auth cookie) ─────────────────────────── */

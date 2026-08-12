@@ -132,6 +132,7 @@ model MediaAsset {
   popupImages           Popup[]            @relation("PopupImage")
   metadataOgImages      SiteMetadata[]     @relation("MetadataOgImage")
   productImages         ProductImage[]
+  productCollections    ProductCollection[]
 
   @@index([category])
   @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -198,12 +199,17 @@ model ThemeSampleAsset {
 model Package {
   id             String               @id @default(cuid())
   title          String
+  displayName    String?
   slug           String               @unique
   priceInPaise   Int
   tierRank       Int
   isRecommended  Boolean              @default(false)
+  badgeText      String?
+  pricingUnit    String?
+  hasGiftRegistry Boolean             @default(false)
   isActive       Boolean              @default(true)
   isCustomizable Boolean              @default(true)
+  internalKey    String?
   displayOrder   Int                  @default(0)
   description    String?              @db.Text
   createdAt      DateTime             @default(now())
@@ -891,6 +897,10 @@ model Product {
   description           String    @db.Text
   priceInPaise          Int
   compareAtPriceInPaise Int?
+  personalizationEnabled Boolean   @default(false)
+  personalizationCostInPaise Int   @default(0)
+  personalizationInstructions String? @db.Text
+  personalizationConstraints  Json?
   isActive              Boolean   @default(true)
   minOrderQuantity      Int       @default(1)
   maxOrderQuantity      Int?
@@ -901,6 +911,7 @@ model Product {
   images                ProductImage[]
   categoryTags          ProductCategoryTag[]
   themeTags             ProductThemeTag[]
+  collectionItems       ProductCollectionItem[]
   personalizationFields ProductPersonalizationField[]
   inventory             InventoryRecord?
   cartItems             CartItem[]
@@ -1007,6 +1018,8 @@ model CartItem {
   product               Product  @relation(fields: [productId], references: [id])
   quantity              Int
   personalizationValues Json?
+  personalizationSelected Boolean @default(false)
+  personalizationCostSnapshot Int   @default(0)
   addedAt               DateTime @default(now())
 
   @@unique([cartId, productId])
@@ -1072,6 +1085,41 @@ model OrderItem {
   quantity              Int
   unitPriceInPaise      Int
   personalizationValues Json?
+  personalizationSelected Boolean @default(false)
+  fulfillmentStatus       String?
+  personalizationCostSnapshot Int @default(0)
+}
+
+model ProductCollection {
+  id             String                  @id @default(cuid())
+  title          String
+  slug           String                  @unique
+  description    String?                 @db.Text
+  heroImageId    String?
+  heroImage      MediaAsset?             @relation(fields: [heroImageId], references: [id])
+  startsAt       DateTime?
+  endsAt         DateTime?
+  showOnHomepage Boolean                 @default(false)
+  isActive       Boolean                 @default(true)
+  displayOrder   Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+  items          ProductCollectionItem[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([showOnHomepage])
+}
+
+model ProductCollectionItem {
+  collectionId String
+  collection   ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  displayOrder Int               @default(0)
+
+  @@id([collectionId, productId])
 }
 
 // ─── Gift Registry ───────────────────────────────────────────────────────────

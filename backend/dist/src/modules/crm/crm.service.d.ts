@@ -118,10 +118,15 @@ export declare function getCustomer360(id: string): Promise<{
             slug: string;
             displayOrder: number;
             description: string | null;
+            displayName: string | null;
             priceInPaise: number;
             tierRank: number;
             isRecommended: boolean;
+            badgeText: string | null;
+            pricingUnit: string | null;
+            hasGiftRegistry: boolean;
             isCustomizable: boolean;
+            internalKey: string | null;
         };
     } & {
         status: import(".prisma/client").$Enums.BookingStatus;

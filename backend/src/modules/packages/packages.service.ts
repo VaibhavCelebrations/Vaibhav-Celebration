@@ -185,9 +185,13 @@ export type PackageMatrixSaveInput = {
   packages: Array<{
     packageId: string;
     title?: string;
+    displayName?: string | null;
     description?: string | null;
     priceInPaise?: number;
     isRecommended?: boolean;
+    badgeText?: string | null;
+    pricingUnit?: string | null;
+    hasGiftRegistry?: boolean;
     isActive?: boolean;
     isCustomizable?: boolean;
     items: ServiceItemInput[];

@@ -29,6 +29,7 @@ import {
   LayoutDashboard,
   FileText,
   Scale,
+  Layers,
   ChevronDown,
   ChevronRight,
   type LucideIcon,
@@ -57,6 +58,12 @@ const NAV: NavItem[] = [
     href: "/dashboard/cms/packages",
     label: "Packages",
     icon: Package,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/collections",
+    label: "Collections",
+    icon: Layers,
   },
   {
     section: "CMS",
@@ -135,6 +142,12 @@ const NAV: NavItem[] = [
     href: "/dashboard/crm/leads",
     label: "Leads",
     icon: UserPlus,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/orders",
+    label: "Orders",
+    icon: ShoppingBag,
   },
   {
     section: "CRM",

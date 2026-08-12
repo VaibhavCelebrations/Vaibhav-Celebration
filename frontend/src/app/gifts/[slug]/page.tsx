@@ -33,6 +33,7 @@ export default function ProductDetailPage({ params }: Props) {
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [personalizeSelected, setPersonalizeSelected] = useState(false);
   const [personalization, setPersonalization] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [addedToCart, setAddedToCart] = useState(false);
@@ -49,6 +50,7 @@ export default function ProductDetailPage({ params }: Props) {
           setProduct(data);
           setSelectedImage(0);
           setQuantity(1);
+          setPersonalizeSelected(false);
           setPersonalization({});
           setErrors({});
         }
@@ -98,24 +100,30 @@ export default function ProductDetailPage({ params }: Props) {
   const inCart = getItemQuantity(product.id);
   const wishlisted = isWishlisted(product.id);
   const relatedProducts = product.related;
+  const personalizationCost = product.personalizationEnabled && personalizeSelected ? product.personalizationCostInPaise : 0;
+  const unitTotal = product.priceInPaise + personalizationCost;
 
   const handleAddToCart = async () => {
     const newErrors: Record<string, string> = {};
-    product.personalizationFields.forEach((field) => {
-      if (field.isRequired && !personalization[field.id]?.trim()) {
-        newErrors[field.id] = `${field.label} is required`;
-      }
-    });
+    if (personalizeSelected) {
+      product.personalizationFields.forEach((field) => {
+        if (field.isRequired && !personalization[field.id]?.trim()) {
+          newErrors[field.id] = `${field.label} is required`;
+        }
+      });
+    }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    const pValues: PersonalizationValue[] = product.personalizationFields
-      .filter((f) => personalization[f.id]?.trim())
-      .map((f) => ({
-        fieldId: f.id,
-        label: f.label,
-        value: personalization[f.id],
-      }));
+    const pValues: PersonalizationValue[] = personalizeSelected
+      ? product.personalizationFields
+          .filter((f) => personalization[f.id]?.trim())
+          .map((f) => ({
+            fieldId: f.id,
+            label: f.label,
+            value: personalization[f.id],
+          }))
+      : [];
 
     setIsAdding(true);
     try {
@@ -242,12 +250,37 @@ export default function ProductDetailPage({ params }: Props) {
                 <hr className="border-border-light" />
 
                 {/* Personalization Fields */}
-                {product.personalizationFields.length > 0 && (
+                {product.personalizationEnabled && product.personalizationFields.length > 0 && (
                   <div className="space-y-4">
                     <h3 className="font-display text-lg font-semibold text-charcoal flex items-center gap-2">
                       ✨ Personalize Your Gift
                     </h3>
-                    {product.personalizationFields.map((field) => (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setPersonalizeSelected(true)}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                          personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
+                        }`}
+                      >
+                        <span className="block font-semibold">Yes, personalize it</span>
+                        <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPersonalizeSelected(false);
+                          setErrors({});
+                        }}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                          !personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
+                        }`}
+                      >
+                        <span className="block font-semibold">No, keep standard</span>
+                        <span>No additional cost</span>
+                      </button>
+                    </div>
+                    {personalizeSelected && product.personalizationFields.map((field) => (
                       <div key={field.id}>
                         <label className="text-sm font-semibold text-charcoal mb-1 block">
                           {field.label} {field.isRequired && <span className="text-red-500">*</span>}
@@ -270,6 +303,22 @@ export default function ProductDetailPage({ params }: Props) {
                         )}
                       </div>
                     ))}
+                    <div className="rounded-xl bg-surface border border-border-light p-4 text-sm">
+                      <div className="flex justify-between text-text-muted">
+                        <span>Base product</span>
+                        <span>{formatPaise(product.priceInPaise)}</span>
+                      </div>
+                      {personalizeSelected && (
+                        <div className="mt-1 flex justify-between text-text-muted">
+                          <span>Personalization</span>
+                          <span>{formatPaise(product.personalizationCostInPaise)}</span>
+                        </div>
+                      )}
+                      <div className="mt-2 flex justify-between font-bold text-charcoal">
+                        <span>Unit total</span>
+                        <span>{formatPaise(unitTotal)}</span>
+                      </div>
+                    </div>
                     <hr className="border-border-light" />
                   </div>
                 )}
@@ -311,7 +360,7 @@ export default function ProductDetailPage({ params }: Props) {
                       ) : addedToCart ? (
                         <><Check size={18} /> Added to Cart</>
                       ) : (
-                        <><ShoppingCart size={18} /> Add to Cart — {formatPaise(product.priceInPaise * quantity)}</>
+                        <><ShoppingCart size={18} /> Add to Cart — {formatPaise(unitTotal * quantity)}</>
                       )}
                     </button>
                   </div>

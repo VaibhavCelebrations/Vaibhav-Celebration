@@ -196,10 +196,14 @@ export type ApiPackageServiceItem = {
 export type ApiPackage = {
   id: string;
   title: string;
+  displayName: string | null;
   slug: string;
   priceInPaise: number;
   tierRank: number;
   isRecommended: boolean;
+  badgeText: string | null;
+  pricingUnit: string | null;
+  hasGiftRegistry: boolean;
   isActive: boolean;
   description: string | null;
   serviceItems: ApiPackageServiceItem[];
@@ -234,6 +238,7 @@ export type ApiFaq = {
 export type ApiBlogPost = {
   id: string;
   title: string;
+  displayName: string | null;
   slug: string;
   contentHtml: string;
   excerpt: string | null;
@@ -293,6 +298,9 @@ export type PackageCard = {
   basePrice: number;
   tierRank: number;
   isRecommended: boolean;
+  badgeText: string | null;
+  pricingUnit: string | null;
+  hasGiftRegistry: boolean;
   description: string;
   features: Array<{ label: string; included: boolean }>;
 };

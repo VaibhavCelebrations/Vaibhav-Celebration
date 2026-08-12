@@ -15,6 +15,8 @@ const media_ref_1 = require("./media-ref");
             cdnKey: "a.jpg",
             sizeBytes: 1000,
             uploadedByAdminUserId: null,
+            category: null,
+            folder: null,
             createdAt: new Date(),
         });
         (0, vitest_1.expect)(ref?.url).toBe("https://example.com/a.jpg");

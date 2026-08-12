@@ -46,6 +46,8 @@ const productSchema = z.object({
   description: z.string().min(1),
   priceInPaise: z.number().int().positive(),
   compareAtPriceInPaise: z.number().int().positive().optional().nullable(),
+  personalizationEnabled: z.boolean().optional(),
+  personalizationCostInPaise: z.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),
   minOrderQuantity: z.number().int().positive().optional(),
   maxOrderQuantity: z.number().int().positive().optional().nullable(),

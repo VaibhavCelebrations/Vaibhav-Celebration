@@ -346,7 +346,7 @@ export default function CheckoutPage() {
                                   <button onClick={() => void updateQuantity(item.productId, item.quantity + 1)} className="w-9 h-full flex items-center justify-center text-charcoal hover:text-mocha transition-colors" disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}><Plus size={14} /></button>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="font-bold text-charcoal">{formatPaise(item.unitPriceInPaise * item.quantity)}</span>
+                                  <span className="font-bold text-charcoal">{formatPaise((item.unitPriceInPaise + item.personalizationCostInPaise) * item.quantity)}</span>
                                   <button onClick={() => void removeItem(item.productId)} className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"><Trash2 size={14} /></button>
                                 </div>
                               </div>

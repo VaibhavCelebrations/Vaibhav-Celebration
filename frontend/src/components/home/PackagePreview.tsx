@@ -29,15 +29,15 @@ export function PackagePreview({ packages }: PackagePreviewProps) {
           {packages.map((pkg, i) => (
             <ScrollReveal key={pkg.id} delay={i * 100} className="h-full">
               <div
-                className={`rounded-2xl p-6 md:p-8 flex flex-col h-full transition-premium hover:-translate-y-2 text-center ${
+                className={`rounded-2xl p-6 md:p-8 flex flex-col h-full transition-premium hover:-translate-y-3 text-center ${
                   pkg.isRecommended
                     ? "bg-cream-dark border-2 border-mocha relative shadow-card hover:shadow-hover"
-                    : "bg-cream border border-border hover:shadow-card"
+                    : "bg-cream border border-border hover:shadow-card hover:border-mocha/30"
                 }`}
               >
-                {pkg.isRecommended && (
+                {(pkg.badgeText || pkg.isRecommended) && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full whitespace-nowrap shadow-sm">
-                    Most Chosen
+                    {pkg.badgeText || "Most Chosen"}
                   </span>
                 )}
                 <h3 className="font-display text-2xl font-semibold text-charcoal">

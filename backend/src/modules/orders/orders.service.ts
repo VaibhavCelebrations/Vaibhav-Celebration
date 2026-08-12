@@ -2,7 +2,7 @@ import { InventoryLedgerReason, OrderStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { nextOrderCode } from "../../lib/sequences";
-import { parsePagination } from "../../lib/response";
+import { parsePagination, paginationMeta } from "../../lib/response";
 import { computeQuote } from "../shop/cart-pricing.service";
 import { adjustInventoryInTx } from "../catalog/inventory.service";
 import { createRazorpayOrder, getRazorpayPublicKey } from "../../integrations/razorpay/client";
@@ -59,7 +59,7 @@ export async function getCheckoutQuote(userId: string) {
   };
 }
 
-type OrderLine = { productId: string; quantity: number; personalizationValues?: unknown };
+type OrderLine = { productId: string; quantity: number; personalizationValues?: unknown; personalizationSelected?: boolean; personalizationCostSnapshot?: number; };
 
 /**
  * Shared order-creation core: re-validates stock/prices inside the
@@ -112,6 +112,8 @@ async function createOrderFromLines(
             quantity: l.quantity,
             unitPriceInPaise: productMap.get(l.productId)!.priceInPaise,
             personalizationValues: (l.personalizationValues ?? null) as never,
+            personalizationSelected: l.personalizationSelected ?? false,
+            personalizationCostSnapshot: l.personalizationCostSnapshot ?? 0,
           })),
         },
       },
@@ -166,7 +168,7 @@ export async function createOrderFromCart(
 
   const result = await createOrderFromLines(
     userId,
-    items.map((i) => ({ productId: i.productId, quantity: i.quantity, personalizationValues: i.personalizationValues })),
+    items.map((i) => ({ productId: i.productId, quantity: i.quantity, personalizationValues: i.personalizationValues, personalizationSelected: i.personalizationSelected, personalizationCostSnapshot: i.personalizationCostSnapshot })),
     input,
     "SHOP_ORDER",
   );
@@ -341,4 +343,100 @@ function shapeOrder(order: {
       image: i.product.images[0]?.media ?? null,
     })),
   };
+}
+
+// ─── ADMIN CRM ───────────────────────────────────────────────────────────────
+
+export async function adminListOrders(query: { page?: number; pageSize?: number; search?: string; status?: import("@prisma/client").OrderStatus }) {
+  const { take, skip, page, pageSize } = parsePagination(query);
+  const where: import("@prisma/client").Prisma.OrderWhereInput = {};
+
+  if (query.status) where.status = query.status;
+  if (query.search) {
+    const s = query.search.trim();
+    where.OR = [
+      { orderCode: { contains: s, mode: "insensitive" } },
+      { contactEmail: { contains: s, mode: "insensitive" } },
+      { contactPhone: { contains: s, mode: "insensitive" } },
+    ];
+  }
+
+  const [total, orders] = await prisma.$transaction([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take,
+      skip,
+      include: {
+        user: { select: { name: true, email: true, phone: true } },
+        items: true,
+      },
+    }),
+  ]);
+
+  return {
+    meta: paginationMeta(page, pageSize, total),
+    data: orders.map((o) => ({
+      id: o.id,
+      orderCode: o.orderCode,
+      status: o.status,
+      totalInPaise: o.totalInPaise,
+      createdAt: o.createdAt.toISOString(),
+      customerName: o.user.name,
+      customerEmail: o.contactEmail,
+      customerPhone: o.contactPhone,
+      itemCount: o.items.length,
+      hasPersonalization: o.items.some((i) => i.personalizationSelected),
+    })),
+  };
+}
+
+export async function adminGetOrder(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { name: true, email: true, phone: true } },
+      items: {
+        include: {
+          product: { select: { title: true, sku: true, slug: true, images: { include: { media: true } } } },
+        },
+      },
+    },
+  });
+
+  if (!order) throw new NotFoundError("Order not found");
+
+  return {
+    ...order,
+    items: order.items.map((i) => ({
+      id: i.id,
+      productId: i.productId,
+      title: i.product.title,
+      sku: i.product.sku,
+      quantity: i.quantity,
+      unitPriceInPaise: i.unitPriceInPaise,
+      personalizationSelected: i.personalizationSelected,
+      personalizationValues: i.personalizationValues,
+      personalizationCostSnapshot: i.personalizationCostSnapshot,
+      fulfillmentStatus: i.fulfillmentStatus,
+      lineTotalInPaise: (i.unitPriceInPaise + i.personalizationCostSnapshot) * i.quantity,
+      image: i.product.images[0]?.media ?? null,
+    })),
+  };
+}
+
+export async function adminUpdateOrderItemFulfillment(orderId: string, itemId: string, status: string | null) {
+  const item = await prisma.orderItem.findFirst({
+    where: { id: itemId, orderId },
+  });
+
+  if (!item) throw new NotFoundError("Order item not found");
+
+  await prisma.orderItem.update({
+    where: { id: itemId },
+    data: { fulfillmentStatus: status },
+  });
+
+  return adminGetOrder(orderId);
 }

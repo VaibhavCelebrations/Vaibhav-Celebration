@@ -24,4 +24,18 @@ export declare function invoiceEmailHtml(input: {
     pdfUrl?: string | null;
 }): string;
 export declare function consultationAckHtml(name: string): string;
+export declare function welcomeEmailHtml(name: string): string;
+export declare function verifyEmailHtml(name: string, verifyUrl: string): string;
+/** Reset link validity is enforced server-side by PASSWORD_RESET_TOKEN_TTL_MINUTES (default 10 min). */
+export declare function passwordResetEmailHtml(name: string, resetUrl: string, ttlMinutes: number): string;
+export declare function passwordChangedEmailHtml(name: string): string;
+export declare function orderConfirmationHtml(input: {
+    name: string;
+    orderCode: string;
+    totalInPaise: number;
+    items: Array<{
+        title: string;
+        quantity: number;
+    }>;
+}): string;
 export {};

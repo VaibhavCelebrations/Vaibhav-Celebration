@@ -219,7 +219,7 @@ export function Navbar() {
               </button>
               <button
                 onClick={toggleMobile}
-                className="text-charcoal p-2 -mr-2"
+                className="text-charcoal p-2 -mr-2 transition-all duration-300 hover:scale-110 active:scale-95"
                 aria-label={mobileOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileOpen}
               >

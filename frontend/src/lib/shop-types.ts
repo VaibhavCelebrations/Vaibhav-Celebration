@@ -55,6 +55,8 @@ export interface Product {
   description: string;
   priceInPaise: number;
   compareAtPriceInPaise: number | null;
+  personalizationEnabled: boolean;
+  personalizationCostInPaise: number;
   isActive: boolean;
   minOrderQuantity: number;
   maxOrderQuantity: number | null;
@@ -77,6 +79,24 @@ export interface ProductCategory {
 }
 
 export type ProductListResult = { items: Product[]; total: number; page: number; pageSize: number };
+
+export interface ProductCollection {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  heroImage: MediaRef | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  showOnHomepage: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  products: Product[];
+  productCount: number;
+}
 
 /* ── Derived helpers ───────────────────────────────────────────────── */
 
@@ -119,6 +139,7 @@ export interface ServerCartItem {
   unitPriceInPaise: number;
   quantity: number;
   personalizationValues: Array<{ fieldId: string; label: string; value: string }> | null;
+  personalizationCostInPaise: number;
   image: MediaRef | null;
   isActive: boolean;
   stockAvailable: number;
@@ -129,6 +150,7 @@ export interface ServerCartItem {
 export interface CartQuoteLine {
   productId: string;
   unitPriceInPaise: number;
+  personalizationCostInPaise: number;
   quantity: number;
   lineTotalInPaise: number;
 }
@@ -182,6 +204,7 @@ export interface OrderItemDto {
   slug: string;
   quantity: number;
   unitPriceInPaise: number;
+  personalizationCostInPaise: number;
   lineTotalInPaise: number;
   image: MediaRef | null;
 }
@@ -204,7 +227,7 @@ export interface OrderDto {
 
 export interface CheckoutQuoteResult {
   quote: CartQuote;
-  items: Array<{ productId: string; title: string; quantity: number; unitPriceInPaise: number }>;
+  items: Array<{ productId: string; title: string; quantity: number; unitPriceInPaise: number; personalizationCostInPaise: number }>;
 }
 
 export interface CreateOrderResult {

@@ -30,11 +30,16 @@ export async function getPageContent(pageKey: string) {
 }
 
 export async function listPageContent() {
-  const rows = await prisma.pageContent.findMany({ orderBy: { pageKey: "asc" } });
+  const rows = await prisma.pageContent.findMany({
+    orderBy: { pageKey: "asc" },
+  });
   return rows;
 }
 
-export async function upsertPageContent(pageKey: string, sections: Prisma.InputJsonValue) {
+export async function upsertPageContent(
+  pageKey: string,
+  sections: Prisma.InputJsonValue,
+) {
   if (!isValidPageKey(pageKey)) throw new NotFoundError("Invalid page key");
   return prisma.pageContent.upsert({
     where: { pageKey },
@@ -47,7 +52,8 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
   home: {
     hero: {
       eyebrow: "We Create, You Celebrate ♡",
-      headline: "Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
+      headline:
+        "Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
       headlineAccent: "Personalized Birthday Experiences",
       subheadline:
         "Creating customized kids birthday celebrations, milestone moments, themed experiences, personalized return gifts, and memorable celebrations designed around every child's unique story.",
@@ -68,7 +74,8 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
     },
     ctaBand: {
       headline: "Ready to Plan Something Special?",
-      subheadline: "Book a free consultation and let's bring your vision to life.",
+      subheadline:
+        "Book a free consultation and let's bring your vision to life.",
       ctaLabel: "Book Free Consultation",
       ctaHref: "/consultation",
     },
@@ -76,7 +83,8 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
   about: {
     hero: {
       title: "About Vaibhav Celebrations",
-      subtitle: "Creating magical moments for families across Delhi NCR since day one.",
+      subtitle:
+        "Creating magical moments for families across Delhi NCR since day one.",
     },
     story: {
       title: "Our Journey",
@@ -88,9 +96,21 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
     values: {
       title: "What We Stand For",
       items: [
-        { title: "Personalization", description: "Every celebration is tailored to your child's personality and interests." },
-        { title: "Quality", description: "Premium materials, professional execution, and attention to every detail." },
-        { title: "Trust", description: "Transparent pricing, reliable timelines, and a team that cares deeply." },
+        {
+          title: "Personalization",
+          description:
+            "Every celebration is tailored to your child's personality and interests.",
+        },
+        {
+          title: "Quality",
+          description:
+            "Premium materials, professional execution, and attention to every detail.",
+        },
+        {
+          title: "Trust",
+          description:
+            "Transparent pricing, reliable timelines, and a team that cares deeply.",
+        },
       ],
     },
   },

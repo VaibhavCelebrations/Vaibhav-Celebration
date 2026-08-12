@@ -71,6 +71,15 @@ export declare function adminGetTheme(id: string): Promise<{
     deletedAt: string | null;
     packageCount: number;
     galleryCount: number;
+    galleryImageAssets: {
+        id: string;
+        media: {
+            id: string;
+            url: string;
+            altText: string | undefined;
+        } | null;
+        displayOrder: number;
+    }[];
     sampleAssets: {
         id: string;
         themeId: string;
@@ -98,10 +107,14 @@ export declare function adminListPackages(q: AdminListQuery): Promise<{
     items: {
         id: string;
         title: string;
+        displayName: string | null;
         slug: string;
         priceInPaise: number;
         tierRank: number;
         isRecommended: boolean;
+        badgeText: string | null;
+        pricingUnit: string | null;
+        hasGiftRegistry: boolean;
         isActive: boolean;
         isCustomizable: boolean;
         displayOrder: number;

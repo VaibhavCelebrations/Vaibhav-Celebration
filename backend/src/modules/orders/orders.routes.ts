@@ -79,3 +79,52 @@ accountOrdersRouter.get(
     }
   },
 );
+
+export const adminOrdersRouter = Router();
+adminOrdersRouter.use(
+  require("../../middleware/auth").requireAdmin,
+  require("../../middleware/auth").requireRoles("SUPER_ADMIN", "OPERATIONS")
+);
+
+adminOrdersRouter.get(
+  "/",
+  validate(paginationQuerySchema.extend({
+    search: z.string().optional(),
+    status: z.enum(["PENDING_PAYMENT", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED", "FAILED"]).optional(),
+  }), "query"),
+  async (req, res, next) => {
+    try {
+      const { adminListOrders } = require("./orders.service");
+      return ok(res, await adminListOrders(req.query));
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+adminOrdersRouter.get(
+  "/:id",
+  validate(z.object({ id: z.string() }), "params"),
+  async (req, res, next) => {
+    try {
+      const { adminGetOrder } = require("./orders.service");
+      return ok(res, await adminGetOrder(param(req, "id")));
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+adminOrdersRouter.patch(
+  "/:id/items/:itemId/fulfillment",
+  validate(z.object({ id: z.string(), itemId: z.string() }), "params"),
+  validate(z.object({ status: z.string().nullable() }), "body"),
+  async (req, res, next) => {
+    try {
+      const { adminUpdateOrderItemFulfillment } = require("./orders.service");
+      return ok(res, await adminUpdateOrderItemFulfillment(param(req, "id"), param(req, "itemId"), req.body.status));
+    } catch (err) {
+      return next(err);
+    }
+  }
+);

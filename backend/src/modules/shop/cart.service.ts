@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma";
+import { Prisma } from "@prisma/client";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { computeQuote } from "./cart-pricing.service";
 
