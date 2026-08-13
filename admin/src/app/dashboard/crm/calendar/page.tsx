@@ -14,6 +14,20 @@ type CalendarOrder = {
   customerPhone: string;
   registryCode: string | null;
   isRegistryOrder: boolean;
+  isPackageOrder?: boolean;
+  packageTitle?: string | null;
+  themeTitle?: string | null;
+  kind?: string;
+};
+
+type CalendarPackageEvent = {
+  id: string;
+  orderCode: string;
+  eventDate: string;
+  customerName: string | null;
+  packageTitle: string;
+  themeTitle: string | null;
+  totalInPaise: number;
 };
 
 type CalendarBirthday = {
@@ -28,6 +42,7 @@ type CalendarBirthday = {
 
 type CalendarEvent =
   | { kind: "order"; dateKey: string; data: CalendarOrder }
+  | { kind: "package"; dateKey: string; data: CalendarPackageEvent }
   | { kind: "birthday"; dateKey: string; data: CalendarBirthday };
 
 type CalendarResponse = {
@@ -35,6 +50,7 @@ type CalendarResponse = {
   from: string;
   to: string;
   orders: CalendarOrder[];
+  packageEvents?: CalendarPackageEvent[];
   birthdays: CalendarBirthday[];
 };
 
@@ -93,8 +109,19 @@ function EventChip({ event }: { event: CalendarEvent }) {
         className="rounded px-1.5 py-0.5 text-[11px] font-medium border-l-2 truncate bg-sky-50 text-sky-900 border-sky-500"
         title={`Order ${order.orderCode} · ₹${(order.totalInPaise / 100).toFixed(0)}`}
       >
-        {order.isRegistryOrder ? "🎁 " : ""}
+        {order.isRegistryOrder ? "🎁 " : order.isPackageOrder ? "🎉 " : ""}
         {order.orderCode}
+      </div>
+    );
+  }
+  if (event.kind === "package") {
+    const pkg = event.data;
+    return (
+      <div
+        className="rounded px-1.5 py-0.5 text-[11px] font-medium border-l-2 truncate bg-amber-50 text-amber-900 border-amber-500"
+        title={`${pkg.packageTitle}${pkg.themeTitle ? ` · ${pkg.themeTitle}` : ""}`}
+      >
+        🎉 {pkg.packageTitle}
       </div>
     );
   }
@@ -117,9 +144,31 @@ function EventCard({ event }: { event: CalendarEvent }) {
         <div className="flex items-center gap-2 text-sm font-semibold text-sky-900">
           <ShoppingBag size={14} /> {order.orderCode}
           {order.isRegistryOrder && <span className="text-xs font-normal">Registry gift</span>}
+          {order.isPackageOrder && <span className="text-xs font-normal">Package</span>}
         </div>
         <p className="mt-1 text-xs text-sky-800">{order.customerName ?? "Customer"} · ₹{(order.totalInPaise / 100).toFixed(2)}</p>
         {order.registryCode && <p className="text-xs text-sky-700">Registry: {order.registryCode}</p>}
+        {order.packageTitle && (
+          <p className="text-xs text-sky-700">
+            {order.themeTitle ? `${order.themeTitle} — ` : ""}
+            {order.packageTitle}
+          </p>
+        )}
+      </div>
+    );
+  }
+  if (event.kind === "package") {
+    const pkg = event.data;
+    return (
+      <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+          Celebration · {pkg.orderCode}
+        </div>
+        <p className="mt-1 text-xs text-amber-800">
+          {pkg.customerName ?? "Customer"} · {pkg.themeTitle ? `${pkg.themeTitle} — ` : ""}
+          {pkg.packageTitle}
+        </p>
+        <p className="text-xs text-amber-700">₹{(pkg.totalInPaise / 100).toFixed(2)}</p>
       </div>
     );
   }
@@ -154,12 +203,17 @@ export default function CalendarPage() {
       const mapped: CalendarEvent[] = [
         ...data.orders.map((order) => ({
           kind: "order" as const,
-          dateKey: order.placedAt.split("T")[0],
+          dateKey: order.placedAt.split("T")[0]!,
           data: order,
+        })),
+        ...(data.packageEvents ?? []).map((pkg) => ({
+          kind: "package" as const,
+          dateKey: pkg.eventDate.split("T")[0]!,
+          data: pkg,
         })),
         ...data.birthdays.map((birthday) => ({
           kind: "birthday" as const,
-          dateKey: birthday.eventDate.split("T")[0],
+          dateKey: birthday.eventDate.split("T")[0]!,
           data: birthday,
         })),
       ];

@@ -1,7 +1,7 @@
 # Razorpay Payment Setup — Vaibhav Celebrations
 
 **Audience:** Project Lead / whoever owns the Razorpay merchant account  
-**Used by:** Shop checkout, Gift Registry (Vaibhav Celebrations products), Bookings  
+**Used by:** Shop checkout, Gift Registry (Vaibhav Celebrations products), Package celebration orders  
 **Backend env file:** `backend/.env`  
 **Do not commit real keys.**
 
@@ -17,6 +17,14 @@ This document is the working setup for **live/test payments** on this codebase. 
 | Key Secret (private) | Create orders + verify payment signature | `RAZORPAY_KEY_SECRET` in `backend/.env` |
 | Webhook secret | `POST /api/v1/payments/webhook` | `RAZORPAY_WEBHOOK_SECRET` in `backend/.env` |
 | Mode | `test` or `live` | `RAZORPAY_MODE` |
+
+**Checkout types (all are Orders — there is no customer Booking checkout anymore):**
+
+| Flow | API | Razorpay notes `type` |
+|---|---|---|
+| Shop products | `POST /shop/orders` | `SHOP_ORDER` |
+| Gift registry products | same, with registry lines | `REGISTRY_GIFT` / `SHOP_ORDER` |
+| Celebration packages | `POST /shop/orders/package` | `PACKAGE_ORDER` |
 
 Optional (frontend): `NEXT_PUBLIC_RAZORPAY_KEY_ID` in `frontend/.env` — the storefront checkout **prefers the Key ID returned by the backend** on order create. Keep it in sync anyway.
 

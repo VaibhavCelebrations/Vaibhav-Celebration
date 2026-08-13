@@ -18,7 +18,6 @@ import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult } from "@/
 import * as shopApi from "@/lib/shop-api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
-import { createBuilderBooking } from "@/lib/builder-api";
 
 const STEPS = [
   { label: "Checkout" },
@@ -28,7 +27,7 @@ const STEPS = [
 const EMPTY_ADDRESS: ShippingAddress = { fullName: "", line1: "", line2: "", city: "", state: "", pincode: "", country: "India" };
 
 export default function CheckoutPage() {
-  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, removeItem, removePackage, refreshCart } = useCart();
+  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, removeItem, removePackage, refreshCart, clearCart } = useCart();
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const { push } = useToast();
@@ -125,6 +124,7 @@ export default function CheckoutPage() {
           setPaymentStatus("idle");
           setIsPlacingOrder(false);
           setPendingOrderCode(null);
+          await clearCart();
           await refreshCart();
           setCurrentStep(1);
         } else if (order.paymentStatus === "FAILED") {
@@ -182,6 +182,7 @@ export default function CheckoutPage() {
             setIsPlacingOrder(false);
             setPendingOrderCode(null);
             setHadPackagesAtCheckout(packages.length > 0);
+            await clearCart();
             await refreshCart();
             setCurrentStep(1);
           } else {
@@ -229,62 +230,44 @@ export default function CheckoutPage() {
     setIsPlacingOrder(true);
 
     if (!hasItems && packages.length > 0) {
-      // Handle Package Booking Checkout
+      // Package celebration checkout → Order (kind=PACKAGE), same Razorpay verify path as shop
       try {
         const pkg = packages[0]!;
         if (!pkg.builderInput) {
           throw new Error("Package details missing. Please reconfigure this package.");
         }
-        
-        const booking = await createBuilderBooking({
+
+        const order = await shopApi.createPackageOrder({
           eventDate: eventDetails.eventDate,
-          guestName: address.fullName,
-          guestEmail: contactEmail.trim(),
-          guestPhone: contactPhone.trim(),
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim(),
+          shippingAddress: {
+            fullName: address.fullName.trim() || eventDetails.childName.trim() || "Celebration guest",
+            line1: eventDetails.venue.trim() || "Venue to be confirmed",
+            city: eventDetails.venue.toLowerCase().includes("jaipur") ? "Jaipur" : "Outside Jaipur",
+            state: "Rajasthan",
+            pincode: "000000",
+            country: "India",
+          },
+          eventDetails: {
+            childName: eventDetails.childName,
+            childAge: eventDetails.childAge,
+            venue: eventDetails.venue,
+            guestCount: eventDetails.guestCount,
+            notes: eventDetails.notes,
+          },
           builder: {
             ...pkg.builderInput,
-            guestCount: parseInt(eventDetails.guestCount || "0", 10),
+            guestCount: parseInt(eventDetails.guestCount || String(pkg.builderInput.guestCount || "10"), 10),
             location: eventDetails.venue.toLowerCase().includes("jaipur") ? "jaipur" : "outside",
-          }
-        });
-
-        const sdkReady = await loadRazorpayScript();
-        if (!sdkReady) {
-          push("Could not load the payment gateway.", "error");
-          setIsPlacingOrder(false);
-          return;
-        }
-
-        const opened = openRazorpayCheckout({
-          key: booking.razorpayKeyId,
-          amount: booking.amountInPaise,
-          currency: booking.currency,
-          name: "Vaibhav Celebrations",
-          description: `Booking ${booking.bookingCode}`,
-          order_id: booking.razorpayOrderId,
-          prefill: { name: address.fullName, email: contactEmail.trim(), contact: contactPhone.trim() },
-          theme: { color: "#8B5E3C" },
-          handler: () => {
-            setConfirmedOrderCode(booking.bookingCode);
-            setHadPackagesAtCheckout(true);
-            setPaymentStatus("pending");
-            push("Confirming your payment…", "default");
-            setCurrentStep(1);
-          },
-          modal: {
-            ondismiss: () => {
-              setIsPlacingOrder(false);
-              setPaymentStatus("cancelled");
-            },
           },
         });
 
-        if (!opened) {
-          push("Could not open the payment gateway.", "error");
-          setIsPlacingOrder(false);
-        }
+        await openShopRazorpay(order);
+        // Clear session packages after payment widget opens; paid path clears via refresh/verify
+        // Final clear happens after PAID confirmation below via clearCart in success handlers
       } catch (err) {
-        push(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Booking failed", "error");
+        push(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Could not place package order", "error");
         setIsPlacingOrder(false);
       }
       return;

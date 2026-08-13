@@ -163,6 +163,7 @@ model Theme {
   packages         ThemePackage[]
   sampleAssets     ThemeSampleAsset[]
   bookings         Booking[]
+  orderPackages    OrderPackage[]
   testimonials     Testimonial[]
   events           Event[]
   productTags      ProductThemeTag[]
@@ -218,6 +219,7 @@ model Package {
   serviceItems   PackageServiceItem[]
   themeLinks     ThemePackage[]
   bookings       Booking[]
+  orderPackages  OrderPackage[]
   testimonials   Testimonial[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -302,6 +304,7 @@ model PackageServiceItem {
   isIncluded            Boolean                @default(false)
   displayOrder          Int                    @default(0)
   bookingCustomizations BookingCustomization[]
+  orderPackageLines     OrderPackageLine[]
 
   @@unique([packageId, extraServiceId])
 }
@@ -1076,11 +1079,17 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum OrderKind {
+  SHOP
+  PACKAGE
+}
+
 model Order {
   id                            String                       @id @default(cuid())
   orderCode                     String                       @unique
   userId                        String
   user                          User                         @relation(fields: [userId], references: [id])
+  kind                          OrderKind                    @default(SHOP)
   status                        OrderStatus                  @default(PENDING_PAYMENT)
   paymentStatus                 PaymentStatus                @default(PENDING)
   customizationFollowUpStatus   CustomizationFollowUpStatus  @default(NOT_REQUIRED)
@@ -1091,6 +1100,10 @@ model Order {
   shippingAddress               Json
   contactEmail                  String
   contactPhone                  String
+  /// Celebration / event date for PACKAGE orders (calendar + ops).
+  eventDate                     DateTime?                    @db.Date
+  /// childName, age, venue, guestCount, notes, etc.
+  eventDetails                  Json?
   razorpayOrderId               String?
   razorpayPaymentId             String?
   invoiceNumber                 String?                      @unique
@@ -1104,14 +1117,49 @@ model Order {
   registryId                    String?
   registry                      GiftRegistry?                @relation(fields: [registryId], references: [id])
   items                         OrderItem[]
+  packageOrder                  OrderPackage?
   giftContributions             GiftRegistryContribution[]
   invoice                       Invoice?
 
   @@index([orderCode])
   @@index([userId])
+  @@index([kind])
   @@index([status])
   @@index([paymentStatus])
   @@index([registryId])
+  @@index([eventDate])
+}
+
+/// One celebration package purchased on an Order (kind = PACKAGE).
+model OrderPackage {
+  id                        String             @id @default(cuid())
+  orderId                   String             @unique
+  order                     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  packageId                 String
+  package                   Package            @relation(fields: [packageId], references: [id])
+  themeId                   String
+  theme                     Theme              @relation(fields: [themeId], references: [id])
+  basePriceInPaise          Int
+  customizationTotalInPaise Int                @default(0)
+  guestCount                Int?
+  location                  String?
+  builderInput              Json?
+  quoteSnapshot             Json?
+  lines                     OrderPackageLine[]
+  createdAt                 DateTime           @default(now())
+}
+
+model OrderPackageLine {
+  id                   String              @id @default(cuid())
+  orderPackageId       String
+  orderPackage         OrderPackage        @relation(fields: [orderPackageId], references: [id], onDelete: Cascade)
+  packageServiceItemId String?
+  packageServiceItem   PackageServiceItem? @relation(fields: [packageServiceItemId], references: [id], onDelete: SetNull)
+  label                String
+  sku                  String?
+  section              String?
+  quantity             Int
+  unitPriceInPaise     Int
 }
 
 model OrderItem {

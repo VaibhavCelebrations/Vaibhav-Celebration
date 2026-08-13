@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, ShoppingBag, Gift } from "lucide-react";
+import { FileText, Loader2, ShoppingBag, Gift, PartyPopper } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -63,12 +63,13 @@ function shippingLines(address: Record<string, string> | undefined) {
 }
 
 export function OrdersScreen() {
-  const [tab, setTab] = useState<"shop" | "registry">("shop");
+  const [tab, setTab] = useState<"shop" | "package" | "registry">("shop");
   const { query, setQuery } = useListQuery({ sort: "placedAt", dir: "desc" });
   const listQuery = useMemo(
     () => ({
       ...query,
       shopOnly: tab === "shop" ? "true" : undefined,
+      packageOnly: tab === "package" ? "true" : undefined,
       registryOnly: tab === "registry" ? "true" : undefined,
     }),
     [query, tab],
@@ -176,6 +177,32 @@ export function OrdersScreen() {
       ),
     },
     {
+      key: "type",
+      header: "Type",
+      cell: (row) =>
+        row.kind === "PACKAGE" ? (
+          <span className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded font-medium">Package</span>
+        ) : row.registryCode ? (
+          <span className="text-xs px-2 py-1 bg-rose-50 text-rose-800 rounded font-medium">Registry</span>
+        ) : (
+          <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">Shop</span>
+        ),
+    },
+    {
+      key: "package",
+      header: "Package / Theme",
+      hideBelow: "md",
+      cell: (row) =>
+        row.packageTitle ? (
+          <span className="text-xs text-(--color-text-secondary)">
+            {row.themeTitle ? `${row.themeTitle} — ` : ""}
+            {row.packageTitle}
+          </span>
+        ) : (
+          <span className="text-xs text-stone-400">—</span>
+        ),
+    },
+    {
       key: "status",
       header: "Order",
       cell: (row) => (
@@ -225,16 +252,23 @@ export function OrdersScreen() {
     <div className="space-y-6">
       <PageHeader
         title="Orders"
-        description="Shop purchases and gift registry orders in one place."
+        description="Shop products, celebration packages, and gift registry purchases."
       />
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setTab("shop")}
           className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
         >
           <ShoppingBag size={14} className="inline mr-1" /> Shop orders
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("package")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "package" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+        >
+          <PartyPopper size={14} className="inline mr-1" /> Package orders
         </button>
         <button
           type="button"

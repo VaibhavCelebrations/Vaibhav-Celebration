@@ -1,4 +1,4 @@
-import { CustomizationFollowUpStatus, GiftContributionStatus, InventoryLedgerReason, OrderStatus, PaymentStatus } from "@prisma/client";
+import { CustomizationFollowUpStatus, GiftContributionStatus, InventoryLedgerReason, OrderKind, OrderStatus, PaymentStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { nextOrderCode } from "../../lib/sequences";
@@ -15,6 +15,13 @@ import { logger } from "../../lib/logger";
 import { InvoiceLinkedType } from "@prisma/client";
 import { fulfillRegistryContributionsForOrder, releaseRegistryReservationsForOrder, reserveRegistryItemQty } from "../registry/registry-qty";
 import { parseShippingAddress } from "../registry/address";
+import {
+  computeBuilderQuote,
+  type BuilderLocation,
+  type BuilderQuoteInput,
+  type BuilderSelections,
+} from "../builder/builder.service";
+import { toDateOnly } from "../../lib/validators";
 
 export type ShippingAddress = {
   fullName: string;
@@ -260,6 +267,140 @@ async function createOrderFromLines(
 }
 
 /**
+ * Create a PACKAGE celebration order from the builder quote.
+ * Prices are always recomputed server-side — never trust the client total.
+ */
+export async function createPackageOrder(
+  userId: string,
+  input: {
+    eventDate: string;
+    contactEmail: string;
+    contactPhone: string;
+    shippingAddress?: ShippingAddress;
+    eventDetails?: {
+      childName?: string;
+      childAge?: string;
+      venue?: string;
+      guestCount?: number | string;
+      notes?: string;
+    };
+    builder: {
+      packageSlug: "standard" | "premium" | "luxe" | string;
+      themeSlug: string;
+      guestCount: number;
+      location: BuilderLocation;
+      selections: BuilderSelections;
+    };
+  },
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.eventDate)) {
+    throw new ValidationError("eventDate must be YYYY-MM-DD");
+  }
+  if (!input.builder?.packageSlug || !input.builder?.themeSlug) {
+    throw new ValidationError("Package and theme are required");
+  }
+  if (!Number.isFinite(input.builder.guestCount) || input.builder.guestCount < 5) {
+    throw new ValidationError("Guest count must be at least 5");
+  }
+
+  const builderInput: BuilderQuoteInput = {
+    packageSlug: input.builder.packageSlug,
+    themeSlug: input.builder.themeSlug,
+    guestCount: Math.floor(input.builder.guestCount),
+    location: input.builder.location === "outside" ? "outside" : "jaipur",
+    selections: input.builder.selections ?? {},
+  };
+
+  const quote = await computeBuilderQuote(builderInput);
+  const eventDate = toDateOnly(input.eventDate);
+  const shippingAddress: ShippingAddress = input.shippingAddress ?? {
+    fullName: input.eventDetails?.childName?.trim() || "Celebration guest",
+    line1: input.eventDetails?.venue?.trim() || "Venue to be confirmed",
+    city: builderInput.location === "jaipur" ? "Jaipur" : "Outside Jaipur",
+    state: "Rajasthan",
+    pincode: "000000",
+    country: "India",
+  };
+
+  const hasCustomization = quote.lineItems.some(
+    (line) => line.section !== "package" && line.lineTotalInPaise > 0,
+  );
+
+  const orderCode = await nextOrderCode();
+  const order = await prisma.order.create({
+    data: {
+      orderCode,
+      userId,
+      kind: OrderKind.PACKAGE,
+      status: OrderStatus.PENDING_PAYMENT,
+      paymentStatus: PaymentStatus.PENDING,
+      customizationFollowUpStatus: hasCustomization
+        ? CustomizationFollowUpStatus.REQUIRED
+        : CustomizationFollowUpStatus.NOT_REQUIRED,
+      subtotalInPaise: quote.subtotalInPaise,
+      gstInPaise: quote.gstInPaise,
+      totalInPaise: quote.totalInPaise,
+      shippingAddress: shippingAddress as never,
+      contactEmail: input.contactEmail.toLowerCase().trim(),
+      contactPhone: input.contactPhone.trim(),
+      eventDate,
+      eventDetails: {
+        childName: input.eventDetails?.childName ?? null,
+        childAge: input.eventDetails?.childAge ?? null,
+        venue: input.eventDetails?.venue ?? null,
+        guestCount: input.eventDetails?.guestCount ?? builderInput.guestCount,
+        notes: input.eventDetails?.notes ?? null,
+        packageTitle: quote.packageTitle,
+        themeTitle: quote.themeTitle,
+      } as never,
+      packageOrder: {
+        create: {
+          packageId: quote.packageId,
+          themeId: quote.themeId,
+          basePriceInPaise: quote.basePriceInPaise,
+          customizationTotalInPaise: quote.customizationTotalInPaise,
+          guestCount: quote.guestCount,
+          location: quote.location,
+          builderInput: builderInput as never,
+          quoteSnapshot: quote as never,
+          lines: {
+            create: quote.lineItems.map((line) => ({
+              packageServiceItemId: line.packageServiceItemId || null,
+              label: line.label,
+              sku: line.sku ?? null,
+              section: line.section,
+              quantity: line.quantity,
+              unitPriceInPaise: line.unitPriceInPaise,
+            })),
+          },
+        },
+      },
+    },
+    include: { packageOrder: { include: { lines: true, package: true, theme: true } } },
+  });
+
+  const razorpayOrder = await createRazorpayOrder({
+    amountInPaise: order.totalInPaise,
+    receipt: order.orderCode,
+    notes: { orderCode: order.orderCode, userId, type: "PACKAGE_ORDER" },
+  });
+
+  await prisma.order.update({ where: { id: order.id }, data: { razorpayOrderId: razorpayOrder.id } });
+
+  return {
+    orderId: order.id,
+    orderCode: order.orderCode,
+    kind: OrderKind.PACKAGE,
+    totalInPaise: order.totalInPaise,
+    razorpayOrderId: razorpayOrder.id,
+    razorpayKeyId: getRazorpayPublicKey(),
+    eventDate: input.eventDate,
+    packageTitle: quote.packageTitle,
+    themeTitle: quote.themeTitle,
+  };
+}
+
+/**
  * Creates the order from the server cart. Cart is NOT cleared until payment
  * is verified — cancelled/failed Razorpay checkouts must not empty the cart.
  * Reuses an existing unpaid order when the cart contents still match.
@@ -487,7 +628,19 @@ export async function verifyShopCheckoutPayment(input: {
 export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
   const order = await prisma.order.findFirst({
     where: { id: orderId },
-    include: { items: { include: { product: true } }, user: true, giftContributions: true, invoice: true },
+    include: {
+      items: { include: { product: true } },
+      user: true,
+      giftContributions: true,
+      invoice: true,
+      packageOrder: {
+        include: {
+          package: { select: { title: true } },
+          theme: { select: { title: true } },
+          lines: true,
+        },
+      },
+    },
   });
   if (!order) throw new NotFoundError("Order not found");
   if (order.status === OrderStatus.PAID && order.paymentStatus === PaymentStatus.PAID) {
@@ -501,18 +654,34 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
   if (!order.invoice && !invoiceNumber) {
     invoiceNumber = await nextInvoiceNumber();
     try {
+      const lineItems =
+        order.kind === OrderKind.PACKAGE && order.packageOrder
+          ? [
+              {
+                label: `${order.packageOrder.theme.title} — ${order.packageOrder.package.title}`,
+                amountInPaise: order.packageOrder.basePriceInPaise,
+              },
+              ...order.packageOrder.lines
+                .filter((line) => line.section !== "package")
+                .map((line) => ({
+                  label: `${line.label} × ${line.quantity}`,
+                  amountInPaise: line.unitPriceInPaise * line.quantity,
+                })),
+            ]
+          : order.items.map((i) => ({
+              label: i.personalizationSelected
+                ? `${i.product.title} × ${i.quantity} (personalized)`
+                : `${i.product.title} × ${i.quantity}`,
+              amountInPaise: (i.unitPriceInPaise + i.personalizationCostSnapshot) * i.quantity,
+            }));
+
       const pdf = await generateInvoicePdf({
         invoiceNumber,
         orderCode: order.orderCode,
         guestName: shipping.fullName || order.user.name,
         guestEmail: order.contactEmail,
         guestPhone: order.contactPhone,
-        lineItems: order.items.map((i) => ({
-          label: i.personalizationSelected
-            ? `${i.product.title} × ${i.quantity} (personalized)`
-            : `${i.product.title} × ${i.quantity}`,
-          amountInPaise: (i.unitPriceInPaise + i.personalizationCostSnapshot) * i.quantity,
-        })),
+        lineItems,
         subtotalInPaise: order.subtotalInPaise,
         gstInPaise: order.gstInPaise,
         totalInPaise: order.totalInPaise,
@@ -559,14 +728,29 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     },
   });
 
-  const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
-  if (cart) {
-    await prisma.cartItem.deleteMany({
-      where: { cartId: cart.id, productId: { in: order.items.map((i) => i.productId) } },
-    });
+  if (order.kind !== OrderKind.PACKAGE) {
+    const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
+    if (cart) {
+      await prisma.cartItem.deleteMany({
+        where: { cartId: cart.id, productId: { in: order.items.map((i) => i.productId) } },
+      });
+    }
   }
 
   if (!order.confirmationEmailSentAt) {
+    const confirmationItems =
+      order.kind === OrderKind.PACKAGE && order.packageOrder
+        ? [
+            {
+              title: `${order.packageOrder.theme.title} — ${order.packageOrder.package.title}`,
+              quantity: 1,
+            },
+            ...order.packageOrder.lines
+              .filter((line) => line.section !== "package")
+              .map((line) => ({ title: line.label, quantity: line.quantity })),
+          ]
+        : order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
+
     void sendEmail({
       to: order.contactEmail,
       subject: `Order Confirmed — ${order.orderCode}`,
@@ -574,7 +758,7 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         name: order.user.name,
         orderCode: order.orderCode,
         totalInPaise: order.totalInPaise,
-        items: order.items.map((i) => ({ title: i.product.title, quantity: i.quantity })),
+        items: confirmationItems,
         invoiceUrl: pdfUrl,
         customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
       }),
@@ -655,7 +839,16 @@ export async function listOrdersForUser(userId: string, q: { page?: number; page
   const [rows, total] = await Promise.all([
     prisma.order.findMany({
       where: { userId },
-      include: { items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } } },
+      include: {
+        items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
+        packageOrder: {
+          include: {
+            package: { select: { title: true, slug: true } },
+            theme: { select: { title: true, slug: true } },
+            lines: true,
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       skip,
       take,
@@ -668,7 +861,16 @@ export async function listOrdersForUser(userId: string, q: { page?: number; page
 export async function getOrderForUser(userId: string, orderCode: string) {
   const order = await prisma.order.findFirst({
     where: { orderCode, userId },
-    include: { items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } } },
+    include: {
+      items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
+      packageOrder: {
+        include: {
+          package: { select: { title: true, slug: true } },
+          theme: { select: { title: true, slug: true } },
+          lines: true,
+        },
+      },
+    },
   });
   if (!order) throw new NotFoundError("Order not found");
   return shapeOrder(order);
@@ -677,6 +879,7 @@ export async function getOrderForUser(userId: string, orderCode: string) {
 function shapeOrder(order: {
   id: string;
   orderCode: string;
+  kind?: OrderKind;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   customizationFollowUpStatus?: CustomizationFollowUpStatus;
@@ -686,6 +889,8 @@ function shapeOrder(order: {
   shippingAddress: unknown;
   contactEmail: string;
   contactPhone: string;
+  eventDate?: Date | null;
+  eventDetails?: unknown;
   invoicePdfUrl: string | null;
   invoiceNumber?: string | null;
   razorpayOrderId?: string | null;
@@ -701,10 +906,26 @@ function shapeOrder(order: {
     personalizationCostSnapshot?: number;
     product: { title: string; slug: string; images: Array<{ media: { url: string; altText: string | null } | null }> };
   }>;
+  packageOrder?: {
+    package: { title: string; slug: string };
+    theme: { title: string; slug: string };
+    guestCount: number | null;
+    location: string | null;
+    lines: Array<{
+      id: string;
+      label: string;
+      sku: string | null;
+      section: string | null;
+      quantity: number;
+      unitPriceInPaise: number;
+    }>;
+  } | null;
 }) {
+  const kind = order.kind ?? OrderKind.SHOP;
   return {
     id: order.id,
     orderCode: order.orderCode,
+    kind,
     status: order.status,
     paymentStatus: order.paymentStatus ?? (order.status === OrderStatus.PAID ? "PAID" : "PENDING"),
     customizationFollowUpStatus: order.customizationFollowUpStatus ?? "NOT_REQUIRED",
@@ -714,15 +935,41 @@ function shapeOrder(order: {
     shippingAddress: order.shippingAddress,
     contactEmail: order.contactEmail,
     contactPhone: order.contactPhone,
+    eventDate: order.eventDate ? order.eventDate.toISOString().slice(0, 10) : null,
+    eventDetails: order.eventDetails ?? null,
     invoiceNumber: order.invoiceNumber ?? null,
     invoicePdfUrl: order.invoicePdfUrl,
     razorpayOrderId: order.razorpayOrderId ?? null,
     canRetryPayment:
       order.status === OrderStatus.PENDING_PAYMENT &&
       order.paymentStatus !== PaymentStatus.PAID,
-    canReorder: order.status === OrderStatus.PAID || order.status === OrderStatus.DELIVERED || order.status === OrderStatus.SHIPPED || order.status === OrderStatus.PROCESSING,
+    canReorder:
+      kind === OrderKind.SHOP &&
+      (order.status === OrderStatus.PAID ||
+        order.status === OrderStatus.DELIVERED ||
+        order.status === OrderStatus.SHIPPED ||
+        order.status === OrderStatus.PROCESSING),
     placedAt: order.placedAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
+    package: order.packageOrder
+      ? {
+          title: order.packageOrder.package.title,
+          slug: order.packageOrder.package.slug,
+          themeTitle: order.packageOrder.theme.title,
+          themeSlug: order.packageOrder.theme.slug,
+          guestCount: order.packageOrder.guestCount,
+          location: order.packageOrder.location,
+          lines: order.packageOrder.lines.map((line) => ({
+            id: line.id,
+            label: line.label,
+            sku: line.sku,
+            section: line.section,
+            quantity: line.quantity,
+            unitPriceInPaise: line.unitPriceInPaise,
+            lineTotalInPaise: line.unitPriceInPaise * line.quantity,
+          })),
+        }
+      : null,
     items: order.items.map((i) => {
       const personalizationCost = i.personalizationCostSnapshot ?? 0;
       return {
@@ -754,6 +1001,7 @@ export async function adminListOrders(query: {
   registryId?: string;
   registryOnly?: boolean;
   shopOnly?: boolean;
+  packageOnly?: boolean;
 }) {
   const { take, skip, page, pageSize } = parsePagination(query);
   const where: import("@prisma/client").Prisma.OrderWhereInput = {};
@@ -762,7 +1010,11 @@ export async function adminListOrders(query: {
   if (query.paymentStatus) where.paymentStatus = query.paymentStatus;
   if (query.registryId) where.registryId = query.registryId;
   if (query.registryOnly) where.registryId = { not: null };
-  if (query.shopOnly) where.registryId = null;
+  if (query.shopOnly) {
+    where.kind = OrderKind.SHOP;
+    where.registryId = null;
+  }
+  if (query.packageOnly) where.kind = OrderKind.PACKAGE;
   if (query.followUp === "REQUIRED_ANY") {
     where.customizationFollowUpStatus = { not: CustomizationFollowUpStatus.NOT_REQUIRED };
   } else if (query.followUp) {
@@ -791,6 +1043,12 @@ export async function adminListOrders(query: {
         user: { select: { name: true, email: true, phone: true } },
         items: true,
         registry: { select: { id: true, registryCode: true } },
+        packageOrder: {
+          include: {
+            package: { select: { title: true, slug: true } },
+            theme: { select: { title: true, slug: true } },
+          },
+        },
       },
     }),
   ]);
@@ -799,21 +1057,25 @@ export async function adminListOrders(query: {
     items: orders.map((o) => ({
       id: o.id,
       orderCode: o.orderCode,
+      kind: o.kind,
       status: o.status,
       placedAt: o.placedAt,
+      eventDate: o.eventDate,
       user: o.user,
       totalInPaise: o.totalInPaise,
       createdAt: o.createdAt.toISOString(),
       customerName: o.user.name,
       customerEmail: o.contactEmail,
       customerPhone: o.contactPhone,
-      itemCount: o.items.length,
-      hasPersonalization: o.items.some((i) => i.personalizationSelected),
+      itemCount: o.items.length || (o.packageOrder ? 1 : 0),
+      hasPersonalization: o.items.some((i) => i.personalizationSelected) || o.kind === OrderKind.PACKAGE,
       paymentStatus: o.paymentStatus,
       customizationFollowUpStatus: o.customizationFollowUpStatus,
       invoicePdfUrl: o.invoicePdfUrl,
       registryId: o.registryId,
       registryCode: o.registry?.registryCode ?? null,
+      packageTitle: o.packageOrder?.package.title ?? null,
+      themeTitle: o.packageOrder?.theme.title ?? null,
     })),
     total,
     page,
@@ -830,6 +1092,13 @@ export async function adminGetOrder(orderId: string) {
       items: {
         include: {
           product: { select: { title: true, sku: true, slug: true, images: { include: { media: true } } } },
+        },
+      },
+      packageOrder: {
+        include: {
+          package: { select: { title: true, slug: true } },
+          theme: { select: { title: true, slug: true } },
+          lines: true,
         },
       },
     },

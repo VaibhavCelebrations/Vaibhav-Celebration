@@ -6,7 +6,7 @@ import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middle
 import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
 import { paginationQuerySchema } from "../../lib/validators";
-import { createOrderFromCart, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
+import { createOrderFromCart, createPackageOrder, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
 
 function customerId(req: import("express").Request): string {
   return (req as CustomerAuthenticatedRequest).customer!.sub;
@@ -49,6 +49,52 @@ ordersRouter.post(
   async (req, res, next) => {
     try {
       const result = await createOrderFromCart(customerId(req), req.body);
+      return res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+ordersRouter.post(
+  "/package",
+  idempotency,
+  validate(
+    z.object({
+      eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      contactEmail: z.string().email(),
+      contactPhone: z.string().min(6).max(20),
+      shippingAddress: shippingAddressSchema.optional(),
+      eventDetails: z
+        .object({
+          childName: z.string().optional(),
+          childAge: z.string().optional(),
+          venue: z.string().optional(),
+          guestCount: z.union([z.number(), z.string()]).optional(),
+          notes: z.string().optional(),
+        })
+        .optional(),
+      builder: z.object({
+        packageSlug: z.string().min(1),
+        themeSlug: z.string().min(1),
+        guestCount: z.number().int().min(5).max(200),
+        location: z.enum(["jaipur", "outside"]),
+        selections: z
+          .object({
+            welcomeItem: z.string().min(1).optional().nullable(),
+            activity1: z.string().min(1).optional().nullable(),
+            activity2: z.string().min(1).optional().nullable(),
+            returnGift: z.string().min(1).optional().nullable(),
+            familyActivity: z.string().min(1).optional().nullable(),
+            decor: z.boolean().optional(),
+          })
+          .default({}),
+      }),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await createPackageOrder(customerId(req), req.body);
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -155,15 +201,17 @@ adminOrdersRouter.get(
     registryId: z.string().optional(),
     registryOnly: z.enum(["true", "false"]).optional(),
     shopOnly: z.enum(["true", "false"]).optional(),
+    packageOnly: z.enum(["true", "false"]).optional(),
   }), "query"),
   async (req, res, next) => {
     try {
       const { adminListOrders } = require("./orders.service");
-      const q = req.query as { registryOnly?: string; shopOnly?: string };
+      const q = req.query as { registryOnly?: string; shopOnly?: string; packageOnly?: string };
       const result = await adminListOrders({
         ...req.query,
         registryOnly: q.registryOnly === "true",
         shopOnly: q.shopOnly === "true",
+        packageOnly: q.packageOnly === "true",
       });
       return ok(res, result);
     } catch (err) {

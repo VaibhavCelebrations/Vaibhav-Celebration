@@ -120,16 +120,35 @@ export async function createShopOrder(input: {
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;
-  eventDetails?: {
-    childName: string;
-    childAge: string;
-    eventDate: string;
-    venue: string;
-    guestCount: string;
-    notes: string;
-  };
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
+export async function createPackageOrder(input: {
+  eventDate: string;
+  contactEmail: string;
+  contactPhone: string;
+  shippingAddress?: ShippingAddress;
+  eventDetails?: {
+    childName?: string;
+    childAge?: string;
+    venue?: string;
+    guestCount?: string | number;
+    notes?: string;
+  };
+  builder: {
+    packageSlug: string;
+    themeSlug: string;
+    guestCount: number;
+    location: "jaipur" | "outside";
+    selections: Record<string, unknown>;
+  };
+}): Promise<CreateOrderResult & { kind?: string; packageTitle?: string; themeTitle?: string; eventDate?: string }> {
+  return apiFetch("/shop/orders/package", {
     method: "POST",
     body: input,
     headers: { "Idempotency-Key": crypto.randomUUID() },

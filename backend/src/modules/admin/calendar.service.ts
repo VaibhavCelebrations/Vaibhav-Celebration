@@ -1,4 +1,4 @@
-import { PaymentStatus, RegistryStatus } from "@prisma/client";
+import { OrderKind, PaymentStatus, RegistryStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { toDateOnly } from "../../lib/validators";
 
@@ -28,7 +28,7 @@ function calendarRange(view: "day" | "week" | "month", date: string) {
 export async function getAdminCalendar(view: "day" | "week" | "month", date: string) {
   const { from, to, fromStart, toEnd } = calendarRange(view, date);
 
-  const [orders, birthdays] = await Promise.all([
+  const [placedOrders, packageEvents, birthdays] = await Promise.all([
     prisma.order.findMany({
       where: {
         paymentStatus: PaymentStatus.PAID,
@@ -37,8 +37,31 @@ export async function getAdminCalendar(view: "day" | "week" | "month", date: str
       include: {
         user: { select: { name: true, email: true, phone: true } },
         registry: { select: { registryCode: true, childOrPersonName: true } },
+        packageOrder: {
+          include: {
+            package: { select: { title: true } },
+            theme: { select: { title: true } },
+          },
+        },
       },
       orderBy: { placedAt: "asc" },
+    }),
+    prisma.order.findMany({
+      where: {
+        kind: OrderKind.PACKAGE,
+        paymentStatus: PaymentStatus.PAID,
+        eventDate: { gte: from, lte: to },
+      },
+      include: {
+        user: { select: { name: true } },
+        packageOrder: {
+          include: {
+            package: { select: { title: true } },
+            theme: { select: { title: true } },
+          },
+        },
+      },
+      orderBy: { eventDate: "asc" },
     }),
     prisma.giftRegistry.findMany({
       where: {
@@ -63,18 +86,34 @@ export async function getAdminCalendar(view: "day" | "week" | "month", date: str
     view,
     from: from.toISOString(),
     to: to.toISOString(),
-    orders: orders.map((order) => ({
+    orders: placedOrders.map((order) => ({
       id: order.id,
       orderCode: order.orderCode,
       placedAt: order.placedAt.toISOString(),
       status: order.status,
+      kind: order.kind,
       totalInPaise: order.totalInPaise,
       customerName: order.user.name,
       customerEmail: order.contactEmail,
       customerPhone: order.contactPhone,
       registryCode: order.registry?.registryCode ?? null,
       isRegistryOrder: Boolean(order.registryId),
+      isPackageOrder: order.kind === OrderKind.PACKAGE,
+      packageTitle: order.packageOrder?.package.title ?? null,
+      themeTitle: order.packageOrder?.theme.title ?? null,
+      eventDate: order.eventDate?.toISOString() ?? null,
     })),
+    packageEvents: packageEvents
+      .filter((order) => order.eventDate)
+      .map((order) => ({
+        id: order.id,
+        orderCode: order.orderCode,
+        eventDate: order.eventDate!.toISOString(),
+        customerName: order.user.name,
+        packageTitle: order.packageOrder?.package.title ?? "Package",
+        themeTitle: order.packageOrder?.theme.title ?? null,
+        totalInPaise: order.totalInPaise,
+      })),
     birthdays: birthdays
       .filter((registry) => registry.eventDate)
       .map((registry) => ({

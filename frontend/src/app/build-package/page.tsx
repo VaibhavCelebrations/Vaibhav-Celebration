@@ -25,7 +25,6 @@ import { useCatalog } from "@/context/catalog-context";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import {
-  createBuilderBooking,
   getBuilderQuote,
   listBuilderProducts,
   type BuilderProduct,

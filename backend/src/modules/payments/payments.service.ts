@@ -96,7 +96,7 @@ export async function createPaymentOrder(input: {
     };
   }
 
-  throw new AppError("VALIDATION_ERROR", "bookingCode is required", 400);
+  throw new AppError("VALIDATION_ERROR", "bookingCode or orderCode is required", 400);
 }
 
 export async function handleRazorpayWebhook(rawBody: string, signature: string | undefined) {
@@ -128,6 +128,39 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
   }
 
   const eventKey = payment?.id ? `${event}:${payment.id}` : `${event}:${orderId}`;
+
+  // Prefer shop / package Orders — bookings are legacy.
+  const shopOrder = await findOrderByRazorpayOrderId(orderId);
+  if (shopOrder) {
+    if (event === "payment.captured" || payment?.status === "captured") {
+      if (payment?.amount && payment.amount !== shopOrder.totalInPaise) {
+        logger.error({ orderId: shopOrder.id, expected: shopOrder.totalInPaise, got: payment.amount }, "Webhook amount mismatch");
+        throw new AppError("PAYMENT_AMOUNT_MISMATCH", "Payment amount does not match order", 400);
+      }
+      const claimed = await claimPaymentEvent({
+        eventKey,
+        eventType: event,
+        razorpayOrderId: orderId,
+        razorpayPaymentId: payment?.id,
+        payload,
+      });
+      if (!claimed) return { handled: true, duplicate: true };
+      await markOrderPaid(shopOrder.id, payment?.id);
+      return { handled: true, type: "SHOP_ORDER", id: shopOrder.id };
+    }
+    if (event === "payment.failed") {
+      const claimed = await claimPaymentEvent({
+        eventKey,
+        eventType: event,
+        razorpayOrderId: orderId,
+        razorpayPaymentId: payment?.id,
+        payload,
+      });
+      if (!claimed) return { handled: true, duplicate: true };
+      await markOrderPaymentFailed(shopOrder.id);
+      return { handled: true, type: "SHOP_ORDER_FAILED", id: shopOrder.id };
+    }
+  }
 
   const booking = await prisma.booking.findFirst({
     where: { razorpayOrderId: orderId, deletedAt: null },
@@ -180,38 +213,6 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
         data: { paymentStatus: PaymentStatus.FAILED },
       });
       return { handled: true, type: "BOOKING_FAILED", id: booking.id };
-    }
-  }
-
-  const shopOrder = await findOrderByRazorpayOrderId(orderId);
-  if (shopOrder) {
-    if (event === "payment.captured" || payment?.status === "captured") {
-      if (payment?.amount && payment.amount !== shopOrder.totalInPaise) {
-        logger.error({ orderId: shopOrder.id, expected: shopOrder.totalInPaise, got: payment.amount }, "Webhook amount mismatch");
-        throw new AppError("PAYMENT_AMOUNT_MISMATCH", "Payment amount does not match order", 400);
-      }
-      const claimed = await claimPaymentEvent({
-        eventKey,
-        eventType: event,
-        razorpayOrderId: orderId,
-        razorpayPaymentId: payment?.id,
-        payload,
-      });
-      if (!claimed) return { handled: true, duplicate: true };
-      await markOrderPaid(shopOrder.id, payment?.id);
-      return { handled: true, type: "SHOP_ORDER", id: shopOrder.id };
-    }
-    if (event === "payment.failed") {
-      const claimed = await claimPaymentEvent({
-        eventKey,
-        eventType: event,
-        razorpayOrderId: orderId,
-        razorpayPaymentId: payment?.id,
-        payload,
-      });
-      if (!claimed) return { handled: true, duplicate: true };
-      await markOrderPaymentFailed(shopOrder.id);
-      return { handled: true, type: "SHOP_ORDER_FAILED", id: shopOrder.id };
     }
   }
 
