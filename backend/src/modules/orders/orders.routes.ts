@@ -6,7 +6,7 @@ import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middle
 import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
 import { paginationQuerySchema } from "../../lib/validators";
-import { createOrderFromCart, getCheckoutQuote, getOrderForUser, listOrdersForUser } from "./orders.service";
+import { createOrderFromCart, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
 
 function customerId(req: import("express").Request): string {
   return (req as CustomerAuthenticatedRequest).customer!.sub;
@@ -56,6 +56,27 @@ ordersRouter.post(
   },
 );
 
+ordersRouter.post(
+  "/verify-payment",
+  idempotency,
+  validate(
+    z.object({
+      orderCode: z.string().min(1),
+      razorpayOrderId: z.string().min(1),
+      razorpayPaymentId: z.string().min(1),
+      razorpaySignature: z.string().min(1),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const data = await verifyShopCheckoutPayment({ userId: customerId(req), ...req.body });
+      return ok(res, data);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
 export const accountOrdersRouter = Router();
 accountOrdersRouter.use(requireCustomer);
 
@@ -80,6 +101,44 @@ accountOrdersRouter.get(
   },
 );
 
+accountOrdersRouter.post(
+  "/:orderCode/retry-payment",
+  validate(z.object({ orderCode: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      return ok(res, await retryShopPayment(customerId(req), param(req, "orderCode")));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+accountOrdersRouter.post(
+  "/:orderCode/cancel-payment",
+  validate(z.object({ orderCode: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      const order = await getOrderForUser(customerId(req), param(req, "orderCode"));
+      await markOrderPaymentCancelled(order.id);
+      return ok(res, await getOrderForUser(customerId(req), param(req, "orderCode")));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+accountOrdersRouter.post(
+  "/:orderCode/reorder",
+  validate(z.object({ orderCode: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      return ok(res, await reorderFromOrder(customerId(req), param(req, "orderCode")));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
 export const adminOrdersRouter = Router();
 adminOrdersRouter.use(
   require("../../middleware/auth").requireAdmin,
@@ -90,12 +149,20 @@ adminOrdersRouter.get(
   "/",
   validate(paginationQuerySchema.extend({
     search: z.string().optional(),
-    status: z.enum(["PENDING_PAYMENT", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED", "FAILED"]).optional(),
+    status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]).optional(),
+    paymentStatus: z.enum(["NOT_REQUIRED", "PENDING", "PAID", "FAILED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"]).optional(),
+    followUp: z.enum(["NOT_REQUIRED", "REQUIRED", "CONTACTED", "CONFIRMED", "COMPLETED", "REQUIRED_ANY"]).optional(),
+    registryId: z.string().optional(),
+    registryOnly: z.enum(["true", "false"]).optional(),
   }), "query"),
   async (req, res, next) => {
     try {
       const { adminListOrders } = require("./orders.service");
-      return ok(res, await adminListOrders(req.query));
+      const result = await adminListOrders({
+        ...req.query,
+        registryOnly: (req.query as { registryOnly?: string }).registryOnly === "true",
+      });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }
@@ -127,4 +194,37 @@ adminOrdersRouter.patch(
       return next(err);
     }
   }
+);
+
+adminOrdersRouter.patch(
+  "/:id/status",
+  validate(z.object({ id: z.string() }), "params"),
+  validate(z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) }), "body"),
+  async (req, res, next) => {
+    try {
+      const { adminUpdateOrderStatus } = require("./orders.service");
+      return ok(res, await adminUpdateOrderStatus(param(req, "id"), req.body.status));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+adminOrdersRouter.patch(
+  "/:id/ops",
+  validate(z.object({ id: z.string() }), "params"),
+  validate(
+    z.object({
+      customizationFollowUpStatus: z.enum(["NOT_REQUIRED", "REQUIRED", "CONTACTED", "CONFIRMED", "COMPLETED"]).optional(),
+      adminNotes: z.string().optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const { adminUpdateOrderOps } = require("./orders.service");
+      return ok(res, await adminUpdateOrderOps(param(req, "id"), req.body));
+    } catch (err) {
+      return next(err);
+    }
+  },
 );

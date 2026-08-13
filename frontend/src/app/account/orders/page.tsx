@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   SHIPPED: "bg-purple-50 text-purple-700",
   DELIVERED: "bg-sage/20 text-sage-dark",
   CANCELLED: "bg-red-50 text-red-600",
+  REFUNDED: "bg-stone-100 text-stone-600",
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -24,6 +25,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   SHIPPED: "Shipped",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
+  REFUNDED: "Refunded",
 };
 
 export default function OrderHistoryPage() {
@@ -39,13 +41,11 @@ export default function OrderHistoryPage() {
       setIsLoading(true);
       try {
         const result = await shopApi.listMyOrders(page, pageSize);
-        console.log("OrderHistoryPage: listMyOrders result:", result);
         if (!cancelled) {
-          setOrders(result.items || []); // Defensive fallback
+          setOrders(result.items || []);
           setTotal(result.total || 0);
         }
       } catch (err) {
-        console.error("OrderHistoryPage: error fetching orders", err);
         if (!cancelled) setOrders([]);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -95,6 +95,11 @@ export default function OrderHistoryPage() {
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${STATUS_STYLES[order.status]}`}>
                     {STATUS_LABELS[order.status]}
                   </span>
+                  {order.canRetryPayment && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                      Complete payment
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted mt-1">
                   {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? "s" : ""} · Placed {new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}

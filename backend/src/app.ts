@@ -44,6 +44,7 @@ import {
   paymentsRouter,
   invoicesRouter,
   adminInvoicesRouter,
+  adminPaymentsRouter,
 } from "./modules/payments/payments.routes";
 import {
   consultationsRouter,
@@ -346,6 +347,7 @@ export function createApp() {
   api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
   api.use("/admin/orders", adminLimiter, noStore, adminOrdersRouter);
   api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
+  api.use("/admin/payments", adminLimiter, noStore, adminPaymentsRouter);
   api.use("/admin/consultations", adminLimiter, noStore, adminConsultationsRouter);
   api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);
   api.use("/admin/customers", adminLimiter, noStore, adminCustomersRouter);

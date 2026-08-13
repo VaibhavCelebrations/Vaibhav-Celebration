@@ -17,6 +17,9 @@ import type {
   ProductCollection,
   ProductListResult,
   PublicRegistryDto,
+  ExtractedProductDto,
+  RegistryVisibility,
+  RegistryStatus,
   ServerCart,
   ShippingAddress,
   WishlistItemDto,
@@ -73,8 +76,12 @@ export async function addCartItem(
   productId: string,
   quantity: number,
   personalizationValues?: unknown,
+  registryItemId?: string,
 ): Promise<ServerCart> {
-  return apiFetch<ServerCart>("/cart/items", { method: "POST", body: { productId, quantity, personalizationValues } });
+  return apiFetch<ServerCart>("/cart/items", {
+    method: "POST",
+    body: { productId, quantity, personalizationValues, registryItemId },
+  });
 }
 
 export async function updateCartItemQuantity(productId: string, quantity: number): Promise<ServerCart> {
@@ -137,6 +144,35 @@ export async function getMyOrder(orderCode: string): Promise<OrderDto> {
   return apiFetch<OrderDto>(`/account/orders/${encodeURIComponent(orderCode)}`, { cache: "no-store" });
 }
 
+export async function verifyShopPayment(input: {
+  orderCode: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}): Promise<OrderDto> {
+  return apiFetch<OrderDto>("/shop/orders/verify-payment", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
+export async function retryOrderPayment(orderCode: string): Promise<CreateOrderResult> {
+  return apiFetch<CreateOrderResult>(`/account/orders/${encodeURIComponent(orderCode)}/retry-payment`, {
+    method: "POST",
+  });
+}
+
+export async function markCheckoutCancelled(orderCode: string): Promise<OrderDto> {
+  return apiFetch<OrderDto>(`/account/orders/${encodeURIComponent(orderCode)}/cancel-payment`, {
+    method: "POST",
+  });
+}
+
+export async function reorderOrder(orderCode: string): Promise<ServerCart> {
+  return apiFetch<ServerCart>(`/account/orders/${encodeURIComponent(orderCode)}/reorder`, { method: "POST" });
+}
+
 /* ── Gift Registry (owner-facing, requires customer auth cookie) ─────── */
 
 export async function listMyRegistries(): Promise<GiftRegistryDto[]> {
@@ -144,11 +180,19 @@ export async function listMyRegistries(): Promise<GiftRegistryDto[]> {
 }
 
 export async function createRegistry(input: {
-  password: string;
+  password?: string;
+  title?: string;
+  occasion?: string;
+  eventDate?: string;
+  ownerDisplayName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   childOrPersonName?: string;
   celebrationDetails?: string;
-  photoMediaId?: string;
+  giftPreferences?: string;
+  coverImageUrl?: string;
   shippingAddress?: ShippingAddress;
+  visibility?: RegistryVisibility;
 }): Promise<GiftRegistryDto> {
   return apiFetch<GiftRegistryDto>("/account/registries", { method: "POST", body: input });
 }
@@ -159,9 +203,32 @@ export async function getMyRegistry(id: string): Promise<GiftRegistryDetailDto> 
 
 export async function updateMyRegistry(
   id: string,
-  input: Partial<{ childOrPersonName: string; celebrationDetails: string; shippingAddress: ShippingAddress; status: "ACTIVE" | "CLOSED" }>,
+  input: Partial<{
+    title: string;
+    occasion: string;
+    eventDate: string | null;
+    ownerDisplayName: string;
+    contactEmail: string;
+    contactPhone: string;
+    childOrPersonName: string;
+    celebrationDetails: string;
+    giftPreferences: string;
+    coverImageUrl: string | null;
+    shippingAddress: ShippingAddress;
+    visibility: RegistryVisibility;
+    password: string;
+    status: RegistryStatus;
+  }>,
 ): Promise<GiftRegistryDto> {
   return apiFetch<GiftRegistryDto>(`/account/registries/${encodeURIComponent(id)}`, { method: "PUT", body: input });
+}
+
+export async function archiveMyRegistry(id: string): Promise<GiftRegistryDto> {
+  return apiFetch<GiftRegistryDto>(`/account/registries/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function extractRegistryProduct(url: string, force?: boolean): Promise<ExtractedProductDto> {
+  return apiFetch<ExtractedProductDto>("/account/registries/extract", { method: "POST", body: { url, force } });
 }
 
 export async function addRegistryItem(
@@ -172,30 +239,72 @@ export async function addRegistryItem(
     manualTitle?: string;
     manualImageUrl?: string;
     manualPriceInPaise?: number;
+    currency?: string;
+    storeName?: string;
+    description?: string;
+    notes?: string;
+    quantityDesired?: number;
+    priority?: number;
     internalProductId?: string;
   },
 ) {
   return apiFetch(`/account/registries/${encodeURIComponent(id)}/items`, { method: "POST", body: input });
 }
 
+export async function updateRegistryItem(
+  id: string,
+  itemId: string,
+  input: Partial<{
+    manualTitle: string;
+    quantityDesired: number;
+    notes: string;
+    priority: number;
+    manualPriceInPaise: number | null;
+  }>,
+) {
+  return apiFetch(`/account/registries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, { method: "PUT", body: input });
+}
+
 export async function deleteRegistryItem(id: string, itemId: string): Promise<void> {
   await apiFetch(`/account/registries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
 }
 
-/* ── Public registry share view ───────────────────────────────────── */
+export async function reverseRegistryContribution(id: string, contributionId: string): Promise<void> {
+  await apiFetch(`/account/registries/${encodeURIComponent(id)}/contributions/${encodeURIComponent(contributionId)}/reverse`, {
+    method: "POST",
+  });
+}
 
-export async function getPublicRegistry(code: string, password: string): Promise<PublicRegistryDto> {
-  return apiFetch<PublicRegistryDto>(`/registry/${encodeURIComponent(code)}/view`, { method: "POST", body: { password }, cache: "no-store" });
+export async function getPublicRegistry(code: string, password?: string): Promise<PublicRegistryDto> {
+  if (password) {
+    return apiFetch<PublicRegistryDto>(`/registry/${encodeURIComponent(code)}/view`, { method: "POST", body: { password }, cache: "no-store" });
+  }
+  return apiFetch<PublicRegistryDto>(`/registry/${encodeURIComponent(code)}`, { cache: "no-store" });
+}
+
+export async function getRegistrySeo(code: string) {
+  return apiFetch<{ title: string; description: string; image: string | null; indexable: boolean; shareUrl: string }>(
+    `/registry/${encodeURIComponent(code)}/seo`,
+    { cache: "no-store" },
+  );
 }
 
 export async function giftRegistryItem(
   code: string,
   itemId: string,
-  input: { password: string; shippingAddress: ShippingAddress; contactEmail: string; contactPhone: string },
+  input: { password?: string; quantity?: number; contactEmail: string; contactPhone: string },
 ): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>(`/registry/${encodeURIComponent(code)}/items/${encodeURIComponent(itemId)}/gift`, {
     method: "POST",
     body: input,
     headers: { "Idempotency-Key": crypto.randomUUID() },
   });
+}
+
+export async function confirmExternalRegistryGift(
+  code: string,
+  itemId: string,
+  input: { password?: string; quantity?: number; guestName?: string; guestEmail?: string },
+) {
+  return apiFetch(`/registry/${encodeURIComponent(code)}/items/${encodeURIComponent(itemId)}/confirm`, { method: "POST", body: input });
 }

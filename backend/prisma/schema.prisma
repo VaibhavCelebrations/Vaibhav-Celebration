@@ -520,8 +520,32 @@ enum PaymentStatus {
   PENDING
   PAID
   FAILED
+  CANCELLED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+/// Internal ops workflow for personalized shop orders / package customizations.
+enum CustomizationFollowUpStatus {
+  NOT_REQUIRED
+  REQUIRED
+  CONTACTED
+  CONFIRMED
+  COMPLETED
+}
+
+/// Deduplicates Razorpay webhook (and checkout-verify) side effects.
+model PaymentEvent {
+  id                String   @id @default(cuid())
+  eventKey          String   @unique
+  eventType         String
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  processedAt       DateTime @default(now())
+  payload           Json?
+
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
 }
 
 /// Three curated landing-page layouts; admin picks one per event (not a page-builder).
@@ -720,9 +744,11 @@ model Booking {
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
   deletedAt                 DateTime?
-  customizations            BookingCustomization[]
-  invoice                   Invoice?
-  giftRegistry              GiftRegistry?
+  customizationFollowUpStatus CustomizationFollowUpStatus @default(NOT_REQUIRED)
+  adminNotes                  String?                     @db.Text
+  customizations              BookingCustomization[]
+  invoice                     Invoice?
+  giftRegistry                GiftRegistry?
 
   @@index([eventDate])
   @@index([bookingCode])
@@ -768,8 +794,8 @@ model Invoice {
   linkedType         InvoiceLinkedType
   bookingId          String?           @unique
   booking            Booking?          @relation(fields: [bookingId], references: [id])
-  // orderId reserved for Phase 2 (no FK until Order model exists)
   orderId            String?           @unique
+  order              Order?            @relation(fields: [orderId], references: [id])
   customerId         String
   customer           Customer          @relation(fields: [customerId], references: [id])
   subtotalInPaise    Int
@@ -1016,13 +1042,15 @@ model CartItem {
   cart                  Cart     @relation(fields: [cartId], references: [id])
   productId             String
   product               Product  @relation(fields: [productId], references: [id])
+  /// Empty string for ordinary shop lines; registry item id for gift purchases.
+  registryItemId        String   @default("")
   quantity              Int
   personalizationValues Json?
   personalizationSelected Boolean @default(false)
   personalizationCostSnapshot Int   @default(0)
   addedAt               DateTime @default(now())
 
-  @@unique([cartId, productId])
+  @@unique([cartId, productId, registryItemId])
 }
 
 model WishlistItem {
@@ -1049,31 +1077,41 @@ enum OrderStatus {
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  orderCode         String      @unique
-  userId            String
-  user              User        @relation(fields: [userId], references: [id])
-  status            OrderStatus @default(PENDING_PAYMENT)
-  subtotalInPaise   Int
-  gstInPaise        Int
-  totalInPaise      Int
-  shippingAddress   Json
-  contactEmail      String
-  contactPhone      String
-  razorpayOrderId   String?
-  razorpayPaymentId String?
-  invoiceNumber     String?     @unique
-  invoicePdfUrl     String?
-  placedAt          DateTime    @default(now())
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                            String                       @id @default(cuid())
+  orderCode                     String                       @unique
+  userId                        String
+  user                          User                         @relation(fields: [userId], references: [id])
+  status                        OrderStatus                  @default(PENDING_PAYMENT)
+  paymentStatus                 PaymentStatus                @default(PENDING)
+  customizationFollowUpStatus   CustomizationFollowUpStatus  @default(NOT_REQUIRED)
+  adminNotes                    String?                      @db.Text
+  subtotalInPaise               Int
+  gstInPaise                    Int
+  totalInPaise                  Int
+  shippingAddress               Json
+  contactEmail                  String
+  contactPhone                  String
+  razorpayOrderId               String?
+  razorpayPaymentId             String?
+  invoiceNumber                 String?                      @unique
+  invoicePdfUrl                 String?
+  confirmationEmailSentAt       DateTime?
+  whatsappSentAt                DateTime?
+  placedAt                      DateTime                     @default(now())
+  createdAt                     DateTime                     @default(now())
+  updatedAt                     DateTime                     @updatedAt
 
-  items             OrderItem[]
-  giftContributions GiftRegistryContribution[]
+  registryId                    String?
+  registry                      GiftRegistry?                @relation(fields: [registryId], references: [id])
+  items                         OrderItem[]
+  giftContributions             GiftRegistryContribution[]
+  invoice                       Invoice?
 
   @@index([orderCode])
   @@index([userId])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([registryId])
 }
 
 model OrderItem {
@@ -1082,6 +1120,8 @@ model OrderItem {
   order                 Order   @relation(fields: [orderId], references: [id])
   productId             String
   product               Product @relation(fields: [productId], references: [id])
+  registryItemId        String?
+  registryItem          GiftRegistryItem? @relation(fields: [registryItemId], references: [id])
   quantity              Int
   unitPriceInPaise      Int
   personalizationValues Json?
@@ -1125,9 +1165,17 @@ model ProductCollectionItem {
 // ─── Gift Registry ───────────────────────────────────────────────────────────
 
 enum RegistryStatus {
+  DRAFT
   ACTIVE
   EXPIRED
   CLOSED
+  ARCHIVED
+}
+
+enum RegistryVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
 }
 
 enum GiftLinkSourceType {
@@ -1138,55 +1186,139 @@ enum GiftLinkSourceType {
 enum GiftItemStatus {
   AVAILABLE
   RESERVED
+  PARTIALLY_PURCHASED
   PURCHASED
 }
 
-model GiftRegistry {
-  id                 String         @id @default(cuid())
-  registryCode       String         @unique
-  passwordHash       String
-  ownerUserId        String
-  ownerUser          User           @relation(fields: [ownerUserId], references: [id])
-  bookingId          String?        @unique
-  booking            Booking?       @relation(fields: [bookingId], references: [id])
-  childOrPersonName  String?
-  celebrationDetails String?        @db.Text
-  photoMediaId       String?
-  shippingAddress    Json?
-  status             RegistryStatus @default(ACTIVE)
-  activatedAt        DateTime       @default(now())
-  expiresAt          DateTime
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+enum GiftContributionStatus {
+  PENDING
+  PAID
+  RELEASED
+  CONFIRMED_EXTERNAL
+}
 
-  items GiftRegistryItem[]
+enum ExtractionStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+  MANUAL
+}
+
+model GiftRegistry {
+  id                 String              @id @default(cuid())
+  registryCode       String              @unique
+  passwordHash       String?
+  ownerUserId        String
+  ownerUser          User                @relation(fields: [ownerUserId], references: [id])
+  bookingId          String?             @unique
+  booking            Booking?            @relation(fields: [bookingId], references: [id])
+  title              String?
+  occasion           String?
+  eventDate          DateTime?
+  ownerDisplayName   String?
+  contactEmail       String?
+  contactPhone       String?
+  childOrPersonName  String?
+  celebrationDetails String?             @db.Text
+  giftPreferences    String?             @db.Text
+  photoMediaId       String?
+  coverImageUrl      String?
+  shippingAddress    Json?
+  visibility         RegistryVisibility  @default(UNLISTED)
+  status             RegistryStatus      @default(DRAFT)
+  viewCount          Int                 @default(0)
+  publishedAt        DateTime?
+  activatedAt        DateTime            @default(now())
+  expiresAt          DateTime
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  items  GiftRegistryItem[]
+  orders Order[]
+
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([visibility])
 }
 
 model GiftRegistryItem {
   id                 String             @id @default(cuid())
   registryId         String
-  registry           GiftRegistry       @relation(fields: [registryId], references: [id])
+  registry           GiftRegistry       @relation(fields: [registryId], references: [id], onDelete: Cascade)
   sourceType         GiftLinkSourceType
   externalUrl        String?
+  canonicalUrl       String?
+  storeName          String?
+  description        String?            @db.Text
+  notes              String?            @db.Text
   manualTitle        String?
   manualImageUrl     String?
   manualPriceInPaise Int?
+  currency           String             @default("INR")
   internalProductId  String?
   internalProduct    Product?           @relation("InternalProductLink", fields: [internalProductId], references: [id])
+  quantityDesired    Int                @default(1)
+  quantityPurchased  Int                @default(0)
+  quantityReserved   Int                @default(0)
+  priority           Int                @default(0)
   status             GiftItemStatus     @default(AVAILABLE)
   displayOrder       Int                @default(0)
+  extractionStatus   ExtractionStatus   @default(MANUAL)
+  extractionMethod   String?
+  extractionError    String?
+  extractedAt        DateTime?
   createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   contributions GiftRegistryContribution[]
+  orderItems    OrderItem[]
+
+  @@index([registryId])
+  @@index([status])
+  @@index([extractionStatus])
 }
 
 model GiftRegistryContribution {
-  id             String           @id @default(cuid())
+  id             String                  @id @default(cuid())
   registryItemId String
-  registryItem   GiftRegistryItem @relation(fields: [registryItemId], references: [id])
-  gifterUserId   String
-  gifterUser     User             @relation(fields: [gifterUserId], references: [id])
+  registryItem   GiftRegistryItem        @relation(fields: [registryItemId], references: [id], onDelete: Cascade)
+  gifterUserId   String?
+  gifterUser     User?                   @relation(fields: [gifterUserId], references: [id])
+  guestName      String?
+  guestEmail     String?
   orderId        String?
-  order          Order?           @relation(fields: [orderId], references: [id])
-  createdAt      DateTime         @default(now())
+  order          Order?                  @relation(fields: [orderId], references: [id])
+  quantity       Int                     @default(1)
+  status         GiftContributionStatus  @default(PENDING)
+  reservedUntil  DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([registryItemId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model ExternalProductExtraction {
+  id               String            @id @default(cuid())
+  urlHash          String            @unique
+  sourceUrl        String
+  title            String?
+  description      String?
+  image            String?
+  priceInPaise     Int?
+  currency         String?
+  storeName        String?
+  canonicalUrl     String?
+  extractionMethod String?
+  extractionStatus ExtractionStatus
+  extractionError  String?
+  rawMeta          Json?
+  extractedAt      DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([extractionStatus])
+  @@index([extractedAt])
 }

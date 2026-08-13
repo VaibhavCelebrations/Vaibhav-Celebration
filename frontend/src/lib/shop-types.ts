@@ -134,6 +134,7 @@ export function formatPaise(paise: number): string {
 export interface ServerCartItem {
   id: string;
   productId: string;
+  registryItemId?: string | null;
   title: string;
   slug: string;
   unitPriceInPaise: number;
@@ -145,6 +146,7 @@ export interface ServerCartItem {
   stockAvailable: number;
   stockStatus: StockStatusFlag;
   maxOrderQuantity: number | null;
+  registry?: { registryCode: string; giftTitle: string; recipientName: string | null } | null;
 }
 
 export interface CartQuoteLine {
@@ -195,7 +197,8 @@ export interface ShippingAddress {
   country: string;
 }
 
-export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "REFUNDED";
+export type PaymentStatus = "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "REFUNDED" | "PARTIALLY_REFUNDED";
 
 export interface OrderItemDto {
   id: string;
@@ -205,6 +208,8 @@ export interface OrderItemDto {
   quantity: number;
   unitPriceInPaise: number;
   personalizationCostInPaise: number;
+  personalizationSelected?: boolean;
+  personalizationValues?: Array<{ fieldId?: string; label: string; value: string }> | Record<string, unknown> | null;
   lineTotalInPaise: number;
   image: MediaRef | null;
 }
@@ -213,13 +218,17 @@ export interface OrderDto {
   id: string;
   orderCode: string;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus;
   subtotalInPaise: number;
   gstInPaise: number;
   totalInPaise: number;
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;
+  invoiceNumber?: string | null;
   invoicePdfUrl: string | null;
+  canRetryPayment?: boolean;
+  canReorder?: boolean;
   placedAt: string;
   createdAt: string;
   items: OrderItemDto[];
@@ -227,7 +236,19 @@ export interface OrderDto {
 
 export interface CheckoutQuoteResult {
   quote: CartQuote;
-  items: Array<{ productId: string; title: string; quantity: number; unitPriceInPaise: number; personalizationCostInPaise: number }>;
+  items: Array<{
+    productId: string;
+    title: string;
+    quantity: number;
+    unitPriceInPaise: number;
+    personalizationCostInPaise: number;
+    registryItemId?: string | null;
+  }>;
+  registryCheckout?: {
+    registryCode: string;
+    recipientName: string;
+    shippingAddress: ShippingAddress;
+  } | null;
 }
 
 export interface CreateOrderResult {
@@ -235,54 +256,132 @@ export interface CreateOrderResult {
   orderCode: string;
   totalInPaise: number;
   razorpayOrderId: string;
-  razorpayKeyId: string;
+  razorpayKeyId: string | null;
 }
 
 /* ── Gift Registry ────────────────────────────────────────────────── */
 
-export type RegistryStatus = "ACTIVE" | "EXPIRED" | "CLOSED";
+export type RegistryStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "CLOSED" | "ARCHIVED";
+export type RegistryVisibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
 export type GiftLinkSourceType = "EXTERNAL_LINK" | "INTERNAL_PRODUCT";
-export type GiftItemStatus = "AVAILABLE" | "RESERVED" | "PURCHASED";
+export type GiftItemStatus = "AVAILABLE" | "RESERVED" | "PARTIALLY_PURCHASED" | "PURCHASED";
+export type ExtractionStatus = "PENDING" | "SUCCESS" | "PARTIAL" | "FAILED" | "MANUAL";
+
+export interface RegistryAddressDto {
+  recipientName: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  formatted: string;
+}
 
 export interface GiftRegistryItemDto {
   id: string;
   sourceType: GiftLinkSourceType;
   title: string;
+  description: string | null;
+  notes: string | null;
   priceInPaise: number | null;
+  currency: string;
   image: MediaRef | null;
   externalUrl: string | null;
+  canonicalUrl: string | null;
+  storeName: string | null;
   internalProductId: string | null;
   internalProductSlug: string | null;
   canGiftDirectly: boolean;
   inStock: boolean;
   status: GiftItemStatus;
+  quantityDesired: number;
+  quantityPurchased: number;
+  quantityReserved: number;
+  remaining: number;
+  available: number;
+  priority: number;
   displayOrder: number;
+  extractionStatus: ExtractionStatus;
+  extractionMethod: string | null;
+  extractionError: string | null;
+  contributions?: Array<{
+    id: string;
+    quantity: number;
+    status: string;
+    guestName: string | null;
+    guestEmail: string | null;
+    orderCode: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface RegistryStats {
+  totalGifts: number;
+  quantityDesired: number;
+  quantityPurchased: number;
+  quantityRemaining: number;
+  internalCount: number;
+  externalCount: number;
 }
 
 export interface GiftRegistryDto {
   id: string;
   registryCode: string;
+  title: string;
+  occasion: string | null;
+  eventDate: string | null;
+  ownerDisplayName: string | null;
   childOrPersonName: string | null;
   celebrationDetails: string | null;
+  giftPreferences: string | null;
   photoMediaId: string | null;
+  coverImageUrl: string | null;
+  visibility: RegistryVisibility;
   status: RegistryStatus;
+  viewCount: number;
+  publishedAt: string | null;
   activatedAt: string;
   expiresAt: string;
   ownerUserId: string;
   shareUrl: string;
+  hasPassword: boolean;
+  shippingAddress: RegistryAddressDto | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  stats?: RegistryStats;
 }
 
 export interface GiftRegistryDetailDto extends GiftRegistryDto {
   items: GiftRegistryItemDto[];
+  orders?: Array<{
+    id: string;
+    orderCode: string;
+    totalInPaise: number;
+    paymentStatus: string;
+    status: string;
+    placedAt: string;
+    user?: { name: string; email: string };
+  }>;
 }
 
-export interface PublicRegistryDto {
-  registryCode: string;
-  childOrPersonName: string | null;
-  celebrationDetails: string | null;
-  photoMediaId: string | null;
-  expiresAt: string;
+export interface PublicRegistryDto extends GiftRegistryDto {
   items: GiftRegistryItemDto[];
+}
+
+export interface ExtractedProductDto {
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  priceInPaise: number | null;
+  currency: string | null;
+  storeName: string | null;
+  canonicalUrl: string | null;
+  sourceUrl: string;
+  extractionMethod: string | null;
+  extractionStatus: ExtractionStatus;
+  extractionError: string | null;
+  cached: boolean;
 }
 
 /* ── Gift filter (client-side product listing filter state) ─────────── */
