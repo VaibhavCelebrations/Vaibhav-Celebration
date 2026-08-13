@@ -104,25 +104,16 @@ export default function ProductDetailPage({ params }: Props) {
   const unitTotal = product.priceInPaise + personalizationCost;
 
   const handleAddToCart = async () => {
-    const newErrors: Record<string, string> = {};
-    if (personalizeSelected) {
-      product.personalizationFields.forEach((field) => {
-        if (field.isRequired && !personalization[field.id]?.trim()) {
-          newErrors[field.id] = `${field.label} is required`;
-        }
-      });
-    }
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
-
+    setErrors({});
+    
+    // Automatically fill all fields with a placeholder so the backend validation passes,
+    // since the client brief dictates we collect these details *after* booking now.
     const pValues: PersonalizationValue[] = personalizeSelected
-      ? product.personalizationFields
-          .filter((f) => personalization[f.id]?.trim())
-          .map((f) => ({
-            fieldId: f.id,
-            label: f.label,
-            value: personalization[f.id],
-          }))
+      ? product.personalizationFields.map((f) => ({
+          fieldId: f.id,
+          label: f.label,
+          value: "To be collected by team after booking",
+        }))
       : [];
 
     setIsAdding(true);
@@ -259,12 +250,17 @@ export default function ProductDetailPage({ params }: Props) {
                       <button
                         type="button"
                         onClick={() => setPersonalizeSelected(true)}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
                           personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
-                        <span className="block font-semibold">Yes, personalize it</span>
-                        <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${personalizeSelected ? "border-mocha" : "border-text-light/50"}`}>
+                          {personalizeSelected && <div className="w-2 h-2 rounded-full bg-mocha" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold">Yes, I'd like personalization</span>
+                          <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                        </div>
                       </button>
                       <button
                         type="button"
@@ -272,37 +268,24 @@ export default function ProductDetailPage({ params }: Props) {
                           setPersonalizeSelected(false);
                           setErrors({});
                         }}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
                           !personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
-                        <span className="block font-semibold">No, keep standard</span>
-                        <span>No additional cost</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${!personalizeSelected ? "border-mocha" : "border-text-light/50"}`}>
+                          {!personalizeSelected && <div className="w-2 h-2 rounded-full bg-mocha" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold">No, keep it standard</span>
+                          <span>No additional cost</span>
+                        </div>
                       </button>
                     </div>
-                    {personalizeSelected && product.personalizationFields.map((field) => (
-                      <div key={field.id}>
-                        <label className="text-sm font-semibold text-charcoal mb-1 block">
-                          {field.label} {field.isRequired && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
-                          type={field.fieldType === "number" ? "number" : "text"}
-                          placeholder={field.label}
-                          maxLength={field.maxLength ?? undefined}
-                          value={personalization[field.id] || ""}
-                          onChange={(e) => {
-                            setPersonalization({ ...personalization, [field.id]: e.target.value });
-                            if (errors[field.id]) {
-                              setErrors({ ...errors, [field.id]: "" });
-                            }
-                          }}
-                          className="w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all"
-                        />
-                        {errors[field.id] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[field.id]}</p>
-                        )}
+                    {personalizeSelected && (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200/50 p-4 text-sm text-amber-900">
+                        <p className="font-medium">Our team will contact you after booking to collect names, messages, or customization details.</p>
                       </div>
-                    ))}
+                    )}
                     <div className="rounded-xl bg-surface border border-border-light p-4 text-sm">
                       <div className="flex justify-between text-text-muted">
                         <span>Base product</span>
