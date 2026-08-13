@@ -140,7 +140,14 @@ export function createApp() {
   );
 
   // Local media uploads (dev / fallback when R2 unset)
-  app.use("/uploads", express.static(getUploadDir()));
+  app.use(
+    "/uploads",
+    (_req, res, next) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      next();
+    },
+    express.static(getUploadDir()),
+  );
 
   // ─── Rate Limiters ────────────────────────────────────────────────────────
   //

@@ -2,15 +2,28 @@ import { createHash } from "node:crypto";
 import { ExtractionStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { ValidationError } from "../../lib/errors";
-import { parsePriceToPaise, parseProductHtml } from "./html-metadata";
+import { storeMediaBuffer } from "../../integrations/media/storage";
+import {
+  isLikelyLogoOrSprite,
+  looksLikeRetailBotWall,
+  parsePriceToPaise,
+  parseProductHtml,
+} from "./html-metadata";
 import { assertSafePublicUrl, resolveMaybeRelativeUrl } from "./url-safety";
 
-const FETCH_TIMEOUT_MS = 8_000;
-const MAX_BYTES = 1_500_000;
-const MAX_REDIRECTS = 3;
+const FETCH_TIMEOUT_MS = 12_000;
+const MAX_BYTES = 3_500_000;
+const MAX_REDIRECTS = 5;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const USER_AGENT =
-  "VaibhavCelebrationsBot/1.0 (+https://vaibhavcelebrations.in; gift-registry metadata)";
+const IMAGE_MAX_BYTES = 8_000_000;
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+/** Amazon serves a bot-check page to generic browsers; preview crawlers get real OG tags. */
+const PREVIEW_USER_AGENTS = [
+  "WhatsApp/2.23.24.0",
+  "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+  "Twitterbot/1.0",
+];
 
 export type ExtractedProduct = {
   title: string | null;
@@ -50,7 +63,27 @@ function toResult(
   return { ...row, cached };
 }
 
-async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
+async function readLimitedBody(res: Response, maxBytes: number, tooLargeMessage: string): Promise<Buffer> {
+  const length = Number(res.headers.get("content-length") ?? "0");
+  if (length > maxBytes) throw new ValidationError(tooLargeMessage);
+  const reader = res.body?.getReader();
+  if (!reader) throw new ValidationError("Could not read the product page");
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > maxBytes) {
+      await reader.cancel();
+      throw new ValidationError(tooLargeMessage);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function fetchHtmlWithUa(start: URL, userAgent: string): Promise<{ html: string; finalUrl: URL }> {
   let current = start;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     await assertSafePublicUrl(current.toString());
@@ -63,8 +96,9 @@ async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
         redirect: "manual",
         signal: controller.signal,
         headers: {
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "User-Agent": USER_AGENT,
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-IN,en;q=0.9",
+          "User-Agent": userAgent,
         },
       });
     } catch (err) {
@@ -89,27 +123,88 @@ async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
     if (contentType && !contentType.includes("html") && !contentType.includes("xml") && !contentType.includes("text/")) {
       throw new ValidationError("That URL does not look like a product page");
     }
-    const length = Number(res.headers.get("content-length") ?? "0");
-    if (length > MAX_BYTES) throw new ValidationError("The product page is too large to process");
-
-    const reader = res.body?.getReader();
-    if (!reader) throw new ValidationError("Could not read the product page");
-    const chunks: Uint8Array[] = [];
-    let received = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      if (received > MAX_BYTES) {
-        await reader.cancel();
-        throw new ValidationError("The product page is too large to process");
-      }
-      chunks.push(value);
-    }
-    const html = Buffer.concat(chunks).toString("utf8");
+    const html = (await readLimitedBody(res, MAX_BYTES, "The product page is too large to process")).toString("utf8");
     return { html, finalUrl: current };
   }
   throw new ValidationError("Too many redirects from that URL");
+}
+
+function htmlLooksUsable(html: string): boolean {
+  if (looksLikeRetailBotWall(html)) return false;
+  return html.includes("og:image") || html.includes("application/ld+json") || html.length > 20_000;
+}
+
+async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
+  const first = await fetchHtmlWithUa(start, BROWSER_UA);
+  if (htmlLooksUsable(first.html)) return first;
+  for (const ua of PREVIEW_USER_AGENTS) {
+    try {
+      const next = await fetchHtmlWithUa(start, ua);
+      if (htmlLooksUsable(next.html)) return next;
+    } catch {
+      continue;
+    }
+  }
+  return first;
+}
+
+async function rehostProductImage(imageUrl: string, pageUrl: URL): Promise<string | null> {
+  let target: URL;
+  try {
+    target = await assertSafePublicUrl(imageUrl);
+  } catch {
+    return null;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(target, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "User-Agent": BROWSER_UA,
+        Referer: `${pageUrl.origin}/`,
+      },
+    });
+    if (!res.ok) return null;
+    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
+    if (!contentType.startsWith("image/")) return null;
+    const buffer = await readLimitedBody(res, IMAGE_MAX_BYTES, "The product image is too large to process");
+    const ext = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("gif")
+          ? "gif"
+          : "jpg";
+    const stored = await storeMediaBuffer({
+      buffer,
+      originalName: `registry-product.${ext}`,
+      mimeType: contentType.split(";")[0] ?? "image/jpeg",
+      kind: "products",
+      scope: "registry",
+      role: "external",
+    });
+    return stored.url;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function cacheIsUsable(cached: {
+  image: string | null;
+  title: string | null;
+  extractedAt: Date;
+}): boolean {
+  if (Date.now() - cached.extractedAt.getTime() >= CACHE_TTL_MS) return false;
+  if (!cached.image) return false;
+  if (isLikelyLogoOrSprite(cached.image)) return false;
+  if (/^amazon(\.in)?$/i.test((cached.title ?? "").trim())) return false;
+  return true;
 }
 
 export async function extractExternalProduct(rawUrl: string, options?: { force?: boolean }): Promise<ExtractedProduct> {
@@ -123,15 +218,20 @@ export async function extractExternalProduct(rawUrl: string, options?: { force?:
   const hash = urlHash(source.toString());
   if (!options?.force) {
     const cached = await prisma.externalProductExtraction.findUnique({ where: { urlHash: hash } });
-    if (cached && Date.now() - cached.extractedAt.getTime() < CACHE_TTL_MS) {
+    if (cached && cacheIsUsable(cached)) {
       return toResult(cached, true);
     }
   }
 
   try {
     const { html, finalUrl } = await fetchHtml(source);
+    if (looksLikeRetailBotWall(html)) {
+      throw new ValidationError("That store blocked automatic preview. Paste the product image URL manually, or try again.");
+    }
     const parsed = parseProductHtml(html, finalUrl.toString());
-    const image = resolveMaybeRelativeUrl(parsed.image ?? undefined, finalUrl);
+    const remoteImage = resolveMaybeRelativeUrl(parsed.image ?? undefined, finalUrl);
+    const hosted = remoteImage ? await rehostProductImage(remoteImage, finalUrl) : null;
+    const image = hosted ?? remoteImage;
     const hasCore = Boolean(parsed.title || image);
     const status: ExtractionStatus = hasCore
       ? parsed.price

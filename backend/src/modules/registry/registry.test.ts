@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePriceToPaise, parseProductHtml } from "./html-metadata";
+import { parsePriceToPaise, parseProductHtml, normalizeRetailImageUrl } from "./html-metadata";
 import { isPrivateIp, normalizeHttpUrl } from "./url-safety";
 import { availableToReserve, derivedItemStatus, remainingQuantity } from "./registry-qty";
 
@@ -54,6 +54,68 @@ describe("parseProductHtml", () => {
     const parsed = parseProductHtml("<html></html>", "https://example.com");
     expect(parsed.title).toBeNull();
     expect(parsed.image).toBeNull();
+  });
+
+  it("ignores Amazon logo Open Graph and uses the product landing image", () => {
+    const html = `
+<html><head>
+<meta property="og:title" content="LEGO Classic Bricks">
+<meta property="og:image" content="https://m.media-amazon.com/images/G/01/social_share/amazon_logo_white.png">
+<meta property="og:site_name" content="Amazon.in">
+</head><body>
+<img id="landingImage" src="https://m.media-amazon.com/images/I/81abcPRODUCT._AC_SL1500_.jpg" data-old-hires="https://m.media-amazon.com/images/I/81abcPRODUCT._AC_SL1500_.jpg" />
+<img src="https://m.media-amazon.com/images/G/31/gno/sprites/nav-sprite-global-1x.png" alt="Amazon" />
+</body></html>`;
+    const parsed = parseProductHtml(html, "https://www.amazon.in/dp/B0EXAMPLE");
+    expect(parsed.image).toBe("https://m.media-amazon.com/images/I/81abcPRODUCT._AC_SL1500_.jpg");
+    expect(parsed.image).not.toContain("/images/G/");
+  });
+
+  it("cleans Amazon overlay Open Graph URLs into a product photo", () => {
+    const html = `
+<html><head>
+<meta property="og:title" content="Apple iPhone 13">
+<meta property="og:image" content="https://m.media-amazon.com/images/I/71xb2xkN5qL.jpg_BO30,255,255,255_UF750,750_SR1910,1000,0,C_QL100_.jpg">
+</head>
+<body>
+<link rel="stylesheet" href="https://m.media-amazon.com/images/I/21b2CPPFLqL._RC|51nfWTBkewL.css_.css" />
+</body></html>`;
+    const parsed = parseProductHtml(html, "https://www.amazon.in/dp/B09G9BL5CP");
+    expect(parsed.image).toBe("https://m.media-amazon.com/images/I/71xb2xkN5qL._AC_SL1500_.jpg");
+  });
+
+  it("upscales Flipkart thumbnail Open Graph images", () => {
+    const html = `
+<html><head>
+<meta property="og:title" content="Apple iPhone 15">
+<meta property="og:image" content="https://rukminim2.flixcart.com/image/300/300/xif0q/mobile/h/d/9/-original-imagtc2qzgnnuhxh.jpeg">
+</head></html>`;
+    const parsed = parseProductHtml(html, "https://www.flipkart.com/apple-iphone-15/p/itm6ac6485515ae4");
+    expect(parsed.image).toBe(
+      "https://rukminim2.flixcart.com/image/832/832/xif0q/mobile/h/d/9/-original-imagtc2qzgnnuhxh.jpeg",
+    );
+  });
+
+  it("ignores Flipkart promo template images", () => {
+    const html = `
+<html><head>
+<meta property="og:title" content="Apple iPhone 15">
+<meta property="og:image" content="https://rukminim2.flixcart.com/image/300/300/xif0q/mobile/h/d/9/-original-imagtc2qzgnnuhxh.jpeg">
+</head>
+<script>{"imageUrl":"https://rukminim1.flixcart.com/www/{@width}/{@height}/promos/31/10/2016/f7634981.png?q={@quality}"}</script>
+</html>`;
+    const parsed = parseProductHtml(html, "https://www.flipkart.com/apple-iphone-15/p/itm6ac6485515ae4");
+    expect(parsed.image).toBe(
+      "https://rukminim2.flixcart.com/image/832/832/xif0q/mobile/h/d/9/-original-imagtc2qzgnnuhxh.jpeg",
+    );
+  });
+
+  it("decodes JSON unicode escapes in Flipkart image URLs", () => {
+    expect(
+      normalizeRetailImageUrl(
+        "https:\\u002F\\u002Frukminim2.flixcart.com\\u002Fimage\\u002F300\\u002F300\\u002Fmixer.jpeg",
+      ),
+    ).toBe("https://rukminim2.flixcart.com/image/832/832/mixer.jpeg");
   });
 });
 

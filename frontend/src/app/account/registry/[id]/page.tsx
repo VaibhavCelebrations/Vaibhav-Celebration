@@ -67,7 +67,7 @@ function AddItemForm({ registryId, onAdded }: { registryId: string; onAdded: () 
     setExtracting(true);
     setError("");
     try {
-      const data = await shopApi.extractRegistryProduct(externalUrl.trim());
+      const data = await shopApi.extractRegistryProduct(externalUrl.trim(), true);
       setExtracted(data);
       if (data.title) setManualTitle(data.title);
       if (data.image) setManualImageUrl(data.image);
