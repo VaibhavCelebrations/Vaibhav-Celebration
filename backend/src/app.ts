@@ -38,7 +38,6 @@ import { availabilityRouter } from "./modules/availability/availability.routes";
 import {
   bookingsRouter,
   checkoutRouter,
-  adminBookingsRouter,
 } from "./modules/bookings/bookings.routes";
 import {
   paymentsRouter,
@@ -59,7 +58,7 @@ import { chatbotRouter, adminChatbotRouter } from "./modules/chatbot/chatbot.rou
 import { pagesRouter, adminPagesRouter } from "./modules/pages/pages.routes";
 import { publicSettingsRouter } from "./modules/settings/public-settings.routes";
 import {
-  adminCapacityRouter,
+  adminCalendarRouter,
   adminSettingsRouter,
   adminAuditRouter,
   adminCacheRouter,
@@ -351,7 +350,6 @@ export function createApp() {
   mediaAdminRouter.use(["/presign", "/upload", "/upload-binary", "/complete"], mediaUploadLimiter);
   mediaAdminRouter.use(mediaRouter);
   api.use("/admin/media", mediaAdminRouter);
-  api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
   api.use("/admin/orders", adminLimiter, noStore, adminOrdersRouter);
   api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
   api.use("/admin/payments", adminLimiter, noStore, adminPaymentsRouter);
@@ -359,7 +357,7 @@ export function createApp() {
   api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);
   api.use("/admin/customers", adminLimiter, noStore, adminCustomersRouter);
   api.use("/admin/chatbot", adminLimiter, noStore, adminChatbotRouter);
-  api.use("/admin/capacity-rules", adminLimiter, noStore, adminCapacityRouter);
+  api.use("/admin/calendar", adminLimiter, noStore, adminCalendarRouter);
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);

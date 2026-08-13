@@ -753,6 +753,7 @@ export async function adminListOrders(query: {
   followUp?: CustomizationFollowUpStatus | "REQUIRED_ANY";
   registryId?: string;
   registryOnly?: boolean;
+  shopOnly?: boolean;
 }) {
   const { take, skip, page, pageSize } = parsePagination(query);
   const where: import("@prisma/client").Prisma.OrderWhereInput = {};
@@ -761,6 +762,7 @@ export async function adminListOrders(query: {
   if (query.paymentStatus) where.paymentStatus = query.paymentStatus;
   if (query.registryId) where.registryId = query.registryId;
   if (query.registryOnly) where.registryId = { not: null };
+  if (query.shopOnly) where.registryId = null;
   if (query.followUp === "REQUIRED_ANY") {
     where.customizationFollowUpStatus = { not: CustomizationFollowUpStatus.NOT_REQUIRED };
   } else if (query.followUp) {

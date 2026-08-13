@@ -16,7 +16,6 @@ import {
   Megaphone,
   Users,
   UserPlus,
-  CalendarCheck,
   CalendarRange,
   Receipt,
   CreditCard,
@@ -24,7 +23,6 @@ import {
   Settings as SettingsIcon,
   Images,
   SearchCheck,
-  Gauge,
   ScrollText,
   Gift,
   LogOut,
@@ -159,12 +157,6 @@ const NAV: NavItem[] = [
   },
   {
     section: "CRM",
-    href: "/dashboard/crm/bookings",
-    label: "Bookings",
-    icon: CalendarCheck,
-  },
-  {
-    section: "CRM",
     href: "/dashboard/crm/calendar",
     label: "Calendar",
     icon: CalendarRange,
@@ -192,13 +184,6 @@ const NAV: NavItem[] = [
     href: "/dashboard/settings",
     label: "Operational Settings",
     icon: SettingsIcon,
-  },
-  {
-    section: "Settings",
-    href: "/dashboard/settings/capacity",
-    label: "Capacity Rules",
-    icon: Gauge,
-    roles: ["SUPER_ADMIN", "OPERATIONS"],
   },
   {
     section: "Settings",

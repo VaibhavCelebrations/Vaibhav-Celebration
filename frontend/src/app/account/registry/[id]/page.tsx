@@ -74,7 +74,12 @@ function AddItemForm({ registryId, onAdded }: { registryId: string; onAdded: () 
       if (data.priceInPaise) setManualPrice(String(data.priceInPaise / 100));
       if (data.storeName) setStoreName(data.storeName);
       if (data.description) setDescription(data.description);
-      if (data.extractionStatus === "FAILED") {
+      if (!data.image) {
+        setError(
+          data.extractionError ??
+            "This store blocked automatic product photos. Open the product page, copy the image address, and paste it in Image URL.",
+        );
+      } else if (data.extractionStatus === "FAILED") {
         setError("We couldn't automatically retrieve this product information. You can add the product details manually.");
       } else {
         push(data.extractionStatus === "SUCCESS" ? "Product found ✓" : "Some details were found — review before saving", "success");
@@ -172,13 +177,18 @@ function AddItemForm({ registryId, onAdded }: { registryId: string; onAdded: () 
             </button>
           </div>
           {extracting && <p className="text-xs text-mocha font-medium">Fetching product information…</p>}
-          {extracted?.image && (
+          {(manualImageUrl || extracted?.image) && (
             <div className="w-28 h-28 rounded-xl overflow-hidden border border-border-light">
-              <SafeGiftImage src={manualImageUrl || extracted.image} alt={manualTitle || "Preview"} />
+              <SafeGiftImage src={manualImageUrl || extracted?.image} alt={manualTitle || "Preview"} />
             </div>
           )}
           <input className={inputClass} value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="Product title" />
-          <input className={inputClass} value={manualImageUrl} onChange={(e) => setManualImageUrl(e.target.value)} placeholder="Image URL (optional)" />
+          <input
+            className={inputClass}
+            value={manualImageUrl}
+            onChange={(e) => setManualImageUrl(e.target.value)}
+            placeholder="Image URL — right-click the product photo → Copy image address"
+          />
           <div className="grid grid-cols-2 gap-3">
             <input className={inputClass} value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store name" />
             <input type="number" className={inputClass} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="Price in ₹" />

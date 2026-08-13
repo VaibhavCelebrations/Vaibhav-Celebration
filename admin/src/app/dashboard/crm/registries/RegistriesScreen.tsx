@@ -122,6 +122,7 @@ export function RegistriesScreen() {
         <AdminDataTable
           columns={columns}
           rows={rows}
+          rowKey={(r) => r.id}
           total={total}
           loading={loading}
           query={query}
@@ -145,6 +146,7 @@ export function RegistriesScreen() {
             { key: "extractionError", header: "Error", cell: (r: ExtractionRow) => r.extractionError ?? "—" },
           ]}
           rows={extractions}
+          rowKey={(r) => r.id}
           total={extractTotal}
           loading={loading}
           query={query}

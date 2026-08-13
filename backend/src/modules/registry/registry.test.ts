@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePriceToPaise, parseProductHtml, normalizeRetailImageUrl } from "./html-metadata";
+import { parsePriceToPaise, parseProductHtml, normalizeRetailImageUrl, titleFromProductUrl } from "./html-metadata";
 import { isPrivateIp, normalizeHttpUrl } from "./url-safety";
 import { availableToReserve, derivedItemStatus, remainingQuantity } from "./registry-qty";
 
@@ -116,6 +116,22 @@ describe("parseProductHtml", () => {
         "https:\\u002F\\u002Frukminim2.flixcart.com\\u002Fimage\\u002F300\\u002F300\\u002Fmixer.jpeg",
       ),
     ).toBe("https://rukminim2.flixcart.com/image/832/832/mixer.jpeg");
+  });
+
+  it("reads a Meesho product title from the URL slug when HTML is blocked", () => {
+    expect(
+      titleFromProductUrl(
+        "https://www.meesho.com/rain-coat-for-mens-womens-waterproof-reversible-double-layer-with-hood-set-of-top-and-bottom-packed-in-a-storage-bag-2-way-both-side-wearable/p/ozsgf",
+      ),
+    ).toBe(
+      "Rain Coat For Mens Womens Waterproof Reversible Double Layer With Hood Set Of Top And Bottom Packed In A Storage Bag 2 Way Both Side Wearable",
+    );
+  });
+
+  it("upscales Meesho thumbnail image URLs", () => {
+    expect(normalizeRetailImageUrl("https://images.meesho.com/images/products/325828959/mqpvo_512.jpg")).toBe(
+      "https://images.meesho.com/images/products/325828959/mqpvo_1200.jpg",
+    );
   });
 });
 

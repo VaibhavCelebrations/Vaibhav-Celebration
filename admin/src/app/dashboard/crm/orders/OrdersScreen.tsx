@@ -1,9 +1,8 @@
 "use client";
 
-import { FileText, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { adminFetch } from "@/lib/admin-api-client";
-import { ordersRepo } from "@/lib/data/resources";
+import { FileText, Loader2, ShoppingBag, Gift } from "lucide-react";
+import { useMemo, useState } from "react";
+import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
@@ -11,6 +10,7 @@ import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { SelectInput, TextArea } from "@/components/ui/fields";
+import { qs } from "@/lib/data/types";
 
 const FULFILLMENT_OPTIONS = [
   { value: "UNFULFILLED", label: "Unfulfilled" },
@@ -63,8 +63,24 @@ function shippingLines(address: Record<string, string> | undefined) {
 }
 
 export function OrdersScreen() {
+  const [tab, setTab] = useState<"shop" | "registry">("shop");
   const { query, setQuery } = useListQuery({ sort: "placedAt", dir: "desc" });
-  const { items: rows, total, loading, error, reload } = useRepoList(ordersRepo.list, query);
+  const listQuery = useMemo(
+    () => ({
+      ...query,
+      shopOnly: tab === "shop" ? "true" : undefined,
+      registryOnly: tab === "registry" ? "true" : undefined,
+    }),
+    [query, tab],
+  );
+  const { items: rows, total, loading, error, reload } = useRepoList(
+    (q) =>
+      adminFetchList<any>(`/admin/orders${qs(q)}`, {
+        page: q.page,
+        pageSize: q.pageSize,
+      }),
+    listQuery,
+  );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [viewingOrder, setViewingOrder] = useState<any | null>(null);
@@ -208,9 +224,26 @@ export function OrdersScreen() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Orders CRM"
-        description="Manage order lifecycle, payments, invoices, and personalization follow-up."
+        title="Orders"
+        description="Shop purchases and gift registry orders in one place."
       />
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setTab("shop")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+        >
+          <ShoppingBag size={14} className="inline mr-1" /> Shop orders
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("registry")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "registry" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+        >
+          <Gift size={14} className="inline mr-1" /> Registry orders
+        </button>
+      </div>
 
       <AdminDataTable
         columns={columns}
@@ -249,8 +282,8 @@ export function OrdersScreen() {
         ]}
         empty={{
           icon: FileText,
-          title: "No orders found",
-          description: "Wait for customers to place orders.",
+          title: tab === "shop" ? "No shop orders yet" : "No registry orders yet",
+          description: tab === "shop" ? "Product and package purchases will appear here." : "Paid gift registry checkouts will appear here.",
         }}
       />
 

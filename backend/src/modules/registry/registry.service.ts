@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { env } from "../../config/env";
+import { deleteRegistryHostedImage } from "../../integrations/media/storage";
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "../../lib/errors";
 import { nextRegistryCode } from "../../lib/sequences";
 import type { ShippingAddress } from "../orders/orders.service";
@@ -468,11 +469,16 @@ export async function updateRegistryItem(
   if (input.quantityDesired !== undefined && input.quantityDesired < existing.quantityPurchased) {
     throw new ValidationError("Requested quantity cannot be below the amount already purchased");
   }
+  const nextImage =
+    input.manualImageUrl === undefined ? existing.manualImageUrl : input.manualImageUrl?.trim() || null;
+  if (existing.manualImageUrl && existing.manualImageUrl !== nextImage) {
+    await deleteRegistryHostedImage(existing.manualImageUrl);
+  }
   const updated = await prisma.giftRegistryItem.update({
     where: { id: itemId },
     data: {
       manualTitle: input.manualTitle,
-      manualImageUrl: input.manualImageUrl,
+      manualImageUrl: input.manualImageUrl === undefined ? undefined : nextImage,
       manualPriceInPaise: input.manualPriceInPaise === undefined ? undefined : input.manualPriceInPaise,
       currency: input.currency,
       storeName: input.storeName,
@@ -509,6 +515,7 @@ export async function deleteRegistryItem(userId: string, registryId: string, ite
   if (item.quantityPurchased > 0) {
     throw new ValidationError("This gift has purchases and cannot be deleted. Archive the note or reduce remaining quantity instead.");
   }
+  await deleteRegistryHostedImage(item.manualImageUrl);
   await prisma.giftRegistryItem.delete({ where: { id: itemId } });
 }
 

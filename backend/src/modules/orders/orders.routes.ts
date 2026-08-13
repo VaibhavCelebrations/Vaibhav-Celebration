@@ -154,13 +154,16 @@ adminOrdersRouter.get(
     followUp: z.enum(["NOT_REQUIRED", "REQUIRED", "CONTACTED", "CONFIRMED", "COMPLETED", "REQUIRED_ANY"]).optional(),
     registryId: z.string().optional(),
     registryOnly: z.enum(["true", "false"]).optional(),
+    shopOnly: z.enum(["true", "false"]).optional(),
   }), "query"),
   async (req, res, next) => {
     try {
       const { adminListOrders } = require("./orders.service");
+      const q = req.query as { registryOnly?: string; shopOnly?: string };
       const result = await adminListOrders({
         ...req.query,
-        registryOnly: (req.query as { registryOnly?: string }).registryOnly === "true",
+        registryOnly: q.registryOnly === "true",
+        shopOnly: q.shopOnly === "true",
       });
       return ok(res, result);
     } catch (err) {

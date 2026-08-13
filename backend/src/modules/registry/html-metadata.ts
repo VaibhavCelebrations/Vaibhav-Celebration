@@ -93,7 +93,7 @@ export function normalizeRetailImageUrl(url: string): string {
   const amazon = raw.match(
     /https?:\/\/(?:[\w.-]+\.)?(?:media-amazon\.com|ssl-images-amazon\.com)\/images\/I\/([^/?#]+)/i,
   );
-  if (amazon) {
+  if (amazon?.[1]) {
     const file = decodeURIComponent(amazon[1]);
     if (/\.(css|js)(_|\?|$)/i.test(file) || file.includes("_RC|")) return raw;
     const id = file.match(/^([A-Za-z0-9+-]+)/)?.[1];
@@ -103,15 +103,40 @@ export function normalizeRetailImageUrl(url: string): string {
   }
   const flipkart = raw.match(/^(https?:\/\/rukminim?\d*\.flixcart\.com)\/image\/\d+\/\d+\/(.+)$/i);
   if (flipkart) return `${flipkart[1]}/image/832/832/${flipkart[2]}`;
+  const meesho = raw.match(/^(https?:\/\/images\.meesho\.com\/images\/products\/\d+\/[A-Za-z0-9]+)_(?:12[68]|256|512)(\.(?:jpe?g|webp))$/i);
+  if (meesho) return `${meesho[1]}_1200${meesho[2]}`;
   return raw;
 }
 
 export function looksLikeRetailBotWall(html: string): boolean {
+  const lower = html.toLowerCase();
   return (
     html.includes("Click the button below to continue shopping") ||
     html.includes("To discuss automated access to Amazon") ||
-    html.includes("Correios.DoNotSend")
+    html.includes("Correios.DoNotSend") ||
+    lower.includes("sec-if-cpt-container") ||
+    /<title[^>]*>\s*access denied/i.test(html) ||
+    /<title[^>]*>\s*just a moment/i.test(html)
   );
+}
+
+/** Product title from an SEO slug when the store hides HTML from bots (Meesho, etc.). */
+export function titleFromProductUrl(url: string): string | null {
+  try {
+    const parts = new URL(url).pathname.split("/").filter(Boolean);
+    const marker = parts.findIndex((part) => ["p", "dp", "product", "products", "itm"].includes(part.toLowerCase()));
+    const slug = marker > 0 ? parts[marker - 1] : parts[0];
+    if (!slug || slug.length < 12) return null;
+    if (/^[a-z0-9]+$/i.test(slug) && slug.length < 16) return null;
+    const titled = slug
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    return titled.slice(0, 200) || null;
+  } catch {
+    return null;
+  }
 }
 
 function looksLikeProductCdn(url: string): boolean {
@@ -126,6 +151,10 @@ function looksLikeProductCdn(url: string): boolean {
     /images\.meesho\.com/.test(u) ||
     /nimbus-cdn\.furlenco|cdn\.shopify\.com/.test(u) ||
     /images\.unsplash\.com|img\.tatacliq\.com|cdn\.fcglcdn\.com/.test(u) ||
+    /images\.meesho\.com\/images\/products\//.test(u) ||
+    /(?:static\d*\.)?lenskart\.com/.test(u) ||
+    /cdn\.reliancedigital\.in|www\.reliancedigital\.in\/.*\.(jpe?g|png|webp)/.test(u) ||
+    /cdn\.zeptonow\.com|zeptonow\.s3|grofers\.com/.test(u) ||
     /\/products?\//.test(u) ||
     /\/p\/|\/catalog\/|\/item\//.test(u)
   );

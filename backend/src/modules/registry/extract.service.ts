@@ -8,6 +8,7 @@ import {
   looksLikeRetailBotWall,
   parsePriceToPaise,
   parseProductHtml,
+  titleFromProductUrl,
 } from "./html-metadata";
 import { assertSafePublicUrl, resolveMaybeRelativeUrl } from "./url-safety";
 
@@ -116,6 +117,10 @@ async function fetchHtmlWithUa(start: URL, userAgent: string): Promise<{ html: s
     }
 
     if (!res.ok) {
+      if ([401, 403, 429, 503].includes(res.status)) {
+        const html = (await readLimitedBody(res, MAX_BYTES, "The product page is too large to process")).toString("utf8");
+        return { html, finalUrl: current };
+      }
       throw new ValidationError(`The website returned ${res.status}`);
     }
 
@@ -135,8 +140,22 @@ function htmlLooksUsable(html: string): boolean {
 }
 
 async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
-  const first = await fetchHtmlWithUa(start, BROWSER_UA);
-  if (htmlLooksUsable(first.html)) return first;
+  let firstError: unknown;
+  try {
+    const first = await fetchHtmlWithUa(start, BROWSER_UA);
+    if (htmlLooksUsable(first.html)) return first;
+    for (const ua of PREVIEW_USER_AGENTS) {
+      try {
+        const next = await fetchHtmlWithUa(start, ua);
+        if (htmlLooksUsable(next.html)) return next;
+      } catch {
+        continue;
+      }
+    }
+    return first;
+  } catch (err) {
+    firstError = err;
+  }
   for (const ua of PREVIEW_USER_AGENTS) {
     try {
       const next = await fetchHtmlWithUa(start, ua);
@@ -145,7 +164,13 @@ async function fetchHtml(start: URL): Promise<{ html: string; finalUrl: URL }> {
       continue;
     }
   }
-  return first;
+  throw firstError instanceof Error ? firstError : new ValidationError("Could not reach that website");
+}
+
+function hostnameStoreName(url: URL): string {
+  const host = url.hostname.replace(/^www\./, "");
+  const name = host.split(".")[0] ?? host;
+  return name.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function rehostProductImage(imageUrl: string, pageUrl: URL): Promise<string | null> {
@@ -226,7 +251,28 @@ export async function extractExternalProduct(rawUrl: string, options?: { force?:
   try {
     const { html, finalUrl } = await fetchHtml(source);
     if (looksLikeRetailBotWall(html)) {
-      throw new ValidationError("That store blocked automatic preview. Paste the product image URL manually, or try again.");
+      const slugTitle = titleFromProductUrl(source.toString());
+      const payload = {
+        urlHash: hash,
+        sourceUrl: source.toString(),
+        title: slugTitle,
+        description: null as string | null,
+        image: null as string | null,
+        priceInPaise: null as number | null,
+        storeName: hostnameStoreName(source),
+        canonicalUrl: source.toString(),
+        extractionMethod: slugTitle ? "url:slug" : null,
+        extractionStatus: slugTitle ? ExtractionStatus.PARTIAL : ExtractionStatus.FAILED,
+        extractionError:
+          "This store blocked automatic product photos. Open the product page, copy the image address, and paste it below.",
+        extractedAt: new Date(),
+      };
+      const saved = await prisma.externalProductExtraction.upsert({
+        where: { urlHash: hash },
+        create: { ...payload, rawMeta: { blocked: true } as never },
+        update: { ...payload, rawMeta: { blocked: true } as never },
+      });
+      return toResult(saved, false);
     }
     const parsed = parseProductHtml(html, finalUrl.toString());
     const remoteImage = resolveMaybeRelativeUrl(parsed.image ?? undefined, finalUrl);
