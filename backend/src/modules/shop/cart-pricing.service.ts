@@ -6,22 +6,34 @@ import { getGstPercent, gstOn } from "../../lib/settings";
  * NEVER computes a final total. Every cart read, checkout quote, and order
  * creation recomputes this from live `Product.priceInPaise` server-side.
  */
-export type QuoteLineInput = { productId: string; unitPriceInPaise: number; quantity: number };
+export type QuoteLineInput = {
+  productId: string;
+  unitPriceInPaise: number;
+  quantity: number;
+  personalizationCostInPaise?: number;
+};
 
 export type CartQuote = {
   subtotalInPaise: number;
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
-  lines: Array<{ productId: string; unitPriceInPaise: number; quantity: number; lineTotalInPaise: number }>;
+  lines: Array<{
+    productId: string;
+    unitPriceInPaise: number;
+    personalizationCostInPaise: number;
+    quantity: number;
+    lineTotalInPaise: number;
+  }>;
 };
 
 export async function computeQuote(lines: QuoteLineInput[]): Promise<CartQuote> {
   const shapedLines = lines.map((l) => ({
     productId: l.productId,
     unitPriceInPaise: l.unitPriceInPaise,
+    personalizationCostInPaise: l.personalizationCostInPaise ?? 0,
     quantity: l.quantity,
-    lineTotalInPaise: l.unitPriceInPaise * l.quantity,
+    lineTotalInPaise: (l.unitPriceInPaise + (l.personalizationCostInPaise ?? 0)) * l.quantity,
   }));
   const subtotalInPaise = shapedLines.reduce((sum, l) => sum + l.lineTotalInPaise, 0);
   const gstPercent = await getGstPercent();

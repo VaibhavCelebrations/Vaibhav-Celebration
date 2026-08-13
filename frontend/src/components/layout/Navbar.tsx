@@ -67,11 +67,12 @@ export function Navbar() {
               aria-label="Vaibhav Celebrations — home"
             >
               <Image
-                src="/logo.png"
+                src="/logo-v2.png"
                 alt="Vaibhav Celebrations"
                 width={155}
                 height={155}
-                className="shrink-0 transition-premium group-hover:scale-105"
+                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
+                style={{ width: "auto", height: "auto" }}
                 priority
               />
             </Link>
@@ -218,7 +219,7 @@ export function Navbar() {
               </button>
               <button
                 onClick={toggleMobile}
-                className="text-charcoal p-2 -mr-2"
+                className="text-charcoal p-2 -mr-2 transition-all duration-300 hover:scale-110 active:scale-95"
                 aria-label={mobileOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileOpen}
               >

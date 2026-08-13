@@ -77,7 +77,6 @@ export async function createRazorpayOrder(input: CreateOrderInput): Promise<Crea
 
 export function verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
   if (!env.RAZORPAY_WEBHOOK_SECRET) {
-    // Dev-only bypass when webhook secret unset
     if (env.NODE_ENV !== "production") {
       logger.warn("Razorpay webhook signature skipped — WEBHOOK_SECRET unset");
       return true;
@@ -91,6 +90,31 @@ export function verifyWebhookSignature(rawBody: string, signature: string | unde
     .digest("hex");
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checkout.js handler payload: HMAC-SHA256(order_id|payment_id, KEY_SECRET).
+ * Mock orders (dev) skip cryptographic verification.
+ */
+export function verifyCheckoutPaymentSignature(input: {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}): boolean {
+  if (input.razorpayOrderId.startsWith("order_mock_")) {
+    return true;
+  }
+  const secret = env.RAZORPAY_KEY_SECRET ?? "";
+  if (!secret || secret.includes("xxxx") || secret.includes("your_")) {
+    return env.NODE_ENV !== "production";
+  }
+  const payload = `${input.razorpayOrderId}|${input.razorpayPaymentId}`;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(input.razorpaySignature));
   } catch {
     return false;
   }

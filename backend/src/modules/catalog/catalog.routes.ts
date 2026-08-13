@@ -46,6 +46,8 @@ const productSchema = z.object({
   description: z.string().min(1),
   priceInPaise: z.number().int().positive(),
   compareAtPriceInPaise: z.number().int().positive().optional().nullable(),
+  personalizationEnabled: z.boolean().optional(),
+  personalizationCostInPaise: z.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),
   minOrderQuantity: z.number().int().positive().optional(),
   maxOrderQuantity: z.number().int().positive().optional().nullable(),
@@ -71,7 +73,7 @@ productsRouter.get(
   validate(
     z.object({
       page: z.coerce.number().int().min(1).optional(),
-      pageSize: z.coerce.number().int().min(1).max(100).optional(),
+      pageSize: z.coerce.number().int().min(1).max(1000).optional(),
       search: z.string().optional(),
       category: z.string().optional(),
       theme: z.string().optional(),

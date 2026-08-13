@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CDN_CACHE_CONTROL = void 0;
+exports.MEDIA_CATEGORY_LABELS = exports.MEDIA_CATEGORIES = exports.CDN_CACHE_CONTROL = void 0;
 exports.publicUrlForKey = publicUrlForKey;
 exports.buildCdnKey = buildCdnKey;
 exports.isR2Enabled = isR2Enabled;
@@ -23,6 +23,30 @@ const logger_1 = require("../../lib/logger");
 const UPLOAD_DIR = path_1.default.resolve(process.cwd(), "uploads");
 /** Immutable long-cache for hashed/unique CDN keys (Document 02 §6.4). */
 exports.CDN_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/** All valid category keys — used for sidebar counts and validation */
+exports.MEDIA_CATEGORIES = [
+    "gallery",
+    "themes",
+    "blog",
+    "events",
+    "products",
+    "popups",
+    "media",
+    "users",
+    "invoices",
+];
+/** Human-readable labels for each category */
+exports.MEDIA_CATEGORY_LABELS = {
+    gallery: "Gallery",
+    themes: "Themes",
+    blog: "Blog",
+    events: "Events",
+    products: "Products",
+    popups: "Popups",
+    media: "General Media",
+    users: "Users",
+    invoices: "Invoices",
+};
 function r2Configured() {
     return Boolean(env_1.env.CLOUDFLARE_R2_ACCESS_KEY_ID &&
         env_1.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY &&

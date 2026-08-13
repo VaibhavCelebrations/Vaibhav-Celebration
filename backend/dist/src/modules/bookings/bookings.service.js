@@ -14,6 +14,7 @@ const errors_1 = require("../../lib/errors");
 const sequences_1 = require("../../lib/sequences");
 const client_2 = require("../../integrations/razorpay/client");
 const pricing_service_1 = require("../pricing/pricing.service");
+const builder_service_1 = require("../builder/builder.service");
 const availability_service_1 = require("../availability/availability.service");
 const validators_1 = require("../../lib/validators");
 const mailer_1 = require("../../integrations/email/mailer");
@@ -44,11 +45,59 @@ async function findOrCreateCustomer(input) {
 }
 async function createBooking(input) {
     const eventDate = (0, validators_1.toDateOnly)(input.eventDate);
-    const quote = await (0, pricing_service_1.computeQuote)({
-        packageId: input.packageId,
-        themeId: input.themeId,
-        selectedOptions: input.selectedOptions,
-    });
+    let themeId;
+    let packageId;
+    let basePriceInPaise;
+    let customizationTotalInPaise;
+    let gstInPaise;
+    let totalInPaise;
+    let themeTitle;
+    let packageTitle;
+    let customizationCreates = [];
+    let quotePayload;
+    if (input.builder) {
+        const bq = await (0, builder_service_1.computeBuilderQuote)(input.builder);
+        themeId = bq.themeId;
+        packageId = bq.packageId;
+        basePriceInPaise = bq.basePriceInPaise;
+        customizationTotalInPaise = bq.customizationTotalInPaise;
+        gstInPaise = bq.gstInPaise;
+        totalInPaise = bq.totalInPaise;
+        themeTitle = bq.themeTitle;
+        packageTitle = bq.packageTitle;
+        quotePayload = bq;
+        customizationCreates = bq.lineItems
+            .filter((l) => l.packageServiceItemId)
+            .map((l) => ({
+            packageServiceItemId: l.packageServiceItemId,
+            quantity: l.quantity,
+            unitPriceInPaise: l.unitPriceInPaise,
+        }));
+    }
+    else {
+        if (!input.packageId || !input.themeId) {
+            throw new errors_1.ValidationError("packageId and themeId are required without builder state");
+        }
+        const quote = await (0, pricing_service_1.computeQuote)({
+            packageId: input.packageId,
+            themeId: input.themeId,
+            selectedOptions: input.selectedOptions,
+        });
+        themeId = input.themeId;
+        packageId = input.packageId;
+        basePriceInPaise = quote.basePriceInPaise;
+        customizationTotalInPaise = quote.customizationTotalInPaise;
+        gstInPaise = quote.gstInPaise;
+        totalInPaise = quote.totalInPaise;
+        themeTitle = quote.themeTitle;
+        packageTitle = quote.packageTitle;
+        quotePayload = quote;
+        customizationCreates = quote.options.map((o) => ({
+            packageServiceItemId: o.optionId,
+            quantity: o.quantity,
+            unitPriceInPaise: o.unitPriceInPaise,
+        }));
+    }
     const booking = await (0, availability_service_1.withDateAdvisoryLock)(eventDate, async (tx) => {
         const { max, isBlocked } = await (0, availability_service_1.resolveCapacity)(eventDate);
         if (isBlocked) {
@@ -63,6 +112,9 @@ async function createBooking(input) {
             email: input.guestEmail,
             phone: input.guestPhone,
         });
+        const guestNote = input.builder
+            ? ` | guests=${input.builder.guestCount} loc=${input.builder.location}`
+            : "";
         await prisma_1.prisma.lead.create({
             data: {
                 customerId: customer.id,
@@ -72,7 +124,7 @@ async function createBooking(input) {
                 source: client_1.LeadSource.OTHER,
                 status: client_1.LeadStatus.QUALIFIED,
                 interestArea: "BOOKING",
-                message: `Booking started for ${quote.themeTitle} / ${quote.packageTitle}`,
+                message: `Booking started for ${themeTitle} / ${packageTitle}${guestNote}`,
             },
         });
         const bookingCode = await (0, sequences_1.nextBookingCode)();
@@ -80,23 +132,19 @@ async function createBooking(input) {
             data: {
                 bookingCode,
                 customerId: customer.id,
-                themeId: input.themeId,
-                packageId: input.packageId,
+                themeId,
+                packageId,
                 eventDate,
                 status: client_1.BookingStatus.SCHEDULED,
                 paymentStatus: client_1.PaymentStatus.PENDING,
-                basePriceInPaise: quote.basePriceInPaise,
-                customizationTotalInPaise: quote.customizationTotalInPaise,
-                gstInPaise: quote.gstInPaise,
-                totalPriceInPaise: quote.totalInPaise,
+                basePriceInPaise,
+                customizationTotalInPaise,
+                gstInPaise,
+                totalPriceInPaise: totalInPaise,
                 guestEmail: input.guestEmail.toLowerCase(),
                 guestPhone: input.guestPhone,
                 customizations: {
-                    create: quote.options.map((o) => ({
-                        packageServiceItemId: o.optionId,
-                        quantity: o.quantity,
-                        unitPriceInPaise: o.unitPriceInPaise,
-                    })),
+                    create: customizationCreates,
                 },
             },
             include: {
@@ -130,7 +178,7 @@ async function createBooking(input) {
         amountInPaise: updated.totalPriceInPaise,
         currency: "INR",
         booking: updated,
-        quote,
+        quote: quotePayload,
     };
 }
 async function getBookingByCode(bookingCode) {

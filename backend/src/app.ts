@@ -21,8 +21,9 @@ import {
   adminProductsRouter,
   adminProductCategoriesRouter,
 } from "./modules/catalog/catalog.routes";
+import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
 import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
-import { shopCheckoutRouter, ordersRouter, accountOrdersRouter } from "./modules/orders/orders.routes";
+import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
@@ -37,12 +38,12 @@ import { availabilityRouter } from "./modules/availability/availability.routes";
 import {
   bookingsRouter,
   checkoutRouter,
-  adminBookingsRouter,
 } from "./modules/bookings/bookings.routes";
 import {
   paymentsRouter,
   invoicesRouter,
   adminInvoicesRouter,
+  adminPaymentsRouter,
 } from "./modules/payments/payments.routes";
 import {
   consultationsRouter,
@@ -57,7 +58,7 @@ import { chatbotRouter, adminChatbotRouter } from "./modules/chatbot/chatbot.rou
 import { pagesRouter, adminPagesRouter } from "./modules/pages/pages.routes";
 import { publicSettingsRouter } from "./modules/settings/public-settings.routes";
 import {
-  adminCapacityRouter,
+  adminCalendarRouter,
   adminSettingsRouter,
   adminAuditRouter,
   adminCacheRouter,
@@ -138,7 +139,14 @@ export function createApp() {
   );
 
   // Local media uploads (dev / fallback when R2 unset)
-  app.use("/uploads", express.static(getUploadDir()));
+  app.use(
+    "/uploads",
+    (_req, res, next) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      next();
+    },
+    express.static(getUploadDir()),
+  );
 
   // ─── Rate Limiters ────────────────────────────────────────────────────────
   //
@@ -289,6 +297,7 @@ export function createApp() {
   api.use("/themes", publicLimiter, themesRouter);
   api.use("/products", publicLimiter, productsRouter);
   api.use("/product-categories", publicLimiter, productCategoriesRouter);
+  api.use("/collections", publicLimiter, productCollectionsRouter);
   api.use("/packages", publicLimiter, packagesRouter);
   api.use("/pricing", publicLimiter, pricingRouter);
   api.use("/builder", publicLimiter, builderRouter);
@@ -324,6 +333,7 @@ export function createApp() {
   api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
   api.use("/admin/products", adminLimiter, noStore, adminProductsRouter);
   api.use("/admin/product-categories", adminLimiter, noStore, adminProductCategoriesRouter);
+  api.use("/admin/collections", adminLimiter, noStore, adminProductCollectionsRouter);
   api.use("/admin/registries", adminLimiter, noStore, adminRegistryRouter);
   api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
   api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
@@ -340,13 +350,14 @@ export function createApp() {
   mediaAdminRouter.use(["/presign", "/upload", "/upload-binary", "/complete"], mediaUploadLimiter);
   mediaAdminRouter.use(mediaRouter);
   api.use("/admin/media", mediaAdminRouter);
-  api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
+  api.use("/admin/orders", adminLimiter, noStore, adminOrdersRouter);
   api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
+  api.use("/admin/payments", adminLimiter, noStore, adminPaymentsRouter);
   api.use("/admin/consultations", adminLimiter, noStore, adminConsultationsRouter);
   api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);
   api.use("/admin/customers", adminLimiter, noStore, adminCustomersRouter);
   api.use("/admin/chatbot", adminLimiter, noStore, adminChatbotRouter);
-  api.use("/admin/capacity-rules", adminLimiter, noStore, adminCapacityRouter);
+  api.use("/admin/calendar", adminLimiter, noStore, adminCalendarRouter);
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);

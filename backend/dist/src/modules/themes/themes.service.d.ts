@@ -9,6 +9,8 @@ export declare function listThemes(search?: string, tag?: string): Promise<({
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -40,6 +42,8 @@ export declare function getThemeBySlug(slug: string): Promise<{
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -54,6 +58,8 @@ export declare function getThemeBySlug(slug: string): Promise<{
             createdAt: Date;
             deletedAt: Date | null;
             altText: string | null;
+            category: string | null;
+            folder: string | null;
             width: number | null;
             height: number | null;
             uploadedByAdminUserId: string | null;
@@ -80,11 +86,16 @@ export declare function getThemeBySlug(slug: string): Promise<{
                     createdAt: Date;
                     updatedAt: Date;
                     deletedAt: Date | null;
+                    category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                    slug: string | null;
                     displayOrder: number;
                     description: string | null;
                     label: string;
                     requirements: string | null;
                     customizationPriceInPaise: number;
+                    pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                    locationScope: import(".prisma/client").$Enums.LocationScope;
+                    choiceCount: number | null;
                 };
             } & {
                 id: string;
@@ -103,10 +114,15 @@ export declare function getThemeBySlug(slug: string): Promise<{
             slug: string;
             displayOrder: number;
             description: string | null;
+            displayName: string | null;
             priceInPaise: number;
             tierRank: number;
             isRecommended: boolean;
+            badgeText: string | null;
+            pricingUnit: string | null;
+            hasGiftRegistry: boolean;
             isCustomizable: boolean;
+            internalKey: string | null;
         };
     } & {
         id: string;
@@ -125,6 +141,8 @@ export declare function getThemeBySlug(slug: string): Promise<{
             createdAt: Date;
             deletedAt: Date | null;
             altText: string | null;
+            category: string | null;
+            folder: string | null;
             width: number | null;
             height: number | null;
             uploadedByAdminUserId: string | null;
@@ -219,3 +237,10 @@ export declare function setThemePackages(themeId: string, links: Array<{
     isActive?: boolean;
 }>): Promise<void>;
 export declare function deleteSampleAsset(themeId: string, assetId: string): Promise<void>;
+/**
+ * Sync the 'gallery' display images for a theme (Option C).
+ * The heroImage counts as image #1; this manages up to 4 additional gallery images
+ * stored as ThemeSampleAsset rows with type=OTHER and title='gallery-image'.
+ * Maximum 4 extra images (so total with hero ≤ 5).
+ */
+export declare function syncThemeGalleryImages(themeId: string, mediaIds: string[]): Promise<void>;

@@ -16,19 +16,20 @@ import {
   Megaphone,
   Users,
   UserPlus,
-  CalendarCheck,
   CalendarRange,
   Receipt,
+  CreditCard,
   MessagesSquare,
   Settings as SettingsIcon,
   Images,
   SearchCheck,
-  Gauge,
   ScrollText,
+  Gift,
   LogOut,
   LayoutDashboard,
   FileText,
   Scale,
+  Layers,
   ChevronDown,
   ChevronRight,
   type LucideIcon,
@@ -57,6 +58,12 @@ const NAV: NavItem[] = [
     href: "/dashboard/cms/packages",
     label: "Packages",
     icon: Package,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/collections",
+    label: "Collections",
+    icon: Layers,
   },
   {
     section: "CMS",
@@ -138,9 +145,15 @@ const NAV: NavItem[] = [
   },
   {
     section: "CRM",
-    href: "/dashboard/crm/bookings",
-    label: "Bookings",
-    icon: CalendarCheck,
+    href: "/dashboard/crm/registries",
+    label: "Gift Registries",
+    icon: Gift,
+  },
+  {
+    section: "CRM",
+    href: "/dashboard/crm/orders",
+    label: "Orders",
+    icon: ShoppingBag,
   },
   {
     section: "CRM",
@@ -156,6 +169,12 @@ const NAV: NavItem[] = [
   },
   {
     section: "CRM",
+    href: "/dashboard/crm/payments",
+    label: "Payments",
+    icon: CreditCard,
+  },
+  {
+    section: "CRM",
     href: "/dashboard/crm/consultations",
     label: "Consultations",
     icon: MessagesSquare,
@@ -165,13 +184,6 @@ const NAV: NavItem[] = [
     href: "/dashboard/settings",
     label: "Operational Settings",
     icon: SettingsIcon,
-  },
-  {
-    section: "Settings",
-    href: "/dashboard/settings/capacity",
-    label: "Capacity Rules",
-    icon: Gauge,
-    roles: ["SUPER_ADMIN", "OPERATIONS"],
   },
   {
     section: "Settings",
@@ -248,12 +260,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
           >
             <div className="relative flex h-full w-48 items-center justify-center">
               <Image
-                src="/logo-photoroom.png"
+                src="/logo2.png"
                 alt="Vaibhav Celebrations"
                 width={1264}
                 height={843}
                 priority
-                className="mt-7 h-38 w-auto object-contain scale-[1.35] drop-shadow-sm"
+                className="h-25 w-auto object-contain drop-shadow-sm"
               />
             </div>
           </Link>
@@ -326,7 +338,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                         item.href === "/dashboard/settings"
                           ? pathname === item.href
                           : pathname === item.href ||
-                            pathname.startsWith(item.href + "/");
+                          pathname.startsWith(item.href + "/");
 
                       const ItemIcon = item.icon;
                       return (

@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextSequence = nextSequence;
 exports.nextBookingCode = nextBookingCode;
+exports.nextOrderCode = nextOrderCode;
+exports.nextRegistryCode = nextRegistryCode;
 exports.nextInvoiceNumber = nextInvoiceNumber;
 const prisma_1 = require("../db/prisma");
 /**
@@ -20,6 +22,16 @@ async function nextBookingCode(year = new Date().getFullYear()) {
     const key = `BOOKING-${year}`;
     const n = await nextSequence(key);
     return `BOOKING-${year}-${String(n).padStart(4, "0")}`;
+}
+async function nextOrderCode(year = new Date().getFullYear()) {
+    const key = `ORDER-${year}`;
+    const n = await nextSequence(key);
+    return `VBC-OR-${year}-${String(n).padStart(6, "0")}`;
+}
+async function nextRegistryCode(year = new Date().getFullYear()) {
+    const key = `REGISTRY-${year}`;
+    const n = await nextSequence(key);
+    return `VBC-GR-${year}-${String(n).padStart(5, "0")}`;
 }
 /** Indian FY style: INVOICE-2026-27-0001 */
 async function nextInvoiceNumber(now = new Date()) {

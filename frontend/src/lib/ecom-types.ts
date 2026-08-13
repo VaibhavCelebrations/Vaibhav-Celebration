@@ -46,4 +46,5 @@ export interface CartPackage {
   themeSlug: string;
   basePrice: number;
   addons: PackageAddonItem[];
+  builderInput?: any; // Stores the BuilderQuoteInput used to generate this package
 }

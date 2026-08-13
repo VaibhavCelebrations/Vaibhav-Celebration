@@ -31,7 +31,9 @@ async function getPageContent(pageKey) {
     return { pageKey: row.pageKey, sections, updatedAt: row.updatedAt };
 }
 async function listPageContent() {
-    const rows = await prisma_1.prisma.pageContent.findMany({ orderBy: { pageKey: "asc" } });
+    const rows = await prisma_1.prisma.pageContent.findMany({
+        orderBy: { pageKey: "asc" },
+    });
     return rows;
 }
 async function upsertPageContent(pageKey, sections) {
@@ -87,9 +89,18 @@ exports.defaultPageSections = {
         values: {
             title: "What We Stand For",
             items: [
-                { title: "Personalization", description: "Every celebration is tailored to your child's personality and interests." },
-                { title: "Quality", description: "Premium materials, professional execution, and attention to every detail." },
-                { title: "Trust", description: "Transparent pricing, reliable timelines, and a team that cares deeply." },
+                {
+                    title: "Personalization",
+                    description: "Every celebration is tailored to your child's personality and interests.",
+                },
+                {
+                    title: "Quality",
+                    description: "Premium materials, professional execution, and attention to every detail.",
+                },
+                {
+                    title: "Trust",
+                    description: "Transparent pricing, reliable timelines, and a team that cares deeply.",
+                },
             ],
         },
     },

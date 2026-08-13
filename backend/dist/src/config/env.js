@@ -18,6 +18,20 @@ const envSchema = zod_1.z.object({
         .string()
         .optional()
         .transform((v) => v === "true"),
+    // --- Customer (storefront) auth — fully cookie-based, separate secret from admin ---
+    JWT_CUSTOMER_ACCESS_SECRET: zod_1.z.string().min(32),
+    JWT_CUSTOMER_ACCESS_EXPIRES_IN: zod_1.z.string().default("15m"),
+    /** Sliding session window — extended on every successful refresh while active */
+    CUSTOMER_SESSION_SLIDING_DAYS: zod_1.z.coerce.number().default(60),
+    /** Absolute re-auth ceiling from login, regardless of activity (defense-in-depth) */
+    CUSTOMER_SESSION_ABSOLUTE_DAYS: zod_1.z.coerce.number().default(180),
+    /** Password reset link validity — enforced server-side even if JWT-less token */
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: zod_1.z.coerce.number().default(10),
+    EMAIL_VERIFICATION_TOKEN_TTL_HOURS: zod_1.z.coerce.number().default(48),
+    /** Used to build absolute links in transactional emails (reset/verify) */
+    FRONTEND_URL: zod_1.z.string().default("http://localhost:3000"),
+    CUSTOMER_MAX_FAILED_LOGINS: zod_1.z.coerce.number().default(5),
+    CUSTOMER_LOCKOUT_MINUTES: zod_1.z.coerce.number().default(15),
     OTP_EXPIRES_MINUTES: zod_1.z.coerce.number().default(10),
     OTP_MAX_ATTEMPTS: zod_1.z.coerce.number().default(5),
     GUEST_TOKEN_EXPIRES_MINUTES: zod_1.z.coerce.number().default(30),

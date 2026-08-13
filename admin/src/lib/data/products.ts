@@ -18,6 +18,8 @@ const seed: Product[] = [
     description: "A keepsake wooden photo frame, engraved with the birthday child's name and date.",
     priceInPaise: 79900,
     compareAtPriceInPaise: 99900,
+    personalizationEnabled: true,
+    personalizationCostInPaise: 10000,
     isActive: true,
     minOrderQuantity: 1,
     maxOrderQuantity: 5,

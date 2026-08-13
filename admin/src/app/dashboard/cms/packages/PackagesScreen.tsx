@@ -60,9 +60,13 @@ export function PackagesScreen() {
         packages: data.packages.map((pkg) => ({
           packageId: pkg.id,
           title: pkg.title,
+          displayName: pkg.displayName,
           description: pkg.description,
           priceInPaise: pkg.priceInPaise,
           isRecommended: pkg.isRecommended,
+          badgeText: pkg.badgeText,
+          pricingUnit: pkg.pricingUnit,
+          hasGiftRegistry: pkg.hasGiftRegistry,
           isActive: pkg.isActive,
           isCustomizable: pkg.isCustomizable,
           items: data.extraServices.map((svc) => {
@@ -423,6 +427,12 @@ function PackageMatrixEditor({
                     value={pkg.title}
                     onChange={(e) => onPatchPackage(pkg.packageId, { title: e.target.value })}
                   />
+                  <input
+                    className="input w-full text-xs"
+                    placeholder="Customer-facing name"
+                    value={pkg.displayName ?? ""}
+                    onChange={(e) => onPatchPackage(pkg.packageId, { displayName: e.target.value || null })}
+                  />
                   <textarea
                     className="input w-full text-xs"
                     rows={2}
@@ -441,6 +451,20 @@ function PackageMatrixEditor({
                       onChange={(paise) => onPatchPackage(pkg.packageId, { priceInPaise: paise })}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      className="input w-full text-xs"
+                      placeholder="Badge text"
+                      value={pkg.badgeText ?? ""}
+                      onChange={(e) => onPatchPackage(pkg.packageId, { badgeText: e.target.value || null })}
+                    />
+                    <input
+                      className="input w-full text-xs"
+                      placeholder="Pricing unit"
+                      value={pkg.pricingUnit ?? ""}
+                      onChange={(e) => onPatchPackage(pkg.packageId, { pricingUnit: e.target.value || null })}
+                    />
+                  </div>
                   <label className="flex items-center gap-2 text-xs">
                     <input
                       type="checkbox"
@@ -450,6 +474,16 @@ function PackageMatrixEditor({
                       }
                     />
                     Recommended
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={pkg.hasGiftRegistry}
+                      onChange={(e) =>
+                        onPatchPackage(pkg.packageId, { hasGiftRegistry: e.target.checked })
+                      }
+                    />
+                    Gift registry
                   </label>
                   <label className="flex items-center gap-2 text-xs">
                     <input

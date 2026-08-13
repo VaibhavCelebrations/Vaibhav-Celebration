@@ -12,6 +12,8 @@ export declare function listEvents(upcoming?: boolean): Promise<{
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -68,6 +70,8 @@ export declare function getEventById(id: string): Promise<{
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -124,6 +128,8 @@ export declare function getEvent(slug: string): Promise<{
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;

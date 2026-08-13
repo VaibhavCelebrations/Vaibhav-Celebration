@@ -16,14 +16,15 @@ import {
   Gift,
   Sparkles,
   ClipboardCheck,
+  ShoppingCart,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { useCatalog } from "@/context/catalog-context";
 import { useAuth } from "@/context/auth-context";
+import { useCart } from "@/context/cart-context";
 import {
-  createBuilderBooking,
   getBuilderQuote,
   listBuilderProducts,
   type BuilderProduct,
@@ -31,7 +32,6 @@ import {
   type BuilderSelections,
 } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
-import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
 
 type Tier = "standard" | "premium" | "luxe";
@@ -159,12 +159,15 @@ function ProductPicker({
                 key={p.sku}
                 type="button"
                 onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
-                className={`text-left rounded-xl p-3 border transition-all ${
+                className={`text-left rounded-xl p-3 border transition-all flex flex-col ${
                   selected
                     ? "border-2 border-mocha bg-mocha/5"
                     : "border-border hover:border-mocha/50"
                 }`}
               >
+                <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
+                  <Image src={p.imageUrl ?? "/placeholder-product.svg"} alt={p.title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
+                </div>
                 <div className="text-sm font-bold text-mocha">{formatPaise(p.priceInPaise)}</div>
                 <div className="text-sm text-charcoal mt-1 font-medium">{p.title}</div>
                 {p.pricingMode === "PER_GROUP" ? (
@@ -195,6 +198,7 @@ function BuildPackageContent() {
   const router = useRouter();
   const { themes, packagesBySlug } = useCatalog();
   const { isAuthenticated, user, openAuthModal } = useAuth();
+  const { addPackage } = useCart();
 
   const initialPkg =
     parseTier(searchParams.get("pkg")) ?? parseTier(searchParams.get("package"));
@@ -384,29 +388,27 @@ function BuildPackageContent() {
   };
 
   const toggleActivity = (sku: string) => {
-    setSelections((prev) => {
-      const current = [prev.activity1, prev.activity2].filter(Boolean) as string[];
-      let next: string[];
-      if (current.includes(sku)) {
-        next = current.filter((s) => s !== sku);
-      } else if (needsTwoActivities) {
-        if (current.length >= 2) next = [current[1]!, sku];
-        else next = [...current, sku];
-      } else {
-        next = [sku];
-      }
-      const updated = {
-        ...prev,
-        activity1: next[0] ?? null,
-        activity2: next[1] ?? null,
-      };
-      syncUrl({ selections: updated });
-      return updated;
-    });
+    const current = [selections.activity1, selections.activity2].filter(Boolean) as string[];
+    let next: string[];
+    if (current.includes(sku)) {
+      next = current.filter((s) => s !== sku);
+    } else if (needsTwoActivities) {
+      if (current.length >= 2) next = [current[1]!, sku];
+      else next = [...current, sku];
+    } else {
+      next = [sku];
+    }
+    const updated = {
+      ...selections,
+      activity1: next[0] ?? null,
+      activity2: next[1] ?? null,
+    };
+    setSelections(updated);
+    syncUrl({ selections: updated });
   };
 
-  const handlePay = async () => {
-    if (!canQuote || !pkgSlug || !themeSlug) return;
+  const handleAddToCart = () => {
+    if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
     if (!eventDate || !guestName || !guestEmail || !guestPhone) {
       setQuoteError("Please fill celebration date and contact details.");
       return;
@@ -415,41 +417,23 @@ function BuildPackageContent() {
       openAuthModal();
       return;
     }
-    setPaying(true);
-    setQuoteError(null);
-    try {
-      const booking = await createBuilderBooking({
-        eventDate,
-        guestName,
-        guestEmail,
-        guestPhone,
-        builder: {
-          packageSlug: pkgSlug,
-          themeSlug,
-          guestCount,
-          location,
-          selections,
-        },
-      });
-      const sdkReady = await loadRazorpayScript();
-      if (!sdkReady) throw new Error("Could not load Razorpay");
-      openRazorpayCheckout({
-        key: booking.razorpayKeyId,
-        amount: booking.amountInPaise,
-        currency: booking.currency,
-        name: "Vaibhav Celebrations",
-        description: `Booking ${booking.bookingCode}`,
-        order_id: booking.razorpayOrderId,
-        prefill: { name: guestName, email: guestEmail, contact: guestPhone },
-        handler: () => {
-          router.push(`/checkout?booking=${booking.bookingCode}&paid=1`);
-        },
-      });
-    } catch (err) {
-      setQuoteError(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Payment failed");
-    } finally {
-      setPaying(false);
-    }
+
+    addPackage({
+      packageId: pkgSlug,
+      themeSlug,
+      basePrice: quote.totalInPaise / 100, // store in rupees — includes all customizations
+      addons: [], // line items are already reflected in basePrice (the full quote total)
+      builderInput: {
+        packageSlug: pkgSlug,
+        themeSlug,
+        guestCount,
+        location,
+        selections,
+      },
+    });
+
+    // Redirect to checkout
+    router.push("/checkout");
   };
 
   const decorPriceLabel =
@@ -473,7 +457,7 @@ function BuildPackageContent() {
               <p className="text-sm text-text-muted mb-8">
                 Each theme has matching activities, gifts, and décor — all coordinated.
               </p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {activeThemes.map((theme) => (
                   <button
                     key={theme.slug}
@@ -558,61 +542,85 @@ function BuildPackageContent() {
               <p className="text-sm text-text-muted mb-8">
                 This sets per-child pricing and shows the right décor options.
               </p>
-              <div className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <div className="text-sm font-semibold mb-3">Number of children attending</div>
-                  <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      className="w-10 h-10 rounded-lg border border-border flex items-center justify-center"
-                      onClick={() => {
-                        const g = Math.max(5, guestCount - 1);
-                        setGuestCount(g);
-                        syncUrl({ guests: g });
-                      }}
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <div className="text-2xl font-bold min-w-[2rem] text-center">{guestCount}</div>
-                    <button
-                      type="button"
-                      className="w-10 h-10 rounded-lg border border-border flex items-center justify-center"
-                      onClick={() => {
-                        const g = guestCount + 1;
-                        setGuestCount(g);
-                        syncUrl({ guests: g });
-                      }}
-                    >
-                      <Plus size={16} />
-                    </button>
+              
+              <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
+                <div className="grid md:grid-cols-2 gap-8 md:gap-12">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-bold text-charcoal uppercase tracking-wider mb-3">
+                        Number of children attending
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center bg-cream-dark rounded-xl border border-border-light overflow-hidden h-14 w-40">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const g = Math.max(5, guestCount - 1);
+                              setGuestCount(g);
+                              syncUrl({ guests: g });
+                            }}
+                            className="w-12 h-full flex items-center justify-center text-charcoal hover:bg-mocha/10 transition-colors"
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <span className="flex-1 text-center font-display text-xl font-bold text-charcoal">
+                            {guestCount}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const g = guestCount + 1;
+                              setGuestCount(g);
+                              syncUrl({ guests: g });
+                            }}
+                            className="w-12 h-full flex items-center justify-center text-charcoal hover:bg-mocha/10 transition-colors"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-text-muted mt-3 font-medium uppercase tracking-wider">
+                        Minimum 5 children per booking
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-text-light mt-2">Minimum 5 children per booking</p>
-                </div>
-                <div>
-                  <div className="text-sm font-semibold mb-3">Are you in Jaipur?</div>
-                  <div className="flex gap-3">
-                    {(
-                      [
-                        ["jaipur", "Yes — Jaipur"],
-                        ["outside", "No — Other city"],
-                      ] as const
-                    ).map(([val, label]) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => {
-                          setLocation(val);
-                          syncUrl({ loc: val });
-                        }}
-                        className={`px-4 py-2.5 rounded-lg text-sm font-semibold border ${
-                          location === val
-                            ? "border-2 border-mocha bg-mocha/5"
-                            : "border-border"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-bold text-charcoal uppercase tracking-wider mb-3">
+                        Are you in Jaipur?
+                      </label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocation("jaipur");
+                            syncUrl({ loc: "jaipur" });
+                          }}
+                          className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
+                            location === "jaipur"
+                              ? "border-mocha bg-mocha/5 text-mocha shadow-sm"
+                              : "border-border-light text-charcoal hover:border-mocha/40 bg-surface"
+                          }`}
+                        >
+                          Yes — Jaipur
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocation("outside");
+                            syncUrl({ loc: "outside" });
+                          }}
+                          className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
+                            location === "outside"
+                              ? "border-mocha bg-mocha/5 text-mocha shadow-sm"
+                              : "border-border-light text-charcoal hover:border-mocha/40 bg-surface"
+                          }`}
+                        >
+                          No — Other city
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -775,98 +783,115 @@ function BuildPackageContent() {
               {quoteError && <p className="text-sm text-red-600 mb-4">{quoteError}</p>}
 
               {quote && (
-                <div className="bg-white border border-border rounded-2xl p-5 mb-8">
-                  {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
-                    const items = quote.lineItems.filter((l) => l.section === section);
-                    if (!items.length) return null;
-                    const titles: Record<string, string> = {
-                      package: "Package",
-                      "per-child": "Per-child items",
-                      "per-group": "Per-group items",
-                      auto: "Included physical items",
-                      fixed: "Fixed digital add-ons",
-                      decor: "Decor",
-                    };
-                    return (
-                      <div key={section} className="mb-4">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-text-light mb-2">
-                          {titles[section]}
-                        </div>
-                        {items.map((item) => (
-                          <div
-                            key={item.key}
-                            className="flex justify-between gap-4 py-2 border-b border-border/60 text-sm"
-                          >
-                            <div>
-                              <div className="text-charcoal">{item.label}</div>
-                              {item.sublabel && (
-                                <div className="text-[11px] text-text-light">{item.sublabel}</div>
-                              )}
-                            </div>
-                            <div className="font-semibold whitespace-nowrap">
-                              {formatPaise(item.lineTotalInPaise)}
-                            </div>
+                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start mb-12">
+                  <div className="bg-surface rounded-3xl border border-border-light p-6 shadow-sm">
+                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
+                      Quote Breakdown
+                    </h3>
+                    {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
+                      const items = quote.lineItems.filter((l) => l.section === section);
+                      if (!items.length) return null;
+                      const titles: Record<string, string> = {
+                        package: "Package",
+                        "per-child": "Per-child items",
+                        "per-group": "Per-group items",
+                        auto: "Included physical items",
+                        fixed: "Fixed digital add-ons",
+                        decor: "Decor",
+                      };
+                      return (
+                        <div key={section} className="mb-5">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
+                            {titles[section]}
                           </div>
-                        ))}
+                          <div className="space-y-3">
+                            {items.map((item) => (
+                              <div
+                                key={item.key}
+                                className="flex justify-between gap-4 text-sm items-start"
+                              >
+                                <div>
+                                  <div className="text-charcoal font-medium">{item.label}</div>
+                                  {item.sublabel && (
+                                    <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
+                                  )}
+                                </div>
+                                <div className="font-bold text-charcoal whitespace-nowrap">
+                                  {formatPaise(item.lineTotalInPaise)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="mt-6 pt-4 border-t border-border-light space-y-3">
+                      <div className="flex justify-between text-sm text-text-muted">
+                        <span className="font-medium">Subtotal</span>
+                        <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
                       </div>
-                    );
-                  })}
-                  <div className="flex justify-between text-sm text-text-muted pt-2">
-                    <span>Subtotal</span>
-                    <span>{formatPaise(quote.subtotalInPaise)}</span>
+                      <div className="flex justify-between text-sm text-text-muted">
+                        <span className="font-medium">GST ({quote.gstPercent}%)</span>
+                        <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
+                      </div>
+                      <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
+                        <span className="text-base font-bold text-charcoal">Grand total</span>
+                        <span className="font-display text-2xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm text-text-muted py-1">
-                    <span>GST ({quote.gstPercent}%)</span>
-                    <span>{formatPaise(quote.gstInPaise)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold pt-3">
-                    <span>Grand total</span>
-                    <span className="text-mocha">{formatPaise(quote.totalInPaise)}</span>
+
+                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
+                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
+                      Contact & Event Details
+                    </h3>
+                    <div className="space-y-5">
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
+                        <input
+                          type="date"
+                          value={eventDate}
+                          onChange={(e) => setEventDate(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
+                        <input
+                          type="text"
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="Jane Doe"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
+                        <input
+                          type="email"
+                          value={guestEmail}
+                          onChange={(e) => setGuestEmail(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="jane@example.com"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
+                        <input
+                          type="tel"
+                          value={guestPhone}
+                          onChange={(e) => setGuestPhone(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="+91 98765 43210"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
-
-              <div className="grid md:grid-cols-2 gap-4 mb-4">
-                <label className="text-sm">
-                  <span className="font-semibold block mb-1">Celebration date</span>
-                  <input
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-white"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-semibold block mb-1">Your name</span>
-                  <input
-                    type="text"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-white"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-semibold block mb-1">Email</span>
-                  <input
-                    type="email"
-                    value={guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-white"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-semibold block mb-1">Phone</span>
-                  <input
-                    type="tel"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-white"
-                  />
-                </label>
-              </div>
               {!isAuthenticated && (
                 <p className="text-sm text-text-muted mb-2">
-                  You&apos;ll be asked to log in when you pay — browsing stays free until then.
+                  You&apos;ll be asked to log in when you add to cart — browsing stays free until then.
                 </p>
               )}
             </section>
@@ -904,12 +929,12 @@ function BuildPackageContent() {
               ) : (
                 <button
                   type="button"
-                  disabled={paying || !quote}
-                  onClick={handlePay}
+                  disabled={!quote}
+                  onClick={handleAddToCart}
                   className="px-5 py-2.5 rounded-lg bg-mocha text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-2"
                 >
-                  {paying && <Loader2 size={14} className="animate-spin" />}
-                  {isAuthenticated ? "Pay with Razorpay →" : "Log in & Pay →"}
+                  <ShoppingCart size={14} />
+                  {isAuthenticated ? "Add to Cart" : "Log in & Add to Cart"}
                 </button>
               )}
             </div>

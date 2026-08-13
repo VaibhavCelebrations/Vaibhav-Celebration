@@ -17,14 +17,15 @@ import {
   getInvoiceByNumber,
   handleRazorpayWebhook,
   listInvoices,
+  listPaymentEvents,
 } from "./payments.service";
 
 export const paymentsRouter = Router();
 
-paymentsRouter.post(
+  paymentsRouter.post(
   "/razorpay/order",
   idempotency,
-  validate(z.object({ bookingCode: z.string().min(1).optional() })),
+  validate(z.object({ bookingCode: z.string().min(1).optional(), orderCode: z.string().min(1).optional() })),
   async (req, res, next) => {
     try {
       return ok(res, await createPaymentOrder(req.body));
@@ -145,3 +146,26 @@ adminInvoicesRouter.post("/:id/resend", async (req, res, next) => {
     return next(err);
   }
 });
+
+export const adminPaymentsRouter = Router();
+adminPaymentsRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN));
+
+adminPaymentsRouter.get(
+  "/",
+  validate(
+    paginationQuerySchema.extend({
+      search: z.string().optional(),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const q = req.query as unknown as { search?: string; page?: number; pageSize?: number };
+      const { page, pageSize } = parsePagination(q);
+      const { total, items } = await listPaymentEvents({ search: q.search, page, pageSize });
+      return ok(res, items, { pagination: paginationMeta(page, pageSize, total) });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);

@@ -42,11 +42,16 @@ export declare function getGuestBooking(bookingCode: string): Promise<{
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                slug: string | null;
                 displayOrder: number;
                 description: string | null;
                 label: string;
                 requirements: string | null;
                 customizationPriceInPaise: number;
+                pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                locationScope: import(".prisma/client").$Enums.LocationScope;
+                choiceCount: number | null;
             };
         } & {
             id: string;
@@ -65,10 +70,15 @@ export declare function getGuestBooking(bookingCode: string): Promise<{
         slug: string;
         displayOrder: number;
         description: string | null;
+        displayName: string | null;
         priceInPaise: number;
         tierRank: number;
         isRecommended: boolean;
+        badgeText: string | null;
+        pricingUnit: string | null;
+        hasGiftRegistry: boolean;
         isCustomizable: boolean;
+        internalKey: string | null;
     };
     customer: {
         id: string;
@@ -104,11 +114,16 @@ export declare function getGuestBooking(bookingCode: string): Promise<{
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                slug: string | null;
                 displayOrder: number;
                 description: string | null;
                 label: string;
                 requirements: string | null;
                 customizationPriceInPaise: number;
+                pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                locationScope: import(".prisma/client").$Enums.LocationScope;
+                choiceCount: number | null;
             };
         } & {
             id: string;

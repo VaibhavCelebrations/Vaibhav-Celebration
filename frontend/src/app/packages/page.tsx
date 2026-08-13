@@ -59,9 +59,9 @@ export default async function PackagesPage() {
                       : "bg-cream border border-border"
                   }`}
                 >
-                  {pkg.isRecommended && (
+                  {(pkg.badgeText || pkg.isRecommended) && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full whitespace-nowrap">
-                      Most Popular
+                      {pkg.badgeText || "Most Popular"}
                     </span>
                   )}
                   <h3 className="font-display text-2xl font-semibold text-charcoal">{pkg.title}</h3>
@@ -90,7 +90,7 @@ export default async function PackagesPage() {
                       href={`/build-package?pkg=${pkg.slug}`}
                       className="text-sm font-semibold px-6 py-3.5 rounded-lg text-center btn-primary"
                     >
-                      Build with {pkg.title.split(" ")[0]} →
+                      Checkout
                     </Link>
                   </div>
                 </div>

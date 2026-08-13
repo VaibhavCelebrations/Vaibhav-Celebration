@@ -160,17 +160,21 @@ export function orderConfirmationHtml(input: {
   orderCode: string;
   totalInPaise: number;
   items: Array<{ title: string; quantity: number }>;
+  invoiceUrl?: string | null;
+  customizationFollowUp?: boolean;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
   return `
   <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#2c1810;">
     <h1 style="color:#8B4513;">Order Confirmed</h1>
     <p>Hi ${input.name},</p>
-    <p>Your order <strong>${input.orderCode}</strong> has been confirmed.</p>
+    <p>Your order <strong>${input.orderCode}</strong> has been confirmed. Payment of <strong>₹${total}</strong> was received.</p>
     <ul>
       ${input.items.map((i) => `<li>${i.title} × ${i.quantity}</li>`).join("")}
     </ul>
-    <p>Total paid: <strong>₹${total}</strong></p>
+    ${input.invoiceUrl ? `<p><a href="${input.invoiceUrl}">Download your invoice</a></p>` : ""}
+    ${input.customizationFollowUp ? `<p>This order includes personalization. Our team will contact you shortly to confirm the details before production.</p>` : ""}
     <p>You can track this order any time from your account's order history.</p>
+    <p style="color:#666;font-size:13px;">Questions? Reply to this email or WhatsApp us.</p>
   </div>`;
 }

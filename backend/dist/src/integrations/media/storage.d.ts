@@ -1,6 +1,10 @@
 /** Immutable long-cache for hashed/unique CDN keys (Document 02 §6.4). */
 export declare const CDN_CACHE_CONTROL = "public, max-age=31536000, immutable";
-export type MediaPrefixKind = "themes" | "events" | "gallery" | "blog" | "popups" | "invoices" | "users" | "media";
+export type MediaPrefixKind = "themes" | "events" | "gallery" | "blog" | "popups" | "invoices" | "users" | "media" | "products";
+/** All valid category keys — used for sidebar counts and validation */
+export declare const MEDIA_CATEGORIES: MediaPrefixKind[];
+/** Human-readable labels for each category */
+export declare const MEDIA_CATEGORY_LABELS: Record<MediaPrefixKind, string>;
 export type StoredObject = {
     url: string;
     cdnKey: string;

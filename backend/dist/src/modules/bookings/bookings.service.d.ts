@@ -1,13 +1,22 @@
 import { BookingStatus, PaymentStatus } from "@prisma/client";
 import { type QuoteOptionInput } from "../pricing/pricing.service";
+import { type BuilderLocation, type BuilderSelections } from "../builder/builder.service";
 export type CreateBookingInput = {
-    themeId: string;
-    packageId: string;
+    themeId?: string;
+    packageId?: string;
     eventDate: string;
     selectedOptions?: QuoteOptionInput[];
     guestName: string;
     guestEmail: string;
     guestPhone: string;
+    /** New builder path — when present, server recomputes quote from builder state */
+    builder?: {
+        packageSlug: "standard" | "premium" | "luxe";
+        themeSlug: string;
+        guestCount: number;
+        location: BuilderLocation;
+        selections: BuilderSelections;
+    };
 };
 export declare function createBooking(input: CreateBookingInput): Promise<{
     bookingCode: string;
@@ -56,7 +65,7 @@ export declare function createBooking(input: CreateBookingInput): Promise<{
         guestEmail: string;
         guestPhone: string;
     };
-    quote: import("../pricing/pricing.service").QuoteResult;
+    quote: unknown;
 }>;
 export declare function getBookingByCode(bookingCode: string): Promise<{
     theme: {
@@ -84,11 +93,16 @@ export declare function getBookingByCode(bookingCode: string): Promise<{
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                slug: string | null;
                 displayOrder: number;
                 description: string | null;
                 label: string;
                 requirements: string | null;
                 customizationPriceInPaise: number;
+                pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                locationScope: import(".prisma/client").$Enums.LocationScope;
+                choiceCount: number | null;
             };
         } & {
             id: string;
@@ -107,10 +121,15 @@ export declare function getBookingByCode(bookingCode: string): Promise<{
         slug: string;
         displayOrder: number;
         description: string | null;
+        displayName: string | null;
         priceInPaise: number;
         tierRank: number;
         isRecommended: boolean;
+        badgeText: string | null;
+        pricingUnit: string | null;
+        hasGiftRegistry: boolean;
         isCustomizable: boolean;
+        internalKey: string | null;
     };
     customer: {
         id: string;
@@ -146,11 +165,16 @@ export declare function getBookingByCode(bookingCode: string): Promise<{
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                slug: string | null;
                 displayOrder: number;
                 description: string | null;
                 label: string;
                 requirements: string | null;
                 customizationPriceInPaise: number;
+                pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                locationScope: import(".prisma/client").$Enums.LocationScope;
+                choiceCount: number | null;
             };
         } & {
             id: string;
@@ -273,10 +297,15 @@ export declare function adminUpdateBookingStatus(id: string, status: BookingStat
         slug: string;
         displayOrder: number;
         description: string | null;
+        displayName: string | null;
         priceInPaise: number;
         tierRank: number;
         isRecommended: boolean;
+        badgeText: string | null;
+        pricingUnit: string | null;
+        hasGiftRegistry: boolean;
         isCustomizable: boolean;
+        internalKey: string | null;
     };
     customer: {
         id: string;

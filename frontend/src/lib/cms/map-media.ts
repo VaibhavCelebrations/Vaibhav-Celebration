@@ -96,12 +96,15 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
   const price = priceOverrideInPaise ?? pkg.priceInPaise;
   return {
     id: pkg.id,
-    title: pkg.title,
+    title: pkg.displayName?.trim() || pkg.title,
     slug: pkg.slug,
-    priceLabel: formatInrFromPaise(price),
+    priceLabel: `${formatInrFromPaise(price)}${pkg.pricingUnit ? ` ${pkg.pricingUnit}` : ""}`,
     basePrice: price / 100,
     tierRank: pkg.tierRank,
     isRecommended: pkg.isRecommended,
+    badgeText: pkg.badgeText,
+    pricingUnit: pkg.pricingUnit,
+    hasGiftRegistry: pkg.hasGiftRegistry,
     description: pkg.description ?? "",
     features: pkg.serviceItems
       .slice()

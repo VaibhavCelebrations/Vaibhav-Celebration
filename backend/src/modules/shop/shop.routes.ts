@@ -31,6 +31,7 @@ cartRouter.post(
       productId: z.string().min(1),
       quantity: z.number().int().positive().max(999),
       personalizationValues: z.unknown().optional(),
+      registryItemId: z.string().min(1).optional(),
     }),
   ),
   async (req, res, next) => {

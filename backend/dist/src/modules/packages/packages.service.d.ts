@@ -7,11 +7,16 @@ export declare function listPackages(): Promise<({
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -30,10 +35,15 @@ export declare function listPackages(): Promise<({
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 })[]>;
 export declare function comparePackages(ids: string[]): Promise<({
     serviceItems: ({
@@ -43,11 +53,16 @@ export declare function comparePackages(ids: string[]): Promise<({
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -66,10 +81,15 @@ export declare function comparePackages(ids: string[]): Promise<({
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 })[]>;
 export declare function getPackageBySlug(slug: string): Promise<{
     serviceItems: ({
@@ -79,11 +99,16 @@ export declare function getPackageBySlug(slug: string): Promise<{
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -102,10 +127,15 @@ export declare function getPackageBySlug(slug: string): Promise<{
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 }>;
 export declare function getPackageMatrix(): Promise<{
     packages: ({
@@ -116,11 +146,16 @@ export declare function getPackageMatrix(): Promise<{
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+                slug: string | null;
                 displayOrder: number;
                 description: string | null;
                 label: string;
                 requirements: string | null;
                 customizationPriceInPaise: number;
+                pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+                locationScope: import(".prisma/client").$Enums.LocationScope;
+                choiceCount: number | null;
             };
         } & {
             id: string;
@@ -139,10 +174,15 @@ export declare function getPackageMatrix(): Promise<{
         slug: string;
         displayOrder: number;
         description: string | null;
+        displayName: string | null;
         priceInPaise: number;
         tierRank: number;
         isRecommended: boolean;
+        badgeText: string | null;
+        pricingUnit: string | null;
+        hasGiftRegistry: boolean;
         isCustomizable: boolean;
+        internalKey: string | null;
     })[];
     extraServices: {
         id: string;
@@ -150,11 +190,16 @@ export declare function getPackageMatrix(): Promise<{
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+        slug: string | null;
         displayOrder: number;
         description: string | null;
         label: string;
         requirements: string | null;
         customizationPriceInPaise: number;
+        pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+        locationScope: import(".prisma/client").$Enums.LocationScope;
+        choiceCount: number | null;
     }[];
 }>;
 export declare const createPackage: (data: Prisma.PackageUncheckedCreateInput) => Promise<{
@@ -167,10 +212,15 @@ export declare const createPackage: (data: Prisma.PackageUncheckedCreateInput) =
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 }>;
 export declare function updatePackage(id: string, data: Prisma.PackageUncheckedUpdateInput): Promise<{
     id: string;
@@ -182,10 +232,15 @@ export declare function updatePackage(id: string, data: Prisma.PackageUncheckedU
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 }>;
 export declare function deletePackage(id: string): Promise<void>;
 export type ServiceItemInput = {
@@ -206,11 +261,16 @@ export declare function replacePackageServiceItems(packageId: string, items: Ser
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -229,18 +289,27 @@ export declare function replacePackageServiceItems(packageId: string, items: Ser
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 }>;
 export type PackageMatrixSaveInput = {
     packages: Array<{
         packageId: string;
         title?: string;
+        displayName?: string | null;
         description?: string | null;
         priceInPaise?: number;
         isRecommended?: boolean;
+        badgeText?: string | null;
+        pricingUnit?: string | null;
+        hasGiftRegistry?: boolean;
         isActive?: boolean;
         isCustomizable?: boolean;
         items: ServiceItemInput[];
@@ -256,11 +325,16 @@ export declare function savePackageMatrix({ packages, extraServices }: PackageMa
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -279,10 +353,15 @@ export declare function savePackageMatrix({ packages, extraServices }: PackageMa
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 })[]>;
 export declare function getPackageDetail(id: string): Promise<{
     serviceItems: ({
@@ -292,11 +371,16 @@ export declare function getPackageDetail(id: string): Promise<{
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+            slug: string | null;
             displayOrder: number;
             description: string | null;
             label: string;
             requirements: string | null;
             customizationPriceInPaise: number;
+            pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+            locationScope: import(".prisma/client").$Enums.LocationScope;
+            choiceCount: number | null;
         };
     } & {
         id: string;
@@ -315,8 +399,13 @@ export declare function getPackageDetail(id: string): Promise<{
     slug: string;
     displayOrder: number;
     description: string | null;
+    displayName: string | null;
     priceInPaise: number;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isCustomizable: boolean;
+    internalKey: string | null;
 }>;

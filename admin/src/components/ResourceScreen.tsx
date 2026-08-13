@@ -7,7 +7,7 @@ import type { ResourceRecord, ResourceRepository } from "@/lib/data/resources";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
-import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
+import { AdminDataTable, type Column, type RowAction } from "@/components/ui/AdminDataTable";
 import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -28,6 +28,7 @@ type ResourceScreenProps = {
   statusOptions?: TemplateOption[];
   statusKey?: string;
   extraColumns?: Column<ResourceRecord>[];
+  extraRowActions?: RowAction<ResourceRecord>[];
   /** Hide create button (e.g. CRM entities created elsewhere). */
   allowCreate?: boolean;
   allowEdit?: boolean;
@@ -53,6 +54,7 @@ export function ResourceScreen({
   statusOptions,
   statusKey = "status",
   extraColumns = [],
+  extraRowActions = [],
   allowCreate = true,
   allowEdit = true,
   allowArchive = true,
@@ -131,6 +133,7 @@ export function ResourceScreen({
   ];
 
   const rowActions = [
+    ...extraRowActions,
     ...(allowEdit
       ? [{ id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit }]
       : []),

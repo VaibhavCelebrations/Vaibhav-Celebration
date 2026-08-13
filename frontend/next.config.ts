@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const cmsCdnHost = process.env.NEXT_PUBLIC_CDN_HOST ?? "cdn.vaibhavcelebrations.in";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
