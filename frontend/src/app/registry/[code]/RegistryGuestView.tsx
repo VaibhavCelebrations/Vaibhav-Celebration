@@ -14,7 +14,7 @@ import type { PublicRegistryDto, GiftRegistryItemDto } from "@/lib/shop-types";
 import { ApiClientError } from "@/lib/api-client";
 import { SafeGiftImage } from "@/components/registry/SafeGiftImage";
 
-export function RegistryGuestView({ code, initial }: { code: string; initial: PublicRegistryDto | null; needsPassword: boolean }) {
+export function RegistryGuestView({ code, initial, needsPassword }: { code: string; initial: PublicRegistryDto | null; needsPassword: boolean }) {
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { addItem, openCart } = useCart();
   const { push } = useToast();
@@ -86,7 +86,7 @@ export function RegistryGuestView({ code, initial }: { code: string; initial: Pu
         guestEmail: user?.email,
       });
       setRegistry((prev) =>
-        prev ? { ...prev, items: prev.items.map((i) => (i.id === confirmItem.id ? { ...i, ...updated } : i)) } : prev,
+        prev ? { ...prev, items: prev.items.map((i) => (i.id === confirmItem.id ? { ...i, ...(updated as Partial<GiftRegistryItemDto>) } : i)) } : prev,
       );
       setConfirmItem(null);
       push("Thank you — this gift is marked as purchased", "success");
