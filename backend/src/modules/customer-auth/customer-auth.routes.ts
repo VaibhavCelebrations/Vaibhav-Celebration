@@ -35,9 +35,9 @@ const passwordSchema = z
   .regex(/[0-9]/, "Password must include a number");
 
 const signupSchema = z.object({
-  name: z.string().min(1).max(120),
-  email: z.string().email(),
-  phone: z.string().min(6).max(20).optional(),
+  name: z.string().min(1, "Name is required").max(120, "Name is too long"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(6, "Phone number must be at least 6 characters").max(20, "Phone number cannot exceed 20 characters").optional(),
   password: passwordSchema,
 });
 
