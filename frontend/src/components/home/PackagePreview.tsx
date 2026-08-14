@@ -37,7 +37,7 @@ export function PackagePreview({ packages }: PackagePreviewProps) {
               >
                 {(pkg.badgeText || pkg.isRecommended) && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full whitespace-nowrap shadow-sm">
-                    {pkg.badgeText || "Most Chosen"}
+                    {pkg.badgeText || "Most Loved"}
                   </span>
                 )}
                 <h3 className="font-display text-2xl font-semibold text-charcoal">
@@ -50,7 +50,7 @@ export function PackagePreview({ packages }: PackagePreviewProps) {
                   <p className="font-display text-4xl text-charcoal font-semibold">
                     {pkg.priceLabel}
                   </p>
-                  <p className="text-xs text-text-light mt-1 uppercase tracking-wider font-medium">Onwards</p>
+                  <p className="text-xs text-text-light mt-1 uppercase tracking-wider font-medium">Base Price</p>
                 </div>
 
                 <Link
@@ -67,6 +67,17 @@ export function PackagePreview({ packages }: PackagePreviewProps) {
             </ScrollReveal>
           ))}
         </div>
+
+        <ScrollReveal delay={300}>
+          <div className="mt-12 flex justify-center">
+            <Link
+              href="/packages"
+              className="inline-flex items-center gap-2 text-mocha hover:text-mocha-dark font-semibold text-sm uppercase tracking-wider border-b-2 border-mocha/30 hover:border-mocha pb-1 transition-colors"
+            >
+              Compare All Packages
+            </Link>
+          </div>
+        </ScrollReveal>
       </div>
     </section>
   );
