@@ -75,7 +75,6 @@ accountRegistryRouter.post(
       coverImageUrl: z.string().url().optional(),
       shippingAddress: shippingAddressSchema.optional(),
       visibility: z.nativeEnum(RegistryVisibility).optional(),
-      bookingId: z.string().optional(),
     }),
   ),
   async (req, res, next) => {

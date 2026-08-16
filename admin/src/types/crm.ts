@@ -153,7 +153,7 @@ export type DayCapacity = {
 
 // ─── Invoices ───────────────────────────────────────────────────────────────
 
-export const INVOICE_LINKED_TYPES = ["BOOKING", "ORDER", "EVENT_REGISTRATION"] as const;
+export const INVOICE_LINKED_TYPES = ["ORDER", "EVENT_REGISTRATION"] as const;
 export type InvoiceLinkedType = (typeof INVOICE_LINKED_TYPES)[number];
 
 export type Invoice = {

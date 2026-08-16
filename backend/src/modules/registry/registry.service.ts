@@ -226,7 +226,6 @@ export async function createRegistry(
     coverImageUrl?: string;
     shippingAddress?: ShippingAddress;
     visibility?: RegistryVisibility;
-    bookingId?: string;
   },
 ) {
   const visibility = input.visibility ?? RegistryVisibility.UNLISTED;
@@ -242,7 +241,6 @@ export async function createRegistry(
       registryCode,
       passwordHash,
       ownerUserId: userId,
-      bookingId: input.bookingId,
       title: input.title,
       occasion: input.occasion,
       eventDate: input.eventDate ? new Date(input.eventDate) : null,

@@ -162,7 +162,6 @@ model Theme {
   galleryImages    GalleryImage[]     @relation("ThemeGallery")
   packages         ThemePackage[]
   sampleAssets     ThemeSampleAsset[]
-  bookings         Booking[]
   orderPackages    OrderPackage[]
   testimonials     Testimonial[]
   events           Event[]
@@ -218,7 +217,6 @@ model Package {
   deletedAt      DateTime?
   serviceItems   PackageServiceItem[]
   themeLinks     ThemePackage[]
-  bookings       Booking[]
   orderPackages  OrderPackage[]
   testimonials   Testimonial[]
 
@@ -303,7 +301,6 @@ model PackageServiceItem {
   extraService          ExtraService           @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
   isIncluded            Boolean                @default(false)
   displayOrder          Int                    @default(0)
-  bookingCustomizations BookingCustomization[]
   orderPackageLines     OrderPackageLine[]
 
   @@unique([packageId, extraServiceId])
@@ -622,7 +619,6 @@ model Customer {
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   deletedAt     DateTime?
-  bookings      Booking[]
   consultations ConsultationRequest[]
   leads         Lead[]
   invoices      Invoice[]
@@ -714,79 +710,9 @@ model ConsultationRequest {
   deletedAt           DateTime?
 }
 
-// ─── Bookings ───────────────────────────────────────────────────────────────
-
-enum BookingStatus {
-  SCHEDULED
-  CONFIRMED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-model Booking {
-  id                        String                 @id @default(cuid())
-  bookingCode               String                 @unique
-  customerId                String
-  customer                  Customer               @relation(fields: [customerId], references: [id])
-  themeId                   String
-  theme                     Theme                  @relation(fields: [themeId], references: [id])
-  packageId                 String
-  package                   Package                @relation(fields: [packageId], references: [id])
-  eventDate                 DateTime               @db.Date
-  status                    BookingStatus          @default(SCHEDULED)
-  paymentStatus             PaymentStatus          @default(PENDING)
-  basePriceInPaise          Int
-  customizationTotalInPaise Int                    @default(0)
-  gstInPaise                Int                    @default(0)
-  totalPriceInPaise         Int
-  razorpayOrderId           String?
-  razorpayPaymentId         String?
-  guestEmail                String
-  guestPhone                String
-  createdAt                 DateTime               @default(now())
-  updatedAt                 DateTime               @updatedAt
-  deletedAt                 DateTime?
-  customizationFollowUpStatus CustomizationFollowUpStatus @default(NOT_REQUIRED)
-  adminNotes                  String?                     @db.Text
-  customizations              BookingCustomization[]
-  invoice                     Invoice?
-  giftRegistry                GiftRegistry?
-
-  @@index([eventDate])
-  @@index([bookingCode])
-  @@index([status])
-}
-
-model BookingCustomization {
-  id                   String             @id @default(cuid())
-  bookingId            String
-  booking              Booking            @relation(fields: [bookingId], references: [id])
-  packageServiceItemId String
-  packageServiceItem   PackageServiceItem @relation(fields: [packageServiceItemId], references: [id])
-  quantity             Int                @default(1)
-  unitPriceInPaise     Int
-}
-
-enum CapacityScope {
-  GLOBAL_DEFAULT
-  SPECIFIC_DATE
-}
-
-model BookingCapacityRule {
-  id                String        @id @default(cuid())
-  scope             CapacityScope @default(GLOBAL_DEFAULT)
-  specificDate      DateTime?     @db.Date
-  maxBookingsPerDay Int
-  isBlocked         Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-}
-
 // ─── Invoices ───────────────────────────────────────────────────────────────
 
 enum InvoiceLinkedType {
-  BOOKING
   ORDER
   EVENT_REGISTRATION
 }
@@ -795,8 +721,6 @@ model Invoice {
   id                 String            @id @default(cuid())
   invoiceNumber      String            @unique
   linkedType         InvoiceLinkedType
-  bookingId          String?           @unique
-  booking            Booking?          @relation(fields: [bookingId], references: [id])
   orderId            String?           @unique
   order              Order?            @relation(fields: [orderId], references: [id])
   customerId         String
@@ -806,8 +730,10 @@ model Invoice {
   totalInPaise       Int
   pdfUrl             String?
   emailSentAt        DateTime?
+  emailSendStatus    String?
   whatsappSentAt     DateTime?
   whatsappSendStatus String?
+  whatsappMessageId  String?
   issuedAt           DateTime          @default(now())
   deletedAt          DateTime?
 
@@ -1109,7 +1035,10 @@ model Order {
   invoiceNumber                 String?                      @unique
   invoicePdfUrl                 String?
   confirmationEmailSentAt       DateTime?
+  emailSendStatus               String?
   whatsappSentAt                DateTime?
+  whatsappSendStatus            String?
+  whatsappMessageId             String?
   placedAt                      DateTime                     @default(now())
   createdAt                     DateTime                     @default(now())
   updatedAt                     DateTime                     @updatedAt
@@ -1259,8 +1188,6 @@ model GiftRegistry {
   passwordHash       String?
   ownerUserId        String
   ownerUser          User                @relation(fields: [ownerUserId], references: [id])
-  bookingId          String?             @unique
-  booking            Booking?            @relation(fields: [bookingId], references: [id])
   title              String?
   occasion           String?
   eventDate          DateTime?

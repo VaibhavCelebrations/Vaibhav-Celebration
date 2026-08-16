@@ -10,7 +10,7 @@ import { claimPaymentEvent } from "../payments/payment-events";
 import { generateInvoicePdf } from "../../integrations/invoice/pdf";
 import { nextInvoiceNumber } from "../../lib/sequences";
 import { invoiceEmailHtml, orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
-import { sendWhatsAppMessage } from "../../integrations/whatsapp/client";
+import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
 import { logger } from "../../lib/logger";
 import { InvoiceLinkedType } from "@prisma/client";
 import { fulfillRegistryContributionsForOrder, releaseRegistryReservationsForOrder, reserveRegistryItemQty } from "../registry/registry-qty";
@@ -626,6 +626,15 @@ export async function verifyShopCheckoutPayment(input: {
 
 /** Called from webhook or verified checkout callback — marks paid, invoices, notifies, clears purchased cart lines. */
 export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
+  await prisma.order.updateMany({
+    where: { id: orderId, paymentStatus: { not: PaymentStatus.PAID } },
+    data: {
+      status: OrderStatus.PAID,
+      paymentStatus: PaymentStatus.PAID,
+      ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
+    },
+  });
+
   const order = await prisma.order.findFirst({
     where: { id: orderId },
     include: {
@@ -643,16 +652,13 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     },
   });
   if (!order) throw new NotFoundError("Order not found");
-  if (order.status === OrderStatus.PAID && order.paymentStatus === PaymentStatus.PAID) {
-    return order;
-  }
 
   const shipping = order.shippingAddress as unknown as ShippingAddress;
-  let invoiceNumber = order.invoiceNumber;
-  let pdfUrl = order.invoicePdfUrl;
+  let invoiceNumber = order.invoice?.invoiceNumber ?? order.invoiceNumber;
+  let pdfUrl = order.invoice?.pdfUrl ?? order.invoicePdfUrl;
 
-  if (!order.invoice && !invoiceNumber) {
-    invoiceNumber = await nextInvoiceNumber();
+  if (!order.invoice) {
+    invoiceNumber = invoiceNumber ?? (await nextInvoiceNumber());
     try {
       const lineItems =
         order.kind === OrderKind.PACKAGE && order.packageOrder
@@ -720,9 +726,6 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
   const updated = await prisma.order.update({
     where: { id: order.id },
     data: {
-      status: OrderStatus.PAID,
-      paymentStatus: PaymentStatus.PAID,
-      razorpayPaymentId: razorpayPaymentId ?? order.razorpayPaymentId,
       invoiceNumber: invoiceNumber ?? order.invoiceNumber,
       invoicePdfUrl: pdfUrl ?? order.invoicePdfUrl,
     },
@@ -737,7 +740,12 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     }
   }
 
-  if (!order.confirmationEmailSentAt) {
+  const claimedEmail = await prisma.order.updateMany({
+    where: { id: order.id, emailSendStatus: null },
+    data: { emailSendStatus: "PENDING" },
+  });
+
+  if (claimedEmail.count > 0) {
     const confirmationItems =
       order.kind === OrderKind.PACKAGE && order.packageOrder
         ? [
@@ -751,7 +759,7 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
           ]
         : order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
 
-    void sendEmail({
+    const confirmation = await sendEmail({
       to: order.contactEmail,
       subject: `Order Confirmed — ${order.orderCode}`,
       html: orderConfirmationHtml({
@@ -762,48 +770,61 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         invoiceUrl: pdfUrl,
         customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
       }),
-    })
-      .then((r) => {
-        if (r.sent) {
-          return prisma.order.update({
-            where: { id: order.id },
-            data: { confirmationEmailSentAt: new Date() },
-          });
-        }
-        return undefined;
-      })
-      .catch(() => undefined);
+    });
 
-    if (pdfUrl) {
-      void sendEmail({
+    let invoiceEmailStatus = confirmation.status;
+    if (pdfUrl && invoiceNumber) {
+      const invoiceMail = await sendEmail({
         to: order.contactEmail,
         subject: `Invoice ${invoiceNumber} — Vaibhav Celebrations`,
         html: invoiceEmailHtml({
-          invoiceNumber: invoiceNumber ?? order.orderCode,
+          invoiceNumber,
           guestName: order.user.name,
           totalInPaise: order.totalInPaise,
           pdfUrl,
         }),
-      }).catch(() => undefined);
+      });
+      invoiceEmailStatus = invoiceMail.status;
+      await prisma.invoice.updateMany({
+        where: { orderId: order.id },
+        data: {
+          emailSentAt: invoiceMail.sent ? new Date() : undefined,
+          emailSendStatus: invoiceMail.status,
+        },
+      });
     }
 
-    void sendWhatsAppMessage({
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
+        emailSendStatus: confirmation.status === "FAILED" || invoiceEmailStatus === "FAILED" ? "FAILED" : confirmation.status,
+      },
+    });
+  }
+
+  const claimedWhatsapp = await prisma.order.updateMany({
+    where: { id: order.id, whatsappSendStatus: null },
+    data: { whatsappSendStatus: "PENDING" },
+  });
+
+  if (claimedWhatsapp.count > 0) {
+    const amount = (order.totalInPaise / 100).toFixed(2);
+    const wa = await sendWhatsAppMessage({
       toPhone: order.contactPhone,
-      templateName: "order_confirmation",
-      body: `Thank you for your order ${order.orderCode}. Payment of ₹${(order.totalInPaise / 100).toFixed(2)} is confirmed.${pdfUrl ? ` Invoice: ${pdfUrl}` : ""}${
-        order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED
-          ? " Our team will contact you shortly about personalization details."
-          : ""
-      }`,
+      templateName: WHATSAPP_TEMPLATES.orderConfirmation,
+      body: `Thank you for your order ${order.orderCode}. Payment of ₹${amount} is confirmed.`,
+      bodyParameters: [order.orderCode, amount],
       mediaUrl: pdfUrl ?? undefined,
-    })
-      .then((wa) => {
-        if (wa.sent) {
-          return prisma.order.update({ where: { id: order.id }, data: { whatsappSentAt: new Date() } });
-        }
-        return undefined;
-      })
-      .catch(() => undefined);
+    });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        whatsappSentAt: wa.sent ? new Date() : undefined,
+        whatsappSendStatus: wa.status,
+        whatsappMessageId: wa.providerMessageId,
+      },
+    });
   }
 
   if (order.giftContributions.length) {
@@ -856,6 +877,24 @@ export async function listOrdersForUser(userId: string, q: { page?: number; page
     prisma.order.count({ where: { userId } }),
   ]);
   return { items: rows.map(shapeOrder), total, page, pageSize };
+}
+
+export async function getOrderByCode(orderCode: string) {
+  const order = await prisma.order.findFirst({
+    where: { orderCode },
+    include: {
+      items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
+      packageOrder: {
+        include: {
+          package: { select: { title: true, slug: true } },
+          theme: { select: { title: true, slug: true } },
+          lines: true,
+        },
+      },
+    },
+  });
+  if (!order) throw new NotFoundError("Order not found");
+  return shapeOrder(order);
 }
 
 export async function getOrderForUser(userId: string, orderCode: string) {

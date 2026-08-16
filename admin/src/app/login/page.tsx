@@ -79,12 +79,12 @@ export default function LoginPage() {
             <em style={{ color: "var(--color-mocha)", fontStyle: "italic" }}>Magical Moment</em>
           </h1>
           <p style={{ fontSize: "1rem", color: "var(--color-text-secondary)", maxWidth: 380, lineHeight: 1.7 }}>
-            Your central command for bookings, content, and customer relationships — all in one warm, efficient space.
+            Your central command for orders, content, and customer relationships — all in one warm, efficient space.
           </p>
 
           {/* Feature tags */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.625rem", marginTop: "1.75rem" }}>
-            {["CMS", "CRM", "Bookings", "Events", "Gallery", "Invoices"].map((tag) => (
+            {["CMS", "CRM", "Orders", "Events", "Gallery", "Invoices"].map((tag) => (
               <span
                 key={tag}
                 style={{
