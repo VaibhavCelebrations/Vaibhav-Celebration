@@ -72,7 +72,7 @@ export function Navbar() {
                 width={155}
                 height={155}
                 className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
-                style={{ width: "auto", height: "auto" }}
+                style={{ width: "auto" }}
                 priority
               />
             </Link>
