@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Gift, Loader2, Check, ShoppingBag, Copy, ExternalLink } from "lucide-react";
+import { Lock, Gift, Loader2, Check, ShoppingBag, Copy, ExternalLink, X, Calendar, MapPin } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -25,8 +25,10 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
   const [qtyByItem, setQtyByItem] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmItem, setConfirmItem] = useState<GiftRegistryItemDto | null>(null);
+  const [activeItem, setActiveItem] = useState<GiftRegistryItemDto | null>(null);
   const [guestName, setGuestName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
 
   const inputClass =
     "w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha";
@@ -123,45 +125,47 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
             </div>
           ) : (
             <>
-              {registry.coverImageUrl && (
-                <div className="relative h-48 md:h-72 rounded-[2rem] overflow-hidden mb-8">
-                  <SafeGiftImage src={registry.coverImageUrl} alt="" />
+              <div className="grid md:grid-cols-2 gap-10 items-center mb-16">
+                <div className="order-2 md:order-1 flex flex-col items-center md:items-start text-center md:text-left">
+                  <h1 className="font-display text-4xl md:text-6xl font-bold text-charcoal leading-tight">{registry.title}</h1>
+                  
+                  <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-3">
+                    {registry.eventDate && (
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border-light text-sm text-charcoal bg-white shadow-sm font-medium">
+                        <Calendar size={16} className="text-mocha" /> {new Date(registry.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                      </div>
+                    )}
+                    {registry.shippingAddress && (
+                      <button type="button" onClick={() => setShowAddress(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border-light text-sm text-charcoal bg-white shadow-sm font-medium hover:border-mocha transition-colors cursor-pointer">
+                        <MapPin size={16} className="text-mocha" /> Delivery Address
+                      </button>
+                    )}
+                  </div>
+                  
+                  <p className="text-text-muted mt-6 max-w-lg leading-relaxed text-[15px]">
+                    {registry.celebrationDetails || "Your presence is our biggest gift, but here's a little wish list if you'd like."}
+                  </p>
                 </div>
-              )}
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-mocha mb-2">Gift Registry</p>
-              <h1 className="font-display text-3xl md:text-5xl font-bold text-charcoal">{registry.title}</h1>
-              <p className="text-text-muted mt-3 max-w-2xl">
-                {registry.celebrationDetails || "Choose a gift from the list below. Vaibhav Celebrations products are delivered to the registry address."}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3 text-sm text-charcoal">
-                {registry.ownerDisplayName && <span>For {registry.ownerDisplayName}</span>}
-                {registry.occasion && <span>· {registry.occasion}</span>}
-                {registry.eventDate && <span>· {new Date(registry.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</span>}
+                {registry.coverImageUrl && (
+                  <div className="order-1 md:order-2">
+                    <div className="relative aspect-[4/3] rounded-[2.5rem] overflow-hidden shadow-card border-4 border-white bg-cream">
+                      <SafeGiftImage src={registry.coverImageUrl} alt="" />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {registry.shippingAddress && (
-                <section className="mt-8 bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="font-display text-lg font-bold text-charcoal">Gifts will be delivered to the registry address</h2>
-                      <pre className="mt-3 whitespace-pre-wrap font-sans text-sm text-charcoal leading-relaxed">{registry.shippingAddress.formatted}</pre>
-                    </div>
-                    <button type="button" onClick={() => void copyAddress()} className="btn-outline px-4 py-2 text-xs font-bold uppercase tracking-wider shrink-0 gap-2">
-                      {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Address copied!" : "Copy Address"}
-                    </button>
-                  </div>
-                </section>
-              )}
 
-              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {registry.items.map((item) => {
                   const remaining = item.remaining;
-                  const available = item.available;
-                  const qty = Math.min(qtyByItem[item.id] ?? 1, Math.max(1, available || remaining));
                   return (
-                    <article key={item.id} className="bg-surface rounded-2xl border border-border-light shadow-soft overflow-hidden flex flex-col">
-                      <div className="relative aspect-square bg-cream">
-                        <SafeGiftImage src={item.image?.url} alt={item.title} />
+                    <button type="button" onClick={() => setActiveItem(item)} key={item.id} className="bg-surface rounded-2xl border border-border-light shadow-soft overflow-hidden flex flex-col text-left hover:-translate-y-1 transition-transform cursor-pointer group">
+                      <div className="relative aspect-square bg-cream overflow-hidden">
+                        <div className="absolute inset-0 transition-transform group-hover:scale-105 duration-500">
+                          <SafeGiftImage src={item.image?.url} alt={item.title} />
+                        </div>
                         {remaining <= 0 && (
                           <div className="absolute inset-0 bg-charcoal/50 flex items-center justify-center">
                             <span className="bg-white text-charcoal text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5"><Check size={14} className="text-green-600" /> Purchased</span>
@@ -174,49 +178,11 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
                         </p>
                         <h3 className="font-bold text-charcoal text-sm mt-1 line-clamp-2">{item.title}</h3>
                         {item.priceInPaise !== null && <p className="text-sm font-semibold mt-1">{formatPaise(item.priceInPaise)}</p>}
-                        <p className="text-xs text-text-muted mt-2">
-                          Requested {item.quantityDesired} · Purchased {item.quantityPurchased} · Remaining {remaining}
-                        </p>
                         {item.quantityPurchased > 0 && remaining > 0 && (
-                          <p className="text-[11px] font-semibold text-amber-700 mt-1">Partially purchased</p>
+                          <p className="text-[11px] font-semibold text-amber-700 mt-2">Partially purchased</p>
                         )}
-                        <div className="mt-auto pt-3 space-y-2">
-                          {remaining > 0 && (
-                            <label className="flex items-center justify-between text-xs text-text-muted">
-                              Quantity
-                              <input
-                                type="number"
-                                min={1}
-                                max={item.sourceType === "INTERNAL_PRODUCT" ? available : remaining}
-                                value={qty}
-                                onChange={(e) => setQtyByItem((prev) => ({ ...prev, [item.id]: Number(e.target.value) }))}
-                                className="w-16 px-2 py-1 rounded-lg border border-border-light text-charcoal"
-                              />
-                            </label>
-                          )}
-                          {item.canGiftDirectly && remaining > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => void addInternalGift(item)}
-                              disabled={!item.inStock || busyId === item.id || available < 1}
-                              className="btn-primary w-full py-2.5 text-xs font-bold uppercase tracking-wider gap-2 disabled:opacity-50 cursor-pointer"
-                            >
-                              {busyId === item.id ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}
-                              {!item.inStock ? "Out of Stock" : "Add gift to cart"}
-                            </button>
-                          ) : item.externalUrl && remaining > 0 ? (
-                            <>
-                              <a href={item.externalUrl} target="_blank" rel="noreferrer" className="btn-outline w-full py-2.5 text-xs font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2">
-                                View Product on Store <ExternalLink size={12} />
-                              </a>
-                              <button type="button" onClick={() => setConfirmItem(item)} className="w-full text-xs font-semibold text-mocha py-2 cursor-pointer">
-                                I purchased this gift
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
                       </div>
-                    </article>
+                    </button>
                   );
                 })}
               </div>
@@ -234,19 +200,115 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
       <FooterClient />
       <WhatsAppFAB />
 
-      {confirmItem && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/60 p-4" onClick={() => setConfirmItem(null)}>
-          <div className="bg-surface rounded-[2rem] p-8 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-display text-2xl font-bold text-charcoal">Have you purchased this gift?</h2>
-            <p className="text-sm text-text-muted mt-2">This helps other guests know it is already taken. Purchases from external stores cannot be verified automatically.</p>
-            <input className={`${inputClass} mt-4`} value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name (optional)" />
-            <div className="flex gap-2 mt-6">
-              <button type="button" onClick={() => setConfirmItem(null)} className="flex-1 py-3 rounded-xl border border-border-light text-sm font-semibold">Cancel</button>
-              <button type="button" onClick={() => void confirmExternal()} disabled={busyId === confirmItem.id} className="btn-primary flex-1 py-3 text-sm">Confirm</button>
+      {showAddress && registry?.shippingAddress && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/60 p-4" onClick={() => setShowAddress(false)}>
+          <div className="bg-surface rounded-[2rem] p-8 max-w-md w-full relative" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => setShowAddress(false)} className="absolute top-6 right-6 text-text-light hover:text-charcoal"><X size={20} /></button>
+            <h2 className="font-display text-2xl font-bold text-charcoal mb-4">Delivery Address</h2>
+            <p className="text-sm text-text-muted mb-4">Gifts purchased through Vaibhav Celebrations will be delivered here directly. If buying externally, please use this address for delivery.</p>
+            <div className="bg-cream p-4 rounded-xl font-sans text-sm text-charcoal leading-relaxed whitespace-pre-wrap mb-6">
+              {registry.shippingAddress.formatted}
             </div>
+            <button type="button" onClick={() => void copyAddress()} className="btn-primary w-full py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+              {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Address Copied!" : "Copy Address"}
+            </button>
           </div>
         </div>
       )}
+
+      {activeItem && (() => {
+        const item = activeItem;
+        const remaining = item.remaining;
+        const available = item.available;
+        const qty = Math.min(qtyByItem[item.id] ?? 1, Math.max(1, available || remaining));
+
+        return (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/60 p-4" onClick={() => { setActiveItem(null); setConfirmItem(null); }}>
+            <div className="bg-surface rounded-[2rem] p-6 md:p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-mocha">
+                  {item.sourceType === "EXTERNAL_LINK" ? item.storeName || "External store" : "Vaibhav Celebrations"}
+                </p>
+                <button type="button" onClick={() => { setActiveItem(null); setConfirmItem(null); }} className="text-text-light hover:text-charcoal cursor-pointer"><X size={20} /></button>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="relative aspect-square rounded-2xl overflow-hidden bg-cream border border-border-light shadow-sm">
+                  <SafeGiftImage src={item.image?.url} alt={item.title} />
+                </div>
+                <div className="flex flex-col">
+                  <h2 className="font-display text-2xl font-bold text-charcoal">{item.title}</h2>
+                  {item.priceInPaise !== null && <p className="text-xl font-semibold mt-2 text-charcoal">{formatPaise(item.priceInPaise)}</p>}
+                  {item.description && <p className="text-sm text-text-muted mt-4">{item.description}</p>}
+                  
+                  <div className="mt-6 pt-6 border-t border-border-light space-y-4 flex-1 flex flex-col justify-end">
+                    <p className="text-sm text-text-muted">
+                      Requested {item.quantityDesired} · Purchased {item.quantityPurchased} · Remaining {remaining}
+                    </p>
+                    
+                    {remaining > 0 ? (
+                      <>
+                        <label className="flex items-center justify-between text-sm text-charcoal font-semibold">
+                          Quantity
+                          <input
+                            type="number"
+                            min={1}
+                            max={item.sourceType === "INTERNAL_PRODUCT" ? available : remaining}
+                            value={qty}
+                            onChange={(e) => setQtyByItem((prev) => ({ ...prev, [item.id]: Number(e.target.value) }))}
+                            className="w-20 px-3 py-2 rounded-xl border border-border-light text-charcoal text-center"
+                          />
+                        </label>
+
+                        {item.canGiftDirectly ? (
+                          <button
+                            type="button"
+                            onClick={() => { void addInternalGift(item); setActiveItem(null); }}
+                            disabled={!item.inStock || busyId === item.id || available < 1}
+                            className="btn-primary w-full py-3.5 text-sm font-bold uppercase tracking-wider gap-2 mt-4 disabled:opacity-50 cursor-pointer"
+                          >
+                            {busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
+                            {!item.inStock ? "Out of Stock" : "Add gift to cart"}
+                          </button>
+                        ) : item.externalUrl ? (
+                          <div className="mt-4 p-5 bg-cream/50 rounded-2xl border border-border-light space-y-4">
+                            <ul className="text-xs text-text-muted space-y-2 list-disc list-inside leading-relaxed">
+                              <li>Click the buy link below to purchase this gift from {item.storeName || "the external store"}.</li>
+                              <li>After purchasing, please come back and mark it as purchased so no one else buys the same gift.</li>
+                            </ul>
+                            <a href={item.externalUrl} target="_blank" rel="noreferrer" className="btn-primary w-full py-3.5 text-sm font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2">
+                              Buy on {item.storeName || "Store"} <ExternalLink size={14} />
+                            </a>
+                            <button type="button" onClick={() => setConfirmItem(item)} className="w-full text-sm font-semibold text-mocha py-2 cursor-pointer mt-2 hover:underline">
+                              I purchased this gift
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-green-800 text-center text-sm font-semibold mt-4">
+                        This gift has already been fully purchased!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {confirmItem === item && (
+                <div className="mt-8 p-6 bg-cream rounded-2xl border border-border-light shadow-soft">
+                  <h3 className="font-display text-lg font-bold text-charcoal">Have you purchased this gift?</h3>
+                  <p className="text-sm text-text-muted mt-1">This helps other guests know it is already taken.</p>
+                  <input className={`${inputClass} mt-4`} value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name (optional)" />
+                  <div className="flex gap-3 mt-4">
+                    <button type="button" onClick={() => setConfirmItem(null)} className="flex-1 py-3 rounded-xl border border-border-light bg-white text-sm font-semibold hover:bg-cream transition-colors cursor-pointer">Cancel</button>
+                    <button type="button" onClick={() => { void confirmExternal(); setActiveItem(null); }} disabled={busyId === confirmItem.id} className="btn-primary flex-1 py-3 text-sm cursor-pointer">Confirm Purchase</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

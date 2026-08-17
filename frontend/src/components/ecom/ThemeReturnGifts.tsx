@@ -6,6 +6,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
+import { ScrollTrigger } from "@/lib/gsap-register";
 import * as shopApi from "@/lib/shop-api";
 import type { Product } from "@/lib/shop-types";
 
@@ -35,7 +36,16 @@ export function ThemeReturnGifts({ themeSlug, themeTitle }: ThemeReturnGiftsProp
           setTotalCount(0);
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          // Wait a tick for the DOM to update, then refresh ScrollTrigger
+          // This fixes the sibling gallery strip's pin jumping issues due to dynamic height changes
+          setTimeout(() => {
+            if (typeof window !== "undefined") {
+              ScrollTrigger.refresh();
+            }
+          }, 100);
+        }
       }
     })();
     return () => {

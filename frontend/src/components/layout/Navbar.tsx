@@ -22,9 +22,9 @@ const navLinks: NavLink[] = [
     href: "/themes",
     submenu: [
       { label: "Kids' Birthdays", href: "/themes" },
-      { label: "Baby Shower", href: "/themes?category=baby-shower" },
-      { label: "Naming Ceremony", href: "/themes?category=naming-ceremony" },
-      { label: "Milestone Celebrations", href: "/themes?category=milestone" },
+      // { label: "Baby Shower", href: "/themes?category=baby-shower" },
+      // { label: "Naming Ceremony", href: "/themes?category=naming-ceremony" },
+      // { label: "Milestone Celebrations", href: "/themes?category=milestone" },
       { label: "Custom Celebrations", href: "/consultation" },
     ],
   },
@@ -34,10 +34,16 @@ const navLinks: NavLink[] = [
     href: "/gifts",
     submenu: [
       { label: "Shop Return Gifts", href: "/gifts" },
+<<<<<<< HEAD
       { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
       { label: "Shop by Theme", href: "/gifts?view=themes" },
       { label: "Occasion & Festive Gifting", href: "/gifts/collection/festive" },
       { label: "Gift Registry", href: "/account/registry" },
+=======
+      // { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
+      // { label: "Shop by Theme", href: "/gifts?view=themes" },
+      // { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
+>>>>>>> vishal/frontend
     ],
   },
   { label: "Events", href: "/events" },
@@ -90,7 +96,7 @@ export function Navbar() {
                 width={155}
                 height={155}
                 className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
-                style={{ width: "auto", height: "auto" }}
+                style={{ width: "auto" }}
                 priority
               />
             </Link>

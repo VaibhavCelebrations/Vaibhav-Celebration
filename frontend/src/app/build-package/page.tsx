@@ -14,9 +14,11 @@ import {
   Package,
   Users,
   Gift,
-  Sparkles,
   ClipboardCheck,
   ShoppingCart,
+  Info,
+  X,
+  Sparkles,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
@@ -234,6 +236,10 @@ function BuildPackageContent() {
   const [guestName, setGuestName] = useState(user?.name ?? "");
   const [guestEmail, setGuestEmail] = useState(user?.email ?? "");
   const [guestPhone, setGuestPhone] = useState(user?.phone ?? "");
+  const [guestAddress, setGuestAddress] = useState("");
+  const [guestCity, setGuestCity] = useState("");
+  const [guestPincode, setGuestPincode] = useState("");
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const activeThemes = themes;
   const packages = useMemo(
@@ -409,8 +415,8 @@ function BuildPackageContent() {
 
   const handleAddToCart = () => {
     if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
-    if (!eventDate || !guestName || !guestEmail || !guestPhone) {
-      setQuoteError("Please fill celebration date and contact details.");
+    if (!eventDate || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
+      setQuoteError("Please fill celebration date, contact, and address details.");
       return;
     }
     if (!isAuthenticated) {
@@ -429,6 +435,21 @@ function BuildPackageContent() {
         guestCount,
         location,
         selections,
+        eventDetails: {
+          eventDate,
+          childName: guestName, // Assuming the guest name is used as child name or booking name
+          venue: guestAddress,
+        },
+        contactEmail: guestEmail,
+        contactPhone: guestPhone,
+        shippingAddress: {
+          fullName: guestName,
+          line1: guestAddress,
+          city: guestCity,
+          state: "Rajasthan",
+          pincode: guestPincode,
+          country: "India",
+        },
       },
     });
 
@@ -623,6 +644,87 @@ function BuildPackageContent() {
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-8 pt-8 border-t border-border-light grid md:grid-cols-2 gap-8 md:gap-12">
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-charcoal mb-4">Contact Information</h3>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
+                      <input
+                        type="text"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="Jane Doe"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
+                      <input
+                        type="email"
+                        value={guestEmail}
+                        onChange={(e) => setGuestEmail(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="jane@example.com"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
+                      <input
+                        type="tel"
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="+91 98765 43210"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-charcoal mb-4">Event & Location Details</h3>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
+                      <input
+                        type="date"
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1</span>
+                      <input
+                        type="text"
+                        value={guestAddress}
+                        onChange={(e) => setGuestAddress(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="Flat / House No. / Building"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City</span>
+                        <input
+                          type="text"
+                          value={guestCity}
+                          onChange={(e) => setGuestCity(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder={location === "jaipur" ? "Jaipur" : "City"}
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Pincode</span>
+                        <input
+                          type="text"
+                          value={guestPincode}
+                          onChange={(e) => setGuestPincode(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="302001"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -783,110 +885,100 @@ function BuildPackageContent() {
               {quoteError && <p className="text-sm text-red-600 mb-4">{quoteError}</p>}
 
               {quote && (
-                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start mb-12">
-                  <div className="bg-surface rounded-3xl border border-border-light p-6 shadow-sm">
-                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
-                      Quote Breakdown
+                <div className="max-w-2xl mx-auto items-start mb-12">
+                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm text-center">
+                    <h3 className="font-display text-2xl font-bold text-charcoal mb-2">
+                      Ready to Celebrate!
                     </h3>
-                    {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
-                      const items = quote.lineItems.filter((l) => l.section === section);
-                      if (!items.length) return null;
-                      const titles: Record<string, string> = {
-                        package: "Package",
-                        "per-child": "Per-child items",
-                        "per-group": "Per-group items",
-                        auto: "Included physical items",
-                        fixed: "Fixed digital add-ons",
-                        decor: "Decor",
-                      };
-                      return (
-                        <div key={section} className="mb-5">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
-                            {titles[section]}
-                          </div>
-                          <div className="space-y-3">
-                            {items.map((item) => (
-                              <div
-                                key={item.key}
-                                className="flex justify-between gap-4 text-sm items-start"
-                              >
-                                <div>
-                                  <div className="text-charcoal font-medium">{item.label}</div>
-                                  {item.sublabel && (
-                                    <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
-                                  )}
+                    <p className="text-sm text-text-muted mb-6">
+                      All your details have been securely saved. You can proceed to add this package to your cart.
+                    </p>
+                    <div className="bg-cream-dark p-6 rounded-2xl mb-6 flex flex-col items-center justify-center">
+                      <div className="text-sm text-text-muted mb-1 font-bold uppercase tracking-widest">Grand Total</div>
+                      <div className="font-display text-4xl font-bold text-mocha mb-3">{formatPaise(quote.totalInPaise)}</div>
+                      <button 
+                        onClick={() => setShowBreakdown(true)}
+                        className="text-xs font-semibold text-charcoal flex items-center gap-1 hover:text-mocha transition-colors"
+                      >
+                        <Info size={14} /> View Price Breakdown
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Breakdown Modal */}
+                  {showBreakdown && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-sm">
+                      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-5 border-b border-border-light bg-cream">
+                          <h3 className="font-display text-xl font-bold text-charcoal">Quote Breakdown</h3>
+                          <button onClick={() => setShowBreakdown(false)} className="text-text-muted hover:text-charcoal transition-colors">
+                            <X size={20} />
+                          </button>
+                        </div>
+                        <div className="p-6 max-h-[60vh] overflow-y-auto hide-scrollbar">
+                          {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
+                            const items = quote.lineItems.filter((l) => l.section === section);
+                            if (!items.length) return null;
+                            const titles: Record<string, string> = {
+                              package: "Package",
+                              "per-child": "Per-child items",
+                              "per-group": "Per-group items",
+                              auto: "Included physical items",
+                              fixed: "Fixed digital add-ons",
+                              decor: "Decor",
+                            };
+                            return (
+                              <div key={section} className="mb-5">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
+                                  {titles[section]}
                                 </div>
-                                <div className="font-bold text-charcoal whitespace-nowrap">
-                                  {formatPaise(item.lineTotalInPaise)}
+                                <div className="space-y-3">
+                                  {items.map((item) => (
+                                    <div
+                                      key={item.key}
+                                      className="flex justify-between gap-4 text-sm items-start"
+                                    >
+                                      <div>
+                                        <div className="text-charcoal font-medium">{item.label}</div>
+                                        {item.sublabel && (
+                                          <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
+                                        )}
+                                      </div>
+                                      <div className="font-bold text-charcoal whitespace-nowrap">
+                                        {formatPaise(item.lineTotalInPaise)}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
+                            );
+                          })}
+                          <div className="mt-6 pt-4 border-t border-border-light space-y-3">
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">Subtotal</span>
+                              <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">GST ({quote.gstPercent}%)</span>
+                              <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
+                            </div>
+                            <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
+                              <span className="text-base font-bold text-charcoal">Grand total</span>
+                              <span className="font-display text-xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
+                            </div>
                           </div>
                         </div>
-                      );
-                    })}
-                    <div className="mt-6 pt-4 border-t border-border-light space-y-3">
-                      <div className="flex justify-between text-sm text-text-muted">
-                        <span className="font-medium">Subtotal</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-text-muted">
-                        <span className="font-medium">GST ({quote.gstPercent}%)</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
-                      </div>
-                      <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
-                        <span className="text-base font-bold text-charcoal">Grand total</span>
-                        <span className="font-display text-2xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
+                        <div className="p-4 border-t border-border-light bg-cream-dark text-center">
+                          <button 
+                            onClick={() => setShowBreakdown(false)}
+                            className="btn-primary w-full py-3 text-sm font-semibold"
+                          >
+                            Close
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
-                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
-                      Contact & Event Details
-                    </h3>
-                    <div className="space-y-5">
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
-                        <input
-                          type="date"
-                          value={eventDate}
-                          onChange={(e) => setEventDate(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
-                        <input
-                          type="text"
-                          value={guestName}
-                          onChange={(e) => setGuestName(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="Jane Doe"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
-                        <input
-                          type="email"
-                          value={guestEmail}
-                          onChange={(e) => setGuestEmail(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="jane@example.com"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
-                        <input
-                          type="tel"
-                          value={guestPhone}
-                          onChange={(e) => setGuestPhone(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="+91 98765 43210"
-                        />
-                      </label>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
               {!isAuthenticated && (

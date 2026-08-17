@@ -334,6 +334,7 @@ export default function RegistryDetailPage({ params }: Props) {
           <input className={inputClass} defaultValue={registry.occasion ?? ""} onBlur={(e) => void saveField({ occasion: e.target.value })} placeholder="Occasion" />
           <input className={inputClass} defaultValue={registry.ownerDisplayName ?? ""} onBlur={(e) => void saveField({ ownerDisplayName: e.target.value, childOrPersonName: e.target.value })} placeholder="Recipient name" />
           <input type="date" className={inputClass} defaultValue={registry.eventDate?.slice(0, 10) ?? ""} onBlur={(e) => void saveField({ eventDate: e.target.value || null })} />
+          <input className={`md:col-span-2 ${inputClass}`} defaultValue={registry.coverImageUrl ?? ""} onBlur={(e) => void saveField({ coverImageUrl: e.target.value || null })} placeholder="Cover Image URL (e.g., https://example.com/image.jpg)" />
         </div>
         <textarea className={inputClass} rows={3} defaultValue={registry.celebrationDetails ?? ""} onBlur={(e) => void saveField({ celebrationDetails: e.target.value })} placeholder="Message to guests" />
         <div className="flex flex-wrap gap-2">
