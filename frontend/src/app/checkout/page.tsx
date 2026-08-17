@@ -87,6 +87,11 @@ export default function CheckoutPage() {
   const combinedTotalRupees = toRupees(quote.totalInPaise) + packagesSubtotalRupees;
 
   const validateCheckout = (): boolean => {
+    if (!hasItems && packages.length > 0) {
+      // For package-only checkout, details are already in builderInput
+      return true;
+    }
+
     const errors: Record<string, string> = {};
     if (hasItems) {
       if (!address.fullName.trim()) errors.fullName = "Full name is required";
@@ -99,11 +104,6 @@ export default function CheckoutPage() {
     }
     if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) errors.contactEmail = "Enter a valid email";
     if (contactPhone.trim().length < 6) errors.contactPhone = "Enter a valid phone number";
-    
-    if (packages.length > 0) {
-      if (!eventDetails.childName.trim()) errors.childName = "Birthday child name is required";
-      if (!eventDetails.eventDate.trim()) errors.eventDate = "Event date is required";
-    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -238,10 +238,10 @@ export default function CheckoutPage() {
         }
 
         const order = await shopApi.createPackageOrder({
-          eventDate: eventDetails.eventDate,
-          contactEmail: contactEmail.trim(),
-          contactPhone: contactPhone.trim(),
-          shippingAddress: {
+          eventDate: pkg.builderInput.eventDetails?.eventDate || eventDetails.eventDate,
+          contactEmail: pkg.builderInput.contactEmail || contactEmail.trim(),
+          contactPhone: pkg.builderInput.contactPhone || contactPhone.trim(),
+          shippingAddress: pkg.builderInput.shippingAddress || {
             fullName: address.fullName.trim() || eventDetails.childName.trim() || "Celebration guest",
             line1: eventDetails.venue.trim() || "Venue to be confirmed",
             city: eventDetails.venue.toLowerCase().includes("jaipur") ? "Jaipur" : "Outside Jaipur",
@@ -397,76 +397,7 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {/* Event Details Form */}
-                    {packages.length > 0 && (
-                      <ScrollReveal>
-                        <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-blush/20 rounded-bl-full -z-10" />
-                          <div className="flex items-center gap-4 mb-8 pb-5 border-b border-border-light">
-                            <div className="w-12 h-12 rounded-2xl bg-blush flex items-center justify-center text-mocha shadow-inner">
-                              <CalendarHeart size={22} />
-                            </div>
-                            <div>
-                              <h3 className="font-display text-xl font-bold text-charcoal">Event Details</h3>
-                              <p className="text-sm text-text-muted mt-1">Information for the celebration</p>
-                            </div>
-                          </div>
-                          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
-                            <div>
-                              <label className={labelClass}>Birthday Child's Name <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={eventDetails.childName} onChange={(e) => setEventDetails({ ...eventDetails, childName: e.target.value })} placeholder="E.g. Aryan" />
-                              {formErrors.childName && <p className={errClass}>{formErrors.childName}</p>}
-                            </div>
-                            <div>
-                              <label className={labelClass}>Child's Age (Turning)</label>
-                              <input className={inputClass} value={eventDetails.childAge} onChange={(e) => setEventDetails({ ...eventDetails, childAge: e.target.value })} placeholder="E.g. 5" type="number" min={1} />
-                            </div>
-                            <div>
-                              <label className={labelClass}>Event Date <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={eventDetails.eventDate} onChange={(e) => setEventDetails({ ...eventDetails, eventDate: e.target.value })} type="date" />
-                              {formErrors.eventDate && <p className={errClass}>{formErrors.eventDate}</p>}
-                            </div>
-                            <div>
-                              <label className={labelClass}>Expected Guest Count</label>
-                              <input className={inputClass} value={eventDetails.guestCount} onChange={(e) => setEventDetails({ ...eventDetails, guestCount: e.target.value })} placeholder="E.g. 150" type="number" />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className={labelClass}>Venue Address</label>
-                              <input className={inputClass} value={eventDetails.venue} onChange={(e) => setEventDetails({ ...eventDetails, venue: e.target.value })} placeholder="Hotel or home address" />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className={labelClass}>Additional Notes</label>
-                              <textarea className={`${inputClass} resize-none h-24`} value={eventDetails.notes} onChange={(e) => setEventDetails({ ...eventDetails, notes: e.target.value })} placeholder="Any specific requirements or preferences..." />
-                            </div>
-                          </div>
-                        </div>
-                      </ScrollReveal>
-                    )}
 
-                    {!hasItems && packages.length > 0 && (
-                    <ScrollReveal>
-                      <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
-                        <h3 className="font-display text-xl font-bold text-charcoal mb-6">Your details</h3>
-                        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
-                          <div className="sm:col-span-2">
-                            <label className={labelClass}>Full Name <span className="text-red-500">*</span></label>
-                            <input className={inputClass} value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} placeholder="Your full name" />
-                            {formErrors.fullName && <p className={errClass}>{formErrors.fullName}</p>}
-                          </div>
-                          <div>
-                            <label className={labelClass}>Email <span className="text-red-500">*</span></label>
-                            <input type="email" className={inputClass} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-                            {formErrors.contactEmail && <p className={errClass}>{formErrors.contactEmail}</p>}
-                          </div>
-                          <div>
-                            <label className={labelClass}>Phone <span className="text-red-500">*</span></label>
-                            <input className={inputClass} value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-                            {formErrors.contactPhone && <p className={errClass}>{formErrors.contactPhone}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollReveal>
-                    )}
 
                     {/* Shipping Address Form */}
                     {(hasItems || packages.length === 0) && (

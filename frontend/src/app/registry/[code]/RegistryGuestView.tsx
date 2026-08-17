@@ -143,7 +143,7 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
                   </div>
                   
                   <p className="text-text-muted mt-6 max-w-lg leading-relaxed text-[15px]">
-                    {registry.celebrationDetails || "Your presence is our biggest gift, but here's a little wish list if you'd like 💛"}
+                    {registry.celebrationDetails || "Your presence is our biggest gift, but here's a little wish list if you'd like."}
                   </p>
                 </div>
                 {registry.coverImageUrl && (

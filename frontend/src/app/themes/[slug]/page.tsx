@@ -130,8 +130,8 @@ export default async function ThemeDetailPage({ params }: Props) {
           </div>
         </section>
 
-        <ThemeGalleryStrip images={theme.galleryImages} themeName={theme.title.replace(/ Theme| Birthday/g, "")} />
         <ThemeReturnGifts themeSlug={theme.slug} themeTitle={theme.title} />
+        <ThemeGalleryStrip images={theme.galleryImages} themeName={theme.title.replace(/ Theme| Birthday/g, "")} />
 
         <section className="py-16 md:py-24 bg-cream border-t border-border-light">
           <div className="max-w-7xl mx-auto px-5 md:px-10">
