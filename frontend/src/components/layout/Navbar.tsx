@@ -36,7 +36,8 @@ const navLinks: NavLink[] = [
       { label: "Shop Return Gifts", href: "/gifts" },
       { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
       { label: "Shop by Theme", href: "/gifts?view=themes" },
-      { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
+      { label: "Occasion & Festive Gifting", href: "/gifts/collection/festive" },
+      { label: "Gift Registry", href: "/account/registry" },
     ],
   },
   { label: "Events", href: "/events" },
@@ -161,6 +162,9 @@ export function Navbar() {
                       <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
                       <p className="text-xs text-text-muted truncate">{user?.email}</p>
                     </div>
+                    <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                      <User size={16} /> My Profile
+                    </Link>
                     <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
                       <Package size={16} /> Order History
                     </Link>
@@ -254,6 +258,9 @@ export function Navbar() {
             <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
             <p className="text-xs text-text-muted truncate">{user?.email}</p>
           </div>
+          <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+            <User size={16} /> My Profile
+          </Link>
           <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
             <Package size={16} /> Order History
           </Link>
@@ -272,7 +279,12 @@ export function Navbar() {
         </div>
       )}
 
-      <MobileMenu isOpen={mobileOpen} onClose={closeMobile} links={navLinks} />
+      <MobileMenu
+        isOpen={mobileOpen}
+        onClose={closeMobile}
+        links={navLinks}
+        isAuthenticated={isAuthenticated}
+      />
     </header>
   );
 }

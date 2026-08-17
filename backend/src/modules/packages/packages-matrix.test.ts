@@ -29,7 +29,7 @@ describe("extra services CRUD", () => {
     expect(item.label).toBe(testLabel);
     expect(item.customizationPriceInPaise).toBe(99000);
 
-    const packageCount = await prisma.package.count({ where: { deletedAt: null } });
+    const packageCount = await prisma.package.count({ where: { deletedAt: null, isActive: true } });
     const itemCount = await prisma.packageServiceItem.count({
       where: { extraServiceId: item.id },
     });

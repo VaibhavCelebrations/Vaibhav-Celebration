@@ -31,6 +31,7 @@ function GiftsPageContent() {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [collections, setCollections] = useState<ProductCollection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const [filter, setFilter] = useState<GiftFilter>({
     theme: searchParams.get("theme"),
@@ -51,6 +52,7 @@ function GiftsPageContent() {
     let cancelled = false;
     (async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const [productsResult, categoriesResult, collectionsResult] = await Promise.all([
           shopApi.listProducts({ pageSize: 500, sort: "newest" }),
@@ -58,14 +60,16 @@ function GiftsPageContent() {
           shopApi.listProductCollections(),
         ]);
         if (!cancelled) {
-          setProducts(productsResult.items);
-          setCategories(categoriesResult);
-          setCollections(collectionsResult);
+          setProducts(productsResult.items ?? []);
+          setCategories(categoriesResult ?? []);
+          setCollections(collectionsResult ?? []);
         }
       } catch {
         if (!cancelled) {
           setProducts([]);
           setCategories([]);
+          setCollections([]);
+          setLoadError("Could not load shop products. Please refresh and try again.");
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -83,7 +87,11 @@ function GiftsPageContent() {
       result = result.filter((p) => p.themes.some((t) => t.slug === filter.theme));
     }
 
-    if (filter.category) {
+    if (filter.category === "personalized") {
+      result = result.filter(
+        (p) => p.personalizationEnabled || (p.personalizationFields?.length ?? 0) > 0,
+      );
+    } else if (filter.category) {
       result = result.filter((p) => p.categories.some((c) => c.slug === filter.category));
     }
 
@@ -171,6 +179,17 @@ function GiftsPageContent() {
               {filter.category === cat.slug && <Check size={14} />}
             </button>
           ))}
+          {!categories.some((c) => c.slug === "personalized") && (
+            <button
+              onClick={() => setFilter({ ...filter, category: filter.category === "personalized" ? null : "personalized" })}
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left ${
+                filter.category === "personalized" ? "bg-mocha text-white font-semibold shadow-md shadow-mocha/20" : "text-charcoal hover:bg-cream-dark"
+              }`}
+            >
+              Personalized
+              {filter.category === "personalized" && <Check size={14} />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -320,8 +339,18 @@ function GiftsPageContent() {
                 </div>
               )}
 
+              {!isLoading && loadError && (
+                <div className="text-center py-16 bg-white/40 rounded-3xl border border-red-100">
+                  <h3 className="font-display text-xl font-bold text-charcoal mb-2">Shop is temporarily unavailable</h3>
+                  <p className="text-text-muted text-sm mb-6">{loadError}</p>
+                  <button onClick={() => window.location.reload()} className="btn-outline px-6 py-2.5 text-sm cursor-pointer">
+                    Retry
+                  </button>
+                </div>
+              )}
+
               {/* Product Grid */}
-              {!isLoading && (
+              {!isLoading && !loadError && (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {paginatedProducts.map((product, i) => (
                     <ScrollReveal key={product.id} delay={(i % 12) * 50}>
@@ -332,7 +361,7 @@ function GiftsPageContent() {
               )}
 
               {/* Empty State */}
-              {!isLoading && filteredProducts.length === 0 && (
+              {!isLoading && !loadError && filteredProducts.length === 0 && (
                 <div className="text-center py-24 bg-white/40 rounded-3xl border border-border-light mt-8">
                   <div className="w-16 h-16 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
                     <Search size={24} className="text-text-light" />

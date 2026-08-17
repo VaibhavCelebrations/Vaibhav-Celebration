@@ -19,7 +19,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
   const { isWishlisted, toggleWishlist } = useWishlist();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
-  const hasPersonalization = product.personalizationFields.length > 0;
+  const hasPersonalization = (product.personalizationFields?.length ?? 0) > 0;
   const wishlisted = isWishlisted(product.id);
 
   const handleQuickAdd = (e: React.MouseEvent) => {

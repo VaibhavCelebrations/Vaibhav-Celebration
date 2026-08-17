@@ -74,7 +74,7 @@ export async function listProducts(q: {
   maxPrice?: number;
   sort?: string;
 }) {
-  const { page, pageSize, skip, take } = parsePagination(q);
+  const { page, pageSize, skip, take } = parsePagination(q, 1000);
   const where: Prisma.ProductWhereInput = {
     deletedAt: null,
     isActive: true,

@@ -48,7 +48,7 @@ export async function getPackageMatrix() {
   return cached(`pub:packages:matrix`, PUB_TTL, () =>
     Promise.all([
       prisma.package.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, isActive: true },
         include: {
           serviceItems: {
             orderBy: { displayOrder: "asc" },

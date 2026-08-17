@@ -148,6 +148,16 @@ async function ensureUniqueSlug(base: string, excludeId?: string) {
   }
 }
 
+const collectionListInclude = {
+  heroImage: true,
+  items: {
+    orderBy: { displayOrder: "asc" as const },
+    include: {
+      product: { select: { id: true, title: true, isActive: true, deletedAt: true } },
+    },
+  },
+} satisfies Prisma.ProductCollectionInclude;
+
 export async function adminListCollections(q: { page?: number; pageSize?: number; search?: string; isActive?: string }) {
   const { page, pageSize, skip, take } = parsePagination(q);
   const where: Prisma.ProductCollectionWhereInput = {
@@ -165,10 +175,42 @@ export async function adminListCollections(q: { page?: number; pageSize?: number
   const key = `adm:collections:${cacheKey(q)}`;
   return cached(key, ADM_TTL, async () => {
     const [rows, total] = await Promise.all([
-      prisma.productCollection.findMany({ where, skip, take, include: collectionInclude, orderBy: [{ displayOrder: "asc" }, { title: "asc" }] }),
+      prisma.productCollection.findMany({
+        where,
+        skip,
+        take,
+        include: collectionListInclude,
+        orderBy: [{ displayOrder: "asc" }, { title: "asc" }],
+      }),
       prisma.productCollection.count({ where }),
     ]);
-    return { items: rows.map((r) => shapeCollection(r, true)), total, page, pageSize };
+    return {
+      items: rows.map((c) => {
+        const products = c.items
+          .filter((item) => item.product && !item.product.deletedAt)
+          .map((item) => ({ id: item.product.id, title: item.product.title, isActive: item.product.isActive }));
+        return {
+          id: c.id,
+          title: c.title,
+          slug: c.slug,
+          description: c.description,
+          heroImage: toMediaRef(c.heroImage),
+          startsAt: c.startsAt?.toISOString() ?? null,
+          endsAt: c.endsAt?.toISOString() ?? null,
+          showOnHomepage: c.showOnHomepage,
+          isActive: c.isActive,
+          displayOrder: c.displayOrder,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          deletedAt: c.deletedAt?.toISOString() ?? null,
+          products,
+          productCount: products.length,
+        };
+      }),
+      total,
+      page,
+      pageSize,
+    };
   });
 }
 

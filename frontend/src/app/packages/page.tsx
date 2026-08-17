@@ -17,8 +17,6 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const TIER_ORDER = ["standard", "premium", "luxe"] as const;
-
 const PACKAGING_NOTE: Record<string, string> = {
   standard: "Simple Packaging included",
   premium: "Theme-based Gift Bag included",
@@ -32,10 +30,7 @@ const DECOR_OUTSIDE_NOTE: Record<string, string> = {
 };
 
 export default async function PackagesPage() {
-  const all = await listPackages().catch(() => []);
-  const packages = TIER_ORDER.map((slug) => all.find((p) => p.slug === slug)).filter(
-    (p): p is NonNullable<typeof p> => !!p,
-  );
+  const packages = await listPackages().catch(() => []);
 
   return (
     <>

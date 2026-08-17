@@ -44,6 +44,7 @@ export function PriceInput({
   onChange,
   ...rest
 }: { value: number; onChange: (paise: number) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type">) {
+  const rupees = Number.isFinite(value) ? value / 100 : 0;
   return (
     <div className="relative">
       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-(--color-text-muted)">₹</span>
@@ -52,9 +53,9 @@ export function PriceInput({
         step="0.01"
         min="0"
         className="input pl-7"
-        value={value / 100}
-        onChange={(e) => onChange(Math.round(Number(e.target.value || 0) * 100))}
         {...rest}
+        value={rupees}
+        onChange={(e) => onChange(Math.round(Number(e.target.value || 0) * 100))}
       />
     </div>
   );

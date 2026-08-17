@@ -21,7 +21,7 @@ export async function createExtraService(data: Prisma.ExtraServiceUncheckedCreat
   return prisma.$transaction(async (tx) => {
     const item = await tx.extraService.create({ data });
     const packages = await tx.package.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, isActive: true },
       select: { id: true },
       orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
     });

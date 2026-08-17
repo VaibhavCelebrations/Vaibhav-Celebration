@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Gift, Heart, Package, User } from "lucide-react";
 
 interface NavLink {
   label: string;
@@ -12,9 +13,17 @@ interface MobileMenuProps {
   isOpen: boolean;
   onClose: () => void;
   links: NavLink[];
+  isAuthenticated?: boolean;
 }
 
-export function MobileMenu({ isOpen, onClose, links }: MobileMenuProps) {
+const ACCOUNT_LINKS = [
+  { href: "/account", label: "My Profile", icon: User },
+  { href: "/account/orders", label: "Order History", icon: Package },
+  { href: "/account/wishlist", label: "Saved Products", icon: Heart },
+  { href: "/account/registry", label: "Gift Registry", icon: Gift },
+];
+
+export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: MobileMenuProps) {
   return (
     <div
       className={`lg:hidden fixed inset-0 top-[80px] z-40 transition-all duration-500 ${
@@ -27,7 +36,7 @@ export function MobileMenu({ isOpen, onClose, links }: MobileMenuProps) {
           isOpen ? "translate-y-0" : "-translate-y-4"
         }`}
       >
-        <nav className="flex flex-col px-6 py-5 gap-0.5 text-charcoal" aria-label="Mobile">
+        <nav className="flex flex-col px-6 py-5 gap-0.5 text-charcoal max-h-[calc(100vh-80px)] overflow-y-auto" aria-label="Mobile">
           {links.map((link) => (
             <div key={link.label}>
               <Link
@@ -53,6 +62,24 @@ export function MobileMenu({ isOpen, onClose, links }: MobileMenuProps) {
               )}
             </div>
           ))}
+          {isAuthenticated && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="px-0 pb-2 text-[11px] font-bold uppercase tracking-wider text-text-light">Your account</p>
+              {ACCOUNT_LINKS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    className="mobile-link text-sm py-2.5 text-charcoal flex items-center gap-3"
+                  >
+                    <Icon size={16} className="text-mocha" /> {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
           <Link
             href="/consultation"
             onClick={onClose}
