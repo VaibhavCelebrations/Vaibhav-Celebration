@@ -22,15 +22,16 @@ function Icon({ d, size = 20 }: { d: string; size?: number }) {
   );
 }
 
-type BookingRow = {
+type OrderRow = {
   id: string;
-  bookingCode: string;
-  eventDate: string;
+  orderCode: string;
+  placedAt: string | null;
   status: string;
-  totalPriceInPaise?: number;
-  customer?: { fullName?: string };
-  theme?: { title?: string };
-  package?: { title?: string };
+  paymentStatus?: string;
+  totalInPaise?: number;
+  user?: { name?: string; email?: string };
+  customerName?: string;
+  registryCode?: string | null;
 };
 
 type LeadRow = { id: string; status: string };
@@ -47,13 +48,18 @@ const STATUS_STYLE: Record<string, { label: string; className: string }> = {
   cancelled: { label: "Cancelled", className: "badge badge-error" },
 };
 
-import { CalendarCheck, Palette, ImagePlus, PartyPopper } from "lucide-react";
+import { CalendarDays, Palette, ImagePlus, PartyPopper, ShoppingBag } from "lucide-react";
 
 const QUICK_ACTIONS = [
   {
-    label: "New Booking",
-    href: "/dashboard/crm/bookings",
-    icon: CalendarCheck,
+    label: "View Orders",
+    href: "/dashboard/crm/orders",
+    icon: ShoppingBag,
+  },
+  {
+    label: "Calendar",
+    href: "/dashboard/crm/calendar",
+    icon: CalendarDays,
   },
   {
     label: "Add Theme",
@@ -100,8 +106,8 @@ function monthChip(iso?: string) {
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [bookingTotal, setBookingTotal] = useState(0);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orderTotal, setOrderTotal] = useState(0);
   const [activeLeads, setActiveLeads] = useState(0);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [monthRevenuePaise, setMonthRevenuePaise] = useState(0);
@@ -113,17 +119,17 @@ export default function DashboardPage() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      adminFetchList<BookingRow>("/admin/bookings?page=1&pageSize=8&sort=eventDate&dir=asc", {
+      adminFetchList<OrderRow>("/admin/orders?page=1&pageSize=8&sort=placedAt&dir=desc", {
         page: 1,
         pageSize: 8,
       }),
       adminFetchList<LeadRow>("/admin/leads?page=1&pageSize=100", { page: 1, pageSize: 100 }),
       adminFetchList<EventRow>("/admin/events?page=1&pageSize=10", { page: 1, pageSize: 10 }),
     ])
-      .then(([bookingRes, leadRes, eventRes]) => {
+      .then(([orderRes, leadRes, eventRes]) => {
         if (!active) return;
-        setBookings(bookingRes.items);
-        setBookingTotal(bookingRes.total);
+        setOrders(orderRes.items);
+        setOrderTotal(orderRes.total);
         setActiveLeads(
           leadRes.items.filter((lead) => !["CONVERTED", "CLOSED_LOST"].includes(lead.status))
             .length,
@@ -131,10 +137,10 @@ export default function DashboardPage() {
         setEvents(eventRes.items.slice(0, 5));
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        const revenue = bookingRes.items.reduce((sum, b) => {
-          const date = new Date(b.eventDate);
-          if (date >= start && date <= end && b.status !== "CANCELLED") {
-            return sum + (b.totalPriceInPaise ?? 0);
+        const revenue = orderRes.items.reduce((sum, o) => {
+          const date = o.placedAt ? new Date(o.placedAt) : null;
+          if (date && date >= start && date <= end && o.paymentStatus === "PAID") {
+            return sum + (o.totalInPaise ?? 0);
           }
           return sum;
         }, 0);
@@ -142,8 +148,8 @@ export default function DashboardPage() {
       })
       .catch(() => {
         if (!active) return;
-        setBookings([]);
-        setBookingTotal(0);
+        setOrders([]);
+        setOrderTotal(0);
         setActiveLeads(0);
         setEvents([]);
       })
@@ -156,18 +162,16 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const upcoming = [...bookings]
-    .filter((b) => b.status !== "CANCELLED" && new Date(b.eventDate) >= new Date(now.toDateString()))
-    .slice(0, 3);
+  const recentOrders = orders.slice(0, 5);
 
   const stats = [
     {
-      id: "total-bookings",
-      label: "Total Bookings",
-      value: loading ? "…" : String(bookingTotal),
-      delta: loading ? "Loading…" : `${bookings.length} shown recently`,
+      id: "total-orders",
+      label: "Total Orders",
+      value: loading ? "…" : String(orderTotal),
+      delta: loading ? "Loading…" : `${orders.length} shown recently`,
       deltaPositive: true,
-      icon: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+      icon: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0",
       accent: "var(--color-mocha)",
       accentBg: "var(--color-blush-light)",
     },
@@ -175,7 +179,7 @@ export default function DashboardPage() {
       id: "revenue",
       label: "Revenue (This Month)",
       value: loading ? "…" : formatPaise(monthRevenuePaise),
-      delta: "From loaded bookings this month",
+      delta: "From paid orders this month",
       deltaPositive: true,
       icon: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
       accent: "var(--color-success)",
@@ -221,7 +225,7 @@ export default function DashboardPage() {
           {greeting}, Admin
         </h1>
         <p style={{ marginTop: "0.375rem", fontSize: "0.9375rem", color: "var(--color-text-muted)" }}>
-          Live overview from your database — bookings, leads, and events.
+          Live overview from your database — orders, leads, and events.
         </p>
       </div>
 
@@ -307,10 +311,10 @@ export default function DashboardPage() {
             }}
           >
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.125rem", fontWeight: 600, margin: 0 }}>
-              Recent Bookings
+              Recent Orders
             </h2>
             <Link
-              href="/dashboard/crm/bookings"
+              href="/dashboard/crm/orders"
               className="btn btn-ghost"
               style={{ padding: "0.375rem 0.75rem", height: 34, minHeight: 34, fontSize: "0.8125rem" }}
             >
@@ -322,7 +326,7 @@ export default function DashboardPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ backgroundColor: "var(--color-surface)" }}>
-                  {["Booking ID", "Customer", "Theme", "Date", "Package", "Amount", "Status"].map((h) => (
+                  {["Order ID", "Customer", "Type", "Date", "Payment", "Amount", "Status"].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -346,24 +350,24 @@ export default function DashboardPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={7} style={{ padding: "1.5rem", color: "var(--color-text-muted)" }}>
-                      Loading bookings…
+                      Loading orders…
                     </td>
                   </tr>
-                ) : bookings.length === 0 ? (
+                ) : orders.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: "1.5rem", color: "var(--color-text-muted)" }}>
-                      No bookings in the database yet.
+                      No orders in the database yet.
                     </td>
                   </tr>
                 ) : (
-                  bookings.map((b, i) => {
-                    const status = STATUS_STYLE[b.status] ?? {
-                      label: b.status.replaceAll("_", " "),
+                  orders.map((o, i) => {
+                    const status = STATUS_STYLE[o.status] ?? {
+                      label: o.status.replaceAll("_", " "),
                       className: "badge badge-neutral",
                     };
                     return (
                       <tr
-                        key={b.id}
+                        key={o.id}
                         className="table-row"
                         style={{ backgroundColor: i % 2 === 0 ? "#fff" : "var(--color-surface)" }}
                       >
@@ -375,10 +379,10 @@ export default function DashboardPage() {
                           }}
                         >
                           <Link
-                            href="/dashboard/crm/bookings"
+                            href="/dashboard/crm/orders"
                             style={{ fontWeight: 600, color: "var(--color-mocha)", fontSize: "0.8125rem" }}
                           >
-                            {b.bookingCode}
+                            {o.orderCode}
                           </Link>
                         </td>
                         <td
@@ -388,7 +392,7 @@ export default function DashboardPage() {
                             fontWeight: 500,
                           }}
                         >
-                          {b.customer?.fullName ?? "—"}
+                          {o.user?.name ?? o.customerName ?? "—"}
                         </td>
                         <td
                           style={{
@@ -397,7 +401,7 @@ export default function DashboardPage() {
                             color: "var(--color-text-secondary)",
                           }}
                         >
-                          {b.theme?.title ?? "—"}
+                          {o.registryCode ? "Registry" : "Shop"}
                         </td>
                         <td
                           style={{
@@ -406,10 +410,10 @@ export default function DashboardPage() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {formatShortDate(b.eventDate)}
+                          {formatShortDate(o.placedAt ?? undefined)}
                         </td>
                         <td style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--color-border-soft)" }}>
-                          <span className="badge badge-neutral">{b.package?.title ?? "—"}</span>
+                          <span className="badge badge-neutral">{o.paymentStatus ?? "—"}</span>
                         </td>
                         <td
                           style={{
@@ -419,7 +423,7 @@ export default function DashboardPage() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {formatPaise(b.totalPriceInPaise)}
+                          {formatPaise(o.totalInPaise)}
                         </td>
                         <td style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--color-border-soft)" }}>
                           <span className={status.className}>{status.label}</span>
@@ -485,10 +489,10 @@ export default function DashboardPage() {
               }}
             >
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "1.0625rem", fontWeight: 600, margin: 0 }}>
-                Upcoming Bookings
+                Recent Orders
               </h2>
               <Link
-                href="/dashboard/crm/bookings"
+                href="/dashboard/crm/orders"
                 style={{ fontSize: "0.75rem", color: "var(--color-mocha)", fontWeight: 500 }}
               >
                 See all →
@@ -497,13 +501,13 @@ export default function DashboardPage() {
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {loading ? (
                 <li style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>Loading…</li>
-              ) : upcoming.length === 0 ? (
+              ) : recentOrders.length === 0 ? (
                 <li style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
-                  No upcoming bookings.
+                  No recent orders.
                 </li>
               ) : (
-                upcoming.map((ev) => {
-                  const chip = monthChip(ev.eventDate);
+                recentOrders.map((ev) => {
+                  const chip = monthChip(ev.placedAt ?? undefined);
                   const status = STATUS_STYLE[ev.status] ?? {
                     label: ev.status,
                     className: "badge badge-neutral",
@@ -570,10 +574,10 @@ export default function DashboardPage() {
                             textOverflow: "ellipsis",
                           }}
                         >
-                          {ev.customer?.fullName ?? ev.bookingCode}
+                          {ev.user?.name ?? ev.customerName ?? ev.orderCode}
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "0.125rem" }}>
-                          {ev.theme?.title ?? "Celebration"}
+                          {ev.registryCode ? `Registry · ${ev.registryCode}` : "Shop order"} · {formatPaise(ev.totalInPaise)}
                         </div>
                       </div>
                       <span className={status.className} style={{ flexShrink: 0, fontSize: "0.6875rem" }}>

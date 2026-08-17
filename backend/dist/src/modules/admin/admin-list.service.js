@@ -63,6 +63,7 @@ async function adminListThemes(q) {
             ? {
                 OR: [
                     { title: { contains: q.search, mode: "insensitive" } },
+                    { displayName: { contains: q.search, mode: "insensitive" } },
                     { slug: { contains: q.search, mode: "insensitive" } },
                     { shortDescription: { contains: q.search, mode: "insensitive" } },
                 ],
@@ -160,7 +161,14 @@ async function adminGetTheme(id) {
         deletedAt: t.deletedAt?.toISOString() ?? null,
         packageCount: t._count.packages,
         galleryCount: t._count.galleryImages,
-        sampleAssets: t.sampleAssets.map((s) => ({
+        // Gallery display images managed via the gallery-images endpoint
+        galleryImageAssets: t.sampleAssets
+            .filter((s) => s.title === "gallery-image")
+            .map((s) => ({ id: s.id, media: toMediaRef(s.media), displayOrder: s.displayOrder })),
+        // Other sample assets (digital invite, video, etc.)
+        sampleAssets: t.sampleAssets
+            .filter((s) => s.title !== "gallery-image")
+            .map((s) => ({
             id: s.id,
             themeId: s.themeId,
             type: s.type,
@@ -218,10 +226,14 @@ async function adminListPackages(q) {
         const items = rows.map((p) => ({
             id: p.id,
             title: p.title,
+            displayName: p.displayName,
             slug: p.slug,
             priceInPaise: p.priceInPaise,
             tierRank: p.tierRank,
             isRecommended: p.isRecommended,
+            badgeText: p.badgeText,
+            pricingUnit: p.pricingUnit,
+            hasGiftRegistry: p.hasGiftRegistry,
             isActive: p.isActive,
             isCustomizable: p.isCustomizable,
             displayOrder: p.displayOrder,

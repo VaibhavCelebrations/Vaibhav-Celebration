@@ -10,7 +10,6 @@ type SettingRow = { key: string; value: string };
 
 const KEYS = {
   gst: "GST_PERCENT",
-  capacity: "MAX_BOOKINGS_PER_DAY",
   notice: "MIN_CONSULTATION_ADVANCE_DAYS",
 } as const;
 
@@ -23,7 +22,6 @@ function toMap(rows: SettingRow[]) {
 export default function SettingsPage() {
   const [values, setValues] = useState({
     [KEYS.gst]: "18",
-    [KEYS.capacity]: "2",
     [KEYS.notice]: "2",
   });
   const [loading, setLoading] = useState(true);
@@ -36,7 +34,6 @@ export default function SettingsPage() {
         const map = toMap(Array.isArray(rows) ? rows : []);
         setValues({
           [KEYS.gst]: map[KEYS.gst] ?? "18",
-          [KEYS.capacity]: map[KEYS.capacity] ?? "2",
           [KEYS.notice]: map[KEYS.notice] ?? "2",
         });
       })
@@ -81,7 +78,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Operational Settings"
-        description="Control business-wide billing, availability, and consultation defaults."
+        description="Control business-wide billing and consultation defaults."
       />
       <div className="card space-y-4 p-5">
         {loading ? (
@@ -93,14 +90,6 @@ export default function SettingsPage() {
               <NumberInput
                 value={number(KEYS.gst)}
                 onChange={(value) => setValues({ ...values, [KEYS.gst]: String(value) })}
-                min={0}
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Default daily booking capacity
-              <NumberInput
-                value={number(KEYS.capacity)}
-                onChange={(value) => setValues({ ...values, [KEYS.capacity]: String(value) })}
                 min={0}
               />
             </label>

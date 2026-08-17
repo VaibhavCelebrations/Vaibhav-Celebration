@@ -17,14 +17,15 @@ import {
   getInvoiceByNumber,
   handleRazorpayWebhook,
   listInvoices,
+  listPaymentEvents,
 } from "./payments.service";
 
 export const paymentsRouter = Router();
 
-paymentsRouter.post(
+  paymentsRouter.post(
   "/razorpay/order",
   idempotency,
-  validate(z.object({ bookingCode: z.string().min(1).optional() })),
+  validate(z.object({ orderCode: z.string().min(1) })),
   async (req, res, next) => {
     try {
       return ok(res, await createPaymentOrder(req.body));
@@ -59,8 +60,8 @@ invoicesRouter.get("/:invoiceNumber/download", requireGuest, async (req, res, ne
   try {
     const invoice = await getInvoiceByNumber(param(req, "invoiceNumber"));
     const guest = (req as GuestAuthenticatedRequest).guest!;
-    const bookingCode = invoice.booking?.bookingCode;
-    if (guest.sub !== bookingCode) {
+    const orderCode = invoice.order?.orderCode;
+    if (guest.sub !== orderCode) {
       if (guest.email.toLowerCase() !== invoice.customer.email.toLowerCase()) {
         throw new ForbiddenError();
       }
@@ -145,3 +146,26 @@ adminInvoicesRouter.post("/:id/resend", async (req, res, next) => {
     return next(err);
   }
 });
+
+export const adminPaymentsRouter = Router();
+adminPaymentsRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN));
+
+adminPaymentsRouter.get(
+  "/",
+  validate(
+    paginationQuerySchema.extend({
+      search: z.string().optional(),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const q = req.query as unknown as { search?: string; page?: number; pageSize?: number };
+      const { page, pageSize } = parsePagination(q);
+      const { total, items } = await listPaymentEvents({ search: q.search, page, pageSize });
+      return ok(res, items, { pagination: paginationMeta(page, pageSize, total) });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);

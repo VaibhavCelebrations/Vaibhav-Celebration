@@ -9,11 +9,7 @@
 import { config as loadDotenv } from "dotenv";
 import fs from "fs/promises";
 import path from "path";
-import {
-  GalleryCtaType,
-  PrismaClient,
-  SampleAssetType,
-} from "@prisma/client";
+import { GalleryCtaType, PrismaClient, SampleAssetType } from "@prisma/client";
 import {
   deleteObjectByKey,
   isR2Enabled,
@@ -130,7 +126,6 @@ const UPLOAD_MANIFEST: UploadDef[] = [
   },
 ];
 
-
 function cdnKeyPrefix(def: Pick<UploadDef, "kind" | "scope" | "role">) {
   return `${def.kind}/${def.scope}/${def.role}`;
 }
@@ -150,7 +145,10 @@ async function uploadAsset(def: UploadDef, adminId: string | null) {
   const existing = await prisma.mediaAsset.findFirst({
     where: {
       deletedAt: null,
-      OR: [{ cdnKey: fixedKey }, { cdnKey: { startsWith: `${cdnKeyPrefix(def)}-` } }],
+      OR: [
+        { cdnKey: fixedKey },
+        { cdnKey: { startsWith: `${cdnKeyPrefix(def)}-` } },
+      ],
     },
     orderBy: { createdAt: "desc" },
   });
@@ -260,18 +258,96 @@ const GALLERY_ITEMS: {
   themeSlug?: string;
   aspectOrder: number;
 }[] = [
-  { caption: "Balloon Celebration Setup", altText: "Colorful birthday balloon celebration", mediaKey: "gallery_balloons", tag: "General", aspectOrder: 1 },
-  { caption: "Party Lights & Décor", altText: "Beautiful party decorations with lights", mediaKey: "gallery_setup", tag: "General", aspectOrder: 2 },
-  { caption: "Gift Wrapping Station", altText: "Beautifully wrapped birthday gifts", mediaKey: "gallery_cake", tag: "General", aspectOrder: 3 },
-  { caption: "Space Theme Setup", altText: "Space themed balloon setup", mediaKey: "space_theme", tag: "Space", themeSlug: "space-theme", aspectOrder: 4 },
-  { caption: "Kids Birthday Celebration", altText: "Children celebrating birthday", mediaKey: "gallery_setup", tag: "General", aspectOrder: 5 },
-  { caption: "Custom Birthday Cake", altText: "Custom themed birthday cake", mediaKey: "gallery_cake", tag: "Cocomelon", themeSlug: "cocomelon-theme", aspectOrder: 6 },
-  { caption: "Pink Princess Setup", altText: "Pink themed party decorations", mediaKey: "princess_theme", tag: "Princess", themeSlug: "princess-theme", aspectOrder: 7 },
-  { caption: "Jungle Theme Décor", altText: "Jungle safari themed party setup", mediaKey: "jungle_safari_theme", tag: "Jungle Safari", themeSlug: "jungle-safari-theme", aspectOrder: 8 },
-  { caption: "Happy Birthday Moment", altText: "Birthday celebration with family", mediaKey: "gallery_balloons", tag: "Princess", aspectOrder: 9 },
-  { caption: "Activity Corner", altText: "Kids activity corner at party", mediaKey: "gallery_cake", tag: "General", aspectOrder: 10 },
-  { caption: "Party Vibes", altText: "Fun party atmosphere with confetti", mediaKey: "space_theme", tag: "Space", themeSlug: "space-theme", aspectOrder: 11 },
-  { caption: "Grand Event Setup", altText: "Complete event setup", mediaKey: "cocomelon_theme", tag: "Cocomelon", themeSlug: "cocomelon-theme", aspectOrder: 12 },
+  {
+    caption: "Balloon Celebration Setup",
+    altText: "Colorful birthday balloon celebration",
+    mediaKey: "gallery_balloons",
+    tag: "General",
+    aspectOrder: 1,
+  },
+  {
+    caption: "Party Lights & Décor",
+    altText: "Beautiful party decorations with lights",
+    mediaKey: "gallery_setup",
+    tag: "General",
+    aspectOrder: 2,
+  },
+  {
+    caption: "Gift Wrapping Station",
+    altText: "Beautifully wrapped birthday gifts",
+    mediaKey: "gallery_cake",
+    tag: "General",
+    aspectOrder: 3,
+  },
+  {
+    caption: "Space Theme Setup",
+    altText: "Space themed balloon setup",
+    mediaKey: "space_theme",
+    tag: "Space",
+    themeSlug: "space-theme",
+    aspectOrder: 4,
+  },
+  {
+    caption: "Kids Birthday Celebration",
+    altText: "Children celebrating birthday",
+    mediaKey: "gallery_setup",
+    tag: "General",
+    aspectOrder: 5,
+  },
+  {
+    caption: "Custom Birthday Cake",
+    altText: "Custom themed birthday cake",
+    mediaKey: "gallery_cake",
+    tag: "Cocomelon",
+    themeSlug: "cocomelon-theme",
+    aspectOrder: 6,
+  },
+  {
+    caption: "Pink Princess Setup",
+    altText: "Pink themed party decorations",
+    mediaKey: "princess_theme",
+    tag: "Princess",
+    themeSlug: "princess-theme",
+    aspectOrder: 7,
+  },
+  {
+    caption: "Jungle Theme Décor",
+    altText: "Jungle safari themed party setup",
+    mediaKey: "jungle_safari_theme",
+    tag: "Jungle Safari",
+    themeSlug: "jungle-safari-theme",
+    aspectOrder: 8,
+  },
+  {
+    caption: "Happy Birthday Moment",
+    altText: "Birthday celebration with family",
+    mediaKey: "gallery_balloons",
+    tag: "Princess",
+    aspectOrder: 9,
+  },
+  {
+    caption: "Activity Corner",
+    altText: "Kids activity corner at party",
+    mediaKey: "gallery_cake",
+    tag: "General",
+    aspectOrder: 10,
+  },
+  {
+    caption: "Party Vibes",
+    altText: "Fun party atmosphere with confetti",
+    mediaKey: "space_theme",
+    tag: "Space",
+    themeSlug: "space-theme",
+    aspectOrder: 11,
+  },
+  {
+    caption: "Grand Event Setup",
+    altText: "Complete event setup",
+    mediaKey: "cocomelon_theme",
+    tag: "Cocomelon",
+    themeSlug: "cocomelon-theme",
+    aspectOrder: 12,
+  },
 ];
 
 async function ensureGalleryTag(name: string) {
@@ -379,7 +455,9 @@ async function main() {
     const media = mediaMap.get(item.mediaKey);
     if (!media) continue;
     const tag = await ensureGalleryTag(item.tag);
-    const themeId = item.themeSlug ? themeRecords.get(item.themeSlug)?.id : undefined;
+    const themeId = item.themeSlug
+      ? themeRecords.get(item.themeSlug)?.id
+      : undefined;
 
     const image = await prisma.galleryImage.create({
       data: {
@@ -400,7 +478,9 @@ async function main() {
 
   const heroBg = mediaMap.get("hero_bg");
   if (heroBg) {
-    const homePage = await prisma.pageContent.findUnique({ where: { pageKey: "home" } });
+    const homePage = await prisma.pageContent.findUnique({
+      where: { pageKey: "home" },
+    });
     if (homePage) {
       const sections = homePage.sections as Record<string, unknown>;
       const hero = (sections.hero ?? {}) as Record<string, unknown>;
@@ -411,7 +491,8 @@ async function main() {
         data: { sections: sections as object },
       });
     } else {
-      const { defaultPageSections } = await import("../src/modules/pages/pages.service");
+      const { defaultPageSections } =
+        await import("../src/modules/pages/pages.service");
       const sections = JSON.parse(JSON.stringify(defaultPageSections.home)) as {
         hero?: { backgroundImage?: { mediaId: string } };
       };
@@ -446,9 +527,13 @@ async function main() {
   }
 
   for (const [slug, theme] of themeRecords) {
-    const hero = mediaMap.get(KIDS_THEMES.find((t) => t.slug === slug)!.mediaKey)!;
+    const hero = mediaMap.get(
+      KIDS_THEMES.find((t) => t.slug === slug)!.mediaKey,
+    )!;
     const galleryMedia = mediaMap.get("gallery_balloons")!;
-    const existingSamples = await prisma.themeSampleAsset.count({ where: { themeId: theme.id } });
+    const existingSamples = await prisma.themeSampleAsset.count({
+      where: { themeId: theme.id },
+    });
     if (existingSamples === 0) {
       await prisma.themeSampleAsset.createMany({
         data: [
@@ -478,7 +563,7 @@ async function main() {
     data: {
       metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
       metaDescription:
-        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Delhi NCR.",
+        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur NCR.",
     },
   });
 
@@ -488,7 +573,14 @@ async function main() {
   console.log(`Media assets: ${mediaMap.size}`);
 
   await flushCaches();
-  void triggerRevalidate(["/", "/themes", "/gallery", "/about", "/blog", "/events"]);
+  void triggerRevalidate([
+    "/",
+    "/themes",
+    "/gallery",
+    "/about",
+    "/blog",
+    "/events",
+  ]);
   console.log("Cache cleared and frontend revalidation triggered.");
 }
 

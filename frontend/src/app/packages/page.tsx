@@ -6,13 +6,14 @@ import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { PackageComparisonGrid } from "@/components/packages/PackageComparisonGrid";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listPackages } from "@/lib/cms/packages";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("packages", {
     title: "Packages & Pricing",
-    description: "Compare Thoughtful Essentials, Complete Celebration, and Signature Luxe packages.",
+    description: "Compare Essential Celebration, Signature Celebration, and Grand Celebration packages.",
   });
 }
 
@@ -49,9 +50,9 @@ export default async function PackagesPage() {
             />
           </ScrollReveal>
 
-          <div className="mt-16 grid md:grid-cols-3 gap-6 items-start">
+          <div className="mt-16 grid md:grid-cols-3 gap-6 items-stretch">
             {packages.map((pkg, i) => (
-              <ScrollReveal key={pkg.id} delay={i * 100}>
+              <ScrollReveal key={pkg.id} delay={i * 100} className="h-full">
                 <div
                   className={`rounded-2xl p-8 flex flex-col h-full transition-premium hover:-translate-y-2 ${
                     pkg.isRecommended
@@ -59,9 +60,9 @@ export default async function PackagesPage() {
                       : "bg-cream border border-border"
                   }`}
                 >
-                  {pkg.isRecommended && (
+                  {(pkg.badgeText || pkg.isRecommended) && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full whitespace-nowrap">
-                      Most Popular
+                      {pkg.badgeText || "Most Loved"}
                     </span>
                   )}
                   <h3 className="font-display text-2xl font-semibold text-charcoal">{pkg.title}</h3>
@@ -97,9 +98,12 @@ export default async function PackagesPage() {
               </ScrollReveal>
             ))}
           </div>
+
+          <PackageComparisonGrid />
+
           <ScrollReveal>
             <div className="flex flex-col items-center mt-16 mb-8">
-              <Link href="/contact" className="btn-primary text-base px-10 py-4 w-full sm:w-auto">
+              <Link href="/consultation" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
                 Book Consultation
               </Link>
             </div>

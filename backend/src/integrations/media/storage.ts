@@ -97,6 +97,29 @@ export function publicUrlForKey(cdnKey: string) {
   return `${publicBaseUrl()}/${cdnKey.replace(/^\//, "")}`;
 }
 
+/** Resolve a public CDN/uploads URL back to its object key, if hosted by us. */
+export function cdnKeyFromPublicUrl(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  try {
+    const parsed = new URL(url.trim());
+    const base = new URL(publicBaseUrl());
+    if (parsed.hostname !== base.hostname || parsed.port !== base.port) return null;
+    const key = parsed.pathname.replace(/^\//, "");
+    return key || null;
+  } catch {
+    return null;
+  }
+}
+
+const REGISTRY_HOSTED_PREFIXES = ["media/registry/external/", "products/registry/external/"];
+
+/** Delete a rehosted gift-registry product image from R2/local storage. */
+export async function deleteRegistryHostedImage(url: string | null | undefined): Promise<void> {
+  const key = cdnKeyFromPublicUrl(url);
+  if (!key || !REGISTRY_HOSTED_PREFIXES.some((prefix) => key.startsWith(prefix))) return;
+  await deleteObjectByKey(key);
+}
+
 function mimeExt(mime: string, originalName?: string) {
   const fromName = originalName ? path.extname(originalName).toLowerCase() : "";
   if (fromName) return fromName;

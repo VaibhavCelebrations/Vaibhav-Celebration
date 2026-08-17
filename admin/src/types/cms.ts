@@ -69,10 +69,14 @@ export type Package = SoftDeletable &
   Timestamped & {
     id: string;
     title: string;
+    displayName: string | null;
     slug: string;
     priceInPaise: Paise;
     tierRank: number;
     isRecommended: boolean;
+    badgeText: string | null;
+    pricingUnit: string | null;
+    hasGiftRegistry: boolean;
     isActive: boolean;
     isCustomizable: boolean;
     displayOrder: number;
@@ -85,7 +89,19 @@ export type Package = SoftDeletable &
 
 export type PackageInput = Pick<
   Package,
-  "title" | "slug" | "priceInPaise" | "tierRank" | "isRecommended" | "isActive" | "isCustomizable" | "displayOrder" | "description"
+  | "title"
+  | "displayName"
+  | "slug"
+  | "priceInPaise"
+  | "tierRank"
+  | "isRecommended"
+  | "badgeText"
+  | "pricingUnit"
+  | "hasGiftRegistry"
+  | "isActive"
+  | "isCustomizable"
+  | "displayOrder"
+  | "description"
 >;
 
 export type ExtraService = SoftDeletable &
@@ -123,9 +139,13 @@ export type PackageMatrixCell = {
 export type PackageMatrixRow = {
   packageId: string;
   title: string;
+  displayName: string | null;
   description: string | null;
   priceInPaise: number;
   isRecommended: boolean;
+  badgeText: string | null;
+  pricingUnit: string | null;
+  hasGiftRegistry: boolean;
   isActive: boolean;
   isCustomizable: boolean;
   items: PackageMatrixCell[];
@@ -383,6 +403,8 @@ export type Product = SoftDeletable &
     description: string;
     priceInPaise: Paise;
     compareAtPriceInPaise: Paise | null;
+    personalizationEnabled: boolean;
+    personalizationCostInPaise: Paise;
     isActive: boolean;
     minOrderQuantity: number;
     maxOrderQuantity: number | null;
@@ -395,7 +417,17 @@ export type Product = SoftDeletable &
 
 export type ProductInput = Pick<
   Product,
-  "title" | "slug" | "sku" | "description" | "priceInPaise" | "compareAtPriceInPaise" | "isActive" | "minOrderQuantity" | "maxOrderQuantity"
+  | "title"
+  | "slug"
+  | "sku"
+  | "description"
+  | "priceInPaise"
+  | "compareAtPriceInPaise"
+  | "personalizationEnabled"
+  | "personalizationCostInPaise"
+  | "isActive"
+  | "minOrderQuantity"
+  | "maxOrderQuantity"
 > & {
   categoryIds?: string[];
   themeIds?: string[];
@@ -415,6 +447,30 @@ export type ProductCategory = {
 };
 
 export type ProductCategoryInput = Pick<ProductCategory, "name" | "slug" | "displayOrder" | "isActive">;
+
+export type ProductCollection = SoftDeletable &
+  Timestamped & {
+    id: string;
+    title: string;
+    slug: string;
+    description: string | null;
+    heroImage: MediaRef | null;
+    startsAt: ISODate | null;
+    endsAt: ISODate | null;
+    showOnHomepage: boolean;
+    isActive: boolean;
+    displayOrder: number;
+    products: Product[];
+    productCount: number;
+  };
+
+export type ProductCollectionInput = Pick<
+  ProductCollection,
+  "title" | "slug" | "description" | "startsAt" | "endsAt" | "showOnHomepage" | "isActive" | "displayOrder"
+> & {
+  heroImageId?: string | null;
+  productIds?: string[];
+};
 
 export const INVENTORY_LEDGER_REASONS = ["RESTOCK", "SALE", "MANUAL_ADJUSTMENT", "RETURN"] as const;
 export type InventoryLedgerReasonType = (typeof INVENTORY_LEDGER_REASONS)[number];

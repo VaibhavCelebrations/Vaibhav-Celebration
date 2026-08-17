@@ -17,14 +17,31 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { label: "Home", href: "/" },
-  { label: "About Us", href: "/about" },
-  { label: "Events", href: "/events" },
-  { label: "Themes", href: "/themes" },
+  {
+    label: "Celebrations",
+    href: "/themes",
+    submenu: [
+      { label: "Kids' Birthdays", href: "/themes" },
+      // { label: "Baby Shower", href: "/themes?category=baby-shower" },
+      // { label: "Naming Ceremony", href: "/themes?category=naming-ceremony" },
+      // { label: "Milestone Celebrations", href: "/themes?category=milestone" },
+      { label: "Custom Celebrations", href: "/consultation" },
+    ],
+  },
   { label: "Packages", href: "/packages" },
+  {
+    label: "Shop",
+    href: "/gifts",
+    submenu: [
+      { label: "Shop Return Gifts", href: "/gifts" },
+      // { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
+      // { label: "Shop by Theme", href: "/gifts?view=themes" },
+      // { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
+    ],
+  },
+  { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },
-  { label: "Gifts", href: "/gifts" },
-  { label: "Blog", href: "/blog" },
-  { label: "Contact Us", href: "/contact" },
+  { label: "About Us", href: "/about" },
 ];
 
 export function Navbar() {
@@ -180,7 +197,7 @@ export function Navbar() {
                 href="/consultation"
                 className="btn-primary text-sm px-6 py-2.5 transition-all"
               >
-                Book a Celebration
+                Plan My Celebration
               </Link>
             </div>
 
@@ -219,7 +236,7 @@ export function Navbar() {
               </button>
               <button
                 onClick={toggleMobile}
-                className="text-charcoal p-2 -mr-2"
+                className="text-charcoal p-2 -mr-2 transition-all duration-300 hover:scale-110 active:scale-95"
                 aria-label={mobileOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileOpen}
               >

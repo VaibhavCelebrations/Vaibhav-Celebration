@@ -132,6 +132,7 @@ model MediaAsset {
   popupImages           Popup[]            @relation("PopupImage")
   metadataOgImages      SiteMetadata[]     @relation("MetadataOgImage")
   productImages         ProductImage[]
+  productCollections    ProductCollection[]
 
   @@index([category])
   @@index([altText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -161,7 +162,7 @@ model Theme {
   galleryImages    GalleryImage[]     @relation("ThemeGallery")
   packages         ThemePackage[]
   sampleAssets     ThemeSampleAsset[]
-  bookings         Booking[]
+  orderPackages    OrderPackage[]
   testimonials     Testimonial[]
   events           Event[]
   productTags      ProductThemeTag[]
@@ -198,12 +199,17 @@ model ThemeSampleAsset {
 model Package {
   id             String               @id @default(cuid())
   title          String
+  displayName    String?
   slug           String               @unique
   priceInPaise   Int
   tierRank       Int
   isRecommended  Boolean              @default(false)
+  badgeText      String?
+  pricingUnit    String?
+  hasGiftRegistry Boolean             @default(false)
   isActive       Boolean              @default(true)
   isCustomizable Boolean              @default(true)
+  internalKey    String?
   displayOrder   Int                  @default(0)
   description    String?              @db.Text
   createdAt      DateTime             @default(now())
@@ -211,7 +217,7 @@ model Package {
   deletedAt      DateTime?
   serviceItems   PackageServiceItem[]
   themeLinks     ThemePackage[]
-  bookings       Booking[]
+  orderPackages  OrderPackage[]
   testimonials   Testimonial[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -295,7 +301,7 @@ model PackageServiceItem {
   extraService          ExtraService           @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
   isIncluded            Boolean                @default(false)
   displayOrder          Int                    @default(0)
-  bookingCustomizations BookingCustomization[]
+  orderPackageLines     OrderPackageLine[]
 
   @@unique([packageId, extraServiceId])
 }
@@ -514,8 +520,32 @@ enum PaymentStatus {
   PENDING
   PAID
   FAILED
+  CANCELLED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+/// Internal ops workflow for personalized shop orders / package customizations.
+enum CustomizationFollowUpStatus {
+  NOT_REQUIRED
+  REQUIRED
+  CONTACTED
+  CONFIRMED
+  COMPLETED
+}
+
+/// Deduplicates Razorpay webhook (and checkout-verify) side effects.
+model PaymentEvent {
+  id                String   @id @default(cuid())
+  eventKey          String   @unique
+  eventType         String
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  processedAt       DateTime @default(now())
+  payload           Json?
+
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
 }
 
 /// Three curated landing-page layouts; admin picks one per event (not a page-builder).
@@ -589,7 +619,6 @@ model Customer {
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   deletedAt     DateTime?
-  bookings      Booking[]
   consultations ConsultationRequest[]
   leads         Lead[]
   invoices      Invoice[]
@@ -681,77 +710,9 @@ model ConsultationRequest {
   deletedAt           DateTime?
 }
 
-// ─── Bookings ───────────────────────────────────────────────────────────────
-
-enum BookingStatus {
-  SCHEDULED
-  CONFIRMED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-model Booking {
-  id                        String                 @id @default(cuid())
-  bookingCode               String                 @unique
-  customerId                String
-  customer                  Customer               @relation(fields: [customerId], references: [id])
-  themeId                   String
-  theme                     Theme                  @relation(fields: [themeId], references: [id])
-  packageId                 String
-  package                   Package                @relation(fields: [packageId], references: [id])
-  eventDate                 DateTime               @db.Date
-  status                    BookingStatus          @default(SCHEDULED)
-  paymentStatus             PaymentStatus          @default(PENDING)
-  basePriceInPaise          Int
-  customizationTotalInPaise Int                    @default(0)
-  gstInPaise                Int                    @default(0)
-  totalPriceInPaise         Int
-  razorpayOrderId           String?
-  razorpayPaymentId         String?
-  guestEmail                String
-  guestPhone                String
-  createdAt                 DateTime               @default(now())
-  updatedAt                 DateTime               @updatedAt
-  deletedAt                 DateTime?
-  customizations            BookingCustomization[]
-  invoice                   Invoice?
-  giftRegistry              GiftRegistry?
-
-  @@index([eventDate])
-  @@index([bookingCode])
-  @@index([status])
-}
-
-model BookingCustomization {
-  id                   String             @id @default(cuid())
-  bookingId            String
-  booking              Booking            @relation(fields: [bookingId], references: [id])
-  packageServiceItemId String
-  packageServiceItem   PackageServiceItem @relation(fields: [packageServiceItemId], references: [id])
-  quantity             Int                @default(1)
-  unitPriceInPaise     Int
-}
-
-enum CapacityScope {
-  GLOBAL_DEFAULT
-  SPECIFIC_DATE
-}
-
-model BookingCapacityRule {
-  id                String        @id @default(cuid())
-  scope             CapacityScope @default(GLOBAL_DEFAULT)
-  specificDate      DateTime?     @db.Date
-  maxBookingsPerDay Int
-  isBlocked         Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-}
-
 // ─── Invoices ───────────────────────────────────────────────────────────────
 
 enum InvoiceLinkedType {
-  BOOKING
   ORDER
   EVENT_REGISTRATION
 }
@@ -760,10 +721,8 @@ model Invoice {
   id                 String            @id @default(cuid())
   invoiceNumber      String            @unique
   linkedType         InvoiceLinkedType
-  bookingId          String?           @unique
-  booking            Booking?          @relation(fields: [bookingId], references: [id])
-  // orderId reserved for Phase 2 (no FK until Order model exists)
   orderId            String?           @unique
+  order              Order?            @relation(fields: [orderId], references: [id])
   customerId         String
   customer           Customer          @relation(fields: [customerId], references: [id])
   subtotalInPaise    Int
@@ -771,8 +730,10 @@ model Invoice {
   totalInPaise       Int
   pdfUrl             String?
   emailSentAt        DateTime?
+  emailSendStatus    String?
   whatsappSentAt     DateTime?
   whatsappSendStatus String?
+  whatsappMessageId  String?
   issuedAt           DateTime          @default(now())
   deletedAt          DateTime?
 
@@ -891,6 +852,10 @@ model Product {
   description           String    @db.Text
   priceInPaise          Int
   compareAtPriceInPaise Int?
+  personalizationEnabled Boolean   @default(false)
+  personalizationCostInPaise Int   @default(0)
+  personalizationInstructions String? @db.Text
+  personalizationConstraints  Json?
   isActive              Boolean   @default(true)
   minOrderQuantity      Int       @default(1)
   maxOrderQuantity      Int?
@@ -901,6 +866,7 @@ model Product {
   images                ProductImage[]
   categoryTags          ProductCategoryTag[]
   themeTags             ProductThemeTag[]
+  collectionItems       ProductCollectionItem[]
   personalizationFields ProductPersonalizationField[]
   inventory             InventoryRecord?
   cartItems             CartItem[]
@@ -1005,11 +971,15 @@ model CartItem {
   cart                  Cart     @relation(fields: [cartId], references: [id])
   productId             String
   product               Product  @relation(fields: [productId], references: [id])
+  /// Empty string for ordinary shop lines; registry item id for gift purchases.
+  registryItemId        String   @default("")
   quantity              Int
   personalizationValues Json?
+  personalizationSelected Boolean @default(false)
+  personalizationCostSnapshot Int   @default(0)
   addedAt               DateTime @default(now())
 
-  @@unique([cartId, productId])
+  @@unique([cartId, productId, registryItemId])
 }
 
 model WishlistItem {
@@ -1035,32 +1005,90 @@ enum OrderStatus {
   REFUNDED
 }
 
-model Order {
-  id                String      @id @default(cuid())
-  orderCode         String      @unique
-  userId            String
-  user              User        @relation(fields: [userId], references: [id])
-  status            OrderStatus @default(PENDING_PAYMENT)
-  subtotalInPaise   Int
-  gstInPaise        Int
-  totalInPaise      Int
-  shippingAddress   Json
-  contactEmail      String
-  contactPhone      String
-  razorpayOrderId   String?
-  razorpayPaymentId String?
-  invoiceNumber     String?     @unique
-  invoicePdfUrl     String?
-  placedAt          DateTime    @default(now())
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+enum OrderKind {
+  SHOP
+  PACKAGE
+}
 
-  items             OrderItem[]
-  giftContributions GiftRegistryContribution[]
+model Order {
+  id                            String                       @id @default(cuid())
+  orderCode                     String                       @unique
+  userId                        String
+  user                          User                         @relation(fields: [userId], references: [id])
+  kind                          OrderKind                    @default(SHOP)
+  status                        OrderStatus                  @default(PENDING_PAYMENT)
+  paymentStatus                 PaymentStatus                @default(PENDING)
+  customizationFollowUpStatus   CustomizationFollowUpStatus  @default(NOT_REQUIRED)
+  adminNotes                    String?                      @db.Text
+  subtotalInPaise               Int
+  gstInPaise                    Int
+  totalInPaise                  Int
+  shippingAddress               Json
+  contactEmail                  String
+  contactPhone                  String
+  /// Celebration / event date for PACKAGE orders (calendar + ops).
+  eventDate                     DateTime?                    @db.Date
+  /// childName, age, venue, guestCount, notes, etc.
+  eventDetails                  Json?
+  razorpayOrderId               String?
+  razorpayPaymentId             String?
+  invoiceNumber                 String?                      @unique
+  invoicePdfUrl                 String?
+  confirmationEmailSentAt       DateTime?
+  emailSendStatus               String?
+  whatsappSentAt                DateTime?
+  whatsappSendStatus            String?
+  whatsappMessageId             String?
+  placedAt                      DateTime                     @default(now())
+  createdAt                     DateTime                     @default(now())
+  updatedAt                     DateTime                     @updatedAt
+
+  registryId                    String?
+  registry                      GiftRegistry?                @relation(fields: [registryId], references: [id])
+  items                         OrderItem[]
+  packageOrder                  OrderPackage?
+  giftContributions             GiftRegistryContribution[]
+  invoice                       Invoice?
 
   @@index([orderCode])
   @@index([userId])
+  @@index([kind])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([registryId])
+  @@index([eventDate])
+}
+
+/// One celebration package purchased on an Order (kind = PACKAGE).
+model OrderPackage {
+  id                        String             @id @default(cuid())
+  orderId                   String             @unique
+  order                     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  packageId                 String
+  package                   Package            @relation(fields: [packageId], references: [id])
+  themeId                   String
+  theme                     Theme              @relation(fields: [themeId], references: [id])
+  basePriceInPaise          Int
+  customizationTotalInPaise Int                @default(0)
+  guestCount                Int?
+  location                  String?
+  builderInput              Json?
+  quoteSnapshot             Json?
+  lines                     OrderPackageLine[]
+  createdAt                 DateTime           @default(now())
+}
+
+model OrderPackageLine {
+  id                   String              @id @default(cuid())
+  orderPackageId       String
+  orderPackage         OrderPackage        @relation(fields: [orderPackageId], references: [id], onDelete: Cascade)
+  packageServiceItemId String?
+  packageServiceItem   PackageServiceItem? @relation(fields: [packageServiceItemId], references: [id], onDelete: SetNull)
+  label                String
+  sku                  String?
+  section              String?
+  quantity             Int
+  unitPriceInPaise     Int
 }
 
 model OrderItem {
@@ -1069,17 +1097,62 @@ model OrderItem {
   order                 Order   @relation(fields: [orderId], references: [id])
   productId             String
   product               Product @relation(fields: [productId], references: [id])
+  registryItemId        String?
+  registryItem          GiftRegistryItem? @relation(fields: [registryItemId], references: [id])
   quantity              Int
   unitPriceInPaise      Int
   personalizationValues Json?
+  personalizationSelected Boolean @default(false)
+  fulfillmentStatus       String?
+  personalizationCostSnapshot Int @default(0)
+}
+
+model ProductCollection {
+  id             String                  @id @default(cuid())
+  title          String
+  slug           String                  @unique
+  description    String?                 @db.Text
+  heroImageId    String?
+  heroImage      MediaAsset?             @relation(fields: [heroImageId], references: [id])
+  startsAt       DateTime?
+  endsAt         DateTime?
+  showOnHomepage Boolean                 @default(false)
+  isActive       Boolean                 @default(true)
+  displayOrder   Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+  items          ProductCollectionItem[]
+
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([showOnHomepage])
+}
+
+model ProductCollectionItem {
+  collectionId String
+  collection   ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  displayOrder Int               @default(0)
+
+  @@id([collectionId, productId])
 }
 
 // ─── Gift Registry ───────────────────────────────────────────────────────────
 
 enum RegistryStatus {
+  DRAFT
   ACTIVE
   EXPIRED
   CLOSED
+  ARCHIVED
+}
+
+enum RegistryVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
 }
 
 enum GiftLinkSourceType {
@@ -1090,55 +1163,137 @@ enum GiftLinkSourceType {
 enum GiftItemStatus {
   AVAILABLE
   RESERVED
+  PARTIALLY_PURCHASED
   PURCHASED
 }
 
-model GiftRegistry {
-  id                 String         @id @default(cuid())
-  registryCode       String         @unique
-  passwordHash       String
-  ownerUserId        String
-  ownerUser          User           @relation(fields: [ownerUserId], references: [id])
-  bookingId          String?        @unique
-  booking            Booking?       @relation(fields: [bookingId], references: [id])
-  childOrPersonName  String?
-  celebrationDetails String?        @db.Text
-  photoMediaId       String?
-  shippingAddress    Json?
-  status             RegistryStatus @default(ACTIVE)
-  activatedAt        DateTime       @default(now())
-  expiresAt          DateTime
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+enum GiftContributionStatus {
+  PENDING
+  PAID
+  RELEASED
+  CONFIRMED_EXTERNAL
+}
 
-  items GiftRegistryItem[]
+enum ExtractionStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+  MANUAL
+}
+
+model GiftRegistry {
+  id                 String              @id @default(cuid())
+  registryCode       String              @unique
+  passwordHash       String?
+  ownerUserId        String
+  ownerUser          User                @relation(fields: [ownerUserId], references: [id])
+  title              String?
+  occasion           String?
+  eventDate          DateTime?
+  ownerDisplayName   String?
+  contactEmail       String?
+  contactPhone       String?
+  childOrPersonName  String?
+  celebrationDetails String?             @db.Text
+  giftPreferences    String?             @db.Text
+  photoMediaId       String?
+  coverImageUrl      String?
+  shippingAddress    Json?
+  visibility         RegistryVisibility  @default(UNLISTED)
+  status             RegistryStatus      @default(DRAFT)
+  viewCount          Int                 @default(0)
+  publishedAt        DateTime?
+  activatedAt        DateTime            @default(now())
+  expiresAt          DateTime
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  items  GiftRegistryItem[]
+  orders Order[]
+
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([visibility])
 }
 
 model GiftRegistryItem {
   id                 String             @id @default(cuid())
   registryId         String
-  registry           GiftRegistry       @relation(fields: [registryId], references: [id])
+  registry           GiftRegistry       @relation(fields: [registryId], references: [id], onDelete: Cascade)
   sourceType         GiftLinkSourceType
   externalUrl        String?
+  canonicalUrl       String?
+  storeName          String?
+  description        String?            @db.Text
+  notes              String?            @db.Text
   manualTitle        String?
   manualImageUrl     String?
   manualPriceInPaise Int?
+  currency           String             @default("INR")
   internalProductId  String?
   internalProduct    Product?           @relation("InternalProductLink", fields: [internalProductId], references: [id])
+  quantityDesired    Int                @default(1)
+  quantityPurchased  Int                @default(0)
+  quantityReserved   Int                @default(0)
+  priority           Int                @default(0)
   status             GiftItemStatus     @default(AVAILABLE)
   displayOrder       Int                @default(0)
+  extractionStatus   ExtractionStatus   @default(MANUAL)
+  extractionMethod   String?
+  extractionError    String?
+  extractedAt        DateTime?
   createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   contributions GiftRegistryContribution[]
+  orderItems    OrderItem[]
+
+  @@index([registryId])
+  @@index([status])
+  @@index([extractionStatus])
 }
 
 model GiftRegistryContribution {
-  id             String           @id @default(cuid())
+  id             String                  @id @default(cuid())
   registryItemId String
-  registryItem   GiftRegistryItem @relation(fields: [registryItemId], references: [id])
-  gifterUserId   String
-  gifterUser     User             @relation(fields: [gifterUserId], references: [id])
+  registryItem   GiftRegistryItem        @relation(fields: [registryItemId], references: [id], onDelete: Cascade)
+  gifterUserId   String?
+  gifterUser     User?                   @relation(fields: [gifterUserId], references: [id])
+  guestName      String?
+  guestEmail     String?
   orderId        String?
-  order          Order?           @relation(fields: [orderId], references: [id])
-  createdAt      DateTime         @default(now())
+  order          Order?                  @relation(fields: [orderId], references: [id])
+  quantity       Int                     @default(1)
+  status         GiftContributionStatus  @default(PENDING)
+  reservedUntil  DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([registryItemId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model ExternalProductExtraction {
+  id               String            @id @default(cuid())
+  urlHash          String            @unique
+  sourceUrl        String
+  title            String?
+  description      String?
+  image            String?
+  priceInPaise     Int?
+  currency         String?
+  storeName        String?
+  canonicalUrl     String?
+  extractionMethod String?
+  extractionStatus ExtractionStatus
+  extractionError  String?
+  rawMeta          Json?
+  extractedAt      DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([extractionStatus])
+  @@index([extractedAt])
 }

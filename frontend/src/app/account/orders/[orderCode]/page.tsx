@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   SHIPPED: "bg-purple-50 text-purple-700",
   DELIVERED: "bg-sage/20 text-sage-dark",
   CANCELLED: "bg-red-50 text-red-600",
+  REFUNDED: "bg-stone-100 text-stone-600",
 };
 
 interface Props {
@@ -26,6 +27,7 @@ export default function OrderDetailPage({ params }: Props) {
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [busy, setBusy] = useState<"retry" | "reorder" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +96,15 @@ export default function OrderDetailPage({ params }: Props) {
                   <div className="flex-1 min-w-0">
                     <Link href={`/gifts/${item.slug}`} className="font-semibold text-charcoal hover:text-mocha text-sm line-clamp-1">{item.title}</Link>
                     <p className="text-xs text-text-muted mt-0.5">Qty: {item.quantity} × {formatPaise(item.unitPriceInPaise)}</p>
+                    {item.personalizationSelected && (
+                      <p className="text-[11px] text-mocha mt-1">
+                        Personalized
+                        {Array.isArray(item.personalizationValues)
+                          ? ` — ${item.personalizationValues.map((pv) => `${pv.label}: ${pv.value}`).join(", ")}`
+                          : ""}
+                        {item.personalizationCostInPaise > 0 ? ` · +${formatPaise(item.personalizationCostInPaise)} each` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="font-bold text-charcoal text-sm shrink-0">{formatPaise(item.lineTotalInPaise)}</div>
                 </div>
@@ -125,6 +136,60 @@ export default function OrderDetailPage({ params }: Props) {
             <a href={order.invoicePdfUrl} target="_blank" rel="noreferrer" className="btn-outline w-full mt-6 py-3 text-sm font-semibold gap-2 flex items-center justify-center">
               <Download size={16} /> Download Invoice
             </a>
+          )}
+          {order.canRetryPayment && (
+            <button
+              disabled={busy !== null}
+              className="btn-primary w-full mt-3 py-3 text-sm font-semibold"
+              onClick={async () => {
+                setBusy("retry");
+                try {
+                  const pay = await shopApi.retryOrderPayment(order.orderCode);
+                  if (!pay.razorpayKeyId) return;
+                  const sdkReady = await import("@/lib/load-razorpay").then((m) => m.loadRazorpayScript());
+                  if (!sdkReady) return;
+                  const { openRazorpayCheckout } = await import("@/lib/load-razorpay");
+                  openRazorpayCheckout({
+                    key: pay.razorpayKeyId,
+                    amount: pay.totalInPaise,
+                    currency: "INR",
+                    name: "Vaibhav Celebrations",
+                    description: `Order ${pay.orderCode}`,
+                    order_id: pay.razorpayOrderId,
+                    handler: async (response) => {
+                      const verified = await shopApi.verifyShopPayment({
+                        orderCode: pay.orderCode,
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpaySignature: response.razorpay_signature,
+                      });
+                      setOrder(verified);
+                    },
+                  });
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              {busy === "retry" ? "Opening payment…" : "Complete Payment"}
+            </button>
+          )}
+          {order.canReorder && (
+            <button
+              disabled={busy !== null}
+              className="btn-outline w-full mt-3 py-3 text-sm font-semibold"
+              onClick={async () => {
+                setBusy("reorder");
+                try {
+                  await shopApi.reorderOrder(order.orderCode);
+                  window.location.href = "/checkout";
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              {busy === "reorder" ? "Adding to cart…" : "Reorder"}
+            </button>
           )}
         </div>
       </div>

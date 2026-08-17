@@ -172,6 +172,11 @@ export function CartDrawer() {
                     <h4 className="text-sm font-semibold text-charcoal line-clamp-1">
                       {item.title}
                     </h4>
+                    {item.registry && (
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-mocha mt-0.5">
+                        Registry gift · {item.registry.registryCode}
+                      </p>
+                    )}
 
                     {!item.isActive && (
                       <p className="text-[10px] text-red-500 font-semibold mt-1">No longer available</p>
@@ -189,19 +194,24 @@ export function CartDrawer() {
                     )}
 
                     <p className="text-sm font-bold text-charcoal mt-1.5">
-                      {formatPaise(item.unitPriceInPaise * item.quantity)}
+                      {formatPaise((item.unitPriceInPaise + item.personalizationCostInPaise) * item.quantity)}
                       {item.quantity > 1 && (
                         <span className="text-text-light font-normal text-xs ml-1">
-                          ({formatPaise(item.unitPriceInPaise)} × {item.quantity})
+                          ({formatPaise(item.unitPriceInPaise + item.personalizationCostInPaise)} × {item.quantity})
                         </span>
                       )}
                     </p>
+                    {item.personalizationCostInPaise > 0 && (
+                      <p className="mt-0.5 text-[10px] font-semibold text-mocha">
+                        Includes {formatPaise(item.personalizationCostInPaise)} personalization per item
+                      </p>
+                    )}
 
                     {/* Quantity + Remove */}
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-1 bg-surface border border-border-light rounded-lg">
                         <button
-                          onClick={() => void updateQuantity(item.productId, item.quantity - 1)}
+                          onClick={() => void updateQuantity(item.id, item.quantity - 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
                         >
                           <Minus size={12} />
@@ -210,7 +220,7 @@ export function CartDrawer() {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => void updateQuantity(item.productId, item.quantity + 1)}
+                          onClick={() => void updateQuantity(item.id, item.quantity + 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
                           disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}
                         >
@@ -218,7 +228,7 @@ export function CartDrawer() {
                         </button>
                       </div>
                       <button
-                        onClick={() => void removeItem(item.productId)}
+                        onClick={() => void removeItem(item.id)}
                         className="text-text-light hover:text-red-500 transition-colors cursor-pointer"
                       >
                         <Trash2 size={14} />

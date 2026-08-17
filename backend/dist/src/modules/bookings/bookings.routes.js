@@ -13,9 +13,10 @@ const idempotency_1 = require("../../middleware/idempotency");
 const validate_1 = require("../../middleware/validate");
 const validators_1 = require("../../lib/validators");
 const bookings_service_1 = require("./bookings.service");
-const createSchema = zod_1.z.object({
-    themeId: zod_1.z.string().min(1),
-    packageId: zod_1.z.string().min(1),
+const createSchema = zod_1.z
+    .object({
+    themeId: zod_1.z.string().min(1).optional(),
+    packageId: zod_1.z.string().min(1).optional(),
     eventDate: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     selectedOptions: zod_1.z
         .array(zod_1.z.object({ optionId: zod_1.z.string().min(1), quantity: zod_1.z.number().int().min(0) }))
@@ -23,6 +24,25 @@ const createSchema = zod_1.z.object({
     guestName: zod_1.z.string().min(1),
     guestEmail: zod_1.z.string().email(),
     guestPhone: zod_1.z.string().min(8),
+    builder: zod_1.z
+        .object({
+        packageSlug: zod_1.z.enum(["standard", "premium", "luxe"]),
+        themeSlug: zod_1.z.string().min(1),
+        guestCount: zod_1.z.number().int().min(5).max(200),
+        location: zod_1.z.enum(["jaipur", "outside"]),
+        selections: zod_1.z.object({
+            welcomeItem: zod_1.z.string().min(1).optional().nullable(),
+            activity1: zod_1.z.string().min(1).optional().nullable(),
+            activity2: zod_1.z.string().min(1).optional().nullable(),
+            returnGift: zod_1.z.string().min(1).optional().nullable(),
+            familyActivity: zod_1.z.string().min(1).optional().nullable(),
+            decor: zod_1.z.boolean().optional().default(false),
+        }),
+    })
+        .optional(),
+})
+    .refine((d) => !!d.builder || (!!d.themeId && !!d.packageId), {
+    message: "Provide builder state or themeId+packageId",
 });
 exports.bookingsRouter = (0, express_1.Router)();
 exports.bookingsRouter.post("/", idempotency_1.idempotency, (0, validate_1.validate)(createSchema), async (req, res, next) => {

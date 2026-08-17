@@ -95,7 +95,7 @@ describe("package matrix save", () => {
     expect(matrix.extraServices.length).toBeGreaterThan(0);
   });
 
-  it("updates package pricing without breaking booking references", async () => {
+  it("updates package pricing without breaking order package line references", async () => {
     const matrix = await getPackageMatrix();
     const packages = matrix.packages.map((pkg) => ({
       packageId: pkg.id,
@@ -115,6 +115,12 @@ describe("package matrix save", () => {
       }),
     }));
 
+    const beforeCount = await prisma.orderPackageLine.count({
+      where: {
+        packageServiceItem: { packageId: premiumPkgId, extraServiceId: videoServiceId },
+      },
+    });
+
     const saved = await savePackageMatrix({
       packages,
       extraServices: matrix.extraServices.map((svc) => ({
@@ -126,12 +132,12 @@ describe("package matrix save", () => {
     const updatedPremium = saved.find((p) => p.id === premiumPkgId);
     expect(updatedPremium?.priceInPaise).toBe(originalPrice + 10000);
 
-    const bookingRefCount = await prisma.bookingCustomization.count({
+    const afterCount = await prisma.orderPackageLine.count({
       where: {
         packageServiceItem: { packageId: premiumPkgId, extraServiceId: videoServiceId },
       },
     });
-    expect(bookingRefCount).toBeGreaterThan(0);
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("updates inclusion flags and service customization prices", async () => {

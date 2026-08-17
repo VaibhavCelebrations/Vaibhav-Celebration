@@ -1,5 +1,8 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
+
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X, Loader2, ChevronLeft, ChevronRight, Check } from "lucide-react";
@@ -11,7 +14,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
 import { useCatalog } from "@/context/catalog-context";
 import * as shopApi from "@/lib/shop-api";
-import type { GiftFilter, Product, ProductCategory } from "@/lib/shop-types";
+import type { GiftFilter, Product, ProductCategory, ProductCollection } from "@/lib/shop-types";
 
 const sortOptions = [
   { value: "newest", label: "Newest First" },
@@ -26,6 +29,7 @@ function GiftsPageContent() {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [collections, setCollections] = useState<ProductCollection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [filter, setFilter] = useState<GiftFilter>({
@@ -48,13 +52,15 @@ function GiftsPageContent() {
     (async () => {
       setIsLoading(true);
       try {
-        const [productsResult, categoriesResult] = await Promise.all([
+        const [productsResult, categoriesResult, collectionsResult] = await Promise.all([
           shopApi.listProducts({ pageSize: 500, sort: "newest" }),
           shopApi.listProductCategories(),
+          shopApi.listProductCollections(),
         ]);
         if (!cancelled) {
           setProducts(productsResult.items);
           setCategories(categoriesResult);
+          setCollections(collectionsResult);
         }
       } catch {
         if (!cancelled) {
@@ -211,6 +217,37 @@ function GiftsPageContent() {
               description="Thoughtfully curated gifts, activity kits, and personalized keepsakes for your little one's celebration."
             />
           </ScrollReveal>
+
+          {/* Collections Banner */}
+          {!isLoading && collections.length > 0 && (
+            <div className="mt-8 mb-4">
+              <h3 className="font-serif text-2xl text-charcoal mb-4">Festive Collections</h3>
+              <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+                {collections.filter(c => c.isActive).map(c => (
+                  <Link 
+                    key={c.id} 
+                    href={`/gifts/collection/${c.slug}`}
+                    className="group relative flex-none w-72 h-40 rounded-2xl overflow-hidden snap-start shrink-0"
+                  >
+                    {c.heroImage ? (
+                      <Image 
+                        src={c.heroImage.url} 
+                        alt={c.title}
+                        fill
+                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-charcoal" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-5">
+                      <h4 className="text-white font-display font-bold text-lg">{c.title}</h4>
+                      <p className="text-white/80 text-sm font-medium">{c.productCount} Products</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-12 flex flex-col lg:flex-row gap-8 lg:gap-12">
             

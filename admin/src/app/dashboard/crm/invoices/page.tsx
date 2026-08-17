@@ -1,18 +1,54 @@
 "use client";
 
+import { Download, Mail } from "lucide-react";
 import { ResourceScreen } from "@/components/ResourceScreen";
 import { invoicesRepo } from "@/lib/data/resources";
+import { adminFetch } from "@/lib/admin-api-client";
+import { useToast } from "@/components/ui/Toast";
 
 export default function InvoicesPage() {
+  const toast = useToast();
+
   return (
     <ResourceScreen
       title="Invoices"
       noun="Invoice"
-      description="Review issued invoices and their delivery status."
+      description="Review issued invoices, download PDFs, and resend to customers."
       repo={invoicesRepo}
       fields={["name"]}
       allowCreate={false}
+      allowEdit={false}
+      allowArchive={false}
+      extraRowActions={[
+        {
+          id: "download",
+          label: "Download PDF",
+          icon: Download,
+          hidden: (row) => !row.pdfUrl,
+          onSelect: (row) => {
+            if (typeof row.pdfUrl === "string") window.open(row.pdfUrl, "_blank", "noopener,noreferrer");
+          },
+        },
+        {
+          id: "resend",
+          label: "Resend",
+          icon: Mail,
+          onSelect: async (row) => {
+            try {
+              await adminFetch(`/admin/invoices/${row.id}/resend`, { method: "POST" });
+              toast({ title: "Invoice resent", tone: "success" });
+            } catch (err: unknown) {
+              toast({ title: "Resend failed", description: err instanceof Error ? err.message : undefined, tone: "error" });
+            }
+          },
+        },
+      ]}
       extraColumns={[
+        {
+          key: "invoiceNumber",
+          header: "Invoice",
+          cell: (row) => <span className="font-mono text-xs">{String(row.invoiceNumber ?? row.name ?? "—")}</span>,
+        },
         {
           key: "customerName",
           header: "Customer",
@@ -62,4 +98,3 @@ export default function InvoicesPage() {
     />
   );
 }
-

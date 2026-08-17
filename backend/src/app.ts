@@ -21,8 +21,9 @@ import {
   adminProductsRouter,
   adminProductCategoriesRouter,
 } from "./modules/catalog/catalog.routes";
+import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
 import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
-import { shopCheckoutRouter, ordersRouter, accountOrdersRouter } from "./modules/orders/orders.routes";
+import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
@@ -33,16 +34,11 @@ import { contentRouter, adminContentRouter } from "./modules/content/content.rou
 import { blogRouter, adminBlogRouter } from "./modules/blog/blog.routes";
 import { eventsRouter, adminEventsRouter } from "./modules/events/events.routes";
 import { mediaRouter } from "./modules/media/media.routes";
-import { availabilityRouter } from "./modules/availability/availability.routes";
-import {
-  bookingsRouter,
-  checkoutRouter,
-  adminBookingsRouter,
-} from "./modules/bookings/bookings.routes";
 import {
   paymentsRouter,
   invoicesRouter,
   adminInvoicesRouter,
+  adminPaymentsRouter,
 } from "./modules/payments/payments.routes";
 import {
   consultationsRouter,
@@ -57,11 +53,12 @@ import { chatbotRouter, adminChatbotRouter } from "./modules/chatbot/chatbot.rou
 import { pagesRouter, adminPagesRouter } from "./modules/pages/pages.routes";
 import { publicSettingsRouter } from "./modules/settings/public-settings.routes";
 import {
-  adminCapacityRouter,
+  adminCalendarRouter,
   adminSettingsRouter,
   adminAuditRouter,
   adminCacheRouter,
 } from "./modules/admin/admin-ops.routes";
+import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
 
 export function createApp() {
   const app = express();
@@ -108,6 +105,23 @@ export function createApp() {
     },
   );
 
+  // Meta WhatsApp webhook needs raw body for X-Hub-Signature-256 verification
+  app.use(
+    `${env.API_PREFIX}/whatsapp/webhook`,
+    express.raw({ type: "application/json" }),
+    (req, _res, next) => {
+      if (Buffer.isBuffer(req.body)) {
+        (req as express.Request & { rawBody?: string }).rawBody = req.body.toString("utf8");
+        try {
+          req.body = JSON.parse((req as express.Request & { rawBody?: string }).rawBody ?? "{}");
+        } catch {
+          // leave as buffer; handler will stringify
+        }
+      }
+      next();
+    },
+  );
+
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
@@ -138,7 +152,14 @@ export function createApp() {
   );
 
   // Local media uploads (dev / fallback when R2 unset)
-  app.use("/uploads", express.static(getUploadDir()));
+  app.use(
+    "/uploads",
+    (_req, res, next) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      next();
+    },
+    express.static(getUploadDir()),
+  );
 
   // ─── Rate Limiters ────────────────────────────────────────────────────────
   //
@@ -196,7 +217,7 @@ export function createApp() {
     },
   });
 
-  /** High-sensitivity write endpoints (bookings, consultations, leads) — keyed by IP. */
+  /** High-sensitivity write endpoints (orders, consultations, leads) — keyed by IP. */
   const strictLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
     max: 10,
@@ -289,6 +310,7 @@ export function createApp() {
   api.use("/themes", publicLimiter, themesRouter);
   api.use("/products", publicLimiter, productsRouter);
   api.use("/product-categories", publicLimiter, productCategoriesRouter);
+  api.use("/collections", publicLimiter, productCollectionsRouter);
   api.use("/packages", publicLimiter, packagesRouter);
   api.use("/pricing", publicLimiter, pricingRouter);
   api.use("/builder", publicLimiter, builderRouter);
@@ -308,10 +330,7 @@ export function createApp() {
   api.use("/account/registries", publicLimiter, accountRegistryRouter);
   api.use("/registry", publicLimiter, registryRouter);
 
-  // Booking journey — mix of public & strict
-  api.use("/availability", publicLimiter, availabilityRouter);
-  api.use("/bookings", strictLimiter, bookingsRouter);
-  api.use("/checkout", checkoutRouter);
+  api.use("/whatsapp/webhook", whatsappWebhookRouter);
   api.use("/payments", paymentsRouter);
   api.use("/invoices", publicLimiter, invoicesRouter);
   api.use("/consultations", strictLimiter, consultationsRouter);
@@ -324,6 +343,7 @@ export function createApp() {
   api.use("/admin/themes", adminLimiter, noStore, adminThemesRouter);
   api.use("/admin/products", adminLimiter, noStore, adminProductsRouter);
   api.use("/admin/product-categories", adminLimiter, noStore, adminProductCategoriesRouter);
+  api.use("/admin/collections", adminLimiter, noStore, adminProductCollectionsRouter);
   api.use("/admin/registries", adminLimiter, noStore, adminRegistryRouter);
   api.use("/admin/packages", adminLimiter, noStore, adminPackagesRouter);
   api.use("/admin/extra-services", adminLimiter, noStore, adminExtraServicesRouter);
@@ -340,13 +360,14 @@ export function createApp() {
   mediaAdminRouter.use(["/presign", "/upload", "/upload-binary", "/complete"], mediaUploadLimiter);
   mediaAdminRouter.use(mediaRouter);
   api.use("/admin/media", mediaAdminRouter);
-  api.use("/admin/bookings", adminLimiter, noStore, adminBookingsRouter);
+  api.use("/admin/orders", adminLimiter, noStore, adminOrdersRouter);
   api.use("/admin/invoices", adminLimiter, noStore, adminInvoicesRouter);
+  api.use("/admin/payments", adminLimiter, noStore, adminPaymentsRouter);
   api.use("/admin/consultations", adminLimiter, noStore, adminConsultationsRouter);
   api.use("/admin/leads", adminLimiter, noStore, adminLeadsRouter);
   api.use("/admin/customers", adminLimiter, noStore, adminCustomersRouter);
   api.use("/admin/chatbot", adminLimiter, noStore, adminChatbotRouter);
-  api.use("/admin/capacity-rules", adminLimiter, noStore, adminCapacityRouter);
+  api.use("/admin/calendar", adminLimiter, noStore, adminCalendarRouter);
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);

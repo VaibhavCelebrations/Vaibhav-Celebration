@@ -157,6 +157,20 @@ exports.adminThemesRouter.delete("/:id/sample-assets/:assetId", (0, validate_1.v
         return next(err);
     }
 });
+/** PUT /admin/themes/:id/gallery-images — sync display gallery images (max 4, hero counts as #1) */
+exports.adminThemesRouter.put("/:id/gallery-images", (0, validate_1.validate)(idSchema, "params"), (0, validate_1.validate)(zod_1.z.object({
+    mediaIds: zod_1.z.array(zod_1.z.string().min(1)).max(4, "Maximum 4 additional gallery images"),
+})), async (req, res, next) => {
+    try {
+        await (0, themes_service_1.syncThemeGalleryImages)((0, params_1.param)(req, "id"), req.body.mediaIds);
+        await audit(req, "UPDATE_GALLERY_IMAGES", (0, params_1.param)(req, "id"), req.body);
+        void (0, client_2.triggerRevalidate)(["/themes", `/themes/${(0, params_1.param)(req, "id")}`]);
+        return (0, response_1.ok)(res, await (0, admin_list_service_1.adminGetTheme)((0, params_1.param)(req, "id")));
+    }
+    catch (err) {
+        return next(err);
+    }
+});
 async function updateHandler(req, res, next) {
     try {
         const item = await (0, themes_service_1.updateTheme)((0, params_1.param)(req, "id"), req.body);

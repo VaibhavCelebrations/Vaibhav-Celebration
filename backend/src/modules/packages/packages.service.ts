@@ -151,11 +151,13 @@ async function syncPackageServiceItems(
   if (!orphans.length) return;
 
   const orphanIds = orphans.map((row) => row.id);
-  const referenced = await tx.bookingCustomization.findMany({
+  const referenced = await tx.orderPackageLine.findMany({
     where: { packageServiceItemId: { in: orphanIds } },
     select: { packageServiceItemId: true },
   });
-  const referencedIds = new Set(referenced.map((row) => row.packageServiceItemId));
+  const referencedIds = new Set(
+    referenced.map((row) => row.packageServiceItemId).filter((id): id is string => Boolean(id)),
+  );
   const deletableIds = orphanIds.filter((id) => !referencedIds.has(id));
   if (deletableIds.length) {
     await tx.packageServiceItem.deleteMany({ where: { id: { in: deletableIds } } });
@@ -185,9 +187,13 @@ export type PackageMatrixSaveInput = {
   packages: Array<{
     packageId: string;
     title?: string;
+    displayName?: string | null;
     description?: string | null;
     priceInPaise?: number;
     isRecommended?: boolean;
+    badgeText?: string | null;
+    pricingUnit?: string | null;
+    hasGiftRegistry?: boolean;
     isActive?: boolean;
     isCustomizable?: boolean;
     items: ServiceItemInput[];

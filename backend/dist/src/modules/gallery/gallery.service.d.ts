@@ -21,6 +21,8 @@ export declare function listGallery(tag?: string, themeId?: string): Promise<({
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -62,6 +64,8 @@ export declare function createGalleryImage(data: Prisma.GalleryImageUncheckedCre
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;
@@ -103,6 +107,8 @@ export declare function updateGalleryImage(id: string, data: Prisma.GalleryImage
         createdAt: Date;
         deletedAt: Date | null;
         altText: string | null;
+        category: string | null;
+        folder: string | null;
         width: number | null;
         height: number | null;
         uploadedByAdminUserId: string | null;

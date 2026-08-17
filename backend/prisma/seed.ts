@@ -1,11 +1,8 @@
 import {
   AdminRole,
   BlogStatus,
-  BookingStatus,
-  CapacityScope,
   ConsultationStatus,
   GalleryCtaType,
-  InvoiceLinkedType,
   LeadSource,
   LeadStatus,
   LegalPageType,
@@ -24,14 +21,14 @@ const img = (path: string) => `${CDN}/${path}`;
 
 // Kids theme image paths (uploaded via sync-site-media.ts → Cloudflare R2)
 const THEME_IMGS = {
-  space:    img("themes/space-theme/cover.png"),
-  cocomelon:img("themes/cocomelon-theme/cover.png"),
+  space: img("themes/space-theme/cover.png"),
+  cocomelon: img("themes/cocomelon-theme/cover.png"),
   princess: img("themes/princess-theme/cover.png"),
-  jungle:   img("themes/jungle-safari-theme/cover.png"),
+  jungle: img("themes/jungle-safari-theme/cover.png"),
   gallery_balloons: img("gallery/general/balloons.png"),
-  gallery_setup:    img("gallery/general/setup.png"),
-  gallery_cake:     img("gallery/general/cake.png"),
-  hero_bg:  img("media/home/hero-bg.png"),
+  gallery_setup: img("gallery/general/setup.png"),
+  gallery_cake: img("gallery/general/cake.png"),
+  hero_bg: img("media/home/hero-bg.png"),
 } as const;
 
 async function clearDevData() {
@@ -39,6 +36,9 @@ async function clearDevData() {
     "GiftRegistryContribution",
     "GiftRegistryItem",
     "GiftRegistry",
+    "Invoice",
+    "OrderPackageLine",
+    "OrderPackage",
     "OrderItem",
     "Order",
     "WishlistItem",
@@ -58,9 +58,6 @@ async function clearDevData() {
     "User",
     "AuditLog",
     "GuestVerificationToken",
-    "BookingCustomization",
-    "Invoice",
-    "Booking",
     "ConsultationRequest",
     "Lead",
     "ChatbotSession",
@@ -89,7 +86,6 @@ async function clearDevData() {
     "Theme",
     "Package",
     "MediaAsset",
-    "BookingCapacityRule",
     "OperationalSetting",
     "SequenceCounter",
     "AdminRefreshToken",
@@ -105,7 +101,8 @@ async function main() {
   console.log("Clearing existing dev data...");
   await clearDevData();
 
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe_SuperAdmin_123!";
+  const adminPassword =
+    process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe_SuperAdmin_123!";
   const adminHash = await bcrypt.hash(adminPassword, 12);
   const staffHash = await bcrypt.hash("ChangeMe_Staff_123!", 12);
 
@@ -146,7 +143,7 @@ async function main() {
   // ── Sequence Counters ───────────────────────────────────────────────────────
   await prisma.sequenceCounter.createMany({
     data: [
-      { key: "BOOKING-2026", lastValue: 3 },
+      { key: "ORDER-2026", lastValue: 0 },
       { key: "INVOICE-2026-27", lastValue: 3 },
     ],
   });
@@ -160,34 +157,18 @@ async function main() {
       { key: "business_name", value: "Vaibhav Celebrations" },
       { key: "business_phone", value: "+91 98765 43210" },
       { key: "business_email", value: "hello@vaibhavcelebrations.in" },
-      { key: "business_address", value: "Vaibhav Farmhouse, Near Surajkund, Faridabad, Haryana 121009" },
-      { key: "whatsapp_number", value: "+919876543210" },
-      { key: "instagram_url", value: "https://instagram.com/vaibhavcelebrations" },
-      { key: "facebook_url", value: "https://facebook.com/vaibhavcelebrations" },
-    ],
-  });
-
-  // ── Booking Capacity Rules ─────────────────────────────────────────────────
-  const today = new Date();
-  const blockedDate = new Date(today);
-  blockedDate.setDate(blockedDate.getDate() + 45);
-  const overrideDate = new Date(today);
-  overrideDate.setDate(overrideDate.getDate() + 60);
-
-  await prisma.bookingCapacityRule.createMany({
-    data: [
-      { scope: CapacityScope.GLOBAL_DEFAULT, maxBookingsPerDay: 2, isBlocked: false },
       {
-        scope: CapacityScope.SPECIFIC_DATE,
-        specificDate: blockedDate,
-        maxBookingsPerDay: 0,
-        isBlocked: true,
+        key: "business_address",
+        value: "Vaibhav Farmhouse, Near Surajkund, Faridabad, Haryana 121009",
+      },
+      { key: "whatsapp_number", value: "+919876543210" },
+      {
+        key: "instagram_url",
+        value: "https://instagram.com/vaibhavcelebrations",
       },
       {
-        scope: CapacityScope.SPECIFIC_DATE,
-        specificDate: overrideDate,
-        maxBookingsPerDay: 3,
-        isBlocked: false,
+        key: "facebook_url",
+        value: "https://facebook.com/vaibhavcelebrations",
       },
     ],
   });
@@ -203,7 +184,9 @@ async function main() {
       altText: "Vaibhav Celebrations kids birthday hero background",
       category: "media",
       folder: "home",
-      width: 1920, height: 1080, sizeBytes: 1624884,
+      width: 1920,
+      height: 1080,
+      sizeBytes: 1624884,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -216,7 +199,9 @@ async function main() {
       altText: "Space theme birthday celebration setup",
       category: "themes",
       folder: "space-theme",
-      width: 1600, height: 900, sizeBytes: 2043024,
+      width: 1600,
+      height: 900,
+      sizeBytes: 2043024,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -229,7 +214,9 @@ async function main() {
       altText: "Cocomelon theme birthday celebration setup",
       category: "themes",
       folder: "cocomelon-theme",
-      width: 1600, height: 900, sizeBytes: 1835597,
+      width: 1600,
+      height: 900,
+      sizeBytes: 1835597,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -242,7 +229,9 @@ async function main() {
       altText: "Princess theme birthday celebration setup",
       category: "themes",
       folder: "princess-theme",
-      width: 1600, height: 900, sizeBytes: 1815158,
+      width: 1600,
+      height: 900,
+      sizeBytes: 1815158,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -255,7 +244,9 @@ async function main() {
       altText: "Jungle safari theme birthday celebration setup",
       category: "themes",
       folder: "jungle-safari-theme",
-      width: 1600, height: 900, sizeBytes: 1047637,
+      width: 1600,
+      height: 900,
+      sizeBytes: 1047637,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -268,7 +259,9 @@ async function main() {
       altText: "Colorful birthday balloon celebration",
       category: "gallery",
       folder: "general",
-      width: 1200, height: 800, sizeBytes: 749119,
+      width: 1200,
+      height: 800,
+      sizeBytes: 749119,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -281,7 +274,9 @@ async function main() {
       altText: "Beautiful party decorations with lights",
       category: "gallery",
       folder: "general",
-      width: 1200, height: 800, sizeBytes: 953060,
+      width: 1200,
+      height: 800,
+      sizeBytes: 953060,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -294,7 +289,9 @@ async function main() {
       altText: "Custom themed birthday cake",
       category: "gallery",
       folder: "general",
-      width: 1200, height: 800, sizeBytes: 888583,
+      width: 1200,
+      height: 800,
+      sizeBytes: 888583,
       uploadedByAdminUserId: contentAdmin.id,
     },
   });
@@ -314,7 +311,8 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 1,
-      description: "Thoughtful essentials for a coordinated celebration — static invite, one activity, return gift, and basic personalization.",
+      description:
+        "Thoughtful essentials for a coordinated celebration — static invite, one activity, return gift, and basic personalization.",
     },
   });
 
@@ -328,7 +326,8 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 2,
-      description: "Complete celebration experience with video invite, welcome item, two activities, countdown cards, and gift registry.",
+      description:
+        "Complete celebration experience with video invite, welcome item, two activities, countdown cards, and gift registry.",
     },
   });
 
@@ -342,7 +341,8 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 3,
-      description: "Signature celebration with keepsake PDF, family activity, custom gift bags, and priority consultation.",
+      description:
+        "Signature celebration with keepsake PDF, family activity, custom gift bags, and priority consultation.",
     },
   });
 
@@ -351,7 +351,8 @@ async function main() {
     data: {
       label: "Return gift",
       description: "Curated return gifts matching your theme and guest count.",
-      requirements: "Guest count and theme preference required at least 7 days before the event.",
+      requirements:
+        "Guest count and theme preference required at least 7 days before the event.",
       displayOrder: 1,
       isActive: true,
     },
@@ -360,8 +361,10 @@ async function main() {
   const svcVideoInvites = await prisma.extraService.create({
     data: {
       label: "Video invites",
-      description: "Animated or live-action video invitations for your celebration.",
-      requirements: "Provide child name, event date, venue, and theme artwork references.",
+      description:
+        "Animated or live-action video invitations for your celebration.",
+      requirements:
+        "Provide child name, event date, venue, and theme artwork references.",
       displayOrder: 2,
       isActive: true,
     },
@@ -370,7 +373,8 @@ async function main() {
   const svcThemeDecor = await prisma.extraService.create({
     data: {
       label: "Theme based decorations",
-      description: "Full theme-aligned décor including backdrop, props, and table styling.",
+      description:
+        "Full theme-aligned décor including backdrop, props, and table styling.",
       requirements: "Theme selection and venue walkthrough recommended.",
       displayOrder: 3,
       isActive: true,
@@ -380,8 +384,10 @@ async function main() {
   const svcDigitalInvites = await prisma.extraService.create({
     data: {
       label: "Digital invites",
-      description: "Shareable digital invitation cards for WhatsApp and social media.",
-      requirements: "Event details, RSVP contact, and preferred colour palette.",
+      description:
+        "Shareable digital invitation cards for WhatsApp and social media.",
+      requirements:
+        "Event details, RSVP contact, and preferred colour palette.",
       displayOrder: 4,
       isActive: true,
     },
@@ -390,8 +396,10 @@ async function main() {
   const svcCustomBackdrop = await prisma.extraService.create({
     data: {
       label: "Custom backdrop",
-      description: "Personalised photo backdrop with name, age, and theme elements.",
-      requirements: "Child name, age, and high-resolution theme assets if available.",
+      description:
+        "Personalised photo backdrop with name, age, and theme elements.",
+      requirements:
+        "Child name, age, and high-resolution theme assets if available.",
       displayOrder: 5,
       isActive: true,
     },
@@ -400,7 +408,8 @@ async function main() {
   const svcPersonalized = await prisma.extraService.create({
     data: {
       label: "Personalized details",
-      description: "Custom signage, name boards, cake toppers, and themed printables.",
+      description:
+        "Custom signage, name boards, cake toppers, and themed printables.",
       requirements: "Spelling of names and any special messages to include.",
       displayOrder: 6,
       isActive: true,
@@ -410,8 +419,10 @@ async function main() {
   const svcActivities = await prisma.extraService.create({
     data: {
       label: "Activities & games",
-      description: "Hosted games, craft stations, and age-appropriate party activities.",
-      requirements: "Guest age range and headcount; outdoor space details if applicable.",
+      description:
+        "Hosted games, craft stations, and age-appropriate party activities.",
+      requirements:
+        "Guest age range and headcount; outdoor space details if applicable.",
       displayOrder: 7,
       isActive: true,
     },
@@ -420,7 +431,8 @@ async function main() {
   const svcOrganiser = await prisma.extraService.create({
     data: {
       label: "Organiser support",
-      description: "Dedicated on-day coordinator to manage vendors, timeline, and guests.",
+      description:
+        "Dedicated on-day coordinator to manage vendors, timeline, and guests.",
       requirements: "Final run-sheet shared 48 hours before the event.",
       displayOrder: 8,
       isActive: true,
@@ -430,7 +442,8 @@ async function main() {
   const svcPhotoDoc = await prisma.extraService.create({
     data: {
       label: "Photo documentation",
-      description: "Professional photo coverage of décor, candid moments, and cake cutting.",
+      description:
+        "Professional photo coverage of décor, candid moments, and cake cutting.",
       requirements: "Coverage hours and key moments list.",
       displayOrder: 9,
       isActive: true,
@@ -455,20 +468,92 @@ async function main() {
     },
   });
 
-type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: boolean; customPrice: number };
+  type MatrixRow = {
+    svcId: string;
+    standard: boolean;
+    premium: boolean;
+    lux: boolean;
+    customPrice: number;
+  };
 
   const matrix: MatrixRow[] = [
-    { svcId: svcReturnGift.id, standard: true, premium: true, lux: true, customPrice: 250000 },
-    { svcId: svcVideoInvites.id, standard: false, premium: true, lux: true, customPrice: 500000 },
-    { svcId: svcThemeDecor.id, standard: true, premium: true, lux: true, customPrice: 0 },
-    { svcId: svcDigitalInvites.id, standard: true, premium: true, lux: true, customPrice: 150000 },
-    { svcId: svcCustomBackdrop.id, standard: false, premium: true, lux: true, customPrice: 800000 },
-    { svcId: svcPersonalized.id, standard: false, premium: true, lux: true, customPrice: 600000 },
-    { svcId: svcActivities.id, standard: false, premium: false, lux: true, customPrice: 1200000 },
-    { svcId: svcOrganiser.id, standard: false, premium: false, lux: true, customPrice: 1500000 },
-    { svcId: svcPhotoDoc.id, standard: false, premium: false, lux: true, customPrice: 1000000 },
-    { svcId: svcBalloons.id, standard: true, premium: true, lux: true, customPrice: 300000 },
-    { svcId: svcWelcomeBoard.id, standard: true, premium: true, lux: true, customPrice: 200000 },
+    {
+      svcId: svcReturnGift.id,
+      standard: true,
+      premium: true,
+      lux: true,
+      customPrice: 250000,
+    },
+    {
+      svcId: svcVideoInvites.id,
+      standard: false,
+      premium: true,
+      lux: true,
+      customPrice: 500000,
+    },
+    {
+      svcId: svcThemeDecor.id,
+      standard: true,
+      premium: true,
+      lux: true,
+      customPrice: 0,
+    },
+    {
+      svcId: svcDigitalInvites.id,
+      standard: true,
+      premium: true,
+      lux: true,
+      customPrice: 150000,
+    },
+    {
+      svcId: svcCustomBackdrop.id,
+      standard: false,
+      premium: true,
+      lux: true,
+      customPrice: 800000,
+    },
+    {
+      svcId: svcPersonalized.id,
+      standard: false,
+      premium: true,
+      lux: true,
+      customPrice: 600000,
+    },
+    {
+      svcId: svcActivities.id,
+      standard: false,
+      premium: false,
+      lux: true,
+      customPrice: 1200000,
+    },
+    {
+      svcId: svcOrganiser.id,
+      standard: false,
+      premium: false,
+      lux: true,
+      customPrice: 1500000,
+    },
+    {
+      svcId: svcPhotoDoc.id,
+      standard: false,
+      premium: false,
+      lux: true,
+      customPrice: 1000000,
+    },
+    {
+      svcId: svcBalloons.id,
+      standard: true,
+      premium: true,
+      lux: true,
+      customPrice: 300000,
+    },
+    {
+      svcId: svcWelcomeBoard.id,
+      standard: true,
+      premium: true,
+      lux: true,
+      customPrice: 200000,
+    },
   ];
 
   for (const row of matrix) {
@@ -488,9 +573,24 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   for (let i = 0; i < matrix.length; i++) {
     const row = matrix[i]!;
     packageServiceItems.push(
-      { packageId: standardPkg.id, extraServiceId: row.svcId, isIncluded: row.standard, displayOrder: i },
-      { packageId: premiumPkg.id, extraServiceId: row.svcId, isIncluded: row.premium, displayOrder: i },
-      { packageId: luxPkg.id, extraServiceId: row.svcId, isIncluded: row.lux, displayOrder: i },
+      {
+        packageId: standardPkg.id,
+        extraServiceId: row.svcId,
+        isIncluded: row.standard,
+        displayOrder: i,
+      },
+      {
+        packageId: premiumPkg.id,
+        extraServiceId: row.svcId,
+        isIncluded: row.premium,
+        displayOrder: i,
+      },
+      {
+        packageId: luxPkg.id,
+        extraServiceId: row.svcId,
+        isIncluded: row.lux,
+        displayOrder: i,
+      },
     );
   }
 
@@ -505,15 +605,18 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "Space Theme Celebration",
       slug: "space-theme",
-      shortDescription: "A cosmic adventure beyond imagination! Turn your child's birthday into an exciting space mission.",
-      storyDescription: "Our Space Birthday Theme creates an immersive celebration where every detail follows one carefully crafted story — from personalised invitations to themed experiences and thoughtful keepsakes.",
+      shortDescription:
+        "A cosmic adventure beyond imagination! Turn your child's birthday into an exciting space mission.",
+      storyDescription:
+        "Our Space Birthday Theme creates an immersive celebration where every detail follows one carefully crafted story — from personalised invitations to themed experiences and thoughtful keepsakes.",
       audienceNote: "Cosmic & Adventurous · Ages 4–10",
       heroImageId: spaceMedia.id,
       ogImageId: spaceMedia.id,
       isActive: true,
       displayOrder: 1,
       seoTitle: "Space Theme Birthday Celebration | Vaibhav Celebrations",
-      seoDescription: "Launch into an unforgettable space birthday celebration — immersive, themed, and memorable for curious young explorers.",
+      seoDescription:
+        "Launch into an unforgettable space birthday celebration — immersive, themed, and memorable for curious young explorers.",
     },
   });
 
@@ -521,15 +624,18 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "Cocomelon Theme Celebration",
       slug: "cocomelon-theme",
-      shortDescription: "Fun, colors and joy with Cocomelon & friends! Bring your child's favourite Cocomelon world to life.",
-      storyDescription: "Every element follows one beautiful theme, creating a seamless experience that children love and parents genuinely enjoy.",
+      shortDescription:
+        "Fun, colors and joy with Cocomelon & friends! Bring your child's favourite Cocomelon world to life.",
+      storyDescription:
+        "Every element follows one beautiful theme, creating a seamless experience that children love and parents genuinely enjoy.",
       audienceNote: "Musical & Joyful · Ages 1–4",
       heroImageId: cocomelonMedia.id,
       ogImageId: cocomelonMedia.id,
       isActive: true,
       displayOrder: 2,
       seoTitle: "Cocomelon Theme Birthday Celebration | Vaibhav Celebrations",
-      seoDescription: "A joyful Cocomelon birthday celebration with music, laughter, and beautifully planned details for toddlers.",
+      seoDescription:
+        "A joyful Cocomelon birthday celebration with music, laughter, and beautifully planned details for toddlers.",
     },
   });
 
@@ -537,15 +643,18 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "Princess Birthday Theme",
       slug: "princess-theme",
-      shortDescription: "An enchanting fairytale celebration! Create a magical birthday experience for your little princess.",
-      storyDescription: "Our Princess Birthday Theme is thoughtfully designed to make your child feel truly special through elegant details and beautifully coordinated moments.",
+      shortDescription:
+        "An enchanting fairytale celebration! Create a magical birthday experience for your little princess.",
+      storyDescription:
+        "Our Princess Birthday Theme is thoughtfully designed to make your child feel truly special through elegant details and beautifully coordinated moments.",
       audienceNote: "Magical & Elegant · Ages 3–8",
       heroImageId: princessMedia.id,
       ogImageId: princessMedia.id,
       isActive: true,
       displayOrder: 3,
       seoTitle: "Princess Birthday Theme Celebration | Vaibhav Celebrations",
-      seoDescription: "A magical princess birthday celebration with enchanting fairytale details for young dreamers.",
+      seoDescription:
+        "A magical princess birthday celebration with enchanting fairytale details for young dreamers.",
     },
   });
 
@@ -553,43 +662,71 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "Jungle Safari Birthday Theme",
       slug: "jungle-safari-theme",
-      shortDescription: "Step into a world of adventure! A celebration inspired by the beauty of the jungle.",
-      storyDescription: "Every part of the celebration follows one beautifully connected theme — from personalised invitations to immersive experiences and thoughtful keepsakes.",
+      shortDescription:
+        "Step into a world of adventure! A celebration inspired by the beauty of the jungle.",
+      storyDescription:
+        "Every part of the celebration follows one beautifully connected theme — from personalised invitations to immersive experiences and thoughtful keepsakes.",
       audienceNote: "Wild & Fun · Ages 2–8",
       heroImageId: jungleMedia.id,
       ogImageId: jungleMedia.id,
       isActive: true,
       displayOrder: 4,
       seoTitle: "Jungle Safari Birthday Theme | Vaibhav Celebrations",
-      seoDescription: "A wild jungle safari birthday adventure with immersive experiences for young animal lovers.",
+      seoDescription:
+        "A wild jungle safari birthday adventure with immersive experiences for young animal lovers.",
     },
   });
 
   await prisma.themePackage.createMany({
     data: [
-      { themeId: spaceTheme.id,     packageId: standardPkg.id },
-      { themeId: spaceTheme.id,     packageId: premiumPkg.id },
-      { themeId: spaceTheme.id,     packageId: luxPkg.id },
+      { themeId: spaceTheme.id, packageId: standardPkg.id },
+      { themeId: spaceTheme.id, packageId: premiumPkg.id },
+      { themeId: spaceTheme.id, packageId: luxPkg.id },
       { themeId: cocomelonTheme.id, packageId: standardPkg.id },
       { themeId: cocomelonTheme.id, packageId: premiumPkg.id },
       { themeId: cocomelonTheme.id, packageId: luxPkg.id },
-      { themeId: princessTheme.id,  packageId: standardPkg.id },
-      { themeId: princessTheme.id,  packageId: premiumPkg.id },
-      { themeId: princessTheme.id,  packageId: luxPkg.id },
-      { themeId: jungleTheme.id,    packageId: standardPkg.id },
-      { themeId: jungleTheme.id,    packageId: premiumPkg.id },
-      { themeId: jungleTheme.id,    packageId: luxPkg.id },
+      { themeId: princessTheme.id, packageId: standardPkg.id },
+      { themeId: princessTheme.id, packageId: premiumPkg.id },
+      { themeId: princessTheme.id, packageId: luxPkg.id },
+      { themeId: jungleTheme.id, packageId: standardPkg.id },
+      { themeId: jungleTheme.id, packageId: premiumPkg.id },
+      { themeId: jungleTheme.id, packageId: luxPkg.id },
     ],
   });
 
-  const sampleAssetDefs: { type: SampleAssetType; title: string; mediaId: string }[] = [
-    { type: SampleAssetType.DIGITAL_INVITE, title: "Digital Birthday Invite", mediaId: sampleInviteMedia.id },
-    { type: SampleAssetType.ACTIVITY_KIT,   title: "Activity Corner Preview",  mediaId: galleryBalloons.id },
-    { type: SampleAssetType.RETURN_GIFT_PREVIEW, title: "Return Gift Preview", mediaId: galleryCake.id },
-    { type: SampleAssetType.OTHER,          title: "Custom Branding Sample",   mediaId: heroMedia.id },
+  const sampleAssetDefs: {
+    type: SampleAssetType;
+    title: string;
+    mediaId: string;
+  }[] = [
+    {
+      type: SampleAssetType.DIGITAL_INVITE,
+      title: "Digital Birthday Invite",
+      mediaId: sampleInviteMedia.id,
+    },
+    {
+      type: SampleAssetType.ACTIVITY_KIT,
+      title: "Activity Corner Preview",
+      mediaId: galleryBalloons.id,
+    },
+    {
+      type: SampleAssetType.RETURN_GIFT_PREVIEW,
+      title: "Return Gift Preview",
+      mediaId: galleryCake.id,
+    },
+    {
+      type: SampleAssetType.OTHER,
+      title: "Custom Branding Sample",
+      mediaId: heroMedia.id,
+    },
   ];
 
-  for (const theme of [spaceTheme, cocomelonTheme, princessTheme, jungleTheme]) {
+  for (const theme of [
+    spaceTheme,
+    cocomelonTheme,
+    princessTheme,
+    jungleTheme,
+  ]) {
     for (let i = 0; i < sampleAssetDefs.length; i++) {
       const def = sampleAssetDefs[i]!;
       await prisma.themeSampleAsset.create({
@@ -606,26 +743,126 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   }
 
   // ── Gallery (kids birthday) ──────────────────────────────────────────────────
-  const tagGeneral  = await prisma.galleryTag.create({ data: { name: "General" } });
-  const tagSpace    = await prisma.galleryTag.create({ data: { name: "Space" } });
-  const tagCocomelon= await prisma.galleryTag.create({ data: { name: "Cocomelon" } });
-  const tagPrincess = await prisma.galleryTag.create({ data: { name: "Princess" } });
-  const tagJungle   = await prisma.galleryTag.create({ data: { name: "Jungle Safari" } });
+  const tagGeneral = await prisma.galleryTag.create({
+    data: { name: "General" },
+  });
+  const tagSpace = await prisma.galleryTag.create({ data: { name: "Space" } });
+  const tagCocomelon = await prisma.galleryTag.create({
+    data: { name: "Cocomelon" },
+  });
+  const tagPrincess = await prisma.galleryTag.create({
+    data: { name: "Princess" },
+  });
+  const tagJungle = await prisma.galleryTag.create({
+    data: { name: "Jungle Safari" },
+  });
 
-  type GalleryDef = { mediaId: string; caption: string; altText: string; themeId?: string; ctaSlug?: string; tag: typeof tagGeneral; order: number };
+  type GalleryDef = {
+    mediaId: string;
+    caption: string;
+    altText: string;
+    themeId?: string;
+    ctaSlug?: string;
+    tag: typeof tagGeneral;
+    order: number;
+  };
   const galleryDefs: GalleryDef[] = [
-    { mediaId: galleryBalloons.id, caption: "Balloon Celebration Setup",   altText: "Colorful birthday balloon celebration",         tag: tagGeneral,   order: 1 },
-    { mediaId: gallerySetup.id,    caption: "Party Lights & Décor",         altText: "Beautiful party decorations with lights",       tag: tagGeneral,   order: 2 },
-    { mediaId: galleryCake.id,     caption: "Gift Wrapping Station",        altText: "Beautifully wrapped birthday gifts",           tag: tagGeneral,   order: 3 },
-    { mediaId: spaceMedia.id,      caption: "Space Theme Setup",            altText: "Space themed balloon setup",                  tag: tagSpace,     order: 4, themeId: spaceTheme.id,     ctaSlug: "space-theme" },
-    { mediaId: gallerySetup.id,    caption: "Kids Birthday Celebration",    altText: "Children celebrating birthday",               tag: tagGeneral,   order: 5 },
-    { mediaId: galleryCake.id,     caption: "Custom Birthday Cake",         altText: "Custom themed birthday cake",                 tag: tagCocomelon, order: 6, themeId: cocomelonTheme.id, ctaSlug: "cocomelon-theme" },
-    { mediaId: princessMedia.id,   caption: "Pink Princess Setup",          altText: "Pink themed party decorations",               tag: tagPrincess,  order: 7, themeId: princessTheme.id,  ctaSlug: "princess-theme" },
-    { mediaId: jungleMedia.id,     caption: "Jungle Theme Décor",           altText: "Jungle safari themed party setup",            tag: tagJungle,    order: 8, themeId: jungleTheme.id,    ctaSlug: "jungle-safari-theme" },
-    { mediaId: galleryBalloons.id, caption: "Happy Birthday Moment",        altText: "Birthday celebration with family",            tag: tagPrincess,  order: 9 },
-    { mediaId: galleryCake.id,     caption: "Activity Corner",              altText: "Kids activity corner at party",               tag: tagGeneral,   order: 10 },
-    { mediaId: spaceMedia.id,      caption: "Party Vibes",                  altText: "Fun party atmosphere with confetti",          tag: tagSpace,     order: 11, themeId: spaceTheme.id, ctaSlug: "space-theme" },
-    { mediaId: cocomelonMedia.id,  caption: "Grand Event Setup",            altText: "Complete event setup",                       tag: tagCocomelon, order: 12, themeId: cocomelonTheme.id, ctaSlug: "cocomelon-theme" },
+    {
+      mediaId: galleryBalloons.id,
+      caption: "Balloon Celebration Setup",
+      altText: "Colorful birthday balloon celebration",
+      tag: tagGeneral,
+      order: 1,
+    },
+    {
+      mediaId: gallerySetup.id,
+      caption: "Party Lights & Décor",
+      altText: "Beautiful party decorations with lights",
+      tag: tagGeneral,
+      order: 2,
+    },
+    {
+      mediaId: galleryCake.id,
+      caption: "Gift Wrapping Station",
+      altText: "Beautifully wrapped birthday gifts",
+      tag: tagGeneral,
+      order: 3,
+    },
+    {
+      mediaId: spaceMedia.id,
+      caption: "Space Theme Setup",
+      altText: "Space themed balloon setup",
+      tag: tagSpace,
+      order: 4,
+      themeId: spaceTheme.id,
+      ctaSlug: "space-theme",
+    },
+    {
+      mediaId: gallerySetup.id,
+      caption: "Kids Birthday Celebration",
+      altText: "Children celebrating birthday",
+      tag: tagGeneral,
+      order: 5,
+    },
+    {
+      mediaId: galleryCake.id,
+      caption: "Custom Birthday Cake",
+      altText: "Custom themed birthday cake",
+      tag: tagCocomelon,
+      order: 6,
+      themeId: cocomelonTheme.id,
+      ctaSlug: "cocomelon-theme",
+    },
+    {
+      mediaId: princessMedia.id,
+      caption: "Pink Princess Setup",
+      altText: "Pink themed party decorations",
+      tag: tagPrincess,
+      order: 7,
+      themeId: princessTheme.id,
+      ctaSlug: "princess-theme",
+    },
+    {
+      mediaId: jungleMedia.id,
+      caption: "Jungle Theme Décor",
+      altText: "Jungle safari themed party setup",
+      tag: tagJungle,
+      order: 8,
+      themeId: jungleTheme.id,
+      ctaSlug: "jungle-safari-theme",
+    },
+    {
+      mediaId: galleryBalloons.id,
+      caption: "Happy Birthday Moment",
+      altText: "Birthday celebration with family",
+      tag: tagPrincess,
+      order: 9,
+    },
+    {
+      mediaId: galleryCake.id,
+      caption: "Activity Corner",
+      altText: "Kids activity corner at party",
+      tag: tagGeneral,
+      order: 10,
+    },
+    {
+      mediaId: spaceMedia.id,
+      caption: "Party Vibes",
+      altText: "Fun party atmosphere with confetti",
+      tag: tagSpace,
+      order: 11,
+      themeId: spaceTheme.id,
+      ctaSlug: "space-theme",
+    },
+    {
+      mediaId: cocomelonMedia.id,
+      caption: "Grand Event Setup",
+      altText: "Complete event setup",
+      tag: tagCocomelon,
+      order: 12,
+      themeId: cocomelonTheme.id,
+      ctaSlug: "cocomelon-theme",
+    },
   ];
 
   for (const def of galleryDefs) {
@@ -641,7 +878,9 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
         displayOrder: def.order,
       },
     });
-    await prisma.galleryImageTag.create({ data: { galleryImageId: image.id, tagId: def.tag.id } });
+    await prisma.galleryImageTag.create({
+      data: { galleryImageId: image.id, tagId: def.tag.id },
+    });
   }
 
   // ── Testimonials (kids birthday) ─────────────────────────────────────────────
@@ -649,7 +888,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: [
       {
         customerName: "Priya Sharma",
-        content: "My son's Space Theme birthday was absolutely out of this world! Every detail was perfectly planned and the kids were amazed.",
+        content:
+          "My son's Space Theme birthday was absolutely out of this world! Every detail was perfectly planned and the kids were amazed.",
         rating: 5,
         subjectType: TestimonialSubjectType.THEME,
         themeId: spaceTheme.id,
@@ -658,7 +898,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       },
       {
         customerName: "Ananya Mehta",
-        content: "The Cocomelon theme was a dream come true for our toddler. From the balloons to the cake, everything was perfect!",
+        content:
+          "The Cocomelon theme was a dream come true for our toddler. From the balloons to the cake, everything was perfect!",
         rating: 5,
         subjectType: TestimonialSubjectType.THEME,
         themeId: cocomelonTheme.id,
@@ -667,7 +908,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       },
       {
         customerName: "Sunita Kapoor",
-        content: "Our daughter felt like a real princess! The Premium package was worth every rupee — seamless coordination and stunning decor.",
+        content:
+          "Our daughter felt like a real princess! The Premium package was worth every rupee — seamless coordination and stunning decor.",
         rating: 5,
         subjectType: TestimonialSubjectType.PACKAGE,
         packageId: premiumPkg.id,
@@ -676,7 +918,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       },
       {
         customerName: "Ravi & Neha Gupta",
-        content: "The Jungle Safari theme had kids running around with excitement. Best birthday party we've ever hosted!",
+        content:
+          "The Jungle Safari theme had kids running around with excitement. Best birthday party we've ever hosted!",
         rating: 5,
         subjectType: TestimonialSubjectType.THEME,
         themeId: jungleTheme.id,
@@ -691,52 +934,62 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     {
       category: "Booking",
       question: "How far in advance should I book a birthday celebration?",
-      answer: "We recommend booking at least 4–6 weeks in advance. For weekends and holidays, book 2–3 months ahead.",
+      answer:
+        "We recommend booking at least 4–6 weeks in advance. For weekends and holidays, book 2–3 months ahead.",
     },
     {
       category: "Booking",
       question: "Can I visit before booking?",
-      answer: "Yes! Schedule a free consultation or visit our showroom to see setups in person.",
+      answer:
+        "Yes! Schedule a free consultation or visit our showroom to see setups in person.",
     },
     {
       category: "Packages",
       question: "What is included in the base package price?",
-      answer: "Each package includes themed décor, balloons, a welcome board, and on-day coordination.",
+      answer:
+        "Each package includes themed décor, balloons, a welcome board, and on-day coordination.",
     },
     {
       category: "Packages",
       question: "Can I upgrade my package after booking?",
-      answer: "Yes, upgrades are possible subject to availability. Contact our team at least 2 weeks before the event.",
+      answer:
+        "Yes, upgrades are possible subject to availability. Contact our team at least 2 weeks before the event.",
     },
     {
       category: "Themes",
       question: "Can I mix elements from different themes?",
-      answer: "Absolutely! Our design team can create a custom blend. Share your references during consultation.",
+      answer:
+        "Absolutely! Our design team can create a custom blend. Share your references during consultation.",
     },
     {
       category: "Themes",
       question: "Do you have themes other than the four shown?",
-      answer: "Yes — we offer many more themes including Superhero, Frozen, Cars, Dinosaur, and custom designs.",
+      answer:
+        "Yes — we offer many more themes including Superhero, Frozen, Cars, Dinosaur, and custom designs.",
     },
     {
       category: "Venue",
       question: "How many guests can be accommodated?",
-      answer: "Our venue accommodates 20–150 guests for indoor setups and up to 200 for outdoor celebrations.",
+      answer:
+        "Our venue accommodates 20–150 guests for indoor setups and up to 200 for outdoor celebrations.",
     },
     {
       category: "Payments",
       question: "What is the payment schedule?",
-      answer: "50% advance on booking confirmation, 50% one week before the event.",
+      answer:
+        "50% advance on booking confirmation, 50% one week before the event.",
     },
     {
       category: "Payments",
       question: "Do you accept UPI and cards?",
-      answer: "Yes, we accept UPI, credit/debit cards, and bank transfers via Razorpay.",
+      answer:
+        "Yes, we accept UPI, credit/debit cards, and bank transfers via Razorpay.",
     },
     {
       category: "General",
       question: "Do you provide a photographer?",
-      answer: "Photo documentation is available as an add-on with the Premium and Lux packages.",
+      answer:
+        "Photo documentation is available as an add-on with the Premium and Lux packages.",
     },
   ];
 
@@ -760,65 +1013,80 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   }
 
   // ── Site Metadata (kids birthday) ────────────────────────────────────────────
-  const metadataPages: { pageKey: string; metaTitle: string; metaDescription: string; canonicalUrl: string }[] = [
+  const metadataPages: {
+    pageKey: string;
+    metaTitle: string;
+    metaDescription: string;
+    canonicalUrl: string;
+  }[] = [
     {
       pageKey: "home",
       metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
-      metaDescription: "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Delhi NCR.",
+      metaDescription:
+        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur NCR.",
       canonicalUrl: "https://vaibhavcelebrations.in",
     },
     {
       pageKey: "themes",
       metaTitle: "Birthday Themes for Kids | Vaibhav Celebrations",
-      metaDescription: "Choose from Space, Cocomelon, Princess, Jungle Safari and many more kids birthday themes.",
+      metaDescription:
+        "Choose from Space, Cocomelon, Princess, Jungle Safari and many more kids birthday themes.",
       canonicalUrl: "https://vaibhavcelebrations.in/themes",
     },
     {
       pageKey: "packages",
       metaTitle: "Birthday Party Packages & Pricing | Vaibhav Celebrations",
-      metaDescription: "Standard, Premium, and Lux celebration packages for unforgettable kids birthdays.",
+      metaDescription:
+        "Standard, Premium, and Lux celebration packages for unforgettable kids birthdays.",
       canonicalUrl: "https://vaibhavcelebrations.in/packages",
     },
     {
       pageKey: "gallery",
       metaTitle: "Birthday Celebration Gallery | Vaibhav Celebrations",
-      metaDescription: "Browse real kids birthday celebration photos from Vaibhav Celebrations.",
+      metaDescription:
+        "Browse real kids birthday celebration photos from Vaibhav Celebrations.",
       canonicalUrl: "https://vaibhavcelebrations.in/gallery",
     },
     {
       pageKey: "contact",
       metaTitle: "Contact Us | Vaibhav Celebrations",
-      metaDescription: "Book a consultation or plan your child's dream birthday celebration today.",
+      metaDescription:
+        "Book a consultation or plan your child's dream birthday celebration today.",
       canonicalUrl: "https://vaibhavcelebrations.in/contact",
     },
     {
       pageKey: "theme:space-theme",
       metaTitle: "Space Theme Birthday | Vaibhav Celebrations",
-      metaDescription: "Launch into an unforgettable space birthday — cosmic, immersive, and magical.",
+      metaDescription:
+        "Launch into an unforgettable space birthday — cosmic, immersive, and magical.",
       canonicalUrl: "https://vaibhavcelebrations.in/themes/space-theme",
     },
     {
       pageKey: "theme:cocomelon-theme",
       metaTitle: "Cocomelon Theme Birthday | Vaibhav Celebrations",
-      metaDescription: "A joyful Cocomelon birthday with music, laughter, and beautifully planned details.",
+      metaDescription:
+        "A joyful Cocomelon birthday with music, laughter, and beautifully planned details.",
       canonicalUrl: "https://vaibhavcelebrations.in/themes/cocomelon-theme",
     },
     {
       pageKey: "theme:princess-theme",
       metaTitle: "Princess Birthday Theme | Vaibhav Celebrations",
-      metaDescription: "A magical princess birthday with enchanting fairytale details for young dreamers.",
+      metaDescription:
+        "A magical princess birthday with enchanting fairytale details for young dreamers.",
       canonicalUrl: "https://vaibhavcelebrations.in/themes/princess-theme",
     },
     {
       pageKey: "theme:jungle-safari-theme",
       metaTitle: "Jungle Safari Birthday Theme | Vaibhav Celebrations",
-      metaDescription: "A wild jungle safari birthday adventure with immersive experiences for young animal lovers.",
+      metaDescription:
+        "A wild jungle safari birthday adventure with immersive experiences for young animal lovers.",
       canonicalUrl: "https://vaibhavcelebrations.in/themes/jungle-safari-theme",
     },
     {
       pageKey: "blog",
       metaTitle: "Kids Birthday Blog | Vaibhav Celebrations",
-      metaDescription: "Tips, trends, and inspiration for planning your child's perfect birthday celebration.",
+      metaDescription:
+        "Tips, trends, and inspiration for planning your child's perfect birthday celebration.",
       canonicalUrl: "https://vaibhavcelebrations.in/blog",
     },
   ];
@@ -831,15 +1099,21 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
         metaDescription: meta.metaDescription,
         canonicalUrl: meta.canonicalUrl,
         ogImageId: heroMedia.id,
-        schemaJsonLd: { "@type": "LocalBusiness", name: "Vaibhav Celebrations" },
+        schemaJsonLd: {
+          "@type": "LocalBusiness",
+          name: "Vaibhav Celebrations",
+        },
       },
     });
   }
 
   // ── Page Content (Home / About / Contact) ───────────────────────────────────
-  const { defaultPageSections } = await import("../src/modules/pages/pages.service");
+  const { defaultPageSections } =
+    await import("../src/modules/pages/pages.service");
   for (const pageKey of ["home", "about", "contact"] as const) {
-    const sections = JSON.parse(JSON.stringify(defaultPageSections[pageKey])) as {
+    const sections = JSON.parse(
+      JSON.stringify(defaultPageSections[pageKey]),
+    ) as {
       hero?: { backgroundImage?: { mediaId: string } };
     };
     if (pageKey === "home" && sections.hero) {
@@ -851,27 +1125,42 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   }
 
   // ── Blog ─────────────────────────────────────────────────────────────────────
-  const catPlanning = await prisma.blogCategory.create({ data: { name: "Wedding Planning" } });
-  const catTrends = await prisma.blogCategory.create({ data: { name: "Trends & Inspiration" } });
-  const catVenue = await prisma.blogCategory.create({ data: { name: "Venue Guide" } });
+  const catPlanning = await prisma.blogCategory.create({
+    data: { name: "Wedding Planning" },
+  });
+  const catTrends = await prisma.blogCategory.create({
+    data: { name: "Trends & Inspiration" },
+  });
+  const catVenue = await prisma.blogCategory.create({
+    data: { name: "Venue Guide" },
+  });
 
-  const tagDestination = await prisma.blogTag.create({ data: { name: "Destination" } });
-  const tagBudget = await prisma.blogTag.create({ data: { name: "Budget Tips" } });
-  const tagDecor = await prisma.blogTag.create({ data: { name: "Décor Ideas" } });
+  const tagDestination = await prisma.blogTag.create({
+    data: { name: "Destination" },
+  });
+  const tagBudget = await prisma.blogTag.create({
+    data: { name: "Budget Tips" },
+  });
+  const tagDecor = await prisma.blogTag.create({
+    data: { name: "Décor Ideas" },
+  });
 
   const publishedPost = await prisma.blogPost.create({
     data: {
       title: "Top 10 Wedding Trends for 2026",
       slug: "top-wedding-trends-2026",
-      excerpt: "From sustainable florals to intimate micro-weddings — discover what's trending this season.",
-      contentHtml: "<p>2026 brings fresh inspiration for couples planning their big day. Sustainable florals, intimate gatherings, and personalized digital invites lead the way.</p>",
+      excerpt:
+        "From sustainable florals to intimate micro-weddings — discover what's trending this season.",
+      contentHtml:
+        "<p>2026 brings fresh inspiration for couples planning their big day. Sustainable florals, intimate gatherings, and personalized digital invites lead the way.</p>",
       featuredImageId: blogCoverMedia.id,
       authorName: "Content Editor",
       status: BlogStatus.PUBLISHED,
       publishedAt: new Date("2026-01-15"),
       isFeatured: true,
       seoTitle: "Top 10 Wedding Trends 2026 | Vaibhav Celebrations",
-      seoDescription: "Discover the hottest wedding trends for 2026 at Vaibhav Celebrations.",
+      seoDescription:
+        "Discover the hottest wedding trends for 2026 at Vaibhav Celebrations.",
     },
   });
 
@@ -879,7 +1168,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "How to Choose the Perfect Wedding Package",
       slug: "choose-perfect-wedding-package",
-      excerpt: "A complete guide to matching your guest count, budget, and vision to the right package.",
+      excerpt:
+        "A complete guide to matching your guest count, budget, and vision to the right package.",
       contentHtml: "<p>Draft content — to be published soon.</p>",
       authorName: "Content Editor",
       status: BlogStatus.DRAFT,
@@ -925,7 +1215,12 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       description:
         "Tour our farmhouse venue, meet our team, and enjoy complimentary refreshments. Special booking discounts for same-day confirmations.",
       bannerMediaId: eventBannerMedia.id,
-      activities: ["Venue tour", "Theme showcase", "Q&A with event manager", "Complimentary refreshments"],
+      activities: [
+        "Venue tour",
+        "Theme showcase",
+        "Q&A with event manager",
+        "Complimentary refreshments",
+      ],
       ageGroup: "All ages",
       venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
       scheduleStartAt: new Date("2026-08-15T10:00:00+05:30"),
@@ -934,15 +1229,26 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       registrationFeeInPaise: 0,
       themeId: spaceTheme.id,
       pageTemplate: "CLASSIC_HERO",
-      galleryMediaIds: [galleryBalloons.id, gallerySetup.id, eventBannerMedia.id],
+      galleryMediaIds: [
+        galleryBalloons.id,
+        gallerySetup.id,
+        eventBannerMedia.id,
+      ],
       faqItems: [
-        { question: "Is registration free?", answer: "Yes — Open Day registration is completely free." },
-        { question: "Do I need to book a package on the day?", answer: "No, but same-day bookings get exclusive discounts." },
+        {
+          question: "Is registration free?",
+          answer: "Yes — Open Day registration is completely free.",
+        },
+        {
+          question: "Do I need to book a package on the day?",
+          answer: "No, but same-day bookings get exclusive discounts.",
+        },
       ],
       ctaLabel: "Register for Free",
       ctaUrl: "#register",
       seoTitle: "August Open Day 2026 | Vaibhav Celebrations",
-      seoDescription: "Visit Vaibhav Celebrations on August 15. Tour the venue and get exclusive booking offers.",
+      seoDescription:
+        "Visit Vaibhav Celebrations on August 15. Tour the venue and get exclusive booking offers.",
       isActive: true,
     },
   });
@@ -951,9 +1257,14 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
     data: {
       title: "Bridal Preview Evening",
       slug: "bridal-preview-september-2026",
-      description: "An exclusive evening showcasing our latest themes, packages, and vendor partners.",
+      description:
+        "An exclusive evening showcasing our latest themes, packages, and vendor partners.",
       bannerMediaId: heroMedia.id,
-      activities: ["Theme walkthrough", "Vendor meet & greet", "Package comparison session"],
+      activities: [
+        "Theme walkthrough",
+        "Vendor meet & greet",
+        "Package comparison session",
+      ],
       venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
       scheduleStartAt: new Date("2026-09-20T11:00:00+05:30"),
       scheduleEndAt: new Date("2026-09-20T15:00:00+05:30"),
@@ -963,7 +1274,10 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       pageTemplate: "EDITORIAL_SPLIT",
       galleryMediaIds: [galleryBalloons.id, heroMedia.id],
       faqItems: [
-        { question: "Is there an entry fee?", answer: "Yes, ₹500 per guest — adjustable against your booking." },
+        {
+          question: "Is there an entry fee?",
+          answer: "Yes, ₹500 per guest — adjustable against your booking.",
+        },
       ],
       ctaLabel: "Reserve Your Seat",
       ctaUrl: "#register",
@@ -979,7 +1293,12 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       description:
         "A vibrant open fair with live décor demos, kids activities, and limited-time festive package offers — perfect for ad campaigns.",
       bannerMediaId: eventBannerMedia.id,
-      activities: ["Live décor demos", "Kids activity corner", "Festive package launches", "Photo booth"],
+      activities: [
+        "Live décor demos",
+        "Kids activity corner",
+        "Festive package launches",
+        "Photo booth",
+      ],
       ageGroup: "Families & kids",
       venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
       scheduleStartAt: new Date("2026-10-12T10:00:00+05:30"),
@@ -990,7 +1309,11 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       pageTemplate: "FESTIVE_IMMERSIVE",
       galleryMediaIds: [gallerySetup.id, galleryCake.id],
       faqItems: [
-        { question: "Can I walk in without registering?", answer: "Registration helps us plan capacity — please register online." },
+        {
+          question: "Can I walk in without registering?",
+          answer:
+            "Registration helps us plan capacity — please register online.",
+        },
       ],
       ctaLabel: "Join the Fair",
       ctaUrl: "#register",
@@ -1003,11 +1326,16 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   await prisma.popup.create({
     data: {
       title: "August Open Day — Register Now!",
-      bodyText: "Join us on August 15 for a free venue tour and exclusive booking discounts.",
+      bodyText:
+        "Join us on August 15 for a free venue tour and exclusive booking discounts.",
       ctaLabel: "Register Free",
       ctaUrl: "/events/august-open-day-2026",
       imageId: eventBannerMedia.id,
-      placements: [PopupPlacement.HOMEPAGE, PopupPlacement.THEMES_PAGE, PopupPlacement.PACKAGES_PAGE],
+      placements: [
+        PopupPlacement.HOMEPAGE,
+        PopupPlacement.THEMES_PAGE,
+        PopupPlacement.PACKAGES_PAGE,
+      ],
       linkedEventId: augustEvent.id,
       triggerAfterSeconds: 5,
       isActive: true,
@@ -1019,7 +1347,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   await prisma.popup.create({
     data: {
       title: "Book Your 2026 Wedding Today",
-      bodyText: "Limited dates available for Oct–Feb season. Secure your date with 40% advance.",
+      bodyText:
+        "Limited dates available for Oct–Feb season. Secure your date with 40% advance.",
       ctaLabel: "Check Availability",
       ctaUrl: "/contact",
       placements: [PopupPlacement.GALLERY_PAGE],
@@ -1095,14 +1424,16 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
         source,
         status: leadStatuses[i % leadStatuses.length]!,
         interestArea: i % 2 === 0 ? "Premium" : "Royal Mandap",
-        message: `Inquiry via ${source}. Looking for wedding venue in Delhi NCR.`,
+        message: `Inquiry via ${source}. Looking for wedding venue in Jaipur NCR.`,
         customerId: i === 0 ? customer1.id : undefined,
-        chatbotSessionId: source === LeadSource.CHATBOT ? chatbotSession.id : undefined,
+        chatbotSessionId:
+          source === LeadSource.CHATBOT ? chatbotSession.id : undefined,
       },
     });
   }
 
   // ── Consultation Requests (all statuses) ─────────────────────────────────────
+  const today = new Date();
   await prisma.consultationRequest.create({
     data: {
       name: "Kavita Singh",
@@ -1110,7 +1441,8 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
       phone: "+919876111222",
       eventDate: new Date("2027-03-15"),
       childOrEventDetails: "Adult wedding ceremony, 180 guests",
-      customRequirements: "Would like to discuss Gold package with Royal Mandap theme.",
+      customRequirements:
+        "Would like to discuss Gold package with Royal Mandap theme.",
       advanceNoticeDays: 240,
       belowMinimumNotice: false,
       status: ConsultationStatus.PENDING,
@@ -1240,139 +1572,12 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   // ── Guest Verification Tokens ────────────────────────────────────────────────
   await prisma.guestVerificationToken.create({
     data: {
-      referenceCode: "BOOKING-2026-0001",
-      referenceType: "BOOKING",
-      email: "priya.sharma@example.com",
-      otpHash: await bcrypt.hash("123456", 10),
-      otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      verifiedAt: new Date(),
-      attemptCount: 0,
-    },
-  });
-
-  await prisma.guestVerificationToken.create({
-    data: {
       referenceCode: "CONSULT-001",
       referenceType: "CONSULTATION",
       email: "urgent@example.com",
       otpHash: await bcrypt.hash("654321", 10),
       otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       attemptCount: 2,
-    },
-  });
-
-  // ── Bookings & Invoices ──────────────────────────────────────────────────────
-  const booking1 = await prisma.booking.create({
-    data: {
-      bookingCode: "BOOKING-2026-0001",
-      customerId: customer1.id,
-      themeId: spaceTheme.id,
-      packageId: premiumPkg.id,
-      eventDate: new Date("2027-02-14"),
-      status: BookingStatus.CONFIRMED,
-      paymentStatus: PaymentStatus.PARTIALLY_REFUNDED,
-      basePriceInPaise: 7990000,
-      customizationTotalInPaise: 500000,
-      gstInPaise: 1528200,
-      totalPriceInPaise: 10018200,
-      guestEmail: customer1.email,
-      guestPhone: customer1.phone,
-      razorpayOrderId: "order_dev_bk001",
-      razorpayPaymentId: "pay_dev_bk001",
-    },
-  });
-
-  if (premiumVideoItem) {
-    await prisma.bookingCustomization.create({
-      data: {
-        bookingId: booking1.id,
-        packageServiceItemId: premiumVideoItem.id,
-        quantity: 1,
-        unitPriceInPaise: 500000,
-      },
-    });
-  }
-
-  await prisma.invoice.create({
-    data: {
-      invoiceNumber: "INVOICE-2026-27-0001",
-      linkedType: InvoiceLinkedType.BOOKING,
-      bookingId: booking1.id,
-      customerId: customer1.id,
-      subtotalInPaise: 8490000,
-      gstInPaise: 1528200,
-      totalInPaise: 10018200,
-      pdfUrl: img("invoices/INVOICE-2026-27-0001.pdf"),
-      emailSentAt: new Date(),
-      issuedAt: new Date(),
-    },
-  });
-
-  const booking2 = await prisma.booking.create({
-    data: {
-      bookingCode: "BOOKING-2026-0002",
-      customerId: customer2.id,
-      themeId: cocomelonTheme.id,
-      packageId: luxPkg.id,
-      eventDate: new Date("2027-11-20"),
-      status: BookingStatus.SCHEDULED,
-      paymentStatus: PaymentStatus.PENDING,
-      basePriceInPaise: 11990000,
-      customizationTotalInPaise: 0,
-      gstInPaise: 2158200,
-      totalPriceInPaise: 14148200,
-      guestEmail: customer2.email,
-      guestPhone: customer2.phone,
-    },
-  });
-
-  await prisma.invoice.create({
-    data: {
-      invoiceNumber: "INVOICE-2026-27-0002",
-      linkedType: InvoiceLinkedType.BOOKING,
-      bookingId: booking2.id,
-      customerId: customer2.id,
-      subtotalInPaise: 11990000,
-      gstInPaise: 2158200,
-      totalInPaise: 14148200,
-      issuedAt: new Date(),
-    },
-  });
-
-  const booking3 = await prisma.booking.create({
-    data: {
-      bookingCode: "BOOKING-2026-0003",
-      customerId: customer3.id,
-      themeId: jungleTheme.id,
-      packageId: standardPkg.id,
-      eventDate: new Date("2026-12-05"),
-      status: BookingStatus.COMPLETED,
-      paymentStatus: PaymentStatus.PAID,
-      basePriceInPaise: 4990000,
-      customizationTotalInPaise: 0,
-      gstInPaise: 898200,
-      totalPriceInPaise: 5888200,
-      guestEmail: customer3.email,
-      guestPhone: customer3.phone,
-      razorpayOrderId: "order_dev_bk003",
-      razorpayPaymentId: "pay_dev_bk003",
-    },
-  });
-
-  await prisma.invoice.create({
-    data: {
-      invoiceNumber: "INVOICE-2026-27-0003",
-      linkedType: InvoiceLinkedType.BOOKING,
-      bookingId: booking3.id,
-      customerId: customer3.id,
-      subtotalInPaise: 4990000,
-      gstInPaise: 898200,
-      totalInPaise: 5888200,
-      pdfUrl: img("invoices/INVOICE-2026-27-0003.pdf"),
-      emailSentAt: new Date(),
-      whatsappSentAt: new Date(),
-      whatsappSendStatus: "delivered",
-      issuedAt: new Date("2026-06-01"),
     },
   });
 
@@ -1385,14 +1590,6 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
         entityType: "AdminUser",
         entityId: superAdmin.id,
         metadata: { userAgent: "seed-script" },
-        ipAddress: "127.0.0.1",
-      },
-      {
-        adminUserId: opsAdmin.id,
-        action: "BOOKING_CONFIRMED",
-        entityType: "Booking",
-        entityId: booking1.id,
-        metadata: { bookingCode: "BOOKING-2026-0001" },
         ipAddress: "127.0.0.1",
       },
       {
@@ -1415,7 +1612,9 @@ type MatrixRow = { svcId: string; standard: boolean; premium: boolean; lux: bool
   console.log("\n✅ Seed completed successfully!");
   console.log("─────────────────────────────────────────");
   console.log("Admin login:");
-  console.log(`  Email:    ${process.env.SEED_ADMIN_EMAIL ?? "admin@vaibhavcelebrations.in"}`);
+  console.log(
+    `  Email:    ${process.env.SEED_ADMIN_EMAIL ?? "admin@vaibhavcelebrations.in"}`,
+  );
   console.log(`  Password: ${adminPassword}`);
   console.log("\nStaff logins (password: ChangeMe_Staff_123!):");
   console.log("  operations@vaibhavcelebrations.in (OPERATIONS)");

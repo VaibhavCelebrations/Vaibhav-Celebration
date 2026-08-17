@@ -38,8 +38,8 @@ export const testimonialsRepo = resource("/admin/testimonials");
 export const popupsRepo = resource("/admin/popups");
 export const customersRepo = resource("/admin/customers");
 export const invoicesRepo = resource("/admin/invoices");
+export const ordersRepo = resource("/admin/orders");
 export const consultationsRepo = resource("/admin/consultations");
-export const capacityRulesRepo = resource("/admin/capacity-rules");
 export const auditLogRepo = resource("/admin/audit-log");
 
 export async function updateResourceStatus(
@@ -65,16 +65,5 @@ export const leadsRepo: ResourceRepository = {
     }),
   create: unsupported("Create"),
   update: (id, body) => updateResourceStatus("/admin/leads", id, String(body.status ?? "")),
-  archive: unsupported("Archive"),
-};
-
-export const bookingsRepo: ResourceRepository = {
-  list: (query) =>
-    adminFetchList<ResourceRecord>(`/admin/bookings${qs(query)}`, {
-      page: query.page,
-      pageSize: query.pageSize,
-    }),
-  create: unsupported("Create"),
-  update: (id, body) => updateResourceStatus("/admin/bookings", id, String(body.status ?? "")),
   archive: unsupported("Archive"),
 };

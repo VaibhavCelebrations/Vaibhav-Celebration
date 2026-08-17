@@ -5,11 +5,16 @@ export declare function listExtraServices(includeInactive?: boolean): Promise<{
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+    slug: string | null;
     displayOrder: number;
     description: string | null;
     label: string;
     requirements: string | null;
     customizationPriceInPaise: number;
+    pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+    locationScope: import(".prisma/client").$Enums.LocationScope;
+    choiceCount: number | null;
 }[]>;
 export declare function getExtraService(id: string): Promise<{
     id: string;
@@ -17,11 +22,16 @@ export declare function getExtraService(id: string): Promise<{
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+    slug: string | null;
     displayOrder: number;
     description: string | null;
     label: string;
     requirements: string | null;
     customizationPriceInPaise: number;
+    pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+    locationScope: import(".prisma/client").$Enums.LocationScope;
+    choiceCount: number | null;
 }>;
 export declare function createExtraService(data: Prisma.ExtraServiceUncheckedCreateInput): Promise<{
     id: string;
@@ -29,11 +39,16 @@ export declare function createExtraService(data: Prisma.ExtraServiceUncheckedCre
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+    slug: string | null;
     displayOrder: number;
     description: string | null;
     label: string;
     requirements: string | null;
     customizationPriceInPaise: number;
+    pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+    locationScope: import(".prisma/client").$Enums.LocationScope;
+    choiceCount: number | null;
 }>;
 export declare function updateExtraService(id: string, data: Prisma.ExtraServiceUncheckedUpdateInput): Promise<{
     id: string;
@@ -41,10 +56,15 @@ export declare function updateExtraService(id: string, data: Prisma.ExtraService
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    category: import(".prisma/client").$Enums.ExtraServiceCategory | null;
+    slug: string | null;
     displayOrder: number;
     description: string | null;
     label: string;
     requirements: string | null;
     customizationPriceInPaise: number;
+    pricingMode: import(".prisma/client").$Enums.PricingMode | null;
+    locationScope: import(".prisma/client").$Enums.LocationScope;
+    choiceCount: number | null;
 }>;
 export declare function deleteExtraService(id: string): Promise<void>;

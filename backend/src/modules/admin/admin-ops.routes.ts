@@ -1,105 +1,13 @@
-import { param } from "../../lib/params";
-import { AdminRole, CapacityScope } from "@prisma/client";
+import { AdminRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma";
-import { NotFoundError } from "../../lib/errors";
-import { created, ok } from "../../lib/response";
-import { toDateOnly } from "../../lib/validators";
+import { ok } from "../../lib/response";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { invalidateSettingsCache } from "../../lib/settings";
 import { delPattern, isRedisReady, getRedisClient } from "../../lib/redis";
-
-export const adminCapacityRouter = Router();
-adminCapacityRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN));
-
-adminCapacityRouter.get("/", async (_req, res, next) => {
-  try {
-    const rules = await prisma.bookingCapacityRule.findMany({ orderBy: { updatedAt: "desc" } });
-    return ok(res, rules);
-  } catch (err) {
-    return next(err);
-  }
-});
-
-adminCapacityRouter.post(
-  "/",
-  validate(
-    z.object({
-      scope: z.nativeEnum(CapacityScope),
-      specificDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-      maxBookingsPerDay: z.number().int().min(0),
-      isBlocked: z.boolean().optional(),
-    }),
-  ),
-  async (req, res, next) => {
-    try {
-      const body = req.body as {
-        scope: CapacityScope;
-        specificDate?: string | null;
-        maxBookingsPerDay: number;
-        isBlocked?: boolean;
-      };
-      if (body.scope === CapacityScope.SPECIFIC_DATE && !body.specificDate) {
-        return res.status(400).json({
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "specificDate required for SPECIFIC_DATE" },
-        });
-      }
-      const rule = await prisma.bookingCapacityRule.create({
-        data: {
-          scope: body.scope,
-          specificDate: body.specificDate ? toDateOnly(body.specificDate) : null,
-          maxBookingsPerDay: body.maxBookingsPerDay,
-          isBlocked: body.isBlocked ?? false,
-        },
-      });
-      return created(res, rule);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-adminCapacityRouter.put(
-  "/:id",
-  validate(z.object({ id: z.string().min(1) }), "params"),
-  validate(
-    z.object({
-      maxBookingsPerDay: z.number().int().min(0).optional(),
-      isBlocked: z.boolean().optional(),
-      specificDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-    }),
-  ),
-  async (req, res, next) => {
-    try {
-      const existing = await prisma.bookingCapacityRule.findUnique({ where: { id: param(req, "id") } });
-      if (!existing) throw new NotFoundError("Capacity rule not found");
-      const body = req.body as {
-        maxBookingsPerDay?: number;
-        isBlocked?: boolean;
-        specificDate?: string | null;
-      };
-      const rule = await prisma.bookingCapacityRule.update({
-        where: { id: param(req, "id") },
-        data: {
-          maxBookingsPerDay: body.maxBookingsPerDay,
-          isBlocked: body.isBlocked,
-          specificDate:
-            body.specificDate === undefined
-              ? undefined
-              : body.specificDate
-                ? toDateOnly(body.specificDate)
-                : null,
-        },
-      });
-      return ok(res, rule);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
+import { getAdminCalendar } from "./calendar.service";
 
 export const adminSettingsRouter = Router();
 adminSettingsRouter.use(requireAdmin, requireRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS));
@@ -171,6 +79,28 @@ adminAuditRouter.get(
       return ok(res, items, {
         pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
       });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+export const adminCalendarRouter = Router();
+adminCalendarRouter.use(requireAdmin, requireRoles(AdminRole.OPERATIONS, AdminRole.SUPER_ADMIN));
+
+adminCalendarRouter.get(
+  "/",
+  validate(
+    z.object({
+      view: z.enum(["day", "week", "month"]).default("month"),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const { view, date } = req.query as unknown as { view: "day" | "week" | "month"; date: string };
+      return ok(res, await getAdminCalendar(view, date));
     } catch (err) {
       return next(err);
     }

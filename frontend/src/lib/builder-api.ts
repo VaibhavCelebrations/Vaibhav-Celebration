@@ -61,14 +61,6 @@ export type BuilderQuote = {
   includedLabels: string[];
 };
 
-export type BuilderBookingResult = {
-  bookingCode: string;
-  razorpayOrderId: string;
-  razorpayKeyId: string;
-  amountInPaise: number;
-  currency: string;
-};
-
 export async function listBuilderProducts(params: {
   theme: string;
   category: string;
@@ -80,18 +72,4 @@ export async function listBuilderProducts(params: {
 
 export async function getBuilderQuote(input: BuilderQuoteInput) {
   return apiFetch<BuilderQuote>("/builder/quote", { method: "POST", body: input, cache: "no-store" });
-}
-
-export async function createBuilderBooking(input: {
-  eventDate: string;
-  guestName: string;
-  guestEmail: string;
-  guestPhone: string;
-  builder: BuilderQuoteInput;
-}) {
-  return apiFetch<BuilderBookingResult>("/bookings", {
-    method: "POST",
-    body: input,
-    cache: "no-store",
-  });
 }

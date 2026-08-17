@@ -1,62 +1,55 @@
-import {
-  BookingStatus,
-  InvoiceLinkedType,
-  PaymentStatus,
-} from "@prisma/client";
+import { PaymentStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { AppError, NotFoundError } from "../../lib/errors";
-import { nextInvoiceNumber } from "../../lib/sequences";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyWebhookSignature } from "../../integrations/razorpay/client";
-import { generateInvoicePdf } from "../../integrations/invoice/pdf";
 import { invoiceEmailHtml, sendEmail } from "../../integrations/email/mailer";
-import { sendWhatsAppMessage } from "../../integrations/whatsapp/client";
-import { notifyBookingConfirmed } from "../bookings/bookings.service";
-import { cancelOrderAndRestock, findOrderByRazorpayOrderId, markOrderPaid } from "../orders/orders.service";
+import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
+import {
+  findOrderByRazorpayOrderId,
+  markOrderPaid,
+  markOrderPaymentFailed,
+} from "../orders/orders.service";
 import { logger } from "../../lib/logger";
+import { claimPaymentEvent } from "./payment-events";
 
 export async function createPaymentOrder(input: {
-  bookingCode?: string;
+  orderCode?: string;
   eventRegistrationId?: string;
 }) {
-  if (input.bookingCode) {
-    const booking = await prisma.booking.findFirst({
-      where: { bookingCode: input.bookingCode, deletedAt: null },
-    });
-    if (!booking) throw new NotFoundError("Booking not found");
-    if (booking.paymentStatus === PaymentStatus.PAID) {
+  if (input.orderCode) {
+    const order = await prisma.order.findFirst({ where: { orderCode: input.orderCode } });
+    if (!order) throw new NotFoundError("Order not found");
+    if (order.paymentStatus === PaymentStatus.PAID) {
       return {
-        razorpayOrderId: booking.razorpayOrderId,
-        amountInPaise: booking.totalPriceInPaise,
+        razorpayOrderId: order.razorpayOrderId,
+        amountInPaise: order.totalInPaise,
         razorpayKeyId: getRazorpayPublicKey(),
         alreadyPaid: true,
       };
     }
-    if (booking.razorpayOrderId) {
+    if (order.razorpayOrderId && order.paymentStatus !== PaymentStatus.FAILED) {
       return {
-        razorpayOrderId: booking.razorpayOrderId,
-        amountInPaise: booking.totalPriceInPaise,
+        razorpayOrderId: order.razorpayOrderId,
+        amountInPaise: order.totalInPaise,
         razorpayKeyId: getRazorpayPublicKey(),
         alreadyPaid: false,
       };
     }
-    const order = await createRazorpayOrder({
-      amountInPaise: booking.totalPriceInPaise,
-      receipt: booking.bookingCode,
-      notes: { bookingCode: booking.bookingCode, type: "BOOKING" },
+    const rz = await createRazorpayOrder({
+      amountInPaise: order.totalInPaise,
+      receipt: order.orderCode,
+      notes: { orderCode: order.orderCode, type: "SHOP_ORDER" },
     });
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: { razorpayOrderId: order.id },
-    });
+    await prisma.order.update({ where: { id: order.id }, data: { razorpayOrderId: rz.id, paymentStatus: PaymentStatus.PENDING } });
     return {
-      razorpayOrderId: order.id,
-      amountInPaise: booking.totalPriceInPaise,
+      razorpayOrderId: rz.id,
+      amountInPaise: order.totalInPaise,
       razorpayKeyId: getRazorpayPublicKey(),
       alreadyPaid: false,
     };
   }
 
-  throw new AppError("VALIDATION_ERROR", "bookingCode is required", 400);
+  throw new AppError("VALIDATION_ERROR", "orderCode is required", 400);
 }
 
 export async function handleRazorpayWebhook(rawBody: string, signature: string | undefined) {
@@ -87,45 +80,36 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
     return { handled: false };
   }
 
-  const booking = await prisma.booking.findFirst({
-    where: { razorpayOrderId: orderId, deletedAt: null },
-    include: { customer: true, theme: true, package: true },
-  });
-
-  if (booking) {
-    if (event === "payment.captured" || payment?.status === "captured") {
-      if (booking.paymentStatus !== PaymentStatus.PAID) {
-        await prisma.booking.update({
-          where: { id: booking.id },
-          data: {
-            paymentStatus: PaymentStatus.PAID,
-            status: BookingStatus.CONFIRMED,
-            razorpayPaymentId: payment?.id,
-          },
-        });
-        await enqueueInvoiceForBooking(booking.id);
-        void notifyBookingConfirmed(booking.bookingCode);
-      }
-      return { handled: true, type: "BOOKING", id: booking.id };
-    }
-    if (event === "payment.failed") {
-      await prisma.booking.update({
-        where: { id: booking.id },
-        data: { paymentStatus: PaymentStatus.FAILED },
-      });
-      return { handled: true, type: "BOOKING_FAILED", id: booking.id };
-    }
-  }
+  const eventKey = payment?.id ? `${event}:${payment.id}` : `${event}:${orderId}`;
 
   const shopOrder = await findOrderByRazorpayOrderId(orderId);
   if (shopOrder) {
     if (event === "payment.captured" || payment?.status === "captured") {
+      if (payment?.amount && payment.amount !== shopOrder.totalInPaise) {
+        logger.error({ orderId: shopOrder.id, expected: shopOrder.totalInPaise, got: payment.amount }, "Webhook amount mismatch");
+        throw new AppError("PAYMENT_AMOUNT_MISMATCH", "Payment amount does not match order", 400);
+      }
+      const claimed = await claimPaymentEvent({
+        eventKey,
+        eventType: event,
+        razorpayOrderId: orderId,
+        razorpayPaymentId: payment?.id,
+        payload,
+      });
       await markOrderPaid(shopOrder.id, payment?.id);
-      return { handled: true, type: "SHOP_ORDER", id: shopOrder.id };
+      return { handled: true, type: "ORDER", id: shopOrder.id, duplicate: !claimed };
     }
     if (event === "payment.failed") {
-      await cancelOrderAndRestock(shopOrder.id, "Payment failed");
-      return { handled: true, type: "SHOP_ORDER_FAILED", id: shopOrder.id };
+      const claimed = await claimPaymentEvent({
+        eventKey,
+        eventType: event,
+        razorpayOrderId: orderId,
+        razorpayPaymentId: payment?.id,
+        payload,
+      });
+      if (!claimed) return { handled: true, duplicate: true };
+      await markOrderPaymentFailed(shopOrder.id);
+      return { handled: true, type: "ORDER_FAILED", id: shopOrder.id };
     }
   }
 
@@ -157,62 +141,10 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
   return { handled: false };
 }
 
-export async function enqueueInvoiceForBooking(bookingId: string) {
-  const booking = await prisma.booking.findFirst({
-    where: { id: bookingId, deletedAt: null },
-    include: {
-      customer: true,
-      theme: true,
-      package: true,
-      customizations: { include: { packageServiceItem: { include: { extraService: true } } } },
-      invoice: true,
-    },
-  });
-  if (!booking) throw new NotFoundError("Booking not found");
-  if (booking.invoice) return booking.invoice;
-
-  const invoiceNumber = await nextInvoiceNumber();
-  const lineItems = [
-    { label: `${booking.theme.title} — ${booking.package.title}`, amountInPaise: booking.basePriceInPaise },
-    ...booking.customizations.map((c) => ({
-      label: `${c.packageServiceItem.extraService.label} × ${c.quantity}`,
-      amountInPaise: c.unitPriceInPaise * c.quantity,
-    })),
-  ];
-
-  const pdf = await generateInvoicePdf({
-    invoiceNumber,
-    guestName: booking.customer.fullName,
-    guestEmail: booking.guestEmail,
-    guestPhone: booking.guestPhone,
-    lineItems,
-    subtotalInPaise: booking.basePriceInPaise + booking.customizationTotalInPaise,
-    gstInPaise: booking.gstInPaise,
-    totalInPaise: booking.totalPriceInPaise,
-    issuedAt: new Date(),
-  });
-
-  const invoice = await prisma.invoice.create({
-    data: {
-      invoiceNumber,
-      linkedType: InvoiceLinkedType.BOOKING,
-      bookingId: booking.id,
-      customerId: booking.customerId,
-      subtotalInPaise: booking.basePriceInPaise + booking.customizationTotalInPaise,
-      gstInPaise: booking.gstInPaise,
-      totalInPaise: booking.totalPriceInPaise,
-      pdfUrl: pdf.url,
-    },
-  });
-
-  await deliverInvoice(invoice.id);
-  return invoice;
-}
-
 export async function deliverInvoice(invoiceId: string) {
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, deletedAt: null },
-    include: { customer: true, booking: true },
+    include: { customer: true, order: true },
   });
   if (!invoice) throw new NotFoundError("Invoice not found");
 
@@ -229,8 +161,9 @@ export async function deliverInvoice(invoiceId: string) {
 
   const wa = await sendWhatsAppMessage({
     toPhone: invoice.customer.phone,
-    templateName: "invoice_delivery",
-    body: `Your invoice ${invoice.invoiceNumber} for ₹${(invoice.totalInPaise / 100).toFixed(2)} is ready.`,
+    templateName: WHATSAPP_TEMPLATES.invoiceDelivery,
+    body: invoice.invoiceNumber,
+    bodyParameters: [invoice.invoiceNumber, (invoice.totalInPaise / 100).toFixed(2)],
     mediaUrl: invoice.pdfUrl ?? undefined,
   });
 
@@ -238,8 +171,10 @@ export async function deliverInvoice(invoiceId: string) {
     where: { id: invoice.id },
     data: {
       emailSentAt: emailResult.sent ? new Date() : invoice.emailSentAt,
+      emailSendStatus: emailResult.status,
       whatsappSentAt: wa.sent ? new Date() : invoice.whatsappSentAt,
-      whatsappSendStatus: wa.status ?? (wa.skipped ? "SKIPPED" : wa.sent ? "SENT" : "FAILED"),
+      whatsappSendStatus: wa.status,
+      whatsappMessageId: wa.providerMessageId ?? invoice.whatsappMessageId,
     },
   });
 }
@@ -272,7 +207,7 @@ export async function listInvoices(filters: {
     prisma.invoice.count({ where }),
     prisma.invoice.findMany({
       where,
-      include: { customer: { select: { fullName: true, email: true, phone: true } }, booking: true },
+      include: { customer: { select: { fullName: true, email: true, phone: true } }, order: { select: { orderCode: true } } },
       orderBy: { issuedAt: "desc" },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
@@ -284,7 +219,7 @@ export async function listInvoices(filters: {
 export async function getInvoiceByNumber(invoiceNumber: string) {
   const invoice = await prisma.invoice.findFirst({
     where: { invoiceNumber, deletedAt: null },
-    include: { customer: true, booking: true },
+    include: { customer: true, order: true },
   });
   if (!invoice) throw new NotFoundError("Invoice not found");
   return invoice;
@@ -307,4 +242,27 @@ export async function exportInvoicesCsv(from?: string, to?: string) {
     ].join(","),
   );
   return [header, ...rows].join("\n");
+}
+
+export async function listPaymentEvents(filters: { search?: string; page: number; pageSize: number }) {
+  const where: import("@prisma/client").Prisma.PaymentEventWhereInput = {};
+  if (filters.search) {
+    const s = filters.search.trim();
+    where.OR = [
+      { eventKey: { contains: s, mode: "insensitive" } },
+      { razorpayOrderId: { contains: s, mode: "insensitive" } },
+      { razorpayPaymentId: { contains: s, mode: "insensitive" } },
+      { eventType: { contains: s, mode: "insensitive" } },
+    ];
+  }
+  const [total, items] = await Promise.all([
+    prisma.paymentEvent.count({ where }),
+    prisma.paymentEvent.findMany({
+      where,
+      orderBy: { processedAt: "desc" },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+    }),
+  ]);
+  return { total, items };
 }

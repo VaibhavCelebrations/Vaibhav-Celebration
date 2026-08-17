@@ -36,6 +36,7 @@ export async function adminListThemes(q: AdminListQuery) {
       ? {
           OR: [
             { title: { contains: q.search, mode: "insensitive" as const } },
+            { displayName: { contains: q.search, mode: "insensitive" as const } },
             { slug: { contains: q.search, mode: "insensitive" as const } },
             { shortDescription: { contains: q.search, mode: "insensitive" as const } },
           ],
@@ -207,10 +208,14 @@ export async function adminListPackages(q: AdminListQuery) {
     const items = rows.map((p) => ({
       id: p.id,
       title: p.title,
+      displayName: p.displayName,
       slug: p.slug,
       priceInPaise: p.priceInPaise,
       tierRank: p.tierRank,
       isRecommended: p.isRecommended,
+      badgeText: p.badgeText,
+      pricingUnit: p.pricingUnit,
+      hasGiftRegistry: p.hasGiftRegistry,
       isActive: p.isActive,
       isCustomizable: p.isCustomizable,
       displayOrder: p.displayOrder,

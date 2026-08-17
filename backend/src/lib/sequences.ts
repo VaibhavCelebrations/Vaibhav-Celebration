@@ -2,7 +2,7 @@ import { prisma } from "../db/prisma";
 
 /**
  * Atomically increment a named sequence counter and return the next value.
- * Used for bookingCode / invoiceNumber generation.
+ * Used for orderCode / invoiceNumber generation.
  */
 export async function nextSequence(key: string): Promise<number> {
   const row = await prisma.sequenceCounter.upsert({
@@ -11,12 +11,6 @@ export async function nextSequence(key: string): Promise<number> {
     update: { lastValue: { increment: 1 } },
   });
   return row.lastValue;
-}
-
-export async function nextBookingCode(year = new Date().getFullYear()): Promise<string> {
-  const key = `BOOKING-${year}`;
-  const n = await nextSequence(key);
-  return `BOOKING-${year}-${String(n).padStart(4, "0")}`;
 }
 
 export async function nextOrderCode(year = new Date().getFullYear()): Promise<string> {

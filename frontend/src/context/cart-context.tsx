@@ -34,7 +34,7 @@ interface CartContextType {
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
-  addItem: (productId: string, quantity: number, personalizationValues?: PersonalizationValue[]) => Promise<void>;
+  addItem: (productId: string, quantity: number, personalizationValues?: PersonalizationValue[], registryItemId?: string) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   addPackage: (pkg: Omit<CartPackage, "id">) => void;
@@ -124,14 +124,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItemRef = useRef<CartContextType["addItem"] | null>(null);
 
   const addItem = useCallback(
-    async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[]) => {
+    async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[], registryItemId?: string) => {
       if (!isAuthenticated) {
-        // Fallback: we could implement full client-side cart logic here, but for now we prompt login
-        openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues));
+        openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues, registryItemId));
         return;
       }
       try {
-        const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null);
+        const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
         setItems(cart.items);
         setQuote(cart.quote);
         setIsCartOpen(true);
@@ -147,9 +146,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [addItem]);
 
   const updateQuantity = useCallback(
-    async (productId: string, quantity: number) => {
+    async (lineKey: string, quantity: number) => {
       try {
-        const cart = await shopApi.updateCartItemQuantity(productId, quantity);
+        const cart = await shopApi.updateCartItemQuantity(lineKey, quantity);
         setItems(cart.items);
         setQuote(cart.quote);
       } catch (err) {
@@ -160,9 +159,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 
   const removeItem = useCallback(
-    async (productId: string) => {
+    async (lineKey: string) => {
       try {
-        const cart = await shopApi.removeCartItem(productId);
+        const cart = await shopApi.removeCartItem(lineKey);
         setItems(cart.items);
         setQuote(cart.quote);
       } catch (err) {

@@ -569,3 +569,40 @@ Do **not** build any of the following without a signed Change Request:
 ---
 
 *This tracker should be kept current in whatever day-to-day project-tracking tool the team actually uses — this markdown file is the canonical snapshot/template referenced by Document 11 6 and requested directly by the client in the 19 July 2026 MOM (11).*
+
+---
+
+## 17. Shop purchase funnel hardening (13 August 2026)
+
+**Status:** Implemented in code. Apply Prisma migration `20260813120000_commerce_payment_hardening` before production use.
+
+### What shipped
+
+- Backend is the source of truth for cart/checkout totals, including personalization (`Product.personalizationCostInPaise`).
+- Shop cart is **not** cleared until payment is verified `PAID`; only purchased SKUs are removed.
+- Razorpay Checkout.js signatures are verified server-side (`POST /shop/orders/verify-payment`). Webhooks remain the reconciliation path.
+- `PaymentEvent` provides idempotency for webhook + checkout-verify using `payment.captured:{paymentId}`.
+- Order `status` and `paymentStatus` are separate. Failed Razorpay payments mark `FAILED` without cancelling/restocking, so retry works on the same order.
+- Dismissing Razorpay sets `paymentStatus=CANCELLED`, keeps the cart, and allows retry (`POST /account/orders/:orderCode/retry-payment`).
+- Paid orders generate a PDF invoice, create an `Invoice` row, send confirmation email (idempotent via `confirmationEmailSentAt`), and attempt WhatsApp (stub unless provider is configured).
+- Customization follow-up is tracked on `Order.customizationFollowUpStatus` (and Booking). Admin Orders CRM can update lifecycle status, follow-up, and notes.
+- Customer order history supports invoice download, Complete Payment, and Reorder.
+- Admin Invoices: download + resend. Admin Payments: searchable Razorpay event log.
+
+### State model (shop `Order`)
+
+| Field | Values | Notes |
+|---|---|---|
+| `status` | PENDING_PAYMENT → PAID → PROCESSING → SHIPPED → DELIVERED; CANCELLED / REFUNDED | Server-enforced transitions |
+| `paymentStatus` | PENDING, PAID, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED | Independent of fulfillment |
+| `customizationFollowUpStatus` | NOT_REQUIRED, REQUIRED, CONTACTED, CONFIRMED, COMPLETED | Ops workflow, not a payment state |
+
+### Remaining limitations (not marked complete)
+
+- WhatsApp is still provider-stubbed until Meta/Twilio credentials and templates are live (Doc 12).
+- Guest checkout for physical shop items remains **auth-gated**; guests can browse but must log in to pay.
+- Package builder payments still confirm primarily via webhook; the checkout UI shows **pending** until the booking is marked paid.
+- There is no dedicated `Payment` table (events + Razorpay IDs on Order/Booking are the ledger).
+- Invoice PDF is generated with PDFKit (no HTML template existed in `Docs`).
+- Live Razorpay + webhook end-to-end must be verified in the deployed environment after migrate.
+
