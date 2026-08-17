@@ -34,16 +34,9 @@ const navLinks: NavLink[] = [
     href: "/gifts",
     submenu: [
       { label: "Shop Return Gifts", href: "/gifts" },
-<<<<<<< HEAD
-      { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
-      { label: "Shop by Theme", href: "/gifts?view=themes" },
-      { label: "Occasion & Festive Gifting", href: "/gifts/collection/festive" },
-      { label: "Gift Registry", href: "/account/registry" },
-=======
       // { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
       // { label: "Shop by Theme", href: "/gifts?view=themes" },
       // { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
->>>>>>> vishal/frontend
     ],
   },
   { label: "Events", href: "/events" },
