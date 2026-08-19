@@ -574,7 +574,7 @@ function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: Product 
         ) : (
           <ul className="flex flex-col gap-1.5">
             {history.map((h) => (
-              <li key={h.id} className="flex items-center justify-between rounded-(--radius-sm) bg-(--color-surface) px-2.5 py-1.5 text-xs">
+              <li key={h.id} className="flex items-center justify-between rounded-sm bg-(--color-surface) px-2.5 py-1.5 text-xs">
                 <span className={h.changeQuantity >= 0 ? "text-(--color-success)" : "text-(--color-error)"}>
                   {h.changeQuantity >= 0 ? `+${h.changeQuantity}` : h.changeQuantity} · {h.reason.replace("_", " ")}
                 </span>
@@ -655,7 +655,7 @@ function CategoriesManagerDrawer({
       <div className="flex flex-col gap-2">
         {categories.length === 0 && <p className="text-sm text-(--color-text-muted)">No categories yet — add the first one below.</p>}
         {categories.map((c) => (
-          <div key={c.id} className="flex items-center justify-between gap-2 rounded-(--radius-sm) border border-(--color-border-soft) px-3 py-2">
+          <div key={c.id} className="flex items-center justify-between gap-2 rounded-sm border border-(--color-border-soft) px-3 py-2">
             <span className="min-w-0 truncate text-sm">{c.name}</span>
             <div className="flex shrink-0 items-center gap-2">
               {busyId === c.id ? (

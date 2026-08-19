@@ -169,7 +169,7 @@ function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) 
               {ENTITY_LABELS[item.entityType]}
             </span>
           </div>
-          <p className="mt-1.5 text-sm font-medium text-(--color-charcoal) break-words">
+          <p className="mt-1.5 text-sm font-medium text-(--color-charcoal)">
             {item.displayName}
           </p>
           <p className="mt-0.5 text-xs text-(--color-text-muted)">

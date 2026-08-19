@@ -239,7 +239,7 @@ export function GalleryScreen() {
           value={String(query.search ?? "")}
           onChange={(event) => setQuery({ ...query, search: event.target.value, page: 1 })}
           placeholder="Search caption or alt text…"
-          className="min-w-[220px]"
+          className="min-w-55"
         />
       </div>
 
@@ -271,7 +271,7 @@ export function GalleryScreen() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((row) => (
               <article key={row.id} className="card overflow-hidden">
-                <div className="relative aspect-[4/3] bg-(--color-surface)">
+                <div className="relative aspect-4/3 bg-(--color-surface)">
                   {row.media?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={row.media.url} alt={row.altText} className="h-full w-full object-cover" />
