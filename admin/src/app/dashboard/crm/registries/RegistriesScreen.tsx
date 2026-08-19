@@ -109,11 +109,11 @@ export function RegistriesScreen() {
   return (
     <div className="space-y-6">
       <PageHeader title="Gift Registries" description="Oversight for registries, gifts, extractions, and registry orders." />
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setTab("registries")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "registries" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}>
+      <div className="flex gap-2 mb-6">
+        <button type="button" onClick={() => setTab("registries")} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "registries" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}>
           <Gift size={14} className="inline mr-1" /> Registries
         </button>
-        <button type="button" onClick={() => setTab("extractions")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "extractions" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}>
+        <button type="button" onClick={() => setTab("extractions")} className={`hidden px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "extractions" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}>
           Extractions
         </button>
       </div>
