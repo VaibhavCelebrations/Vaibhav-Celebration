@@ -58,6 +58,7 @@ import {
   adminAuditRouter,
   adminCacheRouter,
 } from "./modules/admin/admin-ops.routes";
+import { recycleBinRouter } from "./modules/admin/recycle-bin.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
 
 export function createApp() {
@@ -371,6 +372,7 @@ export function createApp() {
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);
+  api.use("/admin/recycle-bin", adminLimiter, noStore, recycleBinRouter);
 
   app.use(env.API_PREFIX, api);
 
