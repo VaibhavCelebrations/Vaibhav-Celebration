@@ -30,7 +30,7 @@ export function AdminConfirmDialog({
   title,
   message,
   tone = "danger",
-  confirmLabel = "Archive",
+  confirmLabel = "Delete",
   cancelLabel = "Cancel",
   requireReason,
   reasonLabel = "Reason",
@@ -94,7 +94,7 @@ export function AdminConfirmDialog({
         )}
 
         {tone === "danger" && (
-          <p className="mb-4 text-xs text-(--color-text-muted)">This record is archived, not erased. It can be restored by an administrator.</p>
+          <p className="mb-4 text-xs text-(--color-text-muted)">This record is deleted, but not permanently. It will be moved to the Recycle Bin. It can be restored by an administrator.</p>
         )}
 
         <div className="flex justify-end gap-2">

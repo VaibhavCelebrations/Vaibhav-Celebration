@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, FileText, Pencil, Plus } from "lucide-react";
+import { Trash2, FileText, Pencil, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import type { ResourceRecord, ResourceRepository } from "@/lib/data/resources";
@@ -138,7 +138,7 @@ export function ResourceScreen({
       ? [{ id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit }]
       : []),
     ...(allowArchive
-      ? [{ id: "archive", label: "Archive", icon: Archive, tone: "danger" as const, onSelect: setArchiveTarget }]
+      ? [{ id: "archive", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: setArchiveTarget }]
       : []),
   ];
 

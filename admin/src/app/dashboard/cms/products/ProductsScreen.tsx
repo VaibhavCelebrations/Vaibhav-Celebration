@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, Boxes, Layers, Loader2, Pencil, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { Trash2, Boxes, Layers, Loader2, Pencil, Plus, ShoppingBag } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import {
@@ -329,7 +329,7 @@ export function ProductsScreen() {
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
           { id: "stock", label: "Adjust stock", icon: Boxes, onSelect: setStockTarget },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: ShoppingBag, title: "No products yet", description: "Add your first gift shop product." }}
       />

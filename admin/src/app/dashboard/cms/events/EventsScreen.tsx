@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, PartyPopper, Pencil, Plus } from "lucide-react";
+import { Trash2, PartyPopper, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError, adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { eventsRepo } from "@/lib/data/resources";
@@ -308,7 +308,7 @@ export function EventsScreen() {
         searchPlaceholder="Search events…"
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: Archive, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{
           icon: PartyPopper,

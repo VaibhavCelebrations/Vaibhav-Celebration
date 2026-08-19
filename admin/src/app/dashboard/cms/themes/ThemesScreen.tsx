@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, ImagePlus, Palette, Pencil, X } from "lucide-react";
+import { Trash2 as Trash2, ImagePlus, Palette, Pencil, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
@@ -362,7 +362,7 @@ export function ThemesScreen() {
         ]}
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: Palette, title: "No themes yet", description: "Add your first party theme." }}
       />

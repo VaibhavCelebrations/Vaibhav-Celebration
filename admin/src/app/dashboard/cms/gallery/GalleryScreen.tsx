@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ImageIcon, Pencil, Plus, Tag, X } from "lucide-react";
+import { Trash2, ImageIcon, Pencil, Plus, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { AdminApiError, adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { galleryRepo } from "@/lib/data/resources";
@@ -307,11 +307,11 @@ export function GalleryScreen() {
                       </button>
                       <button
                         type="button"
-                        aria-label="Archive"
+                        aria-label="Delete"
                         className="btn btn-ghost p-2 text-(--color-error)"
                         onClick={() => setArchiveTarget(row)}
                       >
-                        <Archive size={15} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   </div>

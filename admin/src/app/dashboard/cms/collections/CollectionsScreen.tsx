@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, Layers, Loader2, Pencil, Plus } from "lucide-react";
+import { Trash2 as Trash2, Layers, Loader2, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import { collectionsRepo, emptyCollectionInput } from "@/lib/data/collections";
@@ -222,7 +222,7 @@ export function CollectionsScreen() {
         ]}
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: Layers, title: "No collections yet", description: "Create a collection to bundle products." }}
       />

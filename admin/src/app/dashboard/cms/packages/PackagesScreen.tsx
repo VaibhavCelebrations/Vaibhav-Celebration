@@ -632,7 +632,7 @@ function ExtraServicesList({
             </button>
             <button
               type="button"
-              aria-label="Archive"
+              aria-label="Delete"
               className="btn btn-ghost p-2 text-(--color-error)"
               onClick={() => onArchive(svc)}
             >

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, HelpCircle, Pencil } from "lucide-react";
+import { Trash2 as Trash2, HelpCircle, Pencil } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
@@ -141,7 +141,7 @@ export function FaqsScreen() {
         filters={[{ key: "category", label: "Category", type: "select", options: FAQ_CATEGORIES.map((c) => ({ value: c, label: c })) }]}
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: HelpCircle, title: "No FAQs yet", description: "Add your first frequently asked question." }}
       />
