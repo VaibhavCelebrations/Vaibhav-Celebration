@@ -122,3 +122,23 @@ export async function hardDeleteRecycleBinItem(
     body: { password },
   });
 }
+
+export async function restoreRecycleBinItemsBulk(
+  items: { entityType: RecycleBinEntityType; id: string }[],
+  password: string,
+): Promise<{ restoredCount: number; errors: Array<{ entityType: string; id: string; error: string }> }> {
+  return await adminFetch<{ restoredCount: number; errors: Array<{ entityType: string; id: string; error: string }> }>(`/admin/recycle-bin/bulk/restore`, {
+    method: "POST",
+    body: { items, password },
+  });
+}
+
+export async function hardDeleteRecycleBinItemsBulk(
+  items: { entityType: RecycleBinEntityType; id: string }[],
+  password: string,
+): Promise<{ deletedCount: number; errors: Array<{ entityType: string; id: string; error: string }> }> {
+  return await adminFetch<{ deletedCount: number; errors: Array<{ entityType: string; id: string; error: string }> }>(`/admin/recycle-bin/bulk/delete`, {
+    method: "POST",
+    body: { items, password },
+  });
+}

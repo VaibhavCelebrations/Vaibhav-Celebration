@@ -1,6 +1,7 @@
 import { PartyPopper, Palette, Gift, Gamepad2, Mail, Award } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeDeliverablesSection } from "@/lib/cms/types";
+import { asText } from "@/lib/cms/text";
 
 const services = [
   { slug: "customized-celebrations", icon: PartyPopper, title: "Customized Celebrations", desc: "Tailored around the person, milestone or moment being celebrated." },
@@ -21,10 +22,10 @@ export function DeliverableStrip({ content }: DeliverableStripProps) {
       <div className="max-w-7xl mx-auto px-5 md:px-10 mb-10 text-center">
         <ScrollReveal>
           <h2 className="font-display text-2xl md:text-3xl text-charcoal font-semibold">
-            {content?.title ?? "Everything You Need for a Thoughtfully Planned Celebration"}
+            {asText(content?.title, "Everything You Need for a Thoughtfully Planned Celebration")}
           </h2>
           <p className="mt-3 text-text-muted text-sm md:text-base max-w-xl mx-auto">
-            {content?.subtitle ?? "From concept to keepsakes, every element works together beautifully."}
+            {asText(content?.subtitle, "From concept to keepsakes, every element works together beautifully.")}
           </p>
         </ScrollReveal>
       </div>

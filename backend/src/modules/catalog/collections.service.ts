@@ -55,7 +55,7 @@ function shapeProduct(p: CollectionWithRelations["items"][number]["product"]) {
     images: p.images.map((img) => ({ id: img.id, displayOrder: img.displayOrder, media: toMediaRef(img.media) })),
     categories: p.categoryTags.map((t) => ({ id: t.category.id, name: t.category.name, slug: t.category.slug })),
     themes: p.themeTags.map((t) => ({ id: t.theme.id, title: t.theme.title, slug: t.theme.slug })),
-    personalizationFields: p.personalizationFields.map((f) => ({
+    personalizationFields: (p.personalizationFields ?? []).map((f) => ({
       id: f.id,
       fieldKey: f.fieldKey,
       label: f.label,

@@ -14,6 +14,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } fro
 import { nextRegistryCode } from "../../lib/sequences";
 import type { ShippingAddress } from "../orders/orders.service";
 import { createDirectOrder } from "../orders/orders.service";
+import { assertGiftRegistryEntitlement } from "../upgrades/upgrades.service";
 import { formatAddressText, parseShippingAddress } from "./address";
 import { extractExternalProduct } from "./extract.service";
 import {
@@ -212,6 +213,7 @@ export async function listRegistriesForOwner(userId: string) {
 export async function createRegistry(
   userId: string,
   input: {
+    sourceOrderCode: string;
     password?: string;
     title?: string;
     occasion?: string;
@@ -228,6 +230,14 @@ export async function createRegistry(
     visibility?: RegistryVisibility;
   },
 ) {
+  const parent = await assertGiftRegistryEntitlement(userId, input.sourceOrderCode);
+  const existing = await prisma.giftRegistry.findFirst({
+    where: { sourceOrderId: parent.id, ownerUserId: userId, status: { not: RegistryStatus.ARCHIVED } },
+  });
+  if (existing) {
+    throw new ValidationError("A gift registry already exists for this celebration");
+  }
+
   const visibility = input.visibility ?? RegistryVisibility.UNLISTED;
   if (visibility === RegistryVisibility.PRIVATE && !input.password) {
     throw new ValidationError("A password is required for private registries");
@@ -235,15 +245,19 @@ export async function createRegistry(
   const registryCode = await nextRegistryCode();
   const passwordHash = input.password ? await bcrypt.hash(input.password, 12) : null;
   const expiresAt = new Date(Date.now() + env.GIFT_REGISTRY_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+  const eventDate = input.eventDate
+    ? new Date(input.eventDate)
+    : parent.eventDate;
 
   const registry = await prisma.giftRegistry.create({
     data: {
       registryCode,
       passwordHash,
       ownerUserId: userId,
+      sourceOrderId: parent.id,
       title: input.title,
       occasion: input.occasion,
-      eventDate: input.eventDate ? new Date(input.eventDate) : null,
+      eventDate,
       ownerDisplayName: input.ownerDisplayName,
       contactEmail: input.contactEmail,
       contactPhone: input.contactPhone,
@@ -370,7 +384,7 @@ export async function archiveRegistry(userId: string, registryId: string) {
   await assertOwner(userId, registryId);
   const registry = await prisma.giftRegistry.update({
     where: { id: registryId },
-    data: { status: RegistryStatus.ARCHIVED },
+    data: { status: RegistryStatus.ARCHIVED, sourceOrderId: null },
   });
   return shapeRegistry(registry, { includePrivate: true });
 }

@@ -11,10 +11,12 @@ describe("pages.service", () => {
   });
 
   it("provides default sections for all static pages", () => {
-    const home = defaultPageSections.home as { hero?: unknown };
+    const home = defaultPageSections.home as { hero?: { headline?: string; headlineAccent?: string } };
     const about = defaultPageSections.about as { values?: unknown };
     const contact = defaultPageSections.contact as { formLabels?: unknown };
     expect(home.hero).toBeDefined();
+    expect(home.hero?.headline).toBe("One Theme. Every Detail. Beautifully Celebrated");
+    expect(home.hero?.headlineAccent).toBe("Beautifully Celebrated");
     expect(about.values).toBeDefined();
     expect(contact.formLabels).toBeDefined();
   });

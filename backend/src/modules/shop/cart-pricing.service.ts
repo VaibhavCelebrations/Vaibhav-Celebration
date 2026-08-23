@@ -1,4 +1,4 @@
-import { getGstPercent, gstOn } from "../../lib/settings";
+import { getGstPercent, gstOn, computeShippingForSubtotal } from "../../lib/settings";
 
 /**
  * Authoritative pricing engine for the shop — mirrors the design already
@@ -15,6 +15,10 @@ export type QuoteLineInput = {
 
 export type CartQuote = {
   subtotalInPaise: number;
+  shippingInPaise: number;
+  shippingWaived: boolean;
+  freeShippingThresholdInPaise: number;
+  amountUntilFreeShippingInPaise: number;
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
@@ -36,13 +40,19 @@ export async function computeQuote(lines: QuoteLineInput[]): Promise<CartQuote> 
     lineTotalInPaise: (l.unitPriceInPaise + (l.personalizationCostInPaise ?? 0)) * l.quantity,
   }));
   const subtotalInPaise = shapedLines.reduce((sum, l) => sum + l.lineTotalInPaise, 0);
+  const shipping = await computeShippingForSubtotal(subtotalInPaise);
   const gstPercent = await getGstPercent();
-  const gstInPaise = gstOn(subtotalInPaise, gstPercent);
+  const taxable = subtotalInPaise + shipping.shippingInPaise;
+  const gstInPaise = gstOn(taxable, gstPercent);
   return {
     subtotalInPaise,
+    shippingInPaise: shipping.shippingInPaise,
+    shippingWaived: shipping.shippingWaived,
+    freeShippingThresholdInPaise: shipping.freeShippingThresholdInPaise,
+    amountUntilFreeShippingInPaise: shipping.amountUntilFreeShippingInPaise,
     gstPercent,
     gstInPaise,
-    totalInPaise: subtotalInPaise + gstInPaise,
+    totalInPaise: taxable + gstInPaise,
     lines: shapedLines,
   };
 }

@@ -279,7 +279,7 @@ export default function RegistryDetailPage({ params }: Props) {
     return (
       <div className="text-center py-20">
         <h2 className="font-display text-xl font-bold text-charcoal mb-4">Registry not found</h2>
-        <Link href="/account/registry" className="btn-primary px-8 py-3 text-sm">Back to Registries</Link>
+        <Link href="/account/orders" className="btn-primary px-8 py-3 text-sm">Back to Orders</Link>
       </div>
     );
   }
@@ -289,8 +289,8 @@ export default function RegistryDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <Link href="/account/registry" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold">
-        <ArrowLeft size={14} /> Back to Registries
+      <Link href="/account/orders" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold">
+        <ArrowLeft size={14} /> Back to Orders
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -430,7 +430,7 @@ export default function RegistryDetailPage({ params }: Props) {
               try {
                 await shopApi.archiveMyRegistry(registry.id);
                 push("Registry archived", "success");
-                window.location.href = "/account/registry";
+                window.location.href = "/account/orders";
               } catch (err) {
                 push(friendlyAuthError(err), "error");
               }

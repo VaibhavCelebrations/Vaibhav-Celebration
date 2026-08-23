@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { storeMediaBuffer } from "../media/storage";
+import { storeMediaBuffer, cdnKeyFromPublicUrl } from "../media/storage";
 import { LETTERHEAD_LAYOUT as L } from "./layout";
 
 export type InvoicePdfInput = {
@@ -12,6 +12,9 @@ export type InvoicePdfInput = {
   guestPhone: string;
   lineItems: Array<{ label: string; amountInPaise: number }>;
   subtotalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  gstPercent?: number;
   gstInPaise: number;
   totalInPaise: number;
   issuedAt: Date;
@@ -33,6 +36,43 @@ async function loadLetterheadTemplate(): Promise<PDFDocument> {
 }
 
 export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url: string; cdnKey: string }> {
+  const buffer = await renderInvoicePdfBuffer(input);
+  const stored = await storeMediaBuffer({
+    buffer,
+    originalName: `${input.invoiceNumber}.pdf`,
+    mimeType: "application/pdf",
+    kind: "invoices",
+    scope: String(new Date().getFullYear()),
+    role: input.invoiceNumber.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+  });
+  return { url: stored.url, cdnKey: stored.cdnKey };
+}
+
+/** Fetch previously stored invoice PDF bytes for email attachment. */
+export async function fetchInvoicePdfBuffer(pdfUrl: string | null | undefined): Promise<Buffer | null> {
+  if (!pdfUrl?.trim()) return null;
+
+  const key = cdnKeyFromPublicUrl(pdfUrl);
+  if (key) {
+    try {
+      const localPath = path.resolve(process.cwd(), "uploads", key);
+      return await fs.readFile(localPath);
+    } catch {
+      /* fall through to HTTP */
+    }
+  }
+
+  try {
+    const res = await fetch(pdfUrl);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/** Render invoice PDF bytes (also used by tests). */
+export async function renderInvoicePdfBuffer(input: InvoicePdfInput): Promise<Buffer> {
   const template = await loadLetterheadTemplate();
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.TimesRoman);
@@ -40,6 +80,10 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
   const mocha = rgb(0.545, 0.271, 0.075);
   const ink = rgb(0.17, 0.09, 0.06);
   const muted = rgb(0.33, 0.27, 0.24);
+
+  const shippingInPaise = input.shippingInPaise ?? 0;
+  const shippingWaived = input.shippingWaived ?? shippingInPaise === 0;
+  const gstPercent = input.gstPercent ?? 18;
 
   const pagesNeeded = Math.max(1, Math.ceil(input.lineItems.length / 18));
   for (let i = 0; i < pagesNeeded; i++) {
@@ -88,12 +132,11 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
   draw("Amount", L.right - 70, y, 10, true, mocha);
   y -= 14;
 
-  let itemIndex = 0;
   let pageIndex = 0;
   let current = first;
   let rowY = y;
 
-  const startContinuation = async () => {
+  const startContinuation = () => {
     pageIndex += 1;
     current = pages[pageIndex] ?? first;
     rowY = L.contentTop;
@@ -109,7 +152,7 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
 
   for (const item of input.lineItems) {
     if (rowY < L.footerY + L.totalsReserve) {
-      await startContinuation();
+      startContinuation();
     }
     const label = item.label.slice(0, 90);
     current.drawText(label, { x: L.left, y: rowY, size: 10, font, color: ink });
@@ -121,11 +164,10 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
       color: ink,
     });
     rowY -= L.tableRow;
-    itemIndex += 1;
   }
 
   if (rowY < L.footerY + L.totalsReserve) {
-    await startContinuation();
+    startContinuation();
   }
   rowY -= 8;
   current.drawLine({
@@ -136,15 +178,28 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
   });
   rowY -= 20;
   current.drawText(`Subtotal: ${paiseToInr(input.subtotalInPaise)}`, {
-    x: L.right - 180,
+    x: L.right - 200,
     y: rowY,
     size: 10,
     font,
     color: muted,
   });
   rowY -= 16;
-  current.drawText(`GST: ${paiseToInr(input.gstInPaise)}`, {
-    x: L.right - 180,
+  current.drawText(
+    shippingWaived || shippingInPaise === 0
+      ? "Shipping: FREE"
+      : `Shipping: ${paiseToInr(shippingInPaise)}`,
+    {
+      x: L.right - 200,
+      y: rowY,
+      size: 10,
+      font,
+      color: muted,
+    },
+  );
+  rowY -= 16;
+  current.drawText(`GST (${gstPercent}%): ${paiseToInr(input.gstInPaise)}`, {
+    x: L.right - 200,
     y: rowY,
     size: 10,
     font,
@@ -152,7 +207,7 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
   });
   rowY -= 20;
   current.drawText(`Total: ${paiseToInr(input.totalInPaise)}`, {
-    x: L.right - 180,
+    x: L.right - 200,
     y: rowY,
     size: 13,
     font: fontBold,
@@ -166,28 +221,5 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
     color: muted,
   });
 
-  const bytes = await out.save();
-  const buffer = Buffer.from(bytes);
-  const stored = await storeMediaBuffer({
-    buffer,
-    originalName: `${input.invoiceNumber}.pdf`,
-    mimeType: "application/pdf",
-    kind: "invoices",
-    scope: String(new Date().getFullYear()),
-    role: input.invoiceNumber.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-  });
-  return { url: stored.url, cdnKey: stored.cdnKey };
-}
-
-/** Test helper — returns PDF bytes without uploading. */
-export async function renderInvoicePdfBuffer(input: InvoicePdfInput): Promise<Buffer> {
-  const original = generateInvoicePdf;
-  void original;
-  const template = await loadLetterheadTemplate();
-  const out = await PDFDocument.create();
-  const [copiedPage] = await out.copyPages(template, [0]);
-  if (!copiedPage) throw new Error("Letterhead PDF has no pages");
-  out.addPage(copiedPage);
-  copiedPage.drawText(input.invoiceNumber, { x: L.left, y: L.contentTop, size: 12 });
   return Buffer.from(await out.save());
 }

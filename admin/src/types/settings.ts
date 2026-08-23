@@ -1,12 +1,10 @@
 import type { ISODate } from "./common";
 
 /**
- * Matches OperationalSetting (key/value string row). The admin UI renders
- * each with a human label/description/unit looked up by key — see
- * src/lib/data/settings.ts for the seeded key list (only 3 numeric keys
- * exist in backend/prisma/seed.ts today: gst_percent, max_bookings_per_day,
- * min_consultation_advance_days — plus business-info string keys not shown
- * in Settings).
+ * Matches OperationalSetting (key/value string row). Seeded numeric keys
+ * include GST_PERCENT, MIN_CONSULTATION_ADVANCE_DAYS,
+ * FREE_SHIPPING_THRESHOLD_IN_PAISE, SHIPPING_FEE_IN_PAISE, plus
+ * business-info string keys.
  */
 export type OperationalSetting = {
   key: string;

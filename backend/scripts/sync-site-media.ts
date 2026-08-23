@@ -563,7 +563,7 @@ async function main() {
     data: {
       metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
       metaDescription:
-        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur NCR.",
+        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur.",
     },
   });
 

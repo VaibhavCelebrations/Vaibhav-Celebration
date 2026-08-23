@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { User, Package, Heart, Gift, Lock, Loader2 } from "lucide-react";
+import { User, Package, Heart, Lock, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -13,12 +13,12 @@ const NAV_ITEMS = [
   { href: "/account", label: "Profile", icon: User },
   { href: "/account/orders", label: "Order History", icon: Package },
   { href: "/account/wishlist", label: "Saved Products", icon: Heart },
-  { href: "/account/registry", label: "Gift Registry", icon: Gift },
 ];
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, openAuthModal } = useAuth();
   const pathname = usePathname();
+  const navItems = NAV_ITEMS;
 
   return (
     <>
@@ -36,7 +36,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
               </div>
               <h1 className="font-display text-2xl font-bold text-charcoal mb-3">Sign in to your account</h1>
               <p className="text-text-muted text-sm mb-8">
-                Sign in to view your orders, saved products, and gift registries.
+                Sign in to view your orders and saved products.
               </p>
               <button
                 onClick={() => openAuthModal(() => window.location.reload())}
@@ -50,7 +50,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
               {/* Sidebar */}
               <aside className="lg:sticky lg:top-28 h-fit">
                 <nav className="flex lg:flex-col gap-1 overflow-x-auto hide-scrollbar bg-surface rounded-2xl border border-border-light p-2 shadow-soft">
-                  {NAV_ITEMS.map((item) => {
+                  {navItems.map((item) => {
                     const isActive = item.href === "/account" ? pathname === "/account" : pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (

@@ -11,6 +11,16 @@ export type BuilderProduct = {
   pricingMode: "PER_CHILD" | "PER_GROUP";
   categories: Array<{ slug: string; name: string }>;
   imageUrl: string | null;
+  personalizationEnabled: boolean;
+  personalizationCostInPaise: number;
+  personalizationFields: Array<{
+    id: string;
+    fieldKey: string;
+    label: string;
+    fieldType: string;
+    isRequired: boolean;
+    maxLength: number | null;
+  }>;
 };
 
 export type BuilderSelections = {
@@ -20,6 +30,8 @@ export type BuilderSelections = {
   returnGift?: string | null;
   familyActivity?: string | null;
   decor?: boolean;
+  personalization?: Record<string, boolean>;
+  giftRegistryCustomize?: boolean;
 };
 
 export type BuilderQuoteInput = {
@@ -40,6 +52,8 @@ export type BuilderLineItem = {
   unitPriceInPaise: number;
   lineTotalInPaise: number;
   moqApplied?: boolean;
+  personalizationSelected?: boolean;
+  personalizationCostInPaise?: number;
 };
 
 export type BuilderQuote = {
@@ -55,10 +69,17 @@ export type BuilderQuote = {
   basePriceInPaise: number;
   customizationTotalInPaise: number;
   subtotalInPaise: number;
+  shippingInPaise: number;
+  shippingWaived: boolean;
+  freeShippingThresholdInPaise: number;
+  amountUntilFreeShippingInPaise: number;
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
   includedLabels: string[];
+  hasPersonalization: boolean;
+  giftRegistryIncluded?: boolean;
+  giftRegistryCustomizePriceInPaise?: number;
 };
 
 export async function listBuilderProducts(params: {

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import { delPattern } from "../../lib/redis";
 
 export async function listExtraServices(includeInactive = false) {
   return prisma.extraService.findMany({
@@ -35,6 +36,7 @@ export async function createExtraService(data: Prisma.ExtraServiceUncheckedCreat
         })),
       });
     }
+    void delPattern("pub:packages:*");
     return item;
   });
 }
@@ -48,6 +50,7 @@ export async function updateExtraService(
     data,
   });
   if (!updated.count) throw new NotFoundError("Extra service not found");
+  void delPattern("pub:packages:*");
   return prisma.extraService.findUniqueOrThrow({ where: { id } });
 }
 
@@ -57,4 +60,5 @@ export async function deleteExtraService(id: string) {
     data: { deletedAt: new Date(), isActive: false },
   });
   if (!updated.count) throw new NotFoundError("Extra service not found");
+  void delPattern("pub:packages:*");
 }

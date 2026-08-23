@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Loader2, Save, KeyRound, LogOut, ShieldCheck, ShieldAlert, Gift } from "lucide-react";
+import { Loader2, Save, KeyRound, LogOut, ShieldCheck, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/components/ui/Toast";
 import * as authApi from "@/lib/customer-auth-api";
@@ -64,22 +63,8 @@ function ProfileForm({ user, logout, refreshUser }: { user: User; logout: () => 
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl md:text-3xl font-bold text-charcoal">My Profile</h1>
-        <p className="text-text-muted text-sm mt-1">Manage your account details, gift registry, and security settings.</p>
+        <p className="text-text-muted text-sm mt-1">Manage your account details and security settings.</p>
       </div>
-
-      <Link
-        href="/account/registry"
-        className="flex items-center gap-4 bg-surface rounded-2xl border border-border-light p-5 shadow-soft hover:shadow-md hover:border-mocha/40 transition-all"
-      >
-        <div className="w-12 h-12 rounded-xl bg-mocha/10 flex items-center justify-center shrink-0">
-          <Gift size={22} className="text-mocha" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-display text-lg font-bold text-charcoal">Gift Registry</p>
-          <p className="text-sm text-text-muted mt-0.5">Create a wishlist, share it with guests, and track gifts for your celebration.</p>
-        </div>
-        <span className="text-sm font-semibold text-mocha shrink-0">Open →</span>
-      </Link>
 
       {/* Profile Details */}
       <form onSubmit={handleSaveProfile} className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">

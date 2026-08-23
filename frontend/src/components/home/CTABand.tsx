@@ -4,6 +4,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeCtaBandSection } from "@/lib/cms/types";
 import type { PublicSettings } from "@/lib/cms/types";
 import { whatsappHref } from "@/lib/cms/map-media";
+import { asText } from "@/lib/cms/text";
 
 type CTABandProps = {
   content?: HomeCtaBandSection;
@@ -32,25 +33,25 @@ export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
           </div>
 
           <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold leading-[1.15] !text-white">
-            {content?.headline ?? (
-              <>
-                Let&apos;s create a themed birthday
-                <br className="hidden md:block" /> experience your child will remember
-              </>
+            {asText(
+              content?.headline,
+              "Let's create a themed birthday experience your child will remember",
             )}
           </h2>
 
           <p className="mt-8 text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">
-            {content?.subheadline ??
-              "Every celebration at Vaibhav Celebrations is thoughtfully designed around one beautiful story — from the first invitation to the final keepsake."}
+            {asText(
+              content?.subheadline,
+              "Every celebration at Vaibhav Celebrations is thoughtfully designed around one beautiful story — from the first invitation to the final keepsake.",
+            )}
           </p>
 
           <div className="mt-12 flex flex-wrap justify-center items-center gap-4">
             <Link
-              href={content?.ctaHref ?? "/consultation"}
+              href={asText(content?.ctaHref, "/consultation")}
               className="inline-flex items-center justify-center gap-2 bg-mocha hover:bg-mocha-light text-white font-bold px-10 py-5 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg uppercase tracking-wider text-sm min-w-[240px]"
             >
-              {content?.ctaLabel ?? "Book Your Celebration"}
+              {asText(content?.ctaLabel, "Book Your Celebration")}
             </Link>
             <a
               href={whatsappHref(wa)}

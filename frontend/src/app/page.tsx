@@ -22,7 +22,7 @@ import { getPublicSettings, getWhatsAppNumber } from "@/lib/cms/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("home", {
-    title: "Vaibhav Celebrations | Thoughtfully Curated Kids Celebrations",
+    title: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
     description:
       "Creating customized kids birthday celebrations, milestone moments, themed experiences, personalized return gifts, and memorable celebrations designed around every child's unique story.",
   });

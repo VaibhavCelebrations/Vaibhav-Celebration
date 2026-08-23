@@ -22,7 +22,7 @@ import {
   adminProductCategoriesRouter,
 } from "./modules/catalog/catalog.routes";
 import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
-import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
+import { cartRouter, wishlistRouter, deliverySettingsRouter } from "./modules/shop/shop.routes";
 import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
@@ -325,6 +325,7 @@ export function createApp() {
   // Customer shop — requireCustomer enforced inside the routers themselves
   api.use("/cart", publicLimiter, cartRouter);
   api.use("/wishlist", publicLimiter, wishlistRouter);
+  api.use("/shop/delivery-settings", publicLimiter, deliverySettingsRouter);
   api.use("/shop/checkout", publicLimiter, shopCheckoutRouter);
   api.use("/shop/orders", strictLimiter, ordersRouter);
   api.use("/account/orders", publicLimiter, accountOrdersRouter);

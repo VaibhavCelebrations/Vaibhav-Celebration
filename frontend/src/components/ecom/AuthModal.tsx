@@ -124,8 +124,8 @@ export function AuthModal() {
           </h2>
           <p className="text-text-muted text-sm mt-1">
             {activeTab === "login"
-              ? "Sign in to manage orders, saved products, and gift registries"
-              : "Join us to track celebrations and create a gift registry"}
+              ? "Sign in to manage orders and saved products"
+              : "Join us to track celebrations and orders"}
           </p>
         </div>
 

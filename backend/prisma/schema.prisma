@@ -181,10 +181,11 @@ model Package {
   pricingUnit     String?
   hasGiftRegistry Boolean              @default(false)
   internalKey     String?
-  orderPackages   OrderPackage[]
-  serviceItems    PackageServiceItem[]
-  testimonials    Testimonial[]
-  themeLinks      ThemePackage[]
+  orderPackages        OrderPackage[]
+  serviceItems         PackageServiceItem[]
+  testimonials         Testimonial[]
+  themeLinks           ThemePackage[]
+  upgradeEligibility   PackageUpgradeEligibility[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)
   @@index([slug(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -241,6 +242,35 @@ model PackageServiceItem {
   package           Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@unique([packageId, extraServiceId])
+}
+
+enum PackageUpgradeKind {
+  GIFT_REGISTRY
+}
+
+/// Paid add-ons that can be purchased after a package order (e.g. Gift Registry ₹500).
+model PackageUpgrade {
+  id           String                       @id @default(cuid())
+  kind         PackageUpgradeKind           @unique
+  title        String
+  description  String?
+  priceInPaise Int
+  isActive     Boolean                      @default(true)
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+  eligibility  PackageUpgradeEligibility[]
+  orders       Order[]
+
+  @@index([kind])
+}
+
+model PackageUpgradeEligibility {
+  upgradeId String
+  packageId String
+  upgrade   PackageUpgrade @relation(fields: [upgradeId], references: [id], onDelete: Cascade)
+  package   Package        @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@id([upgradeId, packageId])
 }
 
 model GalleryImage {
@@ -802,6 +832,12 @@ model Order {
   subtotalInPaise             Int
   gstInPaise                  Int
   totalInPaise                Int
+  /// Delivery fee charged on this order (0 when waived).
+  shippingInPaise             Int                         @default(0)
+  /// True when subtotal met the free-shipping threshold at checkout.
+  shippingWaived              Boolean                     @default(false)
+  /// Snapshot of the free-shipping threshold that applied when the order was placed.
+  freeShippingThresholdSnapshotInPaise Int?
   shippingAddress             Json
   contactEmail                String
   contactPhone                String
@@ -819,6 +855,10 @@ model Order {
   whatsappSentAt              DateTime?
   registryId                  String?
   kind                        OrderKind                   @default(SHOP)
+  /// For UPGRADE orders: the paid package order this add-on belongs to.
+  parentOrderId               String?
+  upgradeId                   String?
+  upgradeKind                 PackageUpgradeKind?
   /// Celebration / event date for PACKAGE orders (calendar + ops).
   eventDate                   DateTime?                   @db.Date
   /// childName, age, venue, guestCount, notes, etc.
@@ -828,10 +868,14 @@ model Order {
   whatsappMessageId           String?
   giftContributions           GiftRegistryContribution[]
   invoice                     Invoice?
-  registry                    GiftRegistry?               @relation(fields: [registryId], references: [id])
+  registry                    GiftRegistry?               @relation("GuestRegistryOrder", fields: [registryId], references: [id])
+  sourcedRegistries           GiftRegistry[]              @relation("RegistrySourceOrder")
   user                        User                        @relation(fields: [userId], references: [id])
   items                       OrderItem[]
   packageOrder                OrderPackage?
+  parentOrder                 Order?                      @relation("OrderUpgrades", fields: [parentOrderId], references: [id], onDelete: SetNull)
+  childOrders                 Order[]                     @relation("OrderUpgrades")
+  upgrade                     PackageUpgrade?             @relation(fields: [upgradeId], references: [id])
 
   @@index([orderCode])
   @@index([userId])
@@ -840,6 +884,8 @@ model Order {
   @@index([paymentStatus])
   @@index([registryId])
   @@index([eventDate])
+  @@index([parentOrderId])
+  @@index([upgradeKind])
 }
 
 /// One celebration package purchased on an Order (kind = PACKAGE).
@@ -949,7 +995,9 @@ model GiftRegistry {
   publishedAt        DateTime?
   ownerUser          User               @relation(fields: [ownerUserId], references: [id])
   items              GiftRegistryItem[]
-  orders             Order[]
+  orders             Order[]            @relation("GuestRegistryOrder")
+  sourceOrderId      String?            @unique
+  sourceOrder        Order?             @relation("RegistrySourceOrder", fields: [sourceOrderId], references: [id])
 
   @@index([ownerUserId])
   @@index([status])
@@ -1203,6 +1251,7 @@ enum OrderStatus {
 enum OrderKind {
   SHOP
   PACKAGE
+  UPGRADE
 }
 
 enum RegistryStatus {

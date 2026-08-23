@@ -8,6 +8,7 @@ import { ContactForm } from "@/components/contact/ContactForm";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { getContactPageContent } from "@/lib/cms/pages";
 import { getPublicSettings } from "@/lib/cms/settings";
+import { asText } from "@/lib/cms/text";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("contact", {
@@ -25,10 +26,10 @@ export default async function ContactPage() {
   const info = pageContent?.sections.info;
   const labels = pageContent?.sections.formLabels;
 
-  const phone = info?.phone ?? settings?.businessPhone ?? "+91 00000 00000";
-  const email = info?.email ?? settings?.businessEmail ?? "hello@vaibhavcelebrations.in";
-  const address = info?.address ?? settings?.businessAddress ?? "Jaipur, Rajasthan, India";
-  const hours = info?.hours ?? "Mon – Sun: 10 AM – 6 PM";
+  const phone = asText(info?.phone, settings?.businessPhone ?? "+91 00000 00000");
+  const email = asText(info?.email, settings?.businessEmail ?? "hello@vaibhavcelebrations.in");
+  const address = asText(info?.address, settings?.businessAddress ?? "Jaipur, Rajasthan, India");
+  const hours = asText(info?.hours, "Mon – Sun: 10 AM – 6 PM");
 
   return (
     <>
@@ -43,10 +44,10 @@ export default async function ContactPage() {
 
                 <div className="relative z-10">
                   <h3 className="font-display text-3xl !text-white font-semibold mb-2">
-                    {pageContent?.sections.hero?.title ?? "Contact Info"}
+                    {asText(pageContent?.sections.hero?.title, "Contact Info")}
                   </h3>
                   <p className="text-white/70 text-sm mb-12">
-                    {pageContent?.sections.hero?.subtitle ?? "Fill out the form and our team will get back to you within 24 hours."}
+                    {asText(pageContent?.sections.hero?.subtitle, "Fill out the form and our team will get back to you within 24 hours.")}
                   </p>
 
                   <div className="space-y-8">

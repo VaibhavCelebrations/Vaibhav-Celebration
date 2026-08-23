@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ShoppingCart, Heart } from "lucide-react";
 import type { Product } from "@/lib/shop-types";
 import { formatPaise, getStockStatus, productImageUrl } from "@/lib/shop-types";
+import { useDeliverySettings } from "@/lib/delivery-settings";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 
@@ -17,10 +19,14 @@ interface ProductCardProps {
 export function ProductCard({ product, compact = false }: ProductCardProps) {
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const delivery = useDeliverySettings();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
-  const hasPersonalization = (product.personalizationFields?.length ?? 0) > 0;
+  const hasPersonalization = product.personalizationEnabled && (product.personalizationFields?.length ?? 0) > 0;
   const wishlisted = isWishlisted(product.id);
+  const fromPrice = hasPersonalization
+    ? product.priceInPaise + product.personalizationCostInPaise
+    : product.priceInPaise;
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -105,7 +111,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
             </button>
           </div>
 
-          {!compact && (
+          {!compact && typeof product.description === "string" && product.description && (
             <p className="text-text-muted text-xs sm:text-sm mt-2 line-clamp-2 leading-relaxed pr-10">
               {product.description}
             </p>
@@ -113,7 +119,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
 
           <div className="flex items-center gap-2 mt-4">
             <span className="font-display text-lg sm:text-xl font-bold text-charcoal">
-              {formatPaise(product.priceInPaise)}
+              {hasPersonalization ? `From ${formatPaise(fromPrice)}` : formatPaise(product.priceInPaise)}
             </span>
             {product.compareAtPriceInPaise && (
               <span className="text-sm text-text-light line-through font-medium">
@@ -125,8 +131,18 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
           {/* Personalization hint */}
           {hasPersonalization && (
             <p className="text-[10px] text-mocha font-semibold mt-2 uppercase tracking-wider">
-              ✨ Personalizable
+              ✨ Personalizable · +{formatPaise(product.personalizationCostInPaise)}
             </p>
+          )}
+          {!compact && (
+            <div className="mt-2">
+              <FreeDeliveryProgress
+                compact
+                subtotalInPaise={product.priceInPaise}
+                freeShippingThresholdInPaise={delivery.freeShippingThresholdInPaise}
+                shippingFeeInPaise={delivery.shippingFeeInPaise}
+              />
+            </div>
           )}
         </div>
       </div>

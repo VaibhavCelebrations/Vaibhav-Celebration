@@ -22,6 +22,8 @@ const quoteSchema = z.object({
     returnGift: z.string().min(1).optional().nullable(),
     familyActivity: z.string().min(1).optional().nullable(),
     decor: z.boolean().optional().default(false),
+    personalization: z.record(z.string(), z.boolean()).optional(),
+    giftRegistryCustomize: z.boolean().optional().default(false),
   }),
 });
 

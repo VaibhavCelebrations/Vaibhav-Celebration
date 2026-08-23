@@ -97,10 +97,22 @@ export default async function PackagesPage() {
           <PackageComparisonGrid />
 
           <ScrollReveal>
-            <div className="flex flex-col items-center mt-16 mb-8">
-              <Link href="/consultation" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
-                Book Consultation
-              </Link>
+            <div className="mt-16 mb-8 rounded-3xl border border-mocha/15 bg-cream-dark/50 px-6 py-10 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-mocha mb-3">Bespoke planning</p>
+              <h3 className="font-display text-2xl md:text-3xl font-semibold text-charcoal">
+                Plan a Custom Celebration
+              </h3>
+              <p className="mt-3 text-sm text-text-muted max-w-lg mx-auto leading-relaxed">
+                Have a unique theme, guest count, or venue in mind? We&apos;ll design every detail around your celebration.
+              </p>
+              <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link href="/consultation" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
+                  Plan Custom Celebration
+                </Link>
+                <Link href="/consultation" className="btn-outline text-sm px-8 py-3.5 w-full sm:w-auto uppercase tracking-wider font-bold bg-white">
+                  Book Consultation
+                </Link>
+              </div>
             </div>
             <p className="text-center text-xs text-text-light mt-8">
               *Base package price. Choosable activities, gifts, and Jaipur décor are added in the builder. GST applied at checkout.

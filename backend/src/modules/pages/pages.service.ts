@@ -26,7 +26,14 @@ export async function getPageContent(pageKey: string) {
     });
   }
   const sections = await resolveMediaInJson(row.sections, loadMediaById);
-  return { pageKey: row.pageKey, sections, updatedAt: row.updatedAt };
+  const normalized = normalizeHomeHero(pageKey, sections);
+  if (normalized.changed) {
+    await prisma.pageContent.update({
+      where: { pageKey },
+      data: { sections: normalized.sections as Prisma.InputJsonValue },
+    });
+  }
+  return { pageKey: row.pageKey, sections: normalized.sections, updatedAt: row.updatedAt };
 }
 
 export async function listPageContent() {
@@ -48,17 +55,63 @@ export async function upsertPageContent(
   });
 }
 
+function asPlainText(value: unknown): string | null {
+  if (typeof value === "string" && value.trim() && value.trim() !== "[object Object]") {
+    return value.trim();
+  }
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    for (const key of ["text", "value", "label", "html", "title"]) {
+      if (typeof rec[key] === "string" && rec[key].trim()) return rec[key].trim();
+    }
+  }
+  return null;
+}
+
+function normalizeHomeHero(pageKey: string, sections: unknown): { sections: unknown; changed: boolean } {
+  if (pageKey !== "home" || !sections || typeof sections !== "object") {
+    return { sections, changed: false };
+  }
+  const root = sections as { hero?: Record<string, unknown> };
+  if (!root.hero || typeof root.hero !== "object") return { sections, changed: false };
+
+  const oldHeadline = asPlainText(root.hero.headline) ?? "";
+  const shouldReplace =
+    !oldHeadline ||
+    oldHeadline.includes("Thoughtfully Curated") ||
+    oldHeadline === "[object Object]";
+  if (!shouldReplace) return { sections, changed: false };
+
+  const defaults = defaultPageSections.home as { hero: Record<string, unknown> };
+  return {
+    changed: true,
+    sections: {
+      ...root,
+      hero: {
+        ...root.hero,
+        eyebrow: asPlainText(root.hero.eyebrow) ?? defaults.hero.eyebrow,
+        headline: defaults.hero.headline,
+        headlineAccent: defaults.hero.headlineAccent,
+        subheadline: asPlainText(root.hero.subheadline)?.includes("Creating customized kids birthday")
+          ? defaults.hero.subheadline
+          : (asPlainText(root.hero.subheadline) ?? defaults.hero.subheadline),
+        primaryCta: defaults.hero.primaryCta,
+        secondaryCta: defaults.hero.secondaryCta,
+      },
+    },
+  };
+}
+
 export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
   home: {
     hero: {
-      eyebrow: "We Create, You Celebrate ♡",
-      headline:
-        "Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
-      headlineAccent: "Personalized Birthday Experiences",
+      eyebrow: "Your Complete Celebration Ecosystem ✦",
+      headline: "One Theme. Every Detail. Beautifully Celebrated",
+      headlineAccent: "Beautifully Celebrated",
       subheadline:
-        "Creating customized kids birthday celebrations, milestone moments, themed experiences, personalized return gifts, and memorable celebrations designed around every child's unique story.",
-      primaryCta: { label: "Explore Themes", href: "/themes" },
-      secondaryCta: { label: "Let's Plan Together", href: "/consultation" },
+        "From the first invite to activities, welcome details, personalized return gifts and keepsakes — Vaibhav Celebrations brings every element together under one thoughtful concept, tailored around the person, milestone or moment being celebrated.",
+      primaryCta: { label: "Explore Celebrations", href: "/themes" },
+      secondaryCta: { label: "Build Your Celebration", href: "/build-package" },
       backgroundImage: { mediaId: "" },
     },
     deliverables: {

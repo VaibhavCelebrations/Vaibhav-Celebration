@@ -13,6 +13,7 @@ import { buildPageMetadata } from "@/lib/cms/metadata";
 import { getAboutPageContent } from "@/lib/cms/pages";
 import { listTestimonials } from "@/lib/cms/content";
 import { getPublicSettings, getWhatsAppNumber } from "@/lib/cms/settings";
+import { asText, asTextList } from "@/lib/cms/text";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("about", {
@@ -44,13 +45,17 @@ export default async function AboutPage() {
   ]);
 
   const sections = pageContent?.sections;
-  const storyParagraphs = sections?.story?.paragraphs ?? [
+  const storyParagraphs = asTextList(sections?.story?.paragraphs, [
     "Vaibhav Celebrations is a thoughtfully curated kids celebration brand specializing in customized kids birthday parties, theme-based celebrations, personalized return gifts, activity experiences, and memorable milestone celebrations.",
     "We create meaningful and stress-free celebration experiences for parents by offering carefully designed birthday concepts, customized party elements, themed products, activity kits, keepsakes, digital invitations, and personalized celebration solutions.",
     "At Vaibhav Celebrations, we believe that celebrations should not only look beautiful but should also feel meaningful, thoughtful, and unforgettable.",
-  ];
+  ]);
   const values = sections?.values?.items?.length
-    ? sections.values.items.map((item, i) => ({ ...item, desc: item.description, icon: defaultValues[i]?.icon ?? PenTool }))
+    ? sections.values.items.map((item, i) => ({
+        title: asText(item.title, defaultValues[i]?.title ?? "Value"),
+        desc: asText(item.description, defaultValues[i]?.desc ?? ""),
+        icon: defaultValues[i]?.icon ?? PenTool,
+      }))
     : defaultValues;
   const storyImages = defaultStoryImages;
 
@@ -68,10 +73,10 @@ export default async function AboutPage() {
                   <p className="text-sm font-bold text-mocha uppercase tracking-[0.2em]">Who We Are</p>
                 </div>
                 <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-charcoal font-bold leading-tight mb-8 text-left">
-                  {sections?.hero?.title ?? "Turning fleeting moments into lifelong memories"}
+                  {asText(sections?.hero?.title, "Turning fleeting moments into lifelong memories")}
                 </h1>
                 <p className="text-lg md:text-xl text-text-muted leading-relaxed max-w-xl text-left">
-                  {sections?.hero?.subtitle ?? "We are a premium, thoughtfully curated kids celebration brand dedicated to taking the stress out of party planning and putting the magic back into childhood."}
+                  {asText(sections?.hero?.subtitle, "We are a premium, thoughtfully curated kids celebration brand dedicated to taking the stress out of party planning and putting the magic back into childhood.")}
                 </p>
               </div>
             </ScrollReveal>
@@ -93,7 +98,7 @@ export default async function AboutPage() {
               <div>
                 <ScrollReveal>
                   <h2 className="font-display text-4xl md:text-5xl text-charcoal font-semibold leading-tight mb-8 text-left">
-                    {sections?.story?.title ?? "Thoughtfully Designed Celebrations"}
+                    {asText(sections?.story?.title, "Thoughtfully Designed Celebrations")}
                   </h2>
                   <div className="space-y-6 text-text-muted leading-relaxed md:text-lg text-left">
                     {storyParagraphs.map((p) => <p key={p.slice(0, 24)}>{p}</p>)}
@@ -108,7 +113,7 @@ export default async function AboutPage() {
           <div className="max-w-7xl mx-auto px-5 md:px-10">
             <ScrollReveal>
               <div className="text-center mb-16">
-                <h2 className="font-display text-4xl md:text-5xl text-charcoal font-bold mb-6">{sections?.values?.title ?? "Our Core Values"}</h2>
+                <h2 className="font-display text-4xl md:text-5xl text-charcoal font-bold mb-6">{asText(sections?.values?.title, "Our Core Values")}</h2>
                 <p className="text-text-muted max-w-2xl mx-auto text-lg">These principles guide everything we do, ensuring every event we touch is truly exceptional.</p>
               </div>
             </ScrollReveal>

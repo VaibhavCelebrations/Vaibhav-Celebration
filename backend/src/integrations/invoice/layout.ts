@@ -8,6 +8,7 @@ export const LETTERHEAD_LAYOUT = {
   right: 541,
   lineGap: 16,
   tableRow: 18,
-  totalsReserve: 90,
-  footerY: 72,
+  totalsReserve: 110,
+  /** Lower on the page so the computer-generated note sits below the totals, near the letterhead footer. */
+  footerY: 36,
 } as const;

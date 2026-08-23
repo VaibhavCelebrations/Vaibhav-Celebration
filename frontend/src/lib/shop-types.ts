@@ -115,7 +115,7 @@ export function getMaxPurchasable(product: Pick<Product, "stock" | "maxOrderQuan
 }
 
 export function productImageUrl(product: Pick<Product, "images">, index = 0): string {
-  return product.images[index]?.media.url ?? "/placeholder-product.svg";
+  return product.images[index]?.media?.url ?? "/placeholder-product.svg";
 }
 
 /** Converts paise (integer) to a rupee number for display/math. */
@@ -126,7 +126,7 @@ export function toRupees(paise: number): number {
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
 export function formatPaise(paise: number): string {
-  return inr.format(toRupees(paise));
+  return inr.format(toRupees(Number.isFinite(paise) ? paise : 0));
 }
 
 /* ── Cart (server-backed) ─────────────────────────────────────────── */
@@ -159,6 +159,10 @@ export interface CartQuoteLine {
 
 export interface CartQuote {
   subtotalInPaise: number;
+  shippingInPaise: number;
+  shippingWaived: boolean;
+  freeShippingThresholdInPaise: number;
+  amountUntilFreeShippingInPaise: number;
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
@@ -214,17 +218,70 @@ export interface OrderItemDto {
   image: MediaRef | null;
 }
 
+export type OrderKind = "SHOP" | "PACKAGE" | "UPGRADE";
+
+export interface OrderPackageLineDto {
+  id: string;
+  label: string;
+  sku: string | null;
+  section: string | null;
+  quantity: number;
+  unitPriceInPaise: number;
+  lineTotalInPaise: number;
+}
+
+export interface OrderPackageDto {
+  title: string;
+  slug: string;
+  themeTitle: string;
+  themeSlug: string;
+  guestCount: number | null;
+  location: string | null;
+  lines: OrderPackageLineDto[];
+}
+
+export interface GiftRegistryUpgradeState {
+  eligible: boolean;
+  registryId: string | null;
+  registryTitle: string | null;
+}
+
+export interface RegistryAccessDto {
+  canAccess: boolean;
+  paidUpgradeCount: number;
+  registryCount: number;
+  pendingSetups: Array<{
+    orderCode: string;
+    packageTitle: string;
+    themeTitle: string | null;
+  }>;
+  availablePurchases: Array<{
+    orderCode: string;
+    packageTitle: string;
+    themeTitle: string | null;
+    priceInPaise: number;
+    gstInPaise: number;
+    totalInPaise: number;
+  }>;
+}
+
 export interface OrderDto {
   id: string;
   orderCode: string;
+  kind?: OrderKind;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   subtotalInPaise: number;
   gstInPaise: number;
   totalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  freeShippingThresholdSnapshotInPaise?: number | null;
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;
+  eventDate?: string | null;
+  eventDetails?: Record<string, unknown> | null;
   invoiceNumber?: string | null;
   invoicePdfUrl: string | null;
   canRetryPayment?: boolean;
@@ -232,6 +289,8 @@ export interface OrderDto {
   placedAt: string;
   createdAt: string;
   items: OrderItemDto[];
+  package?: OrderPackageDto | null;
+  giftRegistry?: GiftRegistryUpgradeState | null;
 }
 
 export interface CheckoutQuoteResult {
