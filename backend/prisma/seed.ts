@@ -152,8 +152,11 @@ async function main() {
   await prisma.operationalSetting.createMany({
     data: [
       { key: "gst_percent", value: "18" },
+      { key: "GST_PERCENT", value: "18" },
       { key: "max_bookings_per_day", value: "2" },
       { key: "min_consultation_advance_days", value: "15" },
+      { key: "FREE_SHIPPING_THRESHOLD_IN_PAISE", value: "299900" },
+      { key: "SHIPPING_FEE_IN_PAISE", value: "19900" },
       { key: "business_name", value: "Vaibhav Celebrations" },
       { key: "business_phone", value: "+91 98765 43210" },
       { key: "business_email", value: "hello@vaibhavcelebrations.in" },
@@ -1023,7 +1026,7 @@ async function main() {
       pageKey: "home",
       metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
       metaDescription:
-        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur NCR.",
+        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur.",
       canonicalUrl: "https://vaibhavcelebrations.in",
     },
     {
@@ -1424,7 +1427,7 @@ async function main() {
         source,
         status: leadStatuses[i % leadStatuses.length]!,
         interestArea: i % 2 === 0 ? "Premium" : "Royal Mandap",
-        message: `Inquiry via ${source}. Looking for wedding venue in Jaipur NCR.`,
+        message: `Inquiry via ${source}. Looking for wedding venue in Jaipur.`,
         customerId: i === 0 ? customer1.id : undefined,
         chatbotSessionId:
           source === LeadSource.CHATBOT ? chatbotSession.id : undefined,

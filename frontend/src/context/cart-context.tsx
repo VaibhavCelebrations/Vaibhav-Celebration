@@ -18,7 +18,17 @@ import { CacheStore } from "@/lib/cache-store";
 import { useAuth } from "./auth-context";
 import { useToast } from "@/components/ui/Toast";
 
-const EMPTY_QUOTE: CartQuote = { subtotalInPaise: 0, gstPercent: 18, gstInPaise: 0, totalInPaise: 0, lines: [] };
+const EMPTY_QUOTE: CartQuote = {
+  subtotalInPaise: 0,
+  shippingInPaise: 0,
+  shippingWaived: false,
+  freeShippingThresholdInPaise: 299_900,
+  amountUntilFreeShippingInPaise: 299_900,
+  gstPercent: 18,
+  gstInPaise: 0,
+  totalInPaise: 0,
+  lines: [],
+};
 
 /* ── Context shape ─────────────────────────────────────────────────── */
 

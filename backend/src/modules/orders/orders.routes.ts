@@ -6,7 +6,7 @@ import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middle
 import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
 import { paginationQuerySchema } from "../../lib/validators";
-import { createOrderFromCart, createPackageOrder, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
+import { createOrderFromCart, createPackageOrder, createDirectOrder, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
 
 function customerId(req: import("express").Request): string {
   return (req as CustomerAuthenticatedRequest).customer!.sub;
@@ -57,6 +57,47 @@ ordersRouter.post(
 );
 
 ordersRouter.post(
+  "/direct",
+  idempotency,
+  validate(
+    z.object({
+      productId: z.string().min(1),
+      quantity: z.number().int().positive().max(999),
+      shippingAddress: shippingAddressSchema,
+      contactEmail: z.string().email(),
+      contactPhone: z.string().min(6).max(20),
+      personalizationValues: z.unknown().optional(),
+      personalizationSelected: z.boolean().optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const body = req.body as {
+        productId: string;
+        quantity: number;
+        shippingAddress: z.infer<typeof shippingAddressSchema>;
+        contactEmail: string;
+        contactPhone: string;
+        personalizationValues?: unknown;
+        personalizationSelected?: boolean;
+      };
+      const result = await createDirectOrder(customerId(req), {
+        productId: body.productId,
+        quantity: body.quantity,
+        shippingAddress: body.shippingAddress,
+        contactEmail: body.contactEmail,
+        contactPhone: body.contactPhone,
+        personalizationValues: body.personalizationValues,
+        personalizationSelected: body.personalizationSelected,
+      });
+      return res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+ordersRouter.post(
   "/package",
   idempotency,
   validate(
@@ -87,6 +128,7 @@ ordersRouter.post(
             returnGift: z.string().min(1).optional().nullable(),
             familyActivity: z.string().min(1).optional().nullable(),
             decor: z.boolean().optional(),
+            personalization: z.record(z.string(), z.boolean()).optional(),
           })
           .default({}),
       }),

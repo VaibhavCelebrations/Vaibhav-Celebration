@@ -7,9 +7,10 @@ import { computeQuote } from "../shop/cart-pricing.service";
 import { adjustInventoryInTx } from "../catalog/inventory.service";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyCheckoutPaymentSignature } from "../../integrations/razorpay/client";
 import { claimPaymentEvent } from "../payments/payment-events";
-import { generateInvoicePdf } from "../../integrations/invoice/pdf";
+import { generateInvoicePdf, fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
 import { nextInvoiceNumber } from "../../lib/sequences";
-import { invoiceEmailHtml, orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
+import { orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
+import { getGstPercent } from "../../lib/settings";
 import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
 import { logger } from "../../lib/logger";
 import { InvoiceLinkedType } from "@prisma/client";
@@ -203,6 +204,9 @@ async function createOrderFromLines(
         subtotalInPaise: quote.subtotalInPaise,
         gstInPaise: quote.gstInPaise,
         totalInPaise: quote.totalInPaise,
+        shippingInPaise: quote.shippingInPaise,
+        shippingWaived: quote.shippingWaived,
+        freeShippingThresholdSnapshotInPaise: quote.freeShippingThresholdInPaise,
         shippingAddress: shippingAddress as never,
         contactEmail: input.contactEmail,
         contactPhone: input.contactPhone,
@@ -322,9 +326,9 @@ export async function createPackageOrder(
     country: "India",
   };
 
-  const hasCustomization = quote.lineItems.some(
-    (line) => line.section !== "package" && line.lineTotalInPaise > 0,
-  );
+  const hasCustomization =
+    quote.hasPersonalization ||
+    quote.lineItems.some((line) => line.personalizationSelected);
 
   const orderCode = await nextOrderCode();
   const order = await prisma.order.create({
@@ -340,6 +344,9 @@ export async function createPackageOrder(
       subtotalInPaise: quote.subtotalInPaise,
       gstInPaise: quote.gstInPaise,
       totalInPaise: quote.totalInPaise,
+      shippingInPaise: quote.shippingInPaise,
+      shippingWaived: quote.shippingWaived,
+      freeShippingThresholdSnapshotInPaise: quote.freeShippingThresholdInPaise,
       shippingAddress: shippingAddress as never,
       contactEmail: input.contactEmail.toLowerCase().trim(),
       contactPhone: input.contactPhone.trim(),
@@ -497,13 +504,23 @@ export async function createDirectOrder(
     contactPhone: string;
     registryItemId?: string;
     registryId?: string;
+    personalizationValues?: unknown;
+    personalizationSelected?: boolean;
   },
 ) {
   return createOrderFromLines(
     userId,
-    [{ productId: input.productId, quantity: input.quantity, registryItemId: input.registryItemId }],
+    [
+      {
+        productId: input.productId,
+        quantity: input.quantity,
+        registryItemId: input.registryItemId,
+        personalizationValues: input.personalizationValues,
+        personalizationSelected: input.personalizationSelected,
+      },
+    ],
     input,
-    "REGISTRY_GIFT",
+    input.registryItemId ? "REGISTRY_GIFT" : "SHOP_DIRECT",
   );
 }
 
@@ -689,6 +706,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         guestPhone: order.contactPhone,
         lineItems,
         subtotalInPaise: order.subtotalInPaise,
+        shippingInPaise: order.shippingInPaise,
+        shippingWaived: order.shippingWaived,
+        gstPercent: await getGstPercent(),
         gstInPaise: order.gstInPaise,
         totalInPaise: order.totalInPaise,
         issuedAt: new Date(),
@@ -759,6 +779,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
           ]
         : order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
 
+    const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
+    const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
+
     const confirmation = await sendEmail({
       to: order.contactEmail,
       subject: `Order Confirmed — ${order.orderCode}`,
@@ -767,29 +790,21 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         orderCode: order.orderCode,
         totalInPaise: order.totalInPaise,
         items: confirmationItems,
-        invoiceUrl: pdfUrl,
+        invoiceNumber: invoiceNumber ?? null,
         customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
       }),
+      attachments:
+        pdfAttachmentBuffer
+          ? [{ filename: attachmentName, content: pdfAttachmentBuffer, contentType: "application/pdf" }]
+          : undefined,
     });
 
-    let invoiceEmailStatus = confirmation.status;
-    if (pdfUrl && invoiceNumber) {
-      const invoiceMail = await sendEmail({
-        to: order.contactEmail,
-        subject: `Invoice ${invoiceNumber} — Vaibhav Celebrations`,
-        html: invoiceEmailHtml({
-          invoiceNumber,
-          guestName: order.user.name,
-          totalInPaise: order.totalInPaise,
-          pdfUrl,
-        }),
-      });
-      invoiceEmailStatus = invoiceMail.status;
+    if (invoiceNumber) {
       await prisma.invoice.updateMany({
         where: { orderId: order.id },
         data: {
-          emailSentAt: invoiceMail.sent ? new Date() : undefined,
-          emailSendStatus: invoiceMail.status,
+          emailSentAt: confirmation.sent ? new Date() : undefined,
+          emailSendStatus: confirmation.status,
         },
       });
     }
@@ -798,7 +813,7 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
       where: { id: order.id },
       data: {
         confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
-        emailSendStatus: confirmation.status === "FAILED" || invoiceEmailStatus === "FAILED" ? "FAILED" : confirmation.status,
+        emailSendStatus: confirmation.status,
       },
     });
   }
@@ -925,6 +940,9 @@ function shapeOrder(order: {
   subtotalInPaise: number;
   gstInPaise: number;
   totalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  freeShippingThresholdSnapshotInPaise?: number | null;
   shippingAddress: unknown;
   contactEmail: string;
   contactPhone: string;
@@ -971,6 +989,9 @@ function shapeOrder(order: {
     subtotalInPaise: order.subtotalInPaise,
     gstInPaise: order.gstInPaise,
     totalInPaise: order.totalInPaise,
+    shippingInPaise: order.shippingInPaise ?? 0,
+    shippingWaived: order.shippingWaived ?? false,
+    freeShippingThresholdSnapshotInPaise: order.freeShippingThresholdSnapshotInPaise ?? null,
     shippingAddress: order.shippingAddress,
     contactEmail: order.contactEmail,
     contactPhone: order.contactPhone,

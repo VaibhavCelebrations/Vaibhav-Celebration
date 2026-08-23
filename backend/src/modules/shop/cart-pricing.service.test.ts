@@ -7,6 +7,19 @@ vi.mock("../../lib/settings", async (importOriginal) => {
   return {
     ...actual,
     getGstPercent: async () => 18,
+    getFreeShippingThresholdInPaise: async () => 299_900,
+    getShippingFeeInPaise: async () => 19_900,
+    computeShippingForSubtotal: async (subtotalInPaise: number) => {
+      const freeShippingThresholdInPaise = 299_900;
+      const fee = 19_900;
+      const shippingWaived = subtotalInPaise >= freeShippingThresholdInPaise;
+      return {
+        shippingInPaise: shippingWaived ? 0 : fee,
+        shippingWaived,
+        freeShippingThresholdInPaise,
+        amountUntilFreeShippingInPaise: Math.max(0, freeShippingThresholdInPaise - subtotalInPaise),
+      };
+    },
   };
 });
 
@@ -23,9 +36,20 @@ describe("computeQuote", () => {
       { productId: "b", unitPriceInPaise: 5_000, quantity: 1 },
     ]);
     expect(quote.subtotalInPaise).toBe(29_000);
-    expect(quote.gstInPaise).toBe(gstOn(29_000, 18));
-    expect(quote.totalInPaise).toBe(quote.subtotalInPaise + quote.gstInPaise);
+    expect(quote.shippingInPaise).toBe(19_900);
+    expect(quote.shippingWaived).toBe(false);
+    expect(quote.gstInPaise).toBe(gstOn(29_000 + 19_900, 18));
+    expect(quote.totalInPaise).toBe(quote.subtotalInPaise + quote.shippingInPaise + quote.gstInPaise);
     expect(quote.lines[0]?.lineTotalInPaise).toBe(24_000);
+  });
+
+  it("waives shipping when subtotal meets the free-delivery threshold", async () => {
+    const quote = await computeQuote([{ productId: "a", unitPriceInPaise: 300_000, quantity: 1 }]);
+    expect(quote.shippingWaived).toBe(true);
+    expect(quote.shippingInPaise).toBe(0);
+    expect(quote.amountUntilFreeShippingInPaise).toBe(0);
+    expect(quote.gstInPaise).toBe(gstOn(300_000, 18));
+    expect(quote.totalInPaise).toBe(300_000 + quote.gstInPaise);
   });
 
   it("does not trust omitted personalization as a charge", async () => {

@@ -100,3 +100,16 @@ wishlistRouter.delete("/:productId", validate(z.object({ productId: z.string().m
     return next(err);
   }
 });
+
+// ─── Public delivery settings (no auth) ───────────────────────────────────────
+
+export const deliverySettingsRouter = Router();
+
+deliverySettingsRouter.get("/", async (_req, res, next) => {
+  try {
+    const { getDeliverySettings } = await import("./delivery-settings.service");
+    return ok(res, await getDeliverySettings());
+  } catch (err) {
+    return next(err);
+  }
+});

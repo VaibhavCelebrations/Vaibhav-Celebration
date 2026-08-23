@@ -128,6 +128,12 @@ export default function OrderDetailPage({ params }: Props) {
           <h3 className="font-display text-lg font-bold text-charcoal mb-4">Payment Summary</h3>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between text-text-muted"><span>Subtotal</span><span className="font-semibold text-charcoal">{formatPaise(order.subtotalInPaise)}</span></div>
+            <div className="flex justify-between text-text-muted">
+              <span>Shipping</span>
+              <span className="font-semibold text-charcoal">
+                {order.shippingWaived || (order.shippingInPaise ?? 0) === 0 ? "FREE" : formatPaise(order.shippingInPaise ?? 0)}
+              </span>
+            </div>
             <div className="flex justify-between text-text-muted"><span>GST</span><span className="font-semibold text-charcoal">{formatPaise(order.gstInPaise)}</span></div>
             <hr className="border-border-light" />
             <div className="flex justify-between text-lg font-bold text-charcoal"><span>Total</span><span className="font-display">{formatPaise(order.totalInPaise)}</span></div>

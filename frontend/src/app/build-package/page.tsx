@@ -34,6 +34,7 @@ import {
   type BuilderSelections,
 } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { ApiClientError } from "@/lib/api-client";
 
 type Tier = "standard" | "premium" | "luxe";
@@ -125,6 +126,8 @@ function ProductPicker({
   guestCount,
   multi,
   selectedSkus,
+  personalization,
+  onPersonalizationChange,
   onSelect,
   onToggle,
 }: {
@@ -134,6 +137,8 @@ function ProductPicker({
   guestCount: number;
   multi?: boolean;
   selectedSkus?: string[];
+  personalization?: Record<string, boolean>;
+  onPersonalizationChange?: (sku: string, enabled: boolean) => void;
   onSelect?: (sku: string) => void;
   onToggle?: (sku: string) => void;
 }) {
@@ -150,28 +155,38 @@ function ProductPicker({
               : selectedSku === p.sku;
             const qty = Math.max(guestCount, p.minOrderQuantity);
             const moqNote = guestCount < p.minOrderQuantity;
+            const personalizeOn = Boolean(personalization?.[p.sku]);
+            const unitWithPersonalization = p.priceInPaise + (personalizeOn ? p.personalizationCostInPaise : 0);
             const line =
               p.pricingMode === "PER_GROUP"
                 ? guestCount < p.minOrderQuantity
-                  ? p.priceInPaise * p.minOrderQuantity
-                  : p.priceInPaise
-                : p.priceInPaise * qty;
+                  ? unitWithPersonalization * p.minOrderQuantity
+                  : unitWithPersonalization
+                : unitWithPersonalization * qty;
             return (
-              <button
+              <div
                 key={p.sku}
-                type="button"
-                onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
                 className={`text-left rounded-xl p-3 border transition-all flex flex-col ${
                   selected
                     ? "border-2 border-mocha bg-mocha/5"
                     : "border-border hover:border-mocha/50"
                 }`}
               >
+                <button
+                  type="button"
+                  onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
+                  className="text-left flex flex-col flex-1 cursor-pointer"
+                >
                 <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
                   <Image src={p.imageUrl ?? "/placeholder-product.svg"} alt={p.title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
                 </div>
                 <div className="text-sm font-bold text-mocha">{formatPaise(p.priceInPaise)}</div>
                 <div className="text-sm text-charcoal mt-1 font-medium">{p.title}</div>
+                {p.personalizationEnabled && (
+                  <span className="inline-block mt-2 text-[10px] font-semibold text-mocha bg-mocha/10 px-2 py-0.5 rounded uppercase tracking-wider">
+                    Personalizable · +{formatPaise(p.personalizationCostInPaise)}
+                  </span>
+                )}
                 {p.pricingMode === "PER_GROUP" ? (
                   <span className="inline-block mt-2 text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded">
                     per group
@@ -186,7 +201,34 @@ function ProductPicker({
                     Minimum {p.minOrderQuantity} units — charged for {qty}
                   </p>
                 )}
-              </button>
+                </button>
+                {selected && p.personalizationEnabled && (
+                  <div className="mt-3 space-y-2 border-t border-border-light pt-3">
+                    <p className="text-[11px] font-semibold text-charcoal">Add personalization?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onPersonalizationChange?.(p.sku, true)}
+                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
+                      >
+                        Yes (+{formatPaise(p.personalizationCostInPaise)}/unit)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onPersonalizationChange?.(p.sku, false)}
+                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${!personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
+                      >
+                        No
+                      </button>
+                    </div>
+                    {personalizeOn && (
+                      <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2">
+                        Our team will contact you to collect personalization details.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -221,6 +263,7 @@ function BuildPackageContent() {
     returnGift: searchParams.get("gift"),
     familyActivity: searchParams.get("family"),
     decor: searchParams.get("decor") === "1",
+    personalization: {},
   });
 
   const [welcomeProducts, setWelcomeProducts] = useState<BuilderProduct[]>([]);
@@ -413,6 +456,15 @@ function BuildPackageContent() {
     syncUrl({ selections: updated });
   };
 
+  const togglePersonalization = (sku: string, enabled: boolean) => {
+    const updated = {
+      ...selections,
+      personalization: { ...(selections.personalization ?? {}), [sku]: enabled },
+    };
+    setSelections(updated);
+    syncUrl({ selections: updated });
+  };
+
   const handleAddToCart = () => {
     if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
     if (!eventDate || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
@@ -450,6 +502,7 @@ function BuildPackageContent() {
           pincode: guestPincode,
           country: "India",
         },
+        quoteSnapshot: quote,
       },
     });
 
@@ -756,6 +809,8 @@ function BuildPackageContent() {
                       products={welcomeProducts}
                       selectedSku={selections.welcomeItem}
                       guestCount={guestCount}
+                      personalization={selections.personalization}
+                      onPersonalizationChange={togglePersonalization}
                       onSelect={(sku) => {
                         const updated = { ...selections, welcomeItem: sku };
                         setSelections(updated);
@@ -770,6 +825,8 @@ function BuildPackageContent() {
                     multi={needsTwoActivities}
                     selectedSku={selections.activity1}
                     selectedSkus={[selections.activity1, selections.activity2].filter(Boolean) as string[]}
+                    personalization={selections.personalization}
+                    onPersonalizationChange={togglePersonalization}
                     onSelect={(sku) => {
                       const updated = { ...selections, activity1: sku, activity2: null };
                       setSelections(updated);
@@ -783,6 +840,8 @@ function BuildPackageContent() {
                       products={familyProducts}
                       selectedSku={selections.familyActivity}
                       guestCount={guestCount}
+                      personalization={selections.personalization}
+                      onPersonalizationChange={togglePersonalization}
                       onSelect={(sku) => {
                         const updated = { ...selections, familyActivity: sku };
                         setSelections(updated);
@@ -795,6 +854,8 @@ function BuildPackageContent() {
                     products={giftProducts}
                     selectedSku={selections.returnGift}
                     guestCount={guestCount}
+                    personalization={selections.personalization}
+                    onPersonalizationChange={togglePersonalization}
                     onSelect={(sku) => {
                       const updated = { ...selections, returnGift: sku };
                       setSelections(updated);
@@ -954,9 +1015,21 @@ function BuildPackageContent() {
                             );
                           })}
                           <div className="mt-6 pt-4 border-t border-border-light space-y-3">
+                            <FreeDeliveryProgress
+                              subtotalInPaise={quote.subtotalInPaise}
+                              freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
+                              shippingFeeInPaise={quote.shippingInPaise || 19_900}
+                              shippingWaived={quote.shippingWaived}
+                            />
                             <div className="flex justify-between text-sm text-text-muted">
                               <span className="font-medium">Subtotal</span>
                               <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">Shipping</span>
+                              <span className="font-bold text-charcoal">
+                                {quote.shippingWaived ? "FREE" : formatPaise(quote.shippingInPaise)}
+                              </span>
                             </div>
                             <div className="flex justify-between text-sm text-text-muted">
                               <span className="font-medium">GST ({quote.gstPercent}%)</span>

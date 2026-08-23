@@ -458,6 +458,14 @@ export function OrdersScreen() {
 
             <div className="border-t pt-4 text-sm space-y-2 text-right">
               <div className="flex justify-between"><span className="text-stone-500">Subtotal:</span><span>₹{(viewingOrder.subtotalInPaise / 100).toFixed(2)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Shipping:</span>
+                <span>
+                  {viewingOrder.shippingWaived || (viewingOrder.shippingInPaise ?? 0) === 0
+                    ? "FREE"
+                    : `₹${((viewingOrder.shippingInPaise ?? 0) / 100).toFixed(2)}`}
+                </span>
+              </div>
               <div className="flex justify-between"><span className="text-stone-500">GST:</span><span>₹{(viewingOrder.gstInPaise / 100).toFixed(2)}</span></div>
               <div className="flex justify-between font-medium text-base pt-2 border-t"><span>Total:</span><span>₹{(viewingOrder.totalInPaise / 100).toFixed(2)}</span></div>
               {viewingOrder.invoicePdfUrl && (

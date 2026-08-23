@@ -8,6 +8,13 @@ type MailPayload = {
   subject: string;
   html: string;
   text?: string;
+  attachments?: Array<{
+    filename: string;
+    contentType?: string;
+    /** Prefer Buffer content for CDN-hosted PDFs; path is for local files only. */
+    content?: Buffer;
+    path?: string;
+  }>;
 };
 
 let transporter: nodemailer.Transporter | null = null;
@@ -46,6 +53,7 @@ export async function sendEmail(payload: MailPayload): Promise<NotificationResul
       subject: payload.subject,
       html: payload.html,
       text: payload.text,
+      attachments: payload.attachments,
     });
     return { channel: "email", sent: true, status: "SENT" };
   } catch (error) {
@@ -74,7 +82,6 @@ export function invoiceEmailHtml(input: {
   invoiceNumber: string;
   guestName: string;
   totalInPaise: number;
-  pdfUrl?: string | null;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
   return `
@@ -82,7 +89,7 @@ export function invoiceEmailHtml(input: {
     <h1 style="color:#8B4513;">Invoice ${input.invoiceNumber}</h1>
     <p>Dear ${input.guestName},</p>
     <p>Thank you for choosing Vaibhav Celebrations. Your invoice total is <strong>₹${total}</strong>.</p>
-    ${input.pdfUrl ? `<p><a href="${input.pdfUrl}">Download PDF invoice</a></p>` : ""}
+    <p>Your tax invoice is attached to this email as a PDF.</p>
     <p style="color:#666;font-size:13px;">Questions? Reply to this email — we read every message at support@vaibhavcelebrations.in.</p>
   </div>`;
 }
@@ -143,7 +150,7 @@ export function orderConfirmationHtml(input: {
   orderCode: string;
   totalInPaise: number;
   items: Array<{ title: string; quantity: number }>;
-  invoiceUrl?: string | null;
+  invoiceNumber?: string | null;
   customizationFollowUp?: boolean;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
@@ -155,7 +162,7 @@ export function orderConfirmationHtml(input: {
     <ul>
       ${input.items.map((i) => `<li>${i.title} × ${i.quantity}</li>`).join("")}
     </ul>
-    ${input.invoiceUrl ? `<p><a href="${input.invoiceUrl}">Download your invoice</a></p>` : ""}
+    ${input.invoiceNumber ? `<p>Your tax invoice <strong>${input.invoiceNumber}</strong> is attached as a PDF.</p>` : ""}
     ${input.customizationFollowUp ? `<p>This order includes personalization. Our team will contact you shortly to confirm the details before production.</p>` : ""}
     <p>You can track this order any time from your account's order history.</p>
     <p style="color:#666;font-size:13px;">Questions? Reply to this email or WhatsApp us.</p>

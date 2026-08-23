@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { AdminApiError, adminFetch } from "@/lib/admin-api-client";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
-import { NumberInput } from "@/components/ui/fields";
+import { NumberInput, PriceInput } from "@/components/ui/fields";
 
 type SettingRow = { key: string; value: string };
 
 const KEYS = {
   gst: "GST_PERCENT",
   notice: "MIN_CONSULTATION_ADVANCE_DAYS",
+  freeShipping: "FREE_SHIPPING_THRESHOLD_IN_PAISE",
+  shippingFee: "SHIPPING_FEE_IN_PAISE",
 } as const;
 
 function toMap(rows: SettingRow[]) {
@@ -23,6 +25,8 @@ export default function SettingsPage() {
   const [values, setValues] = useState({
     [KEYS.gst]: "18",
     [KEYS.notice]: "2",
+    [KEYS.freeShipping]: "299900",
+    [KEYS.shippingFee]: "19900",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,8 +37,10 @@ export default function SettingsPage() {
       .then((rows) => {
         const map = toMap(Array.isArray(rows) ? rows : []);
         setValues({
-          [KEYS.gst]: map[KEYS.gst] ?? "18",
-          [KEYS.notice]: map[KEYS.notice] ?? "2",
+          [KEYS.gst]: map[KEYS.gst] ?? map.gst_percent ?? "18",
+          [KEYS.notice]: map[KEYS.notice] ?? map.min_consultation_advance_days ?? "2",
+          [KEYS.freeShipping]: map[KEYS.freeShipping] ?? "299900",
+          [KEYS.shippingFee]: map[KEYS.shippingFee] ?? "19900",
         });
       })
       .catch((error) =>
@@ -78,7 +84,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Operational Settings"
-        description="Control business-wide billing and consultation defaults."
+        description="Control business-wide billing, delivery, and consultation defaults."
       />
       <div className="card space-y-4 p-5">
         {loading ? (
@@ -101,6 +107,29 @@ export default function SettingsPage() {
                 min={0}
               />
             </label>
+            <div className="border-t border-(--color-border-soft) pt-4">
+              <p className="mb-3 text-sm font-semibold text-(--color-charcoal)">Delivery &amp; shipping</p>
+              <label className="mb-3 block text-sm font-medium">
+                Free delivery above (cart subtotal)
+                <PriceInput
+                  value={number(KEYS.freeShipping)}
+                  onChange={(paise) => setValues({ ...values, [KEYS.freeShipping]: String(paise) })}
+                />
+                <span className="mt-1 block text-xs font-normal text-(--color-text-muted)">
+                  Orders at or above this product subtotal get free delivery.
+                </span>
+              </label>
+              <label className="block text-sm font-medium">
+                Shipping charge (below threshold)
+                <PriceInput
+                  value={number(KEYS.shippingFee)}
+                  onChange={(paise) => setValues({ ...values, [KEYS.shippingFee]: String(paise) })}
+                />
+                <span className="mt-1 block text-xs font-normal text-(--color-text-muted)">
+                  Flat fee added when the cart is under the free-delivery threshold.
+                </span>
+              </label>
+            </div>
             <button
               type="button"
               onClick={save}

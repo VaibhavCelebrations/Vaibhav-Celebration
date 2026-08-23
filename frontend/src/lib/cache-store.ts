@@ -41,6 +41,15 @@ export class CacheStore {
     }
   }
 
+  static removeSessionItem(key: string): void {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+
   // --- Cookies (Synchronous) ---
   
   static setCookie(name: string, value: string, days = 7) {

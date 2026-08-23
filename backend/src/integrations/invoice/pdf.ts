@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { storeMediaBuffer } from "../media/storage";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { storeMediaBuffer, cdnKeyFromPublicUrl } from "../media/storage";
 import { LETTERHEAD_LAYOUT as L } from "./layout";
 
 export type InvoicePdfInput = {
@@ -12,6 +12,9 @@ export type InvoicePdfInput = {
   guestPhone: string;
   lineItems: Array<{ label: string; amountInPaise: number }>;
   subtotalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  gstPercent?: number;
   gstInPaise: number;
   totalInPaise: number;
   issuedAt: Date;
@@ -19,155 +22,57 @@ export type InvoicePdfInput = {
   paymentMethod?: string;
 };
 
+const ink = rgb(0, 0, 0);
+
 function paiseToInr(paise: number) {
   return `INR ${(paise / 100).toFixed(2)}`;
 }
 
-function letterheadPath() {
-  return path.resolve(process.cwd(), "assets/vc-letterhead.pdf");
+function templatePngPath() {
+  return path.resolve(process.cwd(), "assets/invoice-template-bw-vc.png");
 }
 
-async function loadLetterheadTemplate(): Promise<PDFDocument> {
-  const bytes = await fs.readFile(letterheadPath());
-  return PDFDocument.load(bytes);
+function fitText(font: PDFFont, text: string, size: number, maxWidth: number): string {
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+  let truncated = text;
+  while (truncated.length > 1 && font.widthOfTextAtSize(`${truncated}…`, size) > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
+}
+
+function drawRight(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  rightX: number,
+  y: number,
+  size: number,
+  boldFont?: PDFFont,
+) {
+  const f = boldFont ?? font;
+  const width = f.widthOfTextAtSize(text, size);
+  page.drawText(text, { x: rightX - width, y, size, font: f, color: ink });
+}
+
+async function loadTemplateBytes(): Promise<Buffer> {
+  return fs.readFile(templatePngPath());
+}
+
+async function addBackgroundPage(out: PDFDocument, pngBytes: Buffer): Promise<PDFPage> {
+  const png = await out.embedPng(pngBytes);
+  const page = out.addPage([L.pageWidth, L.pageHeight]);
+  page.drawImage(png, {
+    x: 0,
+    y: 0,
+    width: L.pageWidth,
+    height: L.pageHeight,
+  });
+  return page;
 }
 
 export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url: string; cdnKey: string }> {
-  const template = await loadLetterheadTemplate();
-  const out = await PDFDocument.create();
-  const font = await out.embedFont(StandardFonts.TimesRoman);
-  const fontBold = await out.embedFont(StandardFonts.TimesRomanBold);
-  const mocha = rgb(0.545, 0.271, 0.075);
-  const ink = rgb(0.17, 0.09, 0.06);
-  const muted = rgb(0.33, 0.27, 0.24);
-
-  const pagesNeeded = Math.max(1, Math.ceil(input.lineItems.length / 18));
-  for (let i = 0; i < pagesNeeded; i++) {
-    const [copied] = await out.copyPages(template, [0]);
-    out.addPage(copied);
-  }
-
-  const pages = out.getPages();
-  const first = pages[0]!;
-  let y = L.contentTop;
-
-  const draw = (text: string, x: number, yy: number, size = 10, bold = false, color = ink) => {
-    first.drawText(text, { x, y: yy, size, font: bold ? fontBold : font, color });
-  };
-
-  draw("TAX INVOICE", L.left, y, 14, true, mocha);
-  y -= 22;
-  draw(`Invoice: ${input.invoiceNumber}`, L.left, y, 11, true);
-  if (input.orderCode) draw(`Order: ${input.orderCode}`, 320, y, 11);
-  y -= L.lineGap;
-  draw(`Date: ${input.issuedAt.toISOString().slice(0, 10)}`, L.left, y, 10, false, muted);
-  draw(
-    `Payment: ${input.paymentStatus ?? "PAID"} · ${input.paymentMethod ?? "Razorpay"}`,
-    320,
-    y,
-    10,
-    false,
-    muted,
-  );
-  y -= 22;
-  draw("Bill To", L.left, y, 10, true, mocha);
-  y -= L.lineGap;
-  draw(input.guestName, L.left, y, 12, true);
-  y -= L.lineGap;
-  draw(`${input.guestEmail}  ·  ${input.guestPhone}`, L.left, y, 9, false, muted);
-  y -= 24;
-
-  first.drawLine({
-    start: { x: L.left, y },
-    end: { x: L.right, y },
-    thickness: 0.6,
-    color: rgb(0.83, 0.77, 0.69),
-  });
-  y -= 18;
-  draw("Description", L.left, y, 10, true, mocha);
-  draw("Amount", L.right - 70, y, 10, true, mocha);
-  y -= 14;
-
-  let itemIndex = 0;
-  let pageIndex = 0;
-  let current = first;
-  let rowY = y;
-
-  const startContinuation = async () => {
-    pageIndex += 1;
-    current = pages[pageIndex] ?? first;
-    rowY = L.contentTop;
-    current.drawText("TAX INVOICE (continued)", {
-      x: L.left,
-      y: rowY,
-      size: 12,
-      font: fontBold,
-      color: mocha,
-    });
-    rowY -= 22;
-  };
-
-  for (const item of input.lineItems) {
-    if (rowY < L.footerY + L.totalsReserve) {
-      await startContinuation();
-    }
-    const label = item.label.slice(0, 90);
-    current.drawText(label, { x: L.left, y: rowY, size: 10, font, color: ink });
-    current.drawText(paiseToInr(item.amountInPaise), {
-      x: L.right - 90,
-      y: rowY,
-      size: 10,
-      font,
-      color: ink,
-    });
-    rowY -= L.tableRow;
-    itemIndex += 1;
-  }
-
-  if (rowY < L.footerY + L.totalsReserve) {
-    await startContinuation();
-  }
-  rowY -= 8;
-  current.drawLine({
-    start: { x: L.left, y: rowY },
-    end: { x: L.right, y: rowY },
-    thickness: 0.6,
-    color: rgb(0.83, 0.77, 0.69),
-  });
-  rowY -= 20;
-  current.drawText(`Subtotal: ${paiseToInr(input.subtotalInPaise)}`, {
-    x: L.right - 180,
-    y: rowY,
-    size: 10,
-    font,
-    color: muted,
-  });
-  rowY -= 16;
-  current.drawText(`GST: ${paiseToInr(input.gstInPaise)}`, {
-    x: L.right - 180,
-    y: rowY,
-    size: 10,
-    font,
-    color: muted,
-  });
-  rowY -= 20;
-  current.drawText(`Total: ${paiseToInr(input.totalInPaise)}`, {
-    x: L.right - 180,
-    y: rowY,
-    size: 13,
-    font: fontBold,
-    color: mocha,
-  });
-  current.drawText("This is a computer-generated invoice. For support write to support@vaibhavcelebrations.in.", {
-    x: L.left,
-    y: L.footerY,
-    size: 8,
-    font,
-    color: muted,
-  });
-
-  const bytes = await out.save();
-  const buffer = Buffer.from(bytes);
+  const buffer = await renderInvoicePdfBuffer(input);
   const stored = await storeMediaBuffer({
     buffer,
     originalName: `${input.invoiceNumber}.pdf`,
@@ -179,15 +84,158 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<{ url:
   return { url: stored.url, cdnKey: stored.cdnKey };
 }
 
-/** Test helper — returns PDF bytes without uploading. */
+/** Fetch previously stored invoice PDF bytes for email attachment. */
+export async function fetchInvoicePdfBuffer(pdfUrl: string | null | undefined): Promise<Buffer | null> {
+  if (!pdfUrl?.trim()) return null;
+
+  const key = cdnKeyFromPublicUrl(pdfUrl);
+  if (key) {
+    try {
+      const localPath = path.resolve(process.cwd(), "uploads", key);
+      return await fs.readFile(localPath);
+    } catch {
+      /* fall through to HTTP */
+    }
+  }
+
+  try {
+    const res = await fetch(pdfUrl);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/** Render invoice PDF bytes (also used by tests). */
 export async function renderInvoicePdfBuffer(input: InvoicePdfInput): Promise<Buffer> {
-  const original = generateInvoicePdf;
-  void original;
-  const template = await loadLetterheadTemplate();
+  const pngBytes = await loadTemplateBytes();
   const out = await PDFDocument.create();
-  const [copiedPage] = await out.copyPages(template, [0]);
-  if (!copiedPage) throw new Error("Letterhead PDF has no pages");
-  out.addPage(copiedPage);
-  copiedPage.drawText(input.invoiceNumber, { x: L.left, y: L.contentTop, size: 12 });
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  const fontBold = await out.embedFont(StandardFonts.HelveticaBold);
+
+  const shippingInPaise = input.shippingInPaise ?? 0;
+  const shippingWaived = input.shippingWaived ?? shippingInPaise === 0;
+  const gstPercent = input.gstPercent ?? 18;
+
+  const displayLines = [...input.lineItems];
+  if (shippingWaived) {
+    displayLines.push({ label: "Shipping — Free delivery", amountInPaise: 0 });
+  } else if (shippingInPaise > 0) {
+    displayLines.push({ label: "Shipping", amountInPaise: shippingInPaise });
+  }
+
+  const firstPageCapacity = L.table.maxRowsFirstPage;
+  const contCapacity = L.table.maxRowsContPage;
+  const pagesNeeded =
+    displayLines.length <= firstPageCapacity
+      ? 1
+      : 1 + Math.ceil((displayLines.length - firstPageCapacity) / contCapacity);
+
+  const pages: PDFPage[] = [];
+  for (let i = 0; i < pagesNeeded; i++) {
+    pages.push(await addBackgroundPage(out, pngBytes));
+  }
+
+  const first = pages[0]!;
+
+  // Metadata (values only — labels are on the template)
+  const metaVal = (text: string, y: number) => {
+    const fitted = fitText(font, text, 9, L.meta.valueMaxWidth);
+    first.drawText(fitted, { x: L.meta.valueX, y, size: 9, font, color: ink });
+  };
+  metaVal(input.invoiceNumber, L.meta.invoiceY);
+  if (input.orderCode) metaVal(input.orderCode, L.meta.orderY);
+  metaVal(input.issuedAt.toISOString().slice(0, 10), L.meta.dateY);
+  metaVal(
+    `${input.paymentStatus ?? "PAID"} · ${input.paymentMethod ?? "Razorpay"}`,
+    L.meta.paymentY,
+  );
+
+  // Bill To
+  const name = fitText(fontBold, input.guestName, 11, L.billTo.maxWidth);
+  first.drawText(name, { x: L.billTo.x, y: L.billTo.nameY, size: 11, font: fontBold, color: ink });
+  first.drawText(fitText(font, input.guestEmail, 9, L.billTo.maxWidth), {
+    x: L.billTo.x,
+    y: L.billTo.emailY,
+    size: 9,
+    font,
+    color: ink,
+  });
+  first.drawText(fitText(font, input.guestPhone, 9, L.billTo.maxWidth), {
+    x: L.billTo.x,
+    y: L.billTo.phoneY,
+    size: 9,
+    font,
+    color: ink,
+  });
+
+  // Line items
+  let pageIndex = 0;
+  let rowY: number = L.table.startY;
+  let rowsOnPage = 0;
+  let capacity: number = firstPageCapacity;
+
+  const drawRow = (label: string, amountInPaise: number) => {
+    const page = pages[pageIndex]!;
+    const desc = fitText(font, label, 9, L.table.descMaxWidth);
+    page.drawText(desc, { x: L.table.descX, y: rowY, size: 9, font, color: ink });
+    drawRight(page, font, paiseToInr(amountInPaise), L.table.amountRight, rowY, 9);
+    rowY -= L.table.rowGap;
+    rowsOnPage += 1;
+  };
+
+  for (const item of displayLines) {
+    if (rowsOnPage >= capacity) {
+      pageIndex += 1;
+      rowY = L.contentTopCont;
+      rowsOnPage = 0;
+      capacity = contCapacity;
+      const cont = pages[pageIndex];
+      if (cont) {
+        cont.drawText("TAX INVOICE (continued)", {
+          x: L.table.descX,
+          y: rowY + 24,
+          size: 11,
+          font: fontBold,
+          color: ink,
+        });
+        cont.drawText("DESCRIPTION", { x: L.table.descX, y: rowY + 6, size: 8, font: fontBold, color: ink });
+        drawRight(cont, fontBold, "AMOUNT (INR)", L.table.amountRight, rowY + 6, 8);
+      }
+    }
+    drawRow(item.label, item.amountInPaise);
+  }
+
+  // Totals on last content page that has room — prefer first page
+  const totalsPage = pages[0]!;
+  drawRight(totalsPage, font, paiseToInr(input.subtotalInPaise), L.totals.valueRight, L.totals.subtotalY, 10);
+
+  totalsPage.drawText("SHIPPING", {
+    x: L.totals.labelX,
+    y: L.totals.shippingY,
+    size: 9,
+    font,
+    color: ink,
+  });
+  drawRight(
+    totalsPage,
+    font,
+    shippingWaived || shippingInPaise === 0 ? "FREE" : paiseToInr(shippingInPaise),
+    L.totals.valueRight,
+    L.totals.shippingY,
+    10,
+  );
+
+  totalsPage.drawText(`GST (${gstPercent}%)`, {
+    x: L.totals.labelX,
+    y: L.totals.gstY,
+    size: 9,
+    font,
+    color: ink,
+  });
+  drawRight(totalsPage, font, paiseToInr(input.gstInPaise), L.totals.valueRight, L.totals.gstY, 10);
+  drawRight(totalsPage, fontBold, paiseToInr(input.totalInPaise), L.totals.valueRight, L.totals.totalY, 12, fontBold);
+
   return Buffer.from(await out.save());
 }

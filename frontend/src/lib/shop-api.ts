@@ -128,6 +128,22 @@ export async function createShopOrder(input: {
   });
 }
 
+export async function createDirectShopOrder(input: {
+  productId: string;
+  quantity: number;
+  shippingAddress: ShippingAddress;
+  contactEmail: string;
+  contactPhone: string;
+  personalizationValues?: unknown;
+  personalizationSelected?: boolean;
+}): Promise<CreateOrderResult> {
+  return apiFetch<CreateOrderResult>("/shop/orders/direct", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
 export async function createPackageOrder(input: {
   eventDate: string;
   contactEmail: string;

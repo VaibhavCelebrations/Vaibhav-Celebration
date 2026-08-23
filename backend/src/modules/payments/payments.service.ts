@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { AppError, NotFoundError } from "../../lib/errors";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyWebhookSignature } from "../../integrations/razorpay/client";
 import { invoiceEmailHtml, sendEmail } from "../../integrations/email/mailer";
+import { fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
 import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
 import {
   findOrderByRazorpayOrderId,
@@ -148,6 +149,7 @@ export async function deliverInvoice(invoiceId: string) {
   });
   if (!invoice) throw new NotFoundError("Invoice not found");
 
+  const pdfBuffer = await fetchInvoicePdfBuffer(invoice.pdfUrl);
   const emailResult = await sendEmail({
     to: invoice.customer.email,
     subject: `Invoice ${invoice.invoiceNumber} — Vaibhav Celebrations`,
@@ -155,8 +157,10 @@ export async function deliverInvoice(invoiceId: string) {
       invoiceNumber: invoice.invoiceNumber,
       guestName: invoice.customer.fullName,
       totalInPaise: invoice.totalInPaise,
-      pdfUrl: invoice.pdfUrl,
     }),
+    attachments: pdfBuffer
+      ? [{ filename: `Invoice-${invoice.invoiceNumber}.pdf`, content: pdfBuffer, contentType: "application/pdf" }]
+      : undefined,
   });
 
   const wa = await sendWhatsAppMessage({

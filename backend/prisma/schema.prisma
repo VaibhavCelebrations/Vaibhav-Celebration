@@ -802,6 +802,12 @@ model Order {
   subtotalInPaise             Int
   gstInPaise                  Int
   totalInPaise                Int
+  /// Delivery fee charged on this order (0 when waived).
+  shippingInPaise             Int                         @default(0)
+  /// True when subtotal met the free-shipping threshold at checkout.
+  shippingWaived              Boolean                     @default(false)
+  /// Snapshot of the free-shipping threshold that applied when the order was placed.
+  freeShippingThresholdSnapshotInPaise Int?
   shippingAddress             Json
   contactEmail                String
   contactPhone                String

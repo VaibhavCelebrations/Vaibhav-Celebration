@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2, Zap } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -15,7 +15,12 @@ import type { Product } from "@/lib/shop-types";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
+import { useAuth } from "@/context/auth-context";
 import { ApiClientError } from "@/lib/api-client";
+import { CacheStore } from "@/lib/cache-store";
+import { useRouter } from "next/navigation";
+
+const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -30,6 +35,8 @@ export default function ProductDetailPage({ params }: Props) {
 
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isAuthenticated, openAuthModal } = useAuth();
+  const router = useRouter();
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -38,6 +45,7 @@ export default function ProductDetailPage({ params }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [addedToCart, setAddedToCart] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBuying, setIsBuying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,13 +116,7 @@ export default function ProductDetailPage({ params }: Props) {
     
     // Automatically fill all fields with a placeholder so the backend validation passes,
     // since the client brief dictates we collect these details *after* booking now.
-    const pValues: PersonalizationValue[] = personalizeSelected
-      ? product.personalizationFields.map((f) => ({
-          fieldId: f.id,
-          label: f.label,
-          value: "To be collected by team after booking",
-        }))
-      : [];
+    const pValues: PersonalizationValue[] = buildPersonalizationValues();
 
     setIsAdding(true);
     try {
@@ -126,6 +128,37 @@ export default function ProductDetailPage({ params }: Props) {
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const buildPersonalizationValues = (): PersonalizationValue[] =>
+    personalizeSelected
+      ? product.personalizationFields.map((f) => ({
+          fieldId: f.id,
+          label: f.label,
+          value: "To be collected by team after booking",
+        }))
+      : [];
+
+  const handleBuyNow = () => {
+    const run = () => {
+      CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
+        productId: product.id,
+        title: product.title,
+        quantity,
+        unitPriceInPaise: product.priceInPaise,
+        personalizationSelected: personalizeSelected,
+        personalizationCostInPaise: personalizationCost,
+        personalizationValues: buildPersonalizationValues(),
+      });
+      router.push("/checkout");
+    };
+    if (!isAuthenticated) {
+      openAuthModal(run);
+      return;
+    }
+    setIsBuying(true);
+    run();
+    setIsBuying(false);
   };
 
   return (
@@ -308,44 +341,57 @@ export default function ProductDetailPage({ params }: Props) {
 
                 {/* Quantity + Add to Cart */}
                 {stockStatus !== "out_of_stock" && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                    {/* Quantity */}
-                    <div className="flex items-center border border-border-light rounded-xl bg-surface">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                      {/* Quantity */}
+                      <div className="flex items-center border border-border-light rounded-xl bg-surface">
+                        <button
+                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                          className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
+                          disabled={quantity <= 1}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="w-12 text-center font-bold text-charcoal">{quantity}</span>
+                        <button
+                          onClick={() => setQuantity(Math.min(maxPurchasable, quantity + 1))}
+                          className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
+                          disabled={quantity >= maxPurchasable}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+
+                      {/* Add to Cart Button */}
                       <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
-                        disabled={quantity <= 1}
+                        onClick={handleAddToCart}
+                        disabled={addedToCart || isAdding}
+                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all cursor-pointer ${
+                          addedToCart
+                            ? "bg-green-600 text-white"
+                            : "btn-primary shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-0.5"
+                        }`}
                       >
-                        <Minus size={16} />
-                      </button>
-                      <span className="w-12 text-center font-bold text-charcoal">{quantity}</span>
-                      <button
-                        onClick={() => setQuantity(Math.min(maxPurchasable, quantity + 1))}
-                        className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
-                        disabled={quantity >= maxPurchasable}
-                      >
-                        <Plus size={16} />
+                        {isAdding ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : addedToCart ? (
+                          <><Check size={18} /> Added to Cart</>
+                        ) : (
+                          <><ShoppingCart size={18} /> Add to Cart — {formatPaise(unitTotal * quantity)}</>
+                        )}
                       </button>
                     </div>
-
-                    {/* Add to Cart Button */}
                     <button
-                      onClick={handleAddToCart}
-                      disabled={addedToCart || isAdding}
-                      className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all cursor-pointer ${
-                        addedToCart
-                          ? "bg-green-600 text-white"
-                          : "btn-primary shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-0.5"
-                      }`}
+                      type="button"
+                      onClick={handleBuyNow}
+                      disabled={isBuying}
+                      className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-mocha bg-white py-4 text-sm font-bold uppercase tracking-wider text-mocha transition-all hover:bg-mocha hover:text-white cursor-pointer disabled:opacity-60"
                     >
-                      {isAdding ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : addedToCart ? (
-                        <><Check size={18} /> Added to Cart</>
-                      ) : (
-                        <><ShoppingCart size={18} /> Add to Cart — {formatPaise(unitTotal * quantity)}</>
-                      )}
+                      {isBuying ? <Loader2 size={18} className="animate-spin" /> : <><Zap size={18} /> Buy Now — {formatPaise(unitTotal * quantity)}</>}
                     </button>
+                    {errors.personalize && (
+                      <p className="text-sm text-red-600 font-medium">{errors.personalize}</p>
+                    )}
                   </div>
                 )}
 

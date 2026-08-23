@@ -159,6 +159,10 @@ export interface CartQuoteLine {
 
 export interface CartQuote {
   subtotalInPaise: number;
+  shippingInPaise: number;
+  shippingWaived: boolean;
+  freeShippingThresholdInPaise: number;
+  amountUntilFreeShippingInPaise: number;
   gstPercent: number;
   gstInPaise: number;
   totalInPaise: number;
@@ -222,6 +226,9 @@ export interface OrderDto {
   subtotalInPaise: number;
   gstInPaise: number;
   totalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  freeShippingThresholdSnapshotInPaise?: number | null;
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;

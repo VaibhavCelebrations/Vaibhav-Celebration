@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderInvoicePdfBuffer } from "./pdf";
 
-describe("letterhead invoice overlay", () => {
-  it("produces a PDF using the packaged letterhead", async () => {
+describe("B&W VC invoice template", () => {
+  it("produces a PDF using the packaged PNG template", async () => {
     const buf = await renderInvoicePdfBuffer({
       invoiceNumber: "INVOICE-TEST-0001",
       orderCode: "VBC-OR-2026-000001",
@@ -11,11 +11,32 @@ describe("letterhead invoice overlay", () => {
       guestPhone: "9876543210",
       lineItems: [{ label: "Theme package", amountInPaise: 100000 }],
       subtotalInPaise: 100000,
-      gstInPaise: 18000,
-      totalInPaise: 118000,
+      shippingInPaise: 19900,
+      shippingWaived: false,
+      gstPercent: 18,
+      gstInPaise: 21582,
+      totalInPaise: 141482,
       issuedAt: new Date("2026-08-16"),
     });
     expect(buf.subarray(0, 4).toString()).toBe("%PDF");
     expect(buf.length).toBeGreaterThan(1000);
+  });
+
+  it("renders free shipping on the invoice", async () => {
+    const buf = await renderInvoicePdfBuffer({
+      invoiceNumber: "INVOICE-TEST-0002",
+      guestName: "Free Ship Guest",
+      guestEmail: "guest@example.com",
+      guestPhone: "9876543210",
+      lineItems: [{ label: "Gift box", amountInPaise: 300000 }],
+      subtotalInPaise: 300000,
+      shippingInPaise: 0,
+      shippingWaived: true,
+      gstPercent: 18,
+      gstInPaise: 54000,
+      totalInPaise: 354000,
+      issuedAt: new Date("2026-08-20"),
+    });
+    expect(buf.subarray(0, 4).toString()).toBe("%PDF");
   });
 });

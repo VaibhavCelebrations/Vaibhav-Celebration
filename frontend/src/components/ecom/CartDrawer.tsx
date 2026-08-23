@@ -7,6 +7,7 @@ import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useRouter } from "next/navigation";
 
 export function CartDrawer() {
@@ -241,10 +242,28 @@ export function CartDrawer() {
 
             {/* Footer Summary */}
             <div className="border-t border-border-light px-6 py-5 space-y-3 bg-cream/30 shrink-0">
+              {items.length > 0 && (
+                <FreeDeliveryProgress
+                  subtotalInPaise={quote.subtotalInPaise}
+                  freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
+                  shippingFeeInPaise={quote.shippingInPaise || 19_900}
+                  shippingWaived={quote.shippingWaived}
+                />
+              )}
               <div className="flex justify-between text-sm text-text-muted">
                 <span>Subtotal</span>
                 <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
               </div>
+              {items.length > 0 && (
+                <div className="flex justify-between text-sm text-text-muted">
+                  <span>Shipping</span>
+                  {quote.shippingWaived ? (
+                    <span className="font-semibold text-green-700">FREE</span>
+                  ) : (
+                    <span className="font-semibold text-charcoal">{formatPaise(quote.shippingInPaise)}</span>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between text-sm text-text-muted">
                 <span>GST ({quote.gstPercent}%)</span>
                 <span className="font-semibold text-charcoal">{formatPaise(quote.gstInPaise)}</span>

@@ -49,6 +49,37 @@ export async function getMinConsultationAdvanceDays(): Promise<number> {
   return getSettingNumber("min_consultation_advance_days", env.MIN_CONSULTATION_ADVANCE_DAYS);
 }
 
+/** Cart/package subtotal (pre-GST) at or above this unlocks free delivery. Default ₹2,999. */
+export async function getFreeShippingThresholdInPaise(): Promise<number> {
+  return getSettingNumber("FREE_SHIPPING_THRESHOLD_IN_PAISE", 299_900);
+}
+
+/** Flat delivery fee when subtotal is below the free-shipping threshold. Default ₹199. */
+export async function getShippingFeeInPaise(): Promise<number> {
+  return getSettingNumber("SHIPPING_FEE_IN_PAISE", 19_900);
+}
+
+export type ShippingQuoteSlice = {
+  shippingInPaise: number;
+  shippingWaived: boolean;
+  freeShippingThresholdInPaise: number;
+  amountUntilFreeShippingInPaise: number;
+};
+
+/** Derive shipping fee from product subtotal (excludes GST and shipping itself). */
+export async function computeShippingForSubtotal(subtotalInPaise: number): Promise<ShippingQuoteSlice> {
+  const freeShippingThresholdInPaise = await getFreeShippingThresholdInPaise();
+  const fee = await getShippingFeeInPaise();
+  const shippingWaived = subtotalInPaise >= freeShippingThresholdInPaise;
+  const shippingInPaise = shippingWaived ? 0 : fee;
+  return {
+    shippingInPaise,
+    shippingWaived,
+    freeShippingThresholdInPaise,
+    amountUntilFreeShippingInPaise: Math.max(0, freeShippingThresholdInPaise - subtotalInPaise),
+  };
+}
+
 export function invalidateSettingsCache() {
   _memCache.clear();
   // Also purge Redis settings keys (non-blocking)

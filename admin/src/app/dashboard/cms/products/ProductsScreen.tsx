@@ -409,7 +409,7 @@ export function ProductsScreen() {
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <p className="text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization</p>
-              <p className="text-xs text-(--color-text-muted)">Enable paid customization and define fields customers fill before adding to cart.</p>
+              <p className="text-xs text-(--color-text-muted)">Enable paid customization. Customers opt in at checkout; our team collects details after booking.</p>
             </div>
             <ToggleSwitch
               checked={form.personalizationEnabled}
@@ -418,6 +418,7 @@ export function ProductsScreen() {
             />
           </div>
           {form.personalizationEnabled && (
+            <>
             <FormField label="Personalization cost" htmlFor="product-personalization-cost" hint="Charged per quantity when the customer chooses personalization.">
               <PriceInput
                 id="product-personalization-cost"
@@ -425,6 +426,7 @@ export function ProductsScreen() {
                 onChange={(paise) => patchForm({ personalizationCostInPaise: paise })}
               />
             </FormField>
+            </>
           )}
           <div className="flex flex-col gap-3">
             {(form.personalizationFields ?? []).map((f, i) => (
