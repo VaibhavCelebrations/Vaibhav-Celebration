@@ -1024,9 +1024,9 @@ async function main() {
   }[] = [
     {
       pageKey: "home",
-      metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
+      metaTitle: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
       metaDescription:
-        "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur.",
+        "One Theme. Every Detail. Beautifully Celebrated — customized kids birthday celebrations, themed experiences, and personalized return gifts in Jaipur.",
       canonicalUrl: "https://vaibhavcelebrations.in",
     },
     {
@@ -1111,6 +1111,8 @@ async function main() {
   }
 
   // ── Page Content (Home / About / Contact) ───────────────────────────────────
+  // Home hero copy lives in defaultPageSections (pages.service.ts):
+  // "One Theme. Every Detail. Beautifully Celebrated"
   const { defaultPageSections } =
     await import("../src/modules/pages/pages.service");
   for (const pageKey of ["home", "about", "contact"] as const) {

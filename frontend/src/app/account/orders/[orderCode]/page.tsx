@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Package, Download, MapPin } from "lucide-react";
 import * as shopApi from "@/lib/shop-api";
 import { formatPaise } from "@/lib/shop-types";
 import type { OrderDto, OrderStatus } from "@/lib/shop-types";
+import { GiftRegistryOrderCard } from "@/components/account/GiftRegistryOrderCard";
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "bg-amber-50 text-amber-700",
@@ -81,9 +82,33 @@ export default function OrderDetailPage({ params }: Props) {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          <GiftRegistryOrderCard order={order} />
+
           <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
-            <h3 className="font-display text-lg font-bold text-charcoal mb-4">Items</h3>
+            <h3 className="font-display text-lg font-bold text-charcoal mb-4">
+              {order.package ? "Celebration" : "Items"}
+            </h3>
+            {order.package && (
+              <div className="mb-5">
+                <p className="font-semibold text-charcoal">{order.package.themeTitle}</p>
+                <p className="text-sm text-text-muted mt-0.5">{order.package.title}</p>
+                {order.eventDate && (
+                  <p className="text-xs text-text-muted mt-1">
+                    Event date {new Date(order.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-4">
+              {order.package?.lines.map((line) => (
+                <div key={line.id} className="flex gap-4 items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-charcoal text-sm">{line.label}</p>
+                    <p className="text-xs text-text-muted mt-0.5">Qty: {line.quantity} × {formatPaise(line.unitPriceInPaise)}</p>
+                  </div>
+                  <div className="font-bold text-charcoal text-sm shrink-0">{formatPaise(line.lineTotalInPaise)}</div>
+                </div>
+              ))}
               {order.items.map((item) => (
                 <div key={item.id} className="flex gap-4 items-center">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-cream">
@@ -109,6 +134,9 @@ export default function OrderDetailPage({ params }: Props) {
                   <div className="font-bold text-charcoal text-sm shrink-0">{formatPaise(item.lineTotalInPaise)}</div>
                 </div>
               ))}
+              {!order.package && order.items.length === 0 && (
+                <p className="text-sm text-text-muted">No items on this order.</p>
+              )}
             </div>
           </div>
 

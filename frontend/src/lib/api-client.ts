@@ -75,9 +75,10 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   if (!res.ok || !json.success) {
     const failure = json as ApiFailure;
+    const rawMessage = failure.error?.message;
     throw new ApiClientError(
       failure.error?.code ?? "REQUEST_FAILED",
-      failure.error?.message ?? "Request failed",
+      typeof rawMessage === "string" && rawMessage.trim() ? rawMessage : "Request failed",
       res.status,
       failure.error?.details,
     );

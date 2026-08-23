@@ -129,6 +129,7 @@ ordersRouter.post(
             familyActivity: z.string().min(1).optional().nullable(),
             decor: z.boolean().optional(),
             personalization: z.record(z.string(), z.boolean()).optional(),
+            giftRegistryCustomize: z.boolean().optional(),
           })
           .default({}),
       }),

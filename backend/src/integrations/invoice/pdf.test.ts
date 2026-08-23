@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderInvoicePdfBuffer } from "./pdf";
 
-describe("B&W VC invoice template", () => {
-  it("produces a PDF using the packaged PNG template", async () => {
+describe("letterhead invoice overlay", () => {
+  it("produces a PDF using the packaged letterhead", async () => {
     const buf = await renderInvoicePdfBuffer({
       invoiceNumber: "INVOICE-TEST-0001",
       orderCode: "VBC-OR-2026-000001",

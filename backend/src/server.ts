@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { env } from "./config/env";
 import { logger } from "./lib/logger";
 import { getRedisClient, disconnectRedis } from "./lib/redis";
+import { ensureGiftRegistryService } from "./modules/upgrades/upgrades.service";
 
 // Bootstrap Redis connection eagerly (non-blocking — failures are logged internally)
 getRedisClient();
@@ -18,6 +19,9 @@ const server = app.listen(env.PORT, () => {
     },
     "Vaibhav Celebrations API listening",
   );
+  void ensureGiftRegistryService().catch((err) => {
+    logger.error({ err }, "Failed to ensure Gift Registry package service");
+  });
 });
 
 // ── Graceful Shutdown ─────────────────────────────────────────────────────────

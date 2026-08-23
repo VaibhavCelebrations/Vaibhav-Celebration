@@ -148,13 +148,14 @@ const SERVICES: ServiceDef[] = [
   },
   {
     slug: "gift-registry",
-    label: "Gift Registry Access",
-    description: "Gift registry access",
+    label: "Gift Registry",
+    description:
+      "Share a guided gift list with guests. Included with Signature and Grand. Optional customization is a fixed ₹500 in the builder.",
     category: "GIFT_REGISTRY",
     pricingMode: "FIXED",
     locationScope: "ALL",
     choiceCount: null,
-    customizationPriceInPaise: 0,
+    customizationPriceInPaise: 50000,
     displayOrder: 11,
     tiers: ["premium", "luxe"],
   },

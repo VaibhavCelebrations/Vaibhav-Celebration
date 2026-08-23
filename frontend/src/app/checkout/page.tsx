@@ -470,7 +470,11 @@ export default function CheckoutPage() {
                               <h4 className="font-bold text-charcoal text-sm line-clamp-1">{item.title}</h4>
                               {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
                                 <p className="text-[11px] text-mocha font-medium mt-1">
-                                  {(item.personalizationValues as Array<{ label: string; value: string }>).map((pv) => `${pv.label}: ${pv.value}`).join(", ")}
+                                  {(item.personalizationValues as Array<{ label?: unknown; value?: unknown }>).map((pv) => {
+                                    const label = typeof pv.label === "string" ? pv.label : "Personalization";
+                                    const value = typeof pv.value === "string" ? pv.value : "";
+                                    return value ? `${label}: ${value}` : label;
+                                  }).join(", ")}
                                 </p>
                               )}
                               <div className="flex items-center justify-between mt-3">

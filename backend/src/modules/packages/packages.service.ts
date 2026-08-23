@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
-import { cached, cacheKey, delPattern } from "../../lib/redis";
+import { cached, delPattern } from "../../lib/redis";
 
 const PUB_TTL = 5 * 60;
 
@@ -191,9 +191,6 @@ export type PackageMatrixSaveInput = {
     description?: string | null;
     priceInPaise?: number;
     isRecommended?: boolean;
-    badgeText?: string | null;
-    pricingUnit?: string | null;
-    hasGiftRegistry?: boolean;
     isActive?: boolean;
     isCustomizable?: boolean;
     items: ServiceItemInput[];
@@ -219,12 +216,19 @@ export async function savePackageMatrix({ packages, extraServices }: PackageMatr
       for (const row of packages) {
         const { packageId, items, ...pkgData } = row;
         const cleanData = Object.fromEntries(
-          Object.entries(pkgData).filter(([, v]) => v !== undefined),
+          Object.entries(pkgData).filter(([key, v]) => {
+            if (v === undefined) return false;
+            return key !== "badgeText" && key !== "pricingUnit" && key !== "hasGiftRegistry";
+          }),
         );
         if (Object.keys(cleanData).length) {
           await tx.package.update({ where: { id: packageId }, data: cleanData });
         }
-        await syncPackageServiceItems(tx, packageId, items);
+        await syncPackageServiceItems(
+          tx,
+          packageId,
+          items.filter((item) => item.extraServiceId),
+        );
       }
 
       return tx.package.findMany({

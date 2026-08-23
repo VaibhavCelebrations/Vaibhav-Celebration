@@ -18,6 +18,20 @@ import { CacheStore } from "@/lib/cache-store";
 import { useAuth } from "./auth-context";
 import { useToast } from "@/components/ui/Toast";
 
+function normalizeQuote(quote?: Partial<CartQuote> | null): CartQuote {
+  return {
+    subtotalInPaise: quote?.subtotalInPaise ?? 0,
+    shippingInPaise: quote?.shippingInPaise ?? 0,
+    shippingWaived: quote?.shippingWaived ?? false,
+    freeShippingThresholdInPaise: quote?.freeShippingThresholdInPaise ?? 299_900,
+    amountUntilFreeShippingInPaise: quote?.amountUntilFreeShippingInPaise ?? 299_900,
+    gstPercent: quote?.gstPercent ?? 18,
+    gstInPaise: quote?.gstInPaise ?? 0,
+    totalInPaise: quote?.totalInPaise ?? 0,
+    lines: Array.isArray(quote?.lines) ? quote.lines : [],
+  };
+}
+
 const EMPTY_QUOTE: CartQuote = {
   subtotalInPaise: 0,
   shippingInPaise: 0,
@@ -117,7 +131,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const cart = await shopApi.getCart();
       setItems(cart.items);
-      setQuote(cart.quote);
+      setQuote(normalizeQuote(cart.quote));
     } catch {
       // Non-fatal — leave previous state, user can retry via cart drawer
     } finally {
@@ -142,11 +156,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
         setItems(cart.items);
-        setQuote(cart.quote);
+        setQuote(normalizeQuote(cart.quote));
         setIsCartOpen(true);
       } catch (err) {
-        push(err instanceof ApiClientError ? err.message : "Could not add this item to your cart", "error");
-        throw err;
+        const message =
+          err instanceof ApiClientError && typeof err.message === "string"
+            ? err.message
+            : "Could not add this item to your cart";
+        push(message, "error");
       }
     },
     [isAuthenticated, openAuthModal, push],
@@ -160,7 +177,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         const cart = await shopApi.updateCartItemQuantity(lineKey, quantity);
         setItems(cart.items);
-        setQuote(cart.quote);
+        setQuote(normalizeQuote(cart.quote));
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not update quantity", "error");
       }
@@ -173,7 +190,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         const cart = await shopApi.removeCartItem(lineKey);
         setItems(cart.items);
-        setQuote(cart.quote);
+        setQuote(normalizeQuote(cart.quote));
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not remove item", "error");
       }

@@ -18,6 +18,7 @@ import type {
   ProductListResult,
   PublicRegistryDto,
   ExtractedProductDto,
+  RegistryAccessDto,
   RegistryVisibility,
   RegistryStatus,
   ServerCart,
@@ -210,11 +211,16 @@ export async function reorderOrder(orderCode: string): Promise<ServerCart> {
 
 /* ── Gift Registry (owner-facing, requires customer auth cookie) ─────── */
 
+export async function getRegistryAccess(): Promise<RegistryAccessDto> {
+  return apiFetch<RegistryAccessDto>("/account/registries/access", { cache: "no-store" });
+}
+
 export async function listMyRegistries(): Promise<GiftRegistryDto[]> {
   return apiFetch<GiftRegistryDto[]>("/account/registries", { cache: "no-store" });
 }
 
 export async function createRegistry(input: {
+  sourceOrderCode: string;
   password?: string;
   title?: string;
   occasion?: string;

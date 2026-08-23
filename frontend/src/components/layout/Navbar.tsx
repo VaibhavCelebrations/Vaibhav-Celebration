@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart, Gift } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
 import { useCart } from "@/context/cart-context";
@@ -170,9 +170,6 @@ export function Navbar() {
                     <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
                       <Heart size={16} /> Saved Products
                     </Link>
-                    <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
-                      <Gift size={16} /> Gift Registry
-                    </Link>
                     <button
                       onClick={() => { logout(); setShowAccountMenu(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer border-t border-border-light mt-1"
@@ -265,9 +262,6 @@ export function Navbar() {
           </Link>
           <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
             <Heart size={16} /> Saved Products
-          </Link>
-          <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
-            <Gift size={16} /> Gift Registry
           </Link>
           <button
             onClick={() => { logout(); setShowAccountMenu(false); }}

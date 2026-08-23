@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeOurStorySection } from "@/lib/cms/types";
 import { resolveSectionMedia } from "@/lib/cms/map-media";
+import { asText, asTextList } from "@/lib/cms/text";
 
 const defaultImages = [
   "/theme/gallery_setup.png",
@@ -38,7 +39,7 @@ export function OurStory({ content }: OurStoryProps) {
     return () => clearInterval(timer);
   }, [storyImages.length]);
 
-  const paragraphs = content?.paragraphs?.length ? content.paragraphs : defaultParagraphs;
+  const paragraphs = asTextList(content?.paragraphs, defaultParagraphs);
 
   return (
     <section id="our-story" className="py-16 md:py-24 bg-surface">
@@ -67,7 +68,7 @@ export function OurStory({ content }: OurStoryProps) {
               <div className="flex items-center gap-4 mb-6">
                 <div className="h-px w-10 md:w-16 bg-gradient-to-r from-transparent to-mocha/60" />
                 <p className="text-sm font-bold text-mocha uppercase tracking-[0.2em]">
-                  {content?.title ?? "Our Story"}
+                  {asText(content?.title, "Our Story")}
                 </p>
                 <div className="h-px w-10 md:w-16 bg-gradient-to-l from-transparent to-mocha/60" />
               </div>

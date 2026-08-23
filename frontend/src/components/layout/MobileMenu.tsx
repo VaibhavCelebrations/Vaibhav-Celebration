@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Gift, Heart, Package, User } from "lucide-react";
+import { Heart, Package, User } from "lucide-react";
 
 interface NavLink {
   label: string;
@@ -20,7 +20,6 @@ const ACCOUNT_LINKS = [
   { href: "/account", label: "My Profile", icon: User },
   { href: "/account/orders", label: "Order History", icon: Package },
   { href: "/account/wishlist", label: "Saved Products", icon: Heart },
-  { href: "/account/registry", label: "Gift Registry", icon: Gift },
 ];
 
 export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: MobileMenuProps) {

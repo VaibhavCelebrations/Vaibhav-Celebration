@@ -263,6 +263,7 @@ function BuildPackageContent() {
     returnGift: searchParams.get("gift"),
     familyActivity: searchParams.get("family"),
     decor: searchParams.get("decor") === "1",
+    giftRegistryCustomize: searchParams.get("grc") === "1",
     personalization: {},
   });
 
@@ -322,6 +323,7 @@ function BuildPackageContent() {
       if (sel.returnGift) params.set("gift", sel.returnGift);
       if (sel.familyActivity) params.set("family", sel.familyActivity);
       if (sel.decor) params.set("decor", "1");
+      if (sel.giftRegistryCustomize) params.set("grc", "1");
       router.replace(`/build-package?${params.toString()}`, { scroll: false });
     },
     [step, themeSlug, pkgSlug, guestCount, location, selections, router],
@@ -865,6 +867,39 @@ function BuildPackageContent() {
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned for your package — shown on the review step.
                   </div>
+                  {(quote ? quote.giftRegistryIncluded : pkgSlug === "premium" || pkgSlug === "luxe") && (
+                    <div
+                      className={`mt-8 rounded-2xl border p-6 ${
+                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
+                      }`}
+                    >
+                      <div className="flex justify-between gap-4 items-start">
+                        <div>
+                          <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                          <p className="text-sm text-text-muted">
+                            Included with Signature and Grand. After you book, you&apos;ll set up and share the list from this order — not as a later add-on.
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">Included</div>
+                        </div>
+                      </div>
+                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selections.giftRegistryCustomize}
+                          onChange={(e) => {
+                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
+                            setSelections(updated);
+                            syncUrl({ selections: updated });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        Customize Gift Registry (+
+                        {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)})
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
             </section>

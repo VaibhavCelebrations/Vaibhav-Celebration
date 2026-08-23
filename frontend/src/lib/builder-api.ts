@@ -31,6 +31,7 @@ export type BuilderSelections = {
   familyActivity?: string | null;
   decor?: boolean;
   personalization?: Record<string, boolean>;
+  giftRegistryCustomize?: boolean;
 };
 
 export type BuilderQuoteInput = {
@@ -77,6 +78,8 @@ export type BuilderQuote = {
   totalInPaise: number;
   includedLabels: string[];
   hasPersonalization: boolean;
+  giftRegistryIncluded?: boolean;
+  giftRegistryCustomizePriceInPaise?: number;
 };
 
 export async function listBuilderProducts(params: {

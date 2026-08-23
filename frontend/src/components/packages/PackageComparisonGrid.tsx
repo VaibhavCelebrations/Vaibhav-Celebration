@@ -13,6 +13,7 @@ const comparisonFeatures = [
   { feature: "Themed Gift Bag / Box", essential: "Simple Bag", signature: "Theme Bag", grand: "Custom Box" },
   { feature: "On-Day Coordination (Jaipur)", essential: false, signature: false, grand: true },
   { feature: "Premium Keepsake Box", essential: false, signature: false, grand: true },
+  { feature: "Gift Registry", essential: false, signature: true, grand: true },
 ];
 
 export function PackageComparisonGrid() {

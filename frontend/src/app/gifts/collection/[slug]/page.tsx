@@ -45,7 +45,7 @@ export default async function CollectionPage({ params }: PageProps) {
       <Navbar />
 
       <section className="relative w-full h-[40vh] md:h-[50vh] min-h-[300px] flex items-center justify-center bg-charcoal overflow-hidden">
-        {collection.heroImage ? (
+        {collection.heroImage?.url ? (
           <Image
             src={collection.heroImage.url}
             alt={collection.title}
@@ -65,7 +65,7 @@ export default async function CollectionPage({ params }: PageProps) {
               <span className="text-stone-100">{collection.title}</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-serif text-stone-50 mb-4">{collection.title}</h1>
-            {collection.description && (
+            {typeof collection.description === "string" && collection.description && (
               <p className="text-lg text-stone-200 max-w-2xl mx-auto font-light">
                 {collection.description}
               </p>

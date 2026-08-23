@@ -204,7 +204,7 @@ export default function ProductDetailPage({ params }: Props) {
                   )}
                 </div>
                 {/* Thumbnails */}
-                {product.images.length > 1 && (
+                {(product.images?.length ?? 0) > 1 && (
                   <div className="flex gap-3">
                     {product.images.map((img, i) => (
                       <button
@@ -216,7 +216,7 @@ export default function ProductDetailPage({ params }: Props) {
                             : "border-transparent opacity-60 hover:opacity-100"
                         }`}
                       >
-                        <Image src={img.media.url} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
+                        <Image src={img.media?.url ?? "/placeholder-product.svg"} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
                       </button>
                     ))}
                   </div>
@@ -229,7 +229,7 @@ export default function ProductDetailPage({ params }: Props) {
               <div className="space-y-6">
                 {/* Theme tags */}
                 <div className="flex flex-wrap gap-2">
-                  {product.themes.map((tag) => (
+                  {Array.isArray(product.themes) && product.themes.map((tag) => (
                     <span
                       key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-mocha bg-mocha/10 px-3 py-1 rounded-full"
@@ -237,7 +237,7 @@ export default function ProductDetailPage({ params }: Props) {
                       {tag.title.replace(/ Theme| Birthday| Celebration/gi, "")}
                     </span>
                   ))}
-                  {product.categories.map((tag) => (
+                  {Array.isArray(product.categories) && product.categories.map((tag) => (
                     <span
                       key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-charcoal bg-cream-dark px-3 py-1 rounded-full"
@@ -264,7 +264,7 @@ export default function ProductDetailPage({ params }: Props) {
                   )}
                 </div>
 
-                <p className="text-text-muted leading-relaxed">{product.description}</p>
+                <p className="text-text-muted leading-relaxed">{typeof product.description === "string" ? product.description : ""}</p>
 
                 {/* SKU */}
                 <p className="text-xs text-text-light">
@@ -274,7 +274,7 @@ export default function ProductDetailPage({ params }: Props) {
                 <hr className="border-border-light" />
 
                 {/* Personalization Fields */}
-                {product.personalizationEnabled && product.personalizationFields.length > 0 && (
+                {product.personalizationEnabled && (product.personalizationFields?.length ?? 0) > 0 && (
                   <div className="space-y-4">
                     <h3 className="font-display text-lg font-semibold text-charcoal flex items-center gap-2">
                       ✨ Personalize Your Gift

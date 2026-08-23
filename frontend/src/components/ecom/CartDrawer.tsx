@@ -134,7 +134,7 @@ export function CartDrawer() {
                         {addons.map((addon) => (
                           <div key={addon.product.id} className="flex items-center gap-3 bg-white/50 p-2 rounded-lg">
                             <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0">
-                              <Image src={addon.product.images[0]?.media.url ?? "/placeholder-product.svg"} alt={addon.product.title} fill className="object-cover" sizes="40px" />
+                              <Image src={addon.product.images[0]?.media?.url ?? "/placeholder-product.svg"} alt={addon.product.title} fill className="object-cover" sizes="40px" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h5 className="text-xs font-semibold text-charcoal line-clamp-1">{addon.product.title}</h5>
@@ -186,9 +186,9 @@ export function CartDrawer() {
                     {/* Personalization values */}
                     {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {(item.personalizationValues as Array<{ fieldId: string; label: string; value: string }>).map((pv) => (
-                          <span key={pv.fieldId} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
-                            {pv.label}: {pv.value}
+                        {(item.personalizationValues as Array<{ fieldId?: string; label: string; value: string }>).map((pv, idx) => (
+                          <span key={pv.fieldId ?? `${pv.label}-${idx}`} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
+                            {typeof pv.label === "string" ? pv.label : "Personalization"}
                           </span>
                         ))}
                       </div>

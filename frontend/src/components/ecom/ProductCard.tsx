@@ -111,7 +111,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
             </button>
           </div>
 
-          {!compact && (
+          {!compact && typeof product.description === "string" && product.description && (
             <p className="text-text-muted text-xs sm:text-sm mt-2 line-clamp-2 leading-relaxed pr-10">
               {product.description}
             </p>

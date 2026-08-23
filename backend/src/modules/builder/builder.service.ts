@@ -4,6 +4,7 @@ import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { toMediaRef } from "../../lib/media-ref";
 import { getGstPercent, gstOn, computeShippingForSubtotal } from "../../lib/settings";
+import { isGiftRegistryMatrixService } from "../upgrades/upgrades.service";
 
 /** Category slug on ProductCategory → ExtraServiceCategory for filtering */
 const CATEGORY_SLUG_BY_SLOT: Record<string, string> = {
@@ -60,6 +61,8 @@ export type BuilderSelections = {
   decor?: boolean;
   /** Per-SKU personalization opt-in (true = customer wants personalization). */
   personalization?: Record<string, boolean>;
+  /** Optional Gift Registry customize line (₹500) when the package includes Gift Registry. */
+  giftRegistryCustomize?: boolean;
 };
 
 export type BuilderQuoteInput = {
@@ -107,6 +110,8 @@ export type BuilderQuoteResult = {
   totalInPaise: number;
   includedLabels: string[];
   hasPersonalization: boolean;
+  giftRegistryIncluded: boolean;
+  giftRegistryCustomizePriceInPaise: number;
 };
 
 function perChildQty(guestCount: number, moq: number): { qty: number; moqApplied: boolean } {
@@ -425,6 +430,28 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     }
   }
 
+  const giftRegistryPsi = pkg.serviceItems.find(
+    (s) =>
+      s.isIncluded &&
+      s.extraService.isActive &&
+      !s.extraService.deletedAt &&
+      isGiftRegistryMatrixService(s.extraService),
+  );
+  const giftRegistryIncluded = Boolean(giftRegistryPsi);
+  const giftRegistryCustomizePriceInPaise = giftRegistryPsi?.extraService.customizationPriceInPaise ?? 0;
+  if (sel.giftRegistryCustomize && giftRegistryPsi && giftRegistryCustomizePriceInPaise > 0) {
+    lineItems.push({
+      key: "gift-registry-customize",
+      label: `${giftRegistryPsi.extraService.label} customization`,
+      sublabel: "Fixed customize price",
+      section: "fixed",
+      packageServiceItemId: giftRegistryPsi.id,
+      quantity: 1,
+      unitPriceInPaise: giftRegistryCustomizePriceInPaise,
+      lineTotalInPaise: giftRegistryCustomizePriceInPaise,
+    });
+  }
+
   const customizationTotalInPaise = lineItems
     .filter((l) => l.key !== "base")
     .reduce((sum, l) => sum + l.lineTotalInPaise, 0);
@@ -459,5 +486,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     totalInPaise,
     includedLabels,
     hasPersonalization,
+    giftRegistryIncluded,
+    giftRegistryCustomizePriceInPaise,
   };
 }

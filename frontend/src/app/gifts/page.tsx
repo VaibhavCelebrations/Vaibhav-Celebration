@@ -54,15 +54,20 @@ function GiftsPageContent() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const [productsResult, categoriesResult, collectionsResult] = await Promise.all([
+        const [productsResult, categoriesResult, collectionsResult] = await Promise.allSettled([
           shopApi.listProducts({ pageSize: 500, sort: "newest" }),
           shopApi.listProductCategories(),
           shopApi.listProductCollections(),
         ]);
         if (!cancelled) {
-          setProducts(productsResult.items ?? []);
-          setCategories(categoriesResult ?? []);
-          setCollections(collectionsResult ?? []);
+          if (productsResult.status === "fulfilled") {
+            setProducts(productsResult.value.items ?? []);
+          } else {
+            setProducts([]);
+            setLoadError("Could not load shop products. Please refresh and try again.");
+          }
+          setCategories(categoriesResult.status === "fulfilled" ? (categoriesResult.value ?? []) : []);
+          setCollections(collectionsResult.status === "fulfilled" ? (collectionsResult.value ?? []) : []);
         }
       } catch {
         if (!cancelled) {
@@ -84,7 +89,7 @@ function GiftsPageContent() {
     let result = products.filter((p) => p.isActive);
 
     if (filter.theme) {
-      result = result.filter((p) => p.themes.some((t) => t.slug === filter.theme));
+      result = result.filter((p) => Array.isArray(p.themes) && p.themes.some((t) => t.slug === filter.theme));
     }
 
     if (filter.category === "personalized") {
@@ -92,17 +97,17 @@ function GiftsPageContent() {
         (p) => p.personalizationEnabled || (p.personalizationFields?.length ?? 0) > 0,
       );
     } else if (filter.category) {
-      result = result.filter((p) => p.categories.some((c) => c.slug === filter.category));
+      result = result.filter((p) => Array.isArray(p.categories) && p.categories.some((c) => c.slug === filter.category));
     }
 
     if (filter.search.trim()) {
       const q = filter.search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.themes.some((t) => t.title.toLowerCase().includes(q))
-      );
+      result = result.filter((p) => {
+        const title = typeof p.title === "string" ? p.title : "";
+        const description = typeof p.description === "string" ? p.description : "";
+        const themeMatch = Array.isArray(p.themes) && p.themes.some((t) => t.title?.toLowerCase().includes(q));
+        return title.toLowerCase().includes(q) || description.toLowerCase().includes(q) || themeMatch;
+      });
     }
 
     switch (filter.sortBy) {
@@ -248,7 +253,7 @@ function GiftsPageContent() {
                     href={`/gifts/collection/${c.slug}`}
                     className="group relative flex-none w-72 h-40 rounded-2xl overflow-hidden snap-start shrink-0"
                   >
-                    {c.heroImage ? (
+                    {c.heroImage?.url ? (
                       <Image 
                         src={c.heroImage.url} 
                         alt={c.title}

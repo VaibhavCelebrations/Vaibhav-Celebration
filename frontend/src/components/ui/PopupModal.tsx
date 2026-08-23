@@ -91,9 +91,9 @@ export function PopupModal() {
 
         <div className="p-8 text-center">
           <h2 className="font-display text-2xl font-bold text-charcoal mb-3">
-            {activePopup.title}
+            {typeof activePopup.title === "string" ? activePopup.title : "Vaibhav Celebrations"}
           </h2>
-          {activePopup.bodyText && (
+          {typeof activePopup.bodyText === "string" && activePopup.bodyText && (
             <p className="text-text-muted mb-6">{activePopup.bodyText}</p>
           )}
 
