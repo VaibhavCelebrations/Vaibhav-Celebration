@@ -10,6 +10,8 @@ import {
   listDeletedItems,
   restoreItem,
   hardDeleteItem,
+  restoreItemsBulk,
+  hardDeleteItemsBulk,
   getRecycleBinCount,
   RECYCLE_BIN_ENTITY_TYPES,
   type RecycleBinEntityType,
@@ -125,4 +127,72 @@ recycleBinRouter.delete(
       return next(err);
     }
   },
+);
+
+// ── POST /admin/recycle-bin/bulk/restore ────────────────────────────────────
+recycleBinRouter.post(
+  "/bulk/restore",
+  validate(
+    z.object({
+      items: z.array(
+        z.object({
+          entityType: entityTypeSchema,
+          id: z.string().min(1),
+        })
+      ).min(1),
+      password: z.string().min(1, "Password is required"),
+    })
+  ),
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { items, password } = req.body as {
+        items: { entityType: RecycleBinEntityType; id: string }[];
+        password: string;
+      };
+
+      const result = await restoreItemsBulk({
+        items,
+        adminId: req.admin!.sub,
+        adminPassword: password,
+      });
+
+      return ok(res, result);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// ── POST /admin/recycle-bin/bulk/delete ─────────────────────────────────────
+recycleBinRouter.post(
+  "/bulk/delete",
+  validate(
+    z.object({
+      items: z.array(
+        z.object({
+          entityType: entityTypeSchema,
+          id: z.string().min(1),
+        })
+      ).min(1),
+      password: z.string().min(1, "Password is required"),
+    })
+  ),
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { items, password } = req.body as {
+        items: { entityType: RecycleBinEntityType; id: string }[];
+        password: string;
+      };
+
+      const result = await hardDeleteItemsBulk({
+        items,
+        adminId: req.admin!.sub,
+        adminPassword: password,
+      });
+
+      return ok(res, result);
+    } catch (err) {
+      return next(err);
+    }
+  }
 );

@@ -348,7 +348,36 @@ export async function restoreItem(opts: {
   adminPassword: string;
 }): Promise<{ restored: true; entityType: RecycleBinEntityType; id: string }> {
   await verifySuperAdminPassword(opts.adminId, opts.adminPassword);
+  return _restoreItem({ entityType: opts.entityType, id: opts.id, adminId: opts.adminId });
+}
 
+export async function restoreItemsBulk(opts: {
+  items: { entityType: RecycleBinEntityType; id: string }[];
+  adminId: string;
+  adminPassword: string;
+}) {
+  await verifySuperAdminPassword(opts.adminId, opts.adminPassword);
+
+  let restoredCount = 0;
+  const errors: Array<{ entityType: string; id: string; error: string }> = [];
+
+  for (const item of opts.items) {
+    try {
+      await _restoreItem({ entityType: item.entityType, id: item.id, adminId: opts.adminId });
+      restoredCount++;
+    } catch (err: any) {
+      errors.push({ entityType: item.entityType, id: item.id, error: err.message || String(err) });
+    }
+  }
+
+  return { restoredCount, errors };
+}
+
+async function _restoreItem(opts: {
+  entityType: RecycleBinEntityType;
+  id: string;
+  adminId: string;
+}): Promise<{ restored: true; entityType: RecycleBinEntityType; id: string }> {
   const setActive = ENTITIES_WITH_IS_ACTIVE.has(opts.entityType);
   const restoreData = {
     deletedAt: null,
@@ -515,7 +544,36 @@ export async function hardDeleteItem(opts: {
   adminPassword: string;
 }): Promise<{ hardDeleted: true; entityType: RecycleBinEntityType; id: string }> {
   await verifySuperAdminPassword(opts.adminId, opts.adminPassword);
+  return _hardDeleteItem({ entityType: opts.entityType, id: opts.id, adminId: opts.adminId });
+}
 
+export async function hardDeleteItemsBulk(opts: {
+  items: { entityType: RecycleBinEntityType; id: string }[];
+  adminId: string;
+  adminPassword: string;
+}) {
+  await verifySuperAdminPassword(opts.adminId, opts.adminPassword);
+
+  let deletedCount = 0;
+  const errors: Array<{ entityType: string; id: string; error: string }> = [];
+
+  for (const item of opts.items) {
+    try {
+      await _hardDeleteItem({ entityType: item.entityType, id: item.id, adminId: opts.adminId });
+      deletedCount++;
+    } catch (err: any) {
+      errors.push({ entityType: item.entityType, id: item.id, error: err.message || String(err) });
+    }
+  }
+
+  return { deletedCount, errors };
+}
+
+async function _hardDeleteItem(opts: {
+  entityType: RecycleBinEntityType;
+  id: string;
+  adminId: string;
+}): Promise<{ hardDeleted: true; entityType: RecycleBinEntityType; id: string }> {
   // MediaAsset — refuse hard delete; too many FK references across the schema
   if (opts.entityType === "MediaAsset") {
     throw new AppError(

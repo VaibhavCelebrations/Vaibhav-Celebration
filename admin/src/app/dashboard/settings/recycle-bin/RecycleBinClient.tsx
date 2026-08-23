@@ -18,6 +18,8 @@ import {
   fetchRecycleBinItems,
   restoreRecycleBinItem,
   hardDeleteRecycleBinItem,
+  restoreRecycleBinItemsBulk,
+  hardDeleteRecycleBinItemsBulk,
   RECYCLE_BIN_ENTITY_TYPES,
   ENTITY_LABELS,
   type RecycleBinItem,
@@ -76,16 +78,16 @@ function formatAbsolute(dateStr: string): string {
 
 // ─── Password Confirmation Modal ─────────────────────────────────────────────
 
-type ModalAction = "restore" | "hardDelete";
+type ModalAction = "restore" | "hardDelete" | "bulkRestore" | "bulkHardDelete";
 
 type ConfirmModalProps = {
   action: ModalAction;
-  item: RecycleBinItem;
+  items: RecycleBinItem[];
   onConfirm: (password: string) => Promise<void>;
   onCancel: () => void;
 };
 
-function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) {
+function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,14 +108,16 @@ function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) 
     try {
       await onConfirm(password);
     } catch (err) {
-      const msg = err instanceof AdminApiError ? err.message : "Something went wrong";
+      const msg = err instanceof AdminApiError ? err.message : (err instanceof Error ? err.message : "Something went wrong");
       setError(msg);
       setLoading(false);
     }
   }
 
-  const isHardDelete = action === "hardDelete";
-  const color = ENTITY_COLORS[item.entityType];
+  const isHardDelete = action === "hardDelete" || action === "bulkHardDelete";
+  const isBulk = items.length > 1;
+  const item = items[0];
+  const color = item ? ENTITY_COLORS[item.entityType] : null;
 
   return (
     <div
@@ -141,7 +145,7 @@ function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) 
             </div>
             <div>
               <h2 className="text-base font-semibold text-(--color-charcoal)">
-                {isHardDelete ? "Delete Permanently" : "Restore Item"}
+                {isHardDelete ? (isBulk ? "Delete Multiple Items" : "Delete Permanently") : (isBulk ? "Restore Multiple Items" : "Restore Item")}
               </h2>
               <p className="text-xs text-(--color-text-muted)">
                 Super Admin authentication required
@@ -162,19 +166,34 @@ function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) 
           className="mx-6 mb-4 rounded-xl p-3"
           style={{ background: "var(--color-surface-alt)", border: "1px solid var(--color-border-soft)" }}
         >
-          <div className="flex items-start gap-2">
-            <span
-              className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${color.bg} ${color.text}`}
-            >
-              {ENTITY_LABELS[item.entityType]}
-            </span>
-          </div>
-          <p className="mt-1.5 text-sm font-medium text-(--color-charcoal)">
-            {item.displayName}
-          </p>
-          <p className="mt-0.5 text-xs text-(--color-text-muted)">
-            Deleted {formatAbsolute(item.deletedAt)}
-          </p>
+          {isBulk ? (
+            <div>
+              <p className="mt-1.5 text-sm font-medium text-(--color-charcoal)">
+                {items.length} items selected
+              </p>
+              <p className="mt-0.5 text-xs text-(--color-text-muted)">
+                Are you sure you want to {isHardDelete ? "permanently delete" : "restore"} these items?
+              </p>
+            </div>
+          ) : (
+            item && (
+              <>
+                <div className="flex items-start gap-2">
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${color?.bg} ${color?.text}`}
+                  >
+                    {ENTITY_LABELS[item.entityType]}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm font-medium text-(--color-charcoal)">
+                  {item.displayName}
+                </p>
+                <p className="mt-0.5 text-xs text-(--color-text-muted)">
+                  Deleted {formatAbsolute(item.deletedAt)}
+                </p>
+              </>
+            )
+          )}
         </div>
 
         {/* Warnings */}
@@ -182,13 +201,22 @@ function ConfirmModal({ action, item, onConfirm, onCancel }: ConfirmModalProps) 
           <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-500" />
             <p className="text-xs text-red-700">
-              This action is <strong>permanent and irreversible</strong>. The record will be
+              This action is <strong>permanent and irreversible</strong>. {isBulk ? "The records" : "The record"} will be
               removed from the database and cannot be recovered.
             </p>
           </div>
         )}
 
-        {item.entityType === "MediaAsset" && !isHardDelete && (
+        {isBulk && isHardDelete && items.some(i => i.entityType === "MediaAsset") && (
+          <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <Info size={15} className="mt-0.5 shrink-0 text-amber-600" />
+            <p className="text-xs text-amber-700">
+              <strong>Note:</strong> Selected Media Assets cannot be permanently deleted from here and will be skipped.
+            </p>
+          </div>
+        )}
+
+        {(isBulk ? items.some(i => i.entityType === "MediaAsset") : item?.entityType === "MediaAsset") && !isHardDelete && (
           <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <Info size={15} className="mt-0.5 shrink-0 text-amber-600" />
             <p className="text-xs text-amber-700">
@@ -271,15 +299,21 @@ export function RecycleBinClient() {
   const [loading, setLoading] = useState(true);
   const [actionResult, setActionResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Modal state
   const [modal, setModal] = useState<{
     action: ModalAction;
-    item: RecycleBinItem;
+    items: RecycleBinItem[];
   } | null>(null);
+
+  const getItemKey = (item: RecycleBinItem) => `${item.entityType}:::${item.id}`;
 
   const load = useCallback(async () => {
     setLoading(true);
     setActionResult(null);
+    setSelectedIds(new Set());
     try {
       const result = await fetchRecycleBinItems({
         entityType: entityFilter || undefined,
@@ -309,14 +343,59 @@ export function RecycleBinClient() {
       )
     : items;
 
+  // Selection handlers
+  const allCurrentDisplayedKeys = displayed.map(getItemKey);
+  const isAllSelected = displayed.length > 0 && allCurrentDisplayedKeys.every(k => selectedIds.has(k));
+
+  const toggleSelectAll = () => {
+    const newSet = new Set(selectedIds);
+    if (isAllSelected) {
+      allCurrentDisplayedKeys.forEach(k => newSet.delete(k));
+    } else {
+      allCurrentDisplayedKeys.forEach(k => newSet.add(k));
+    }
+    setSelectedIds(newSet);
+  };
+
+  const toggleItemSelection = (item: RecycleBinItem) => {
+    const key = getItemKey(item);
+    const newSet = new Set(selectedIds);
+    if (newSet.has(key)) {
+      newSet.delete(key);
+    } else {
+      newSet.add(key);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const getSelectedItems = () => {
+    return items.filter(item => selectedIds.has(getItemKey(item)));
+  };
+
   async function handleAction(password: string) {
     if (!modal) return;
-    if (modal.action === "restore") {
-      await restoreRecycleBinItem(modal.item.entityType, modal.item.id, password);
-      setActionResult({ type: "success", message: `"${modal.item.displayName}" has been restored successfully.` });
-    } else {
-      await hardDeleteRecycleBinItem(modal.item.entityType, modal.item.id, password);
-      setActionResult({ type: "success", message: `"${modal.item.displayName}" has been permanently deleted.` });
+    try {
+      if (modal.action === "restore") {
+        await restoreRecycleBinItem(modal.items[0].entityType, modal.items[0].id, password);
+        setActionResult({ type: "success", message: `"${modal.items[0].displayName}" has been restored successfully.` });
+      } else if (modal.action === "hardDelete") {
+        await hardDeleteRecycleBinItem(modal.items[0].entityType, modal.items[0].id, password);
+        setActionResult({ type: "success", message: `"${modal.items[0].displayName}" has been permanently deleted.` });
+      } else if (modal.action === "bulkRestore") {
+        const payload = modal.items.map(i => ({ entityType: i.entityType, id: i.id }));
+        const res = await restoreRecycleBinItemsBulk(payload, password);
+        let msg = `${res.restoredCount} items restored successfully.`;
+        if (res.errors.length > 0) msg += ` Failed to restore ${res.errors.length} items.`;
+        setActionResult({ type: res.errors.length > 0 ? "error" : "success", message: msg });
+      } else if (modal.action === "bulkHardDelete") {
+        const payload = modal.items.map(i => ({ entityType: i.entityType, id: i.id }));
+        const res = await hardDeleteRecycleBinItemsBulk(payload, password);
+        let msg = `${res.deletedCount} items permanently deleted.`;
+        if (res.errors.length > 0) msg += ` Failed to delete ${res.errors.length} items.`;
+        setActionResult({ type: res.errors.length > 0 ? "error" : "success", message: msg });
+      }
+    } catch (err) {
+      throw err;
     }
     setModal(null);
     void load();
@@ -328,7 +407,7 @@ export function RecycleBinClient() {
       {modal && (
         <ConfirmModal
           action={modal.action}
-          item={modal.item}
+          items={modal.items}
           onConfirm={handleAction}
           onCancel={() => setModal(null)}
         />
@@ -378,6 +457,45 @@ export function RecycleBinClient() {
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-blue-800">
+              {selectedIds.size} {selectedIds.size === 1 ? 'item' : 'items'} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setModal({ action: "bulkRestore", items: getSelectedItems() })}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 cursor-pointer"
+            >
+              <RotateCcw size={14} />
+              Restore Selected
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal({ action: "bulkHardDelete", items: getSelectedItems() })}
+              disabled={getSelectedItems().every(i => i.entityType === "MediaAsset")}
+              title={getSelectedItems().every(i => i.entityType === "MediaAsset") ? "Media assets cannot be hard-deleted" : undefined}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 size={14} />
+              Delete Selected
+            </button>
+          </div>
         </div>
       )}
 
@@ -456,6 +574,14 @@ export function RecycleBinClient() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border-soft)", background: "var(--color-surface-alt)" }}>
+                <th className="px-4 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-(--color-text-muted)">
                   Type
                 </th>
@@ -474,17 +600,31 @@ export function RecycleBinClient() {
               {displayed.map((item, i) => {
                 const color = ENTITY_COLORS[item.entityType];
                 const isMediaAsset = item.entityType === "MediaAsset";
+                const itemKey = getItemKey(item);
+                const isSelected = selectedIds.has(itemKey);
+                
                 return (
                   <tr
-                    key={`${item.entityType}-${item.id}`}
+                    key={itemKey}
                     className="transition-colors hover:bg-gray-50/60"
                     style={{
                       borderBottom:
                         i < displayed.length - 1
                           ? "1px solid var(--color-border-soft)"
                           : "none",
+                      backgroundColor: isSelected ? "var(--color-surface-alt)" : "transparent"
                     }}
                   >
+                    {/* Checkbox */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleItemSelection(item)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+
                     {/* Type badge */}
                     <td className="px-4 py-3">
                       <span
@@ -529,7 +669,7 @@ export function RecycleBinClient() {
                         <button
                           type="button"
                           title="Restore"
-                          onClick={() => setModal({ action: "restore", item })}
+                          onClick={() => setModal({ action: "restore", items: [item] })}
                           className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-green-50 cursor-pointer"
                           style={{
                             borderColor: "var(--color-border)",
@@ -558,7 +698,7 @@ export function RecycleBinClient() {
                           <button
                             type="button"
                             title="Delete permanently"
-                            onClick={() => setModal({ action: "hardDelete", item })}
+                            onClick={() => setModal({ action: "hardDelete", items: [item] })}
                             className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-red-50 cursor-pointer"
                             style={{
                               borderColor: "var(--color-border)",
