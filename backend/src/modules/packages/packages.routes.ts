@@ -72,6 +72,7 @@ async function shapePackage(packageId: string) {
     where: { id: packageId, deletedAt: null },
     include: {
       serviceItems: {
+        where: { extraService: { deletedAt: null } },
         orderBy: { displayOrder: "asc" },
         include: { extraService: true },
       },

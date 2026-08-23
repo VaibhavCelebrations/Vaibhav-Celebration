@@ -44,6 +44,7 @@ export async function computeQuote(input: {
     where: { id: input.packageId, deletedAt: null, isActive: true },
     include: {
       serviceItems: {
+        where: { extraService: { deletedAt: null } },
         orderBy: { displayOrder: "asc" },
         include: { extraService: true },
       },

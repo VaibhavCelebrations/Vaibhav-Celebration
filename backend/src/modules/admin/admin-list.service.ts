@@ -63,7 +63,7 @@ export async function adminListThemes(q: AdminListQuery) {
           heroImage: true,
           _count: {
             select: {
-              packages: true,
+              packages: { where: { package: { deletedAt: null } } },
               galleryImages: { where: { deletedAt: null } },
             },
           },
@@ -109,11 +109,12 @@ export async function adminGetTheme(id: string) {
         orderBy: { displayOrder: "asc" },
       },
       packages: {
+        where: { package: { deletedAt: null } },
         include: { package: { select: { id: true, title: true, slug: true, priceInPaise: true } } },
       },
       _count: {
         select: {
-          packages: true,
+          packages: { where: { package: { deletedAt: null } } },
           galleryImages: { where: { deletedAt: null } },
         },
       },
@@ -196,7 +197,7 @@ export async function adminListPackages(q: AdminListQuery) {
         include: {
           _count: {
             select: {
-              serviceItems: true,
+              serviceItems: { where: { extraService: { deletedAt: null } } },
               themeLinks: true,
             },
           },

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../../db/prisma";
 import { AppError, NotFoundError, UnauthorizedError } from "../../lib/errors";
 import { parsePagination, paginationMeta } from "../../lib/response";
+import { delPattern } from "../../lib/redis";
 
 // ─── Supported entity types ──────────────────────────────────────────────────
 
@@ -32,9 +33,7 @@ export type RecycleBinEntityType = (typeof RECYCLE_BIN_ENTITY_TYPES)[number];
 const ENTITIES_WITH_IS_ACTIVE = new Set<RecycleBinEntityType>([
   "Theme",
   "Package",
-  "ExtraService",
   "GalleryImage",
-  "BlogPost",
   "Event",
   "Testimonial",
   "FAQ",
@@ -498,6 +497,9 @@ export async function restoreItem(opts: {
     },
   });
 
+  void delPattern("pub:*");
+  void delPattern("adm:*");
+
   return { restored: true, entityType: opts.entityType, id: opts.id };
 }
 
@@ -526,131 +528,144 @@ export async function hardDeleteItem(opts: {
   let displayName = opts.id;
 
   try {
-    switch (opts.entityType) {
-      case "Theme": {
-        const row = await prisma.theme.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.theme.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Package": {
-        const row = await prisma.package.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.package.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "ExtraService": {
-        const row = await prisma.extraService.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.label;
-        await prisma.extraService.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "GalleryImage": {
-        const row = await prisma.galleryImage.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.altText;
-        await prisma.galleryImage.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "BlogPost": {
-        const row = await prisma.blogPost.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.blogPost.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Event": {
-        const row = await prisma.event.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.event.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Testimonial": {
-        const row = await prisma.testimonial.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.customerName;
-        await prisma.testimonial.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "FAQ": {
-        const row = await prisma.fAQ.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.question;
-        await prisma.fAQ.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Popup": {
-        const row = await prisma.popup.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.popup.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Product": {
-        const row = await prisma.product.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.product.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Customer": {
-        const row = await prisma.customer.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = `${row.fullName} (${row.email})`;
-        await prisma.customer.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "Lead": {
-        const row = await prisma.lead.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.name;
-        await prisma.lead.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "ConsultationRequest": {
-        const row = await prisma.consultationRequest.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = `${row.name} (${row.email})`;
-        await prisma.consultationRequest.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "AdminUser": {
-        const row = await prisma.adminUser.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        // Prevent hard-deleting self
-        if (row.id === opts.adminId) {
-          throw new AppError("CANNOT_DELETE_SELF", "You cannot permanently delete your own admin account.", 409);
+    await prisma.$transaction(async (tx) => {
+      switch (opts.entityType) {
+        case "Theme": {
+          const row = await tx.theme.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.themePackage.deleteMany({ where: { themeId: opts.id } });
+          await tx.themeSampleAsset.deleteMany({ where: { themeId: opts.id } });
+          await tx.productThemeTag.deleteMany({ where: { themeId: opts.id } });
+          await tx.theme.delete({ where: { id: opts.id } });
+          break;
         }
-        displayName = `${row.name} (${row.email})`;
-        await prisma.adminUser.delete({ where: { id: opts.id } });
-        break;
+        case "Package": {
+          const row = await tx.package.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.themePackage.deleteMany({ where: { packageId: opts.id } });
+          await tx.package.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "ExtraService": {
+          const row = await tx.extraService.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.label;
+          await tx.extraService.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "GalleryImage": {
+          const row = await tx.galleryImage.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.altText;
+          await tx.galleryImageTag.deleteMany({ where: { galleryImageId: opts.id } });
+          await tx.galleryImage.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "BlogPost": {
+          const row = await tx.blogPost.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.blogPostCategory.deleteMany({ where: { blogPostId: opts.id } });
+          await tx.blogPostTag.deleteMany({ where: { blogPostId: opts.id } });
+          await tx.blogPost.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Event": {
+          const row = await tx.event.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.event.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Testimonial": {
+          const row = await tx.testimonial.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.customerName;
+          await tx.testimonial.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "FAQ": {
+          const row = await tx.fAQ.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.question;
+          await tx.fAQ.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Popup": {
+          const row = await tx.popup.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.popup.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Product": {
+          const row = await tx.product.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.productCategoryTag.deleteMany({ where: { productId: opts.id } });
+          await tx.productThemeTag.deleteMany({ where: { productId: opts.id } });
+          await tx.productImage.deleteMany({ where: { productId: opts.id } });
+          await tx.productPersonalizationField.deleteMany({ where: { productId: opts.id } });
+          await tx.product.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Customer": {
+          const row = await tx.customer.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = `${row.fullName} (${row.email})`;
+          await tx.customer.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Lead": {
+          const row = await tx.lead.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.name;
+          await tx.lead.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "ConsultationRequest": {
+          const row = await tx.consultationRequest.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = `${row.name} (${row.email})`;
+          await tx.consultationRequest.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "AdminUser": {
+          const row = await tx.adminUser.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          // Prevent hard-deleting self
+          if (row.id === opts.adminId) {
+            throw new AppError("CANNOT_DELETE_SELF", "You cannot permanently delete your own admin account.", 409);
+          }
+          displayName = `${row.name} (${row.email})`;
+          await tx.adminUser.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "Invoice": {
+          const row = await tx.invoice.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.invoiceNumber;
+          await tx.invoice.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "ThemeSampleAsset": {
+          const row = await tx.themeSampleAsset.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.title;
+          await tx.themeSampleAsset.delete({ where: { id: opts.id } });
+          break;
+        }
+        case "EventRegistration": {
+          const row = await tx.eventRegistration.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = `${row.name} (${row.email})`;
+          await tx.eventRegistration.delete({ where: { id: opts.id } });
+          break;
+        }
       }
-      case "Invoice": {
-        const row = await prisma.invoice.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.invoiceNumber;
-        await prisma.invoice.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "ThemeSampleAsset": {
-        const row = await prisma.themeSampleAsset.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = row.title;
-        await prisma.themeSampleAsset.delete({ where: { id: opts.id } });
-        break;
-      }
-      case "EventRegistration": {
-        const row = await prisma.eventRegistration.findFirst({ where: { id: opts.id } });
-        if (!row) throw new NotFoundError();
-        displayName = `${row.name} (${row.email})`;
-        await prisma.eventRegistration.delete({ where: { id: opts.id } });
-        break;
-      }
-    }
+    });
   } catch (err) {
     // Re-throw our own errors as-is
     if (err instanceof AppError) throw err;
@@ -675,6 +690,9 @@ export async function hardDeleteItem(opts: {
       metadata: { displayName },
     },
   });
+
+  void delPattern("pub:*");
+  void delPattern("adm:*");
 
   return { hardDeleted: true, entityType: opts.entityType, id: opts.id };
 }

@@ -7,6 +7,7 @@ const PUB_TTL = 5 * 60;
 
 const detailInclude = {
   serviceItems: {
+    where: { extraService: { deletedAt: null } },
     orderBy: { displayOrder: "asc" as const },
     include: {
       extraService: true,
@@ -51,6 +52,7 @@ export async function getPackageMatrix() {
         where: { deletedAt: null, isActive: true },
         include: {
           serviceItems: {
+            where: { extraService: { deletedAt: null } },
             orderBy: { displayOrder: "asc" },
             include: { extraService: true },
           },
