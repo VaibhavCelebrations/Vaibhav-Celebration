@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, Boxes, Layers, Loader2, Pencil, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { Trash2, Boxes, Layers, Loader2, Pencil, Plus, ShoppingBag } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import {
@@ -329,7 +329,7 @@ export function ProductsScreen() {
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
           { id: "stock", label: "Adjust stock", icon: Boxes, onSelect: setStockTarget },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: ShoppingBag, title: "No products yet", description: "Add your first gift shop product." }}
       />
@@ -409,7 +409,7 @@ export function ProductsScreen() {
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <p className="text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization</p>
-              <p className="text-xs text-(--color-text-muted)">Enable paid customization and define fields customers fill before adding to cart.</p>
+              <p className="text-xs text-(--color-text-muted)">Enable paid customization. Customers opt in at checkout; our team collects details after booking.</p>
             </div>
             <ToggleSwitch
               checked={form.personalizationEnabled}
@@ -418,6 +418,7 @@ export function ProductsScreen() {
             />
           </div>
           {form.personalizationEnabled && (
+            <>
             <FormField label="Personalization cost" htmlFor="product-personalization-cost" hint="Charged per quantity when the customer chooses personalization.">
               <PriceInput
                 id="product-personalization-cost"
@@ -425,6 +426,7 @@ export function ProductsScreen() {
                 onChange={(paise) => patchForm({ personalizationCostInPaise: paise })}
               />
             </FormField>
+            </>
           )}
           <div className="flex flex-col gap-3">
             {(form.personalizationFields ?? []).map((f, i) => (
@@ -574,7 +576,7 @@ function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: Product 
         ) : (
           <ul className="flex flex-col gap-1.5">
             {history.map((h) => (
-              <li key={h.id} className="flex items-center justify-between rounded-(--radius-sm) bg-(--color-surface) px-2.5 py-1.5 text-xs">
+              <li key={h.id} className="flex items-center justify-between rounded-sm bg-(--color-surface) px-2.5 py-1.5 text-xs">
                 <span className={h.changeQuantity >= 0 ? "text-(--color-success)" : "text-(--color-error)"}>
                   {h.changeQuantity >= 0 ? `+${h.changeQuantity}` : h.changeQuantity} · {h.reason.replace("_", " ")}
                 </span>
@@ -655,7 +657,7 @@ function CategoriesManagerDrawer({
       <div className="flex flex-col gap-2">
         {categories.length === 0 && <p className="text-sm text-(--color-text-muted)">No categories yet — add the first one below.</p>}
         {categories.map((c) => (
-          <div key={c.id} className="flex items-center justify-between gap-2 rounded-(--radius-sm) border border-(--color-border-soft) px-3 py-2">
+          <div key={c.id} className="flex items-center justify-between gap-2 rounded-sm border border-(--color-border-soft) px-3 py-2">
             <span className="min-w-0 truncate text-sm">{c.name}</span>
             <div className="flex shrink-0 items-center gap-2">
               {busyId === c.id ? (

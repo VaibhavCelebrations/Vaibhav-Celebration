@@ -61,12 +61,13 @@ type ContactSections = {
 
 const EMPTY_HOME: HomeSections = {
   hero: {
-    eyebrow: "",
-    headline: "",
-    headlineAccent: "",
-    subheadline: "",
-    primaryCta: { label: "", href: "" },
-    secondaryCta: { label: "", href: "" },
+    eyebrow: "Your Complete Celebration Ecosystem ✦",
+    headline: "One Theme. Every Detail. Beautifully Celebrated",
+    headlineAccent: "Beautifully Celebrated",
+    subheadline:
+      "From the first invite to activities, welcome details, personalized return gifts and keepsakes — Vaibhav Celebrations brings every element together under one thoughtful concept, tailored around the person, milestone or moment being celebrated.",
+    primaryCta: { label: "Explore Celebrations", href: "/themes" },
+    secondaryCta: { label: "Build Your Celebration", href: "/build-package" },
     backgroundImage: null,
   },
   deliverables: { title: "", subtitle: "" },
@@ -96,10 +97,10 @@ function parseHome(raw: Record<string, unknown>): HomeSections {
   const secondaryCta = (hero.secondaryCta ?? {}) as Record<string, string>;
   return {
     hero: {
-      eyebrow: String(hero.eyebrow ?? ""),
-      headline: String(hero.headline ?? ""),
-      headlineAccent: String(hero.headlineAccent ?? ""),
-      subheadline: String(hero.subheadline ?? ""),
+      eyebrow: typeof hero.eyebrow === "string" ? hero.eyebrow : "",
+      headline: typeof hero.headline === "string" ? hero.headline : "",
+      headlineAccent: typeof hero.headlineAccent === "string" ? hero.headlineAccent : "",
+      subheadline: typeof hero.subheadline === "string" ? hero.subheadline : "",
       primaryCta: { label: primaryCta.label ?? "", href: primaryCta.href ?? "" },
       secondaryCta: { label: secondaryCta.label ?? "", href: secondaryCta.href ?? "" },
       backgroundImage: mediaFromSection(hero.backgroundImage),

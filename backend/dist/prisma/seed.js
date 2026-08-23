@@ -940,7 +940,7 @@ async function main() {
         {
             pageKey: "home",
             metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
-            metaDescription: "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur NCR.",
+            metaDescription: "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur.",
             canonicalUrl: "https://vaibhavcelebrations.in",
         },
         {
@@ -1295,7 +1295,7 @@ async function main() {
                 source,
                 status: leadStatuses[i % leadStatuses.length],
                 interestArea: i % 2 === 0 ? "Premium" : "Royal Mandap",
-                message: `Inquiry via ${source}. Looking for wedding venue in Jaipur NCR.`,
+                message: `Inquiry via ${source}. Looking for wedding venue in Jaipur.`,
                 customerId: i === 0 ? customer1.id : undefined,
                 chatbotSessionId: source === client_1.LeadSource.CHATBOT ? chatbotSession.id : undefined,
             },

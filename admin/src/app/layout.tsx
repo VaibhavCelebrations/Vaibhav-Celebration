@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: "Admin — Vaibhav Celebrations",
     template: "%s | VC Admin",
   },
-  description: "Internal admin panel for Vaibhav Celebrations — manage events, bookings, CMS & CRM.",
+  description: "Internal admin panel for Vaibhav Celebrations — manage events, orders, CMS & CRM.",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 

@@ -279,7 +279,7 @@ export default function RegistryDetailPage({ params }: Props) {
     return (
       <div className="text-center py-20">
         <h2 className="font-display text-xl font-bold text-charcoal mb-4">Registry not found</h2>
-        <Link href="/account/registry" className="btn-primary px-8 py-3 text-sm">Back to Registries</Link>
+        <Link href="/account/orders" className="btn-primary px-8 py-3 text-sm">Back to Orders</Link>
       </div>
     );
   }
@@ -289,8 +289,8 @@ export default function RegistryDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <Link href="/account/registry" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold">
-        <ArrowLeft size={14} /> Back to Registries
+      <Link href="/account/orders" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-mocha font-semibold">
+        <ArrowLeft size={14} /> Back to Orders
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -334,6 +334,7 @@ export default function RegistryDetailPage({ params }: Props) {
           <input className={inputClass} defaultValue={registry.occasion ?? ""} onBlur={(e) => void saveField({ occasion: e.target.value })} placeholder="Occasion" />
           <input className={inputClass} defaultValue={registry.ownerDisplayName ?? ""} onBlur={(e) => void saveField({ ownerDisplayName: e.target.value, childOrPersonName: e.target.value })} placeholder="Recipient name" />
           <input type="date" className={inputClass} defaultValue={registry.eventDate?.slice(0, 10) ?? ""} onBlur={(e) => void saveField({ eventDate: e.target.value || null })} />
+          <input className={`md:col-span-2 ${inputClass}`} defaultValue={registry.coverImageUrl ?? ""} onBlur={(e) => void saveField({ coverImageUrl: e.target.value || null })} placeholder="Cover Image URL (e.g., https://example.com/image.jpg)" />
         </div>
         <textarea className={inputClass} rows={3} defaultValue={registry.celebrationDetails ?? ""} onBlur={(e) => void saveField({ celebrationDetails: e.target.value })} placeholder="Message to guests" />
         <div className="flex flex-wrap gap-2">
@@ -429,7 +430,7 @@ export default function RegistryDetailPage({ params }: Props) {
               try {
                 await shopApi.archiveMyRegistry(registry.id);
                 push("Registry archived", "success");
-                window.location.href = "/account/registry";
+                window.location.href = "/account/orders";
               } catch (err) {
                 push(friendlyAuthError(err), "error");
               }

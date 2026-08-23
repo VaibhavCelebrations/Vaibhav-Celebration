@@ -16,6 +16,7 @@ const publicThemeInclude = {
       package: {
         include: {
           serviceItems: {
+            where: { extraService: { deletedAt: null } },
             orderBy: { displayOrder: "asc" as const },
             include: { extraService: true },
           },

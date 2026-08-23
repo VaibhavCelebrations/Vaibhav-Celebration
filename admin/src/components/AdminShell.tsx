@@ -32,6 +32,7 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import type { AdminUser } from "@/lib/admin-api-client";
@@ -190,6 +191,13 @@ const NAV: NavItem[] = [
     href: "/dashboard/settings/audit",
     label: "Audit Log",
     icon: ScrollText,
+    roles: ["SUPER_ADMIN"],
+  },
+  {
+    section: "Settings",
+    href: "/dashboard/settings/recycle-bin",
+    label: "Recycle Bin",
+    icon: Trash2,
     roles: ["SUPER_ADMIN"],
   },
 ];

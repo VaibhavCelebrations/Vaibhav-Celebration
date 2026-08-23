@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart, Gift } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
 import { useCart } from "@/context/cart-context";
@@ -17,14 +17,31 @@ type NavLink = {
 
 const navLinks: NavLink[] = [
   { label: "Home", href: "/" },
-  { label: "About Us", href: "/about" },
-  { label: "Events", href: "/events" },
-  { label: "Themes", href: "/themes" },
+  {
+    label: "Celebrations",
+    href: "/themes",
+    submenu: [
+      { label: "Kids' Birthdays", href: "/themes" },
+      // { label: "Baby Shower", href: "/themes?category=baby-shower" },
+      // { label: "Naming Ceremony", href: "/themes?category=naming-ceremony" },
+      // { label: "Milestone Celebrations", href: "/themes?category=milestone" },
+      { label: "Custom Celebrations", href: "/consultation" },
+    ],
+  },
   { label: "Packages", href: "/packages" },
+  {
+    label: "Shop",
+    href: "/gifts",
+    submenu: [
+      { label: "Shop Return Gifts", href: "/gifts" },
+      // { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
+      // { label: "Shop by Theme", href: "/gifts?view=themes" },
+      // { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
+    ],
+  },
+  { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },
-  { label: "Gifts", href: "/gifts" },
-  { label: "Blog", href: "/blog" },
-  { label: "Contact Us", href: "/contact" },
+  { label: "About Us", href: "/about" },
 ];
 
 export function Navbar() {
@@ -72,7 +89,7 @@ export function Navbar() {
                 width={155}
                 height={155}
                 className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
-                style={{ width: "auto", height: "auto" }}
+                style={{ width: "auto" }}
                 priority
               />
             </Link>
@@ -144,14 +161,14 @@ export function Navbar() {
                       <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
                       <p className="text-xs text-text-muted truncate">{user?.email}</p>
                     </div>
+                    <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                      <User size={16} /> My Profile
+                    </Link>
                     <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
                       <Package size={16} /> Order History
                     </Link>
                     <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
                       <Heart size={16} /> Saved Products
-                    </Link>
-                    <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
-                      <Gift size={16} /> Gift Registry
                     </Link>
                     <button
                       onClick={() => { logout(); setShowAccountMenu(false); }}
@@ -180,7 +197,7 @@ export function Navbar() {
                 href="/consultation"
                 className="btn-primary text-sm px-6 py-2.5 transition-all"
               >
-                Book a Celebration
+                Plan My Celebration
               </Link>
             </div>
 
@@ -237,14 +254,14 @@ export function Navbar() {
             <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
             <p className="text-xs text-text-muted truncate">{user?.email}</p>
           </div>
+          <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+            <User size={16} /> My Profile
+          </Link>
           <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
             <Package size={16} /> Order History
           </Link>
           <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
             <Heart size={16} /> Saved Products
-          </Link>
-          <Link href="/account/registry" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
-            <Gift size={16} /> Gift Registry
           </Link>
           <button
             onClick={() => { logout(); setShowAccountMenu(false); }}
@@ -255,7 +272,12 @@ export function Navbar() {
         </div>
       )}
 
-      <MobileMenu isOpen={mobileOpen} onClose={closeMobile} links={navLinks} />
+      <MobileMenu
+        isOpen={mobileOpen}
+        onClose={closeMobile}
+        links={navLinks}
+        isAuthenticated={isAuthenticated}
+      />
     </header>
   );
 }

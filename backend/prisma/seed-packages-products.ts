@@ -148,13 +148,14 @@ const SERVICES: ServiceDef[] = [
   },
   {
     slug: "gift-registry",
-    label: "Gift Registry Access",
-    description: "Gift registry access",
+    label: "Gift Registry",
+    description:
+      "Share a guided gift list with guests. Included with Signature and Grand. Optional customization is a fixed ₹500 in the builder.",
     category: "GIFT_REGISTRY",
     pricingMode: "FIXED",
     locationScope: "ALL",
     choiceCount: null,
-    customizationPriceInPaise: 0,
+    customizationPriceInPaise: 50000,
     displayOrder: 11,
     tiers: ["premium", "luxe"],
   },
@@ -813,6 +814,87 @@ async function deactivateOrphanExtraServices() {
   }
 }
 
+async function archiveUnusedPackages() {
+  const live = ["standard", "premium", "luxe"];
+  const result = await prisma.package.updateMany({
+    where: { deletedAt: null, slug: { notIn: live } },
+    data: { isActive: false, deletedAt: new Date() },
+  });
+  if (result.count) {
+    console.log(`Archived ${result.count} unused packages (not in ${live.join(", ")})`);
+  }
+}
+
+async function upsertFestiveCollection() {
+  const festiveCat = await prisma.productCategory.upsert({
+    where: { slug: "festive" },
+    create: { name: "Occasion & Festive Gifting", slug: "festive", displayOrder: 10, isActive: true },
+    update: { name: "Occasion & Festive Gifting", isActive: true },
+  });
+  await prisma.productCategory.upsert({
+    where: { slug: "personalized" },
+    create: { name: "Personalized Return Gifts", slug: "personalized", displayOrder: 11, isActive: true },
+    update: { name: "Personalized Return Gifts", isActive: true },
+  });
+
+  const products = await prisma.product.findMany({
+    where: { deletedAt: null, isActive: true },
+    include: { categoryTags: { include: { category: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 24,
+  });
+
+  for (const product of products) {
+    const isReturnGift = product.categoryTags.some((t) => t.category.slug === "return-gifts");
+    if (isReturnGift) {
+      await prisma.productCategoryTag.upsert({
+        where: { productId_categoryId: { productId: product.id, categoryId: festiveCat.id } },
+        create: { productId: product.id, categoryId: festiveCat.id },
+        update: {},
+      });
+    }
+  }
+
+  const collectionProducts = products.slice(0, 12);
+  const existing = await prisma.productCollection.findFirst({ where: { slug: "festive" } });
+  const collection = existing
+    ? await prisma.productCollection.update({
+        where: { id: existing.id },
+        data: {
+          title: "Festive Collection",
+          description:
+            "Thoughtfully curated gifts for festivals, Kanjak, and seasonal celebrations — ready to shop without a full package.",
+          isActive: true,
+          showOnHomepage: true,
+          deletedAt: null,
+          displayOrder: 1,
+        },
+      })
+    : await prisma.productCollection.create({
+        data: {
+          title: "Festive Collection",
+          slug: "festive",
+          description:
+            "Thoughtfully curated gifts for festivals, Kanjak, and seasonal celebrations — ready to shop without a full package.",
+          isActive: true,
+          showOnHomepage: true,
+          displayOrder: 1,
+        },
+      });
+
+  await prisma.productCollectionItem.deleteMany({ where: { collectionId: collection.id } });
+  if (collectionProducts.length) {
+    await prisma.productCollectionItem.createMany({
+      data: collectionProducts.map((product, index) => ({
+        collectionId: collection.id,
+        productId: product.id,
+        displayOrder: index,
+      })),
+    });
+  }
+  console.log(`Upserted Festive Collection with ${collectionProducts.length} products`);
+}
+
 async function main() {
   console.log("=== Additive package/product seed (no clearDevData) ===");
   const packagesBySlug = await upsertPackages();
@@ -822,6 +904,8 @@ async function main() {
   const categoryIds = await upsertCategories();
   await upsertSpaceProducts(categoryIds);
   await linkThemesToPackages(packagesBySlug);
+  await archiveUnusedPackages();
+  await upsertFestiveCollection();
   console.log("=== Done ===");
 }
 

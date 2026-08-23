@@ -9,6 +9,7 @@ import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CheckoutStepper } from "@/components/ecom/CheckoutStepper";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
@@ -18,6 +19,21 @@ import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult } from "@/
 import * as shopApi from "@/lib/shop-api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
+import { CacheStore } from "@/lib/cache-store";
+import { useDeliverySettings } from "@/lib/delivery-settings";
+import type { PersonalizationValue } from "@/lib/ecom-types";
+
+const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
+
+type DirectCheckoutPayload = {
+  productId: string;
+  title: string;
+  quantity: number;
+  unitPriceInPaise: number;
+  personalizationSelected: boolean;
+  personalizationCostInPaise: number;
+  personalizationValues: PersonalizationValue[];
+};
 
 const STEPS = [
   { label: "Checkout" },
@@ -31,6 +47,7 @@ export default function CheckoutPage() {
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const { push } = useToast();
+  const deliverySettings = useDeliverySettings();
   const [currentStep, setCurrentStep] = useState(0);
 
   const [address, setAddress] = useState<ShippingAddress>(EMPTY_ADDRESS);
@@ -57,6 +74,12 @@ export default function CheckoutPage() {
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [registryCheckout, setRegistryCheckout] = useState<CheckoutQuoteResult["registryCheckout"]>(null);
+  const [directCheckout, setDirectCheckout] = useState<DirectCheckoutPayload | null>(null);
+
+  useEffect(() => {
+    const payload = CacheStore.getSessionItem<DirectCheckoutPayload | null>(DIRECT_CHECKOUT_KEY, null);
+    if (payload?.productId) setDirectCheckout(payload);
+  }, []);
 
   useEffect(() => {
     if (user && !registryCheckout) {
@@ -84,11 +107,56 @@ export default function CheckoutPage() {
   }, []);
 
   const hasItems = items.length > 0;
-  const combinedTotalRupees = toRupees(quote.totalInPaise) + packagesSubtotalRupees;
+  const isDirectCheckout = Boolean(directCheckout);
+  const packageQuote = packages[0]?.builderInput?.quoteSnapshot as
+    | { subtotalInPaise?: number; shippingInPaise?: number; shippingWaived?: boolean; freeShippingThresholdInPaise?: number; gstPercent?: number; gstInPaise?: number; totalInPaise?: number }
+    | undefined;
+  const directSubtotal =
+    directCheckout
+      ? (directCheckout.unitPriceInPaise + (directCheckout.personalizationSelected ? directCheckout.personalizationCostInPaise : 0)) *
+        directCheckout.quantity
+      : 0;
+  const directShippingWaived = directSubtotal >= deliverySettings.freeShippingThresholdInPaise;
+  const directShipping = directShippingWaived ? 0 : deliverySettings.shippingFeeInPaise;
+  const directTaxable = directSubtotal + directShipping;
+  const directGst = Math.round((directTaxable * 18) / 100);
+  const directQuote = {
+    subtotalInPaise: directSubtotal,
+    shippingInPaise: directShipping,
+    shippingWaived: directShippingWaived,
+    freeShippingThresholdInPaise: deliverySettings.freeShippingThresholdInPaise,
+    amountUntilFreeShippingInPaise: Math.max(0, deliverySettings.freeShippingThresholdInPaise - directSubtotal),
+    gstPercent: 18,
+    gstInPaise: directGst,
+    totalInPaise: directTaxable + directGst,
+    lines: [],
+  };
+  const displayQuote = isDirectCheckout
+    ? directQuote
+    : hasItems
+      ? quote
+      : packageQuote
+        ? {
+            subtotalInPaise: packageQuote.subtotalInPaise ?? 0,
+            shippingInPaise: packageQuote.shippingInPaise ?? 0,
+            shippingWaived: packageQuote.shippingWaived ?? false,
+            freeShippingThresholdInPaise: packageQuote.freeShippingThresholdInPaise ?? 299_900,
+            amountUntilFreeShippingInPaise: 0,
+            gstPercent: packageQuote.gstPercent ?? 18,
+            gstInPaise: packageQuote.gstInPaise ?? 0,
+            totalInPaise: packageQuote.totalInPaise ?? Math.round(packagesSubtotalRupees * 100),
+            lines: [],
+          }
+        : quote;
+  const combinedTotalRupees = toRupees(displayQuote.totalInPaise);
 
   const validateCheckout = (): boolean => {
+    if (!hasItems && packages.length > 0 && !isDirectCheckout) {
+      return true;
+    }
+
     const errors: Record<string, string> = {};
-    if (hasItems) {
+    if (hasItems || isDirectCheckout) {
       if (!address.fullName.trim()) errors.fullName = "Full name is required";
       if (!address.line1.trim()) errors.line1 = "Address is required";
       if (!address.city.trim()) errors.city = "City is required";
@@ -99,11 +167,6 @@ export default function CheckoutPage() {
     }
     if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) errors.contactEmail = "Enter a valid email";
     if (contactPhone.trim().length < 6) errors.contactPhone = "Enter a valid phone number";
-    
-    if (packages.length > 0) {
-      if (!eventDetails.childName.trim()) errors.childName = "Birthday child name is required";
-      if (!eventDetails.eventDate.trim()) errors.eventDate = "Event date is required";
-    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -217,12 +280,12 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!hasItems && packages.length === 0) {
+    if (!hasItems && packages.length === 0 && !directCheckout) {
       push("Your cart is empty.", "error");
       return;
     }
 
-    if (hasItems && packages.length > 0) {
+    if ((hasItems || directCheckout) && packages.length > 0) {
       push("Please checkout event packages and physical items separately.", "error");
       return;
     }
@@ -238,10 +301,10 @@ export default function CheckoutPage() {
         }
 
         const order = await shopApi.createPackageOrder({
-          eventDate: eventDetails.eventDate,
-          contactEmail: contactEmail.trim(),
-          contactPhone: contactPhone.trim(),
-          shippingAddress: {
+          eventDate: pkg.builderInput.eventDetails?.eventDate || eventDetails.eventDate,
+          contactEmail: pkg.builderInput.contactEmail || contactEmail.trim(),
+          contactPhone: pkg.builderInput.contactPhone || contactPhone.trim(),
+          shippingAddress: pkg.builderInput.shippingAddress || {
             fullName: address.fullName.trim() || eventDetails.childName.trim() || "Celebration guest",
             line1: eventDetails.venue.trim() || "Venue to be confirmed",
             city: eventDetails.venue.toLowerCase().includes("jaipur") ? "Jaipur" : "Outside Jaipur",
@@ -275,6 +338,21 @@ export default function CheckoutPage() {
 
     setIsPlacingOrder(true);
     try {
+      if (directCheckout) {
+        const order = await shopApi.createDirectShopOrder({
+          productId: directCheckout.productId,
+          quantity: directCheckout.quantity,
+          shippingAddress: address,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim(),
+          personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
+          personalizationSelected: directCheckout.personalizationSelected,
+        });
+        CacheStore.removeSessionItem(DIRECT_CHECKOUT_KEY);
+        setDirectCheckout(null);
+        await openShopRazorpay(order);
+        return;
+      }
       const order = await shopApi.createShopOrder({
         shippingAddress: address,
         contactEmail: contactEmail.trim(),
@@ -316,7 +394,7 @@ export default function CheckoutPage() {
             <div>
               <h1 className="font-display text-3xl md:text-4xl font-bold text-charcoal mb-8">Checkout</h1>
 
-              {items.length === 0 && packages.length === 0 ? (
+              {items.length === 0 && packages.length === 0 && !directCheckout ? (
                 <div className="text-center py-20">
                   <div className="w-20 h-20 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
                     <ShoppingCart size={32} className="text-text-light" />
@@ -344,6 +422,21 @@ export default function CheckoutPage() {
                         <span className="text-sm font-bold text-mocha bg-mocha/5 px-3 py-1 rounded-full">{itemCount} items</span>
                       </div>
                       <div className="space-y-5">
+                        {directCheckout && (
+                          <div className="flex gap-4 p-4 rounded-2xl border border-border-light bg-cream/40">
+                            <div className="flex-1">
+                              <p className="text-xs font-bold uppercase tracking-wider text-mocha mb-1">Buy Now</p>
+                              <h4 className="font-semibold text-charcoal">{directCheckout.title}</h4>
+                              <p className="text-sm text-text-muted mt-1">Qty: {directCheckout.quantity}</p>
+                              {directCheckout.personalizationSelected && (
+                                <p className="text-xs text-mocha font-semibold mt-1">✨ Personalization included — our team will contact you for details</p>
+                              )}
+                            </div>
+                            <div className="text-right font-bold text-charcoal">
+                              {formatPaise((directCheckout.unitPriceInPaise + (directCheckout.personalizationSelected ? directCheckout.personalizationCostInPaise : 0)) * directCheckout.quantity)}
+                            </div>
+                          </div>
+                        )}
                         {/* Packages */}
                         {packages.map((pkg) => {
                           const pkgData = packagesBySlug[pkg.packageId];
@@ -377,7 +470,11 @@ export default function CheckoutPage() {
                               <h4 className="font-bold text-charcoal text-sm line-clamp-1">{item.title}</h4>
                               {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
                                 <p className="text-[11px] text-mocha font-medium mt-1">
-                                  {(item.personalizationValues as Array<{ label: string; value: string }>).map((pv) => `${pv.label}: ${pv.value}`).join(", ")}
+                                  {(item.personalizationValues as Array<{ label?: unknown; value?: unknown }>).map((pv) => {
+                                    const label = typeof pv.label === "string" ? pv.label : "Personalization";
+                                    const value = typeof pv.value === "string" ? pv.value : "";
+                                    return value ? `${label}: ${value}` : label;
+                                  }).join(", ")}
                                 </p>
                               )}
                               <div className="flex items-center justify-between mt-3">
@@ -397,76 +494,7 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {/* Event Details Form */}
-                    {packages.length > 0 && (
-                      <ScrollReveal>
-                        <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-blush/20 rounded-bl-full -z-10" />
-                          <div className="flex items-center gap-4 mb-8 pb-5 border-b border-border-light">
-                            <div className="w-12 h-12 rounded-2xl bg-blush flex items-center justify-center text-mocha shadow-inner">
-                              <CalendarHeart size={22} />
-                            </div>
-                            <div>
-                              <h3 className="font-display text-xl font-bold text-charcoal">Event Details</h3>
-                              <p className="text-sm text-text-muted mt-1">Information for the celebration</p>
-                            </div>
-                          </div>
-                          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
-                            <div>
-                              <label className={labelClass}>Birthday Child's Name <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={eventDetails.childName} onChange={(e) => setEventDetails({ ...eventDetails, childName: e.target.value })} placeholder="E.g. Aryan" />
-                              {formErrors.childName && <p className={errClass}>{formErrors.childName}</p>}
-                            </div>
-                            <div>
-                              <label className={labelClass}>Child's Age (Turning)</label>
-                              <input className={inputClass} value={eventDetails.childAge} onChange={(e) => setEventDetails({ ...eventDetails, childAge: e.target.value })} placeholder="E.g. 5" type="number" min={1} />
-                            </div>
-                            <div>
-                              <label className={labelClass}>Event Date <span className="text-red-500">*</span></label>
-                              <input className={inputClass} value={eventDetails.eventDate} onChange={(e) => setEventDetails({ ...eventDetails, eventDate: e.target.value })} type="date" />
-                              {formErrors.eventDate && <p className={errClass}>{formErrors.eventDate}</p>}
-                            </div>
-                            <div>
-                              <label className={labelClass}>Expected Guest Count</label>
-                              <input className={inputClass} value={eventDetails.guestCount} onChange={(e) => setEventDetails({ ...eventDetails, guestCount: e.target.value })} placeholder="E.g. 150" type="number" />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className={labelClass}>Venue Address</label>
-                              <input className={inputClass} value={eventDetails.venue} onChange={(e) => setEventDetails({ ...eventDetails, venue: e.target.value })} placeholder="Hotel or home address" />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className={labelClass}>Additional Notes</label>
-                              <textarea className={`${inputClass} resize-none h-24`} value={eventDetails.notes} onChange={(e) => setEventDetails({ ...eventDetails, notes: e.target.value })} placeholder="Any specific requirements or preferences..." />
-                            </div>
-                          </div>
-                        </div>
-                      </ScrollReveal>
-                    )}
 
-                    {!hasItems && packages.length > 0 && (
-                    <ScrollReveal>
-                      <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
-                        <h3 className="font-display text-xl font-bold text-charcoal mb-6">Your details</h3>
-                        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
-                          <div className="sm:col-span-2">
-                            <label className={labelClass}>Full Name <span className="text-red-500">*</span></label>
-                            <input className={inputClass} value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} placeholder="Your full name" />
-                            {formErrors.fullName && <p className={errClass}>{formErrors.fullName}</p>}
-                          </div>
-                          <div>
-                            <label className={labelClass}>Email <span className="text-red-500">*</span></label>
-                            <input type="email" className={inputClass} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-                            {formErrors.contactEmail && <p className={errClass}>{formErrors.contactEmail}</p>}
-                          </div>
-                          <div>
-                            <label className={labelClass}>Phone <span className="text-red-500">*</span></label>
-                            <input className={inputClass} value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-                            {formErrors.contactPhone && <p className={errClass}>{formErrors.contactPhone}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </ScrollReveal>
-                    )}
 
                     {/* Shipping Address Form */}
                     {(hasItems || packages.length === 0) && (
@@ -563,22 +591,35 @@ export default function CheckoutPage() {
                     <div className="space-y-4 text-sm">
                       <div className="flex justify-between items-center text-text-muted">
                         <span className="font-medium">Subtotal</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
+                        <span className="font-bold text-charcoal">{formatPaise(displayQuote.subtotalInPaise)}</span>
+                      </div>
+                      {(hasItems || packages.length > 0) && (
+                        <FreeDeliveryProgress
+                          subtotalInPaise={displayQuote.subtotalInPaise}
+                          freeShippingThresholdInPaise={displayQuote.freeShippingThresholdInPaise}
+                          shippingFeeInPaise={displayQuote.shippingWaived ? 0 : displayQuote.shippingInPaise || 19_900}
+                          shippingWaived={displayQuote.shippingWaived}
+                          className="my-2"
+                        />
+                      )}
+                      <div className="flex justify-between items-center text-text-muted">
+                        <span className="font-medium">Shipping</span>
+                        {displayQuote.shippingWaived ? (
+                          <span className="font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded text-[11px] uppercase tracking-wider">FREE</span>
+                        ) : (
+                          <span className="font-bold text-charcoal">{formatPaise(displayQuote.shippingInPaise)}</span>
+                        )}
                       </div>
                       <div className="flex justify-between items-center text-text-muted">
-                        <span className="font-medium">GST ({quote.gstPercent}%)</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
+                        <span className="font-medium">GST ({displayQuote.gstPercent}%)</span>
+                        <span className="font-bold text-charcoal">{formatPaise(displayQuote.gstInPaise)}</span>
                       </div>
-                      {packages.length > 0 && (
+                      {packages.length > 0 && hasItems && (
                         <div className="flex justify-between items-center text-text-muted">
                           <span className="font-medium">Event Packages</span>
                           <span className="font-bold text-charcoal">₹{packagesSubtotalRupees.toLocaleString("en-IN")}</span>
                         </div>
                       )}
-                      <div className="flex justify-between items-center text-text-muted">
-                        <span className="font-medium">Shipping</span>
-                        <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded text-[11px] uppercase tracking-wider">FREE</span>
-                      </div>
                       <hr className="border-border-light my-6" />
                       <div className="flex justify-between items-end">
                         <span className="text-base font-bold text-charcoal">Total</span>

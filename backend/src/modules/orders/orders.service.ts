@@ -7,11 +7,13 @@ import { computeQuote } from "../shop/cart-pricing.service";
 import { adjustInventoryInTx } from "../catalog/inventory.service";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyCheckoutPaymentSignature } from "../../integrations/razorpay/client";
 import { claimPaymentEvent } from "../payments/payment-events";
-import { generateInvoicePdf } from "../../integrations/invoice/pdf";
+import { generateInvoicePdf, fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
 import { nextInvoiceNumber } from "../../lib/sequences";
-import { invoiceEmailHtml, orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
-import { sendWhatsAppMessage } from "../../integrations/whatsapp/client";
+import { orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
+import { getGstPercent } from "../../lib/settings";
+import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
 import { logger } from "../../lib/logger";
+import { giftRegistryStateForPackageOrder } from "../upgrades/upgrades.service";
 import { InvoiceLinkedType } from "@prisma/client";
 import { fulfillRegistryContributionsForOrder, releaseRegistryReservationsForOrder, reserveRegistryItemQty } from "../registry/registry-qty";
 import { parseShippingAddress } from "../registry/address";
@@ -203,6 +205,9 @@ async function createOrderFromLines(
         subtotalInPaise: quote.subtotalInPaise,
         gstInPaise: quote.gstInPaise,
         totalInPaise: quote.totalInPaise,
+        shippingInPaise: quote.shippingInPaise,
+        shippingWaived: quote.shippingWaived,
+        freeShippingThresholdSnapshotInPaise: quote.freeShippingThresholdInPaise,
         shippingAddress: shippingAddress as never,
         contactEmail: input.contactEmail,
         contactPhone: input.contactPhone,
@@ -322,9 +327,9 @@ export async function createPackageOrder(
     country: "India",
   };
 
-  const hasCustomization = quote.lineItems.some(
-    (line) => line.section !== "package" && line.lineTotalInPaise > 0,
-  );
+  const hasCustomization =
+    quote.hasPersonalization ||
+    quote.lineItems.some((line) => line.personalizationSelected);
 
   const orderCode = await nextOrderCode();
   const order = await prisma.order.create({
@@ -340,6 +345,9 @@ export async function createPackageOrder(
       subtotalInPaise: quote.subtotalInPaise,
       gstInPaise: quote.gstInPaise,
       totalInPaise: quote.totalInPaise,
+      shippingInPaise: quote.shippingInPaise,
+      shippingWaived: quote.shippingWaived,
+      freeShippingThresholdSnapshotInPaise: quote.freeShippingThresholdInPaise,
       shippingAddress: shippingAddress as never,
       contactEmail: input.contactEmail.toLowerCase().trim(),
       contactPhone: input.contactPhone.trim(),
@@ -497,13 +505,23 @@ export async function createDirectOrder(
     contactPhone: string;
     registryItemId?: string;
     registryId?: string;
+    personalizationValues?: unknown;
+    personalizationSelected?: boolean;
   },
 ) {
   return createOrderFromLines(
     userId,
-    [{ productId: input.productId, quantity: input.quantity, registryItemId: input.registryItemId }],
+    [
+      {
+        productId: input.productId,
+        quantity: input.quantity,
+        registryItemId: input.registryItemId,
+        personalizationValues: input.personalizationValues,
+        personalizationSelected: input.personalizationSelected,
+      },
+    ],
     input,
-    "REGISTRY_GIFT",
+    input.registryItemId ? "REGISTRY_GIFT" : "SHOP_DIRECT",
   );
 }
 
@@ -626,6 +644,15 @@ export async function verifyShopCheckoutPayment(input: {
 
 /** Called from webhook or verified checkout callback — marks paid, invoices, notifies, clears purchased cart lines. */
 export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
+  await prisma.order.updateMany({
+    where: { id: orderId, paymentStatus: { not: PaymentStatus.PAID } },
+    data: {
+      status: OrderStatus.PAID,
+      paymentStatus: PaymentStatus.PAID,
+      ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
+    },
+  });
+
   const order = await prisma.order.findFirst({
     where: { id: orderId },
     include: {
@@ -643,16 +670,13 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     },
   });
   if (!order) throw new NotFoundError("Order not found");
-  if (order.status === OrderStatus.PAID && order.paymentStatus === PaymentStatus.PAID) {
-    return order;
-  }
 
   const shipping = order.shippingAddress as unknown as ShippingAddress;
-  let invoiceNumber = order.invoiceNumber;
-  let pdfUrl = order.invoicePdfUrl;
+  let invoiceNumber = order.invoice?.invoiceNumber ?? order.invoiceNumber;
+  let pdfUrl = order.invoice?.pdfUrl ?? order.invoicePdfUrl;
 
-  if (!order.invoice && !invoiceNumber) {
-    invoiceNumber = await nextInvoiceNumber();
+  if (!order.invoice) {
+    invoiceNumber = invoiceNumber ?? (await nextInvoiceNumber());
     try {
       const lineItems =
         order.kind === OrderKind.PACKAGE && order.packageOrder
@@ -668,6 +692,15 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
                   amountInPaise: line.unitPriceInPaise * line.quantity,
                 })),
             ]
+          : order.kind === OrderKind.UPGRADE
+            ? [
+                {
+                  label:
+                    (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
+                    "Gift Registry",
+                  amountInPaise: order.subtotalInPaise,
+                },
+              ]
           : order.items.map((i) => ({
               label: i.personalizationSelected
                 ? `${i.product.title} × ${i.quantity} (personalized)`
@@ -683,6 +716,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         guestPhone: order.contactPhone,
         lineItems,
         subtotalInPaise: order.subtotalInPaise,
+        shippingInPaise: order.shippingInPaise,
+        shippingWaived: order.shippingWaived,
+        gstPercent: await getGstPercent(),
         gstInPaise: order.gstInPaise,
         totalInPaise: order.totalInPaise,
         issuedAt: new Date(),
@@ -720,15 +756,12 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
   const updated = await prisma.order.update({
     where: { id: order.id },
     data: {
-      status: OrderStatus.PAID,
-      paymentStatus: PaymentStatus.PAID,
-      razorpayPaymentId: razorpayPaymentId ?? order.razorpayPaymentId,
       invoiceNumber: invoiceNumber ?? order.invoiceNumber,
       invoicePdfUrl: pdfUrl ?? order.invoicePdfUrl,
     },
   });
 
-  if (order.kind !== OrderKind.PACKAGE) {
+  if (order.kind === OrderKind.SHOP) {
     const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
     if (cart) {
       await prisma.cartItem.deleteMany({
@@ -737,7 +770,12 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     }
   }
 
-  if (!order.confirmationEmailSentAt) {
+  const claimedEmail = await prisma.order.updateMany({
+    where: { id: order.id, emailSendStatus: null },
+    data: { emailSendStatus: "PENDING" },
+  });
+
+  if (claimedEmail.count > 0) {
     const confirmationItems =
       order.kind === OrderKind.PACKAGE && order.packageOrder
         ? [
@@ -749,9 +787,21 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
               .filter((line) => line.section !== "package")
               .map((line) => ({ title: line.label, quantity: line.quantity })),
           ]
+        : order.kind === OrderKind.UPGRADE
+          ? [
+              {
+                title:
+                  (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
+                  "Gift Registry",
+                quantity: 1,
+              },
+            ]
         : order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
 
-    void sendEmail({
+    const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
+    const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
+
+    const confirmation = await sendEmail({
       to: order.contactEmail,
       subject: `Order Confirmed — ${order.orderCode}`,
       html: orderConfirmationHtml({
@@ -759,51 +809,56 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
         orderCode: order.orderCode,
         totalInPaise: order.totalInPaise,
         items: confirmationItems,
-        invoiceUrl: pdfUrl,
+        invoiceNumber: invoiceNumber ?? null,
         customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
       }),
-    })
-      .then((r) => {
-        if (r.sent) {
-          return prisma.order.update({
-            where: { id: order.id },
-            data: { confirmationEmailSentAt: new Date() },
-          });
-        }
-        return undefined;
-      })
-      .catch(() => undefined);
+      attachments:
+        pdfAttachmentBuffer
+          ? [{ filename: attachmentName, content: pdfAttachmentBuffer, contentType: "application/pdf" }]
+          : undefined,
+    });
 
-    if (pdfUrl) {
-      void sendEmail({
-        to: order.contactEmail,
-        subject: `Invoice ${invoiceNumber} — Vaibhav Celebrations`,
-        html: invoiceEmailHtml({
-          invoiceNumber: invoiceNumber ?? order.orderCode,
-          guestName: order.user.name,
-          totalInPaise: order.totalInPaise,
-          pdfUrl,
-        }),
-      }).catch(() => undefined);
+    if (invoiceNumber) {
+      await prisma.invoice.updateMany({
+        where: { orderId: order.id },
+        data: {
+          emailSentAt: confirmation.sent ? new Date() : undefined,
+          emailSendStatus: confirmation.status,
+        },
+      });
     }
 
-    void sendWhatsAppMessage({
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
+        emailSendStatus: confirmation.status,
+      },
+    });
+  }
+
+  const claimedWhatsapp = await prisma.order.updateMany({
+    where: { id: order.id, whatsappSendStatus: null },
+    data: { whatsappSendStatus: "PENDING" },
+  });
+
+  if (claimedWhatsapp.count > 0) {
+    const amount = (order.totalInPaise / 100).toFixed(2);
+    const wa = await sendWhatsAppMessage({
       toPhone: order.contactPhone,
-      templateName: "order_confirmation",
-      body: `Thank you for your order ${order.orderCode}. Payment of ₹${(order.totalInPaise / 100).toFixed(2)} is confirmed.${pdfUrl ? ` Invoice: ${pdfUrl}` : ""}${
-        order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED
-          ? " Our team will contact you shortly about personalization details."
-          : ""
-      }`,
+      templateName: WHATSAPP_TEMPLATES.orderConfirmation,
+      body: `Thank you for your order ${order.orderCode}. Payment of ₹${amount} is confirmed.`,
+      bodyParameters: [order.orderCode, amount],
       mediaUrl: pdfUrl ?? undefined,
-    })
-      .then((wa) => {
-        if (wa.sent) {
-          return prisma.order.update({ where: { id: order.id }, data: { whatsappSentAt: new Date() } });
-        }
-        return undefined;
-      })
-      .catch(() => undefined);
+    });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        whatsappSentAt: wa.sent ? new Date() : undefined,
+        whatsappSendStatus: wa.status,
+        whatsappMessageId: wa.providerMessageId,
+      },
+    });
   }
 
   if (order.giftContributions.length) {
@@ -834,58 +889,78 @@ export async function findOrderByRazorpayOrderId(razorpayOrderId: string) {
 
 // ─── Order history (customer-facing) ─────────────────────────────────────────
 
+const customerOrderInclude = {
+  items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
+  packageOrder: {
+    include: {
+      package: { select: { title: true, slug: true } },
+      theme: { select: { title: true, slug: true } },
+      lines: true,
+    },
+  },
+  childOrders: {
+    where: { kind: OrderKind.UPGRADE },
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      orderCode: true,
+      kind: true,
+      upgradeKind: true,
+      paymentStatus: true,
+      status: true,
+    },
+  },
+  sourcedRegistries: { where: { status: { not: "ARCHIVED" as const } }, select: { id: true, title: true } },
+} as const;
+
 export async function listOrdersForUser(userId: string, q: { page?: number; pageSize?: number }) {
   const { page, pageSize, skip, take } = parsePagination(q);
+  const where = { userId, parentOrderId: null };
   const [rows, total] = await Promise.all([
     prisma.order.findMany({
-      where: { userId },
-      include: {
-        items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
-        packageOrder: {
-          include: {
-            package: { select: { title: true, slug: true } },
-            theme: { select: { title: true, slug: true } },
-            lines: true,
-          },
-        },
-      },
+      where,
+      include: customerOrderInclude,
       orderBy: { createdAt: "desc" },
       skip,
       take,
     }),
-    prisma.order.count({ where: { userId } }),
+    prisma.order.count({ where }),
   ]);
-  return { items: rows.map(shapeOrder), total, page, pageSize };
+  const items = await Promise.all(rows.map((row) => shapeOrder(row)));
+  return { items, total, page, pageSize };
 }
 
-export async function getOrderForUser(userId: string, orderCode: string) {
+export async function getOrderByCode(orderCode: string) {
   const order = await prisma.order.findFirst({
-    where: { orderCode, userId },
-    include: {
-      items: { include: { product: { select: { title: true, slug: true, images: { take: 1, include: { media: true } } } } } },
-      packageOrder: {
-        include: {
-          package: { select: { title: true, slug: true } },
-          theme: { select: { title: true, slug: true } },
-          lines: true,
-        },
-      },
-    },
+    where: { orderCode },
+    include: customerOrderInclude,
   });
   if (!order) throw new NotFoundError("Order not found");
   return shapeOrder(order);
 }
 
-function shapeOrder(order: {
+export async function getOrderForUser(userId: string, orderCode: string) {
+  const order = await prisma.order.findFirst({
+    where: { orderCode, userId },
+    include: customerOrderInclude,
+  });
+  if (!order) throw new NotFoundError("Order not found");
+  return shapeOrder(order);
+}
+
+async function shapeOrder(order: {
   id: string;
   orderCode: string;
   kind?: OrderKind;
+  userId?: string;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   customizationFollowUpStatus?: CustomizationFollowUpStatus;
   subtotalInPaise: number;
   gstInPaise: number;
   totalInPaise: number;
+  shippingInPaise?: number;
+  shippingWaived?: boolean;
+  freeShippingThresholdSnapshotInPaise?: number | null;
   shippingAddress: unknown;
   contactEmail: string;
   contactPhone: string;
@@ -920,8 +995,27 @@ function shapeOrder(order: {
       unitPriceInPaise: number;
     }>;
   } | null;
+  childOrders?: Array<{
+    orderCode: string;
+    kind: OrderKind;
+    upgradeKind: import("@prisma/client").PackageUpgradeKind | null;
+    paymentStatus: PaymentStatus;
+    status: OrderStatus;
+  }>;
+  sourcedRegistries?: Array<{ id: string; title: string | null }>;
 }) {
   const kind = order.kind ?? OrderKind.SHOP;
+  const giftRegistry =
+    kind === OrderKind.PACKAGE && order.packageOrder && order.userId
+      ? await giftRegistryStateForPackageOrder({
+          orderId: order.id,
+          userId: order.userId,
+          packageSlug: order.packageOrder.package.slug,
+          paymentStatus: order.paymentStatus ?? PaymentStatus.PENDING,
+          sourcedRegistries: order.sourcedRegistries,
+        })
+      : null;
+
   return {
     id: order.id,
     orderCode: order.orderCode,
@@ -932,6 +1026,9 @@ function shapeOrder(order: {
     subtotalInPaise: order.subtotalInPaise,
     gstInPaise: order.gstInPaise,
     totalInPaise: order.totalInPaise,
+    shippingInPaise: order.shippingInPaise ?? 0,
+    shippingWaived: order.shippingWaived ?? false,
+    freeShippingThresholdSnapshotInPaise: order.freeShippingThresholdSnapshotInPaise ?? null,
     shippingAddress: order.shippingAddress,
     contactEmail: order.contactEmail,
     contactPhone: order.contactPhone,
@@ -951,6 +1048,7 @@ function shapeOrder(order: {
         order.status === OrderStatus.PROCESSING),
     placedAt: order.placedAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
+    giftRegistry,
     package: order.packageOrder
       ? {
           title: order.packageOrder.package.title,

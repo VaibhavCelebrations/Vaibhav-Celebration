@@ -1,54 +1,69 @@
 import nodemailer from "nodemailer";
 import { env } from "../../config/env";
 import { logger } from "../../lib/logger";
+import type { NotificationResult } from "../notifications/types";
 
 type MailPayload = {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: Array<{
+    filename: string;
+    contentType?: string;
+    /** Prefer Buffer content for CDN-hosted PDFs; path is for local files only. */
+    content?: Buffer;
+    path?: string;
+  }>;
 };
 
 let transporter: nodemailer.Transporter | null = null;
 
+export function isSmtpConfigured(): boolean {
+  return Boolean(env.SMTP_HOST && env.EMAIL_FROM_ADDRESS && env.SMTP_USER && env.SMTP_PASS);
+}
+
 function getTransporter() {
   if (transporter) return transporter;
-  if (!env.SMTP_HOST || !env.EMAIL_FROM_ADDRESS) {
-    return null;
-  }
+  if (!isSmtpConfigured()) return null;
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 587,
     secure: env.SMTP_SECURE ?? false,
-    auth: env.SMTP_USER
-      ? {
-          user: env.SMTP_USER,
-          pass: env.SMTP_PASS,
-        }
-      : undefined,
+    auth: {
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
   });
   return transporter;
 }
 
-export async function sendEmail(payload: MailPayload): Promise<{ sent: boolean; skipped?: boolean }> {
+export async function sendEmail(payload: MailPayload): Promise<NotificationResult> {
   const tx = getTransporter();
   if (!tx || !env.EMAIL_FROM_ADDRESS) {
     logger.warn({ to: payload.to, subject: payload.subject }, "Email skipped — SMTP not configured");
-    return { sent: false, skipped: true };
+    return { channel: "email", sent: false, skipped: true, status: "SKIPPED" };
   }
 
   try {
     await tx.sendMail({
       from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
+      replyTo: env.EMAIL_REPLY_TO ?? env.EMAIL_FROM_ADDRESS,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
       text: payload.text,
+      attachments: payload.attachments,
     });
-    return { sent: true };
+    return { channel: "email", sent: true, status: "SENT" };
   } catch (error) {
     logger.error({ err: error, to: payload.to }, "Failed to send email");
-    return { sent: false };
+    return {
+      channel: "email",
+      sent: false,
+      status: "FAILED",
+      error: error instanceof Error ? error.message : "send_failed",
+    };
   }
 }
 
@@ -59,30 +74,7 @@ export function otpEmailHtml(otp: string, referenceCode: string) {
     <p>Your verification code for <strong>${referenceCode}</strong> is:</p>
     <p style="font-size:32px;letter-spacing:6px;font-weight:bold;">${otp}</p>
     <p style="color:#666;font-size:13px;">This code expires in ${env.OTP_EXPIRES_MINUTES} minutes. If you did not request this, ignore this email.</p>
-  </div>`;
-}
-
-export function bookingConfirmationHtml(input: {
-  bookingCode: string;
-  guestName: string;
-  eventDate: string;
-  themeTitle: string;
-  packageTitle: string;
-  totalInPaise: number;
-}) {
-  const total = (input.totalInPaise / 100).toFixed(2);
-  return `
-  <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Booking Confirmed</h1>
-    <p>Dear ${input.guestName},</p>
-    <p>Your celebration booking <strong>${input.bookingCode}</strong> is confirmed.</p>
-    <ul>
-      <li>Date: ${input.eventDate}</li>
-      <li>Theme: ${input.themeTitle}</li>
-      <li>Package: ${input.packageTitle}</li>
-      <li>Total: ₹${total}</li>
-    </ul>
-    <p>We look forward to celebrating with you.</p>
+    <p style="color:#666;font-size:12px;">Questions? Reply to this email or write to ${env.EMAIL_FROM_ADDRESS ?? "support@vaibhavcelebrations.in"}.</p>
   </div>`;
 }
 
@@ -90,7 +82,6 @@ export function invoiceEmailHtml(input: {
   invoiceNumber: string;
   guestName: string;
   totalInPaise: number;
-  pdfUrl?: string | null;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
   return `
@@ -98,7 +89,8 @@ export function invoiceEmailHtml(input: {
     <h1 style="color:#8B4513;">Invoice ${input.invoiceNumber}</h1>
     <p>Dear ${input.guestName},</p>
     <p>Thank you for choosing Vaibhav Celebrations. Your invoice total is <strong>₹${total}</strong>.</p>
-    ${input.pdfUrl ? `<p><a href="${input.pdfUrl}">Download PDF invoice</a></p>` : ""}
+    <p>Your tax invoice is attached to this email as a PDF.</p>
+    <p style="color:#666;font-size:13px;">Questions? Reply to this email — we read every message at support@vaibhavcelebrations.in.</p>
   </div>`;
 }
 
@@ -110,8 +102,6 @@ export function consultationAckHtml(name: string) {
     <p>We've received your consultation request. Our team will reach out shortly.</p>
   </div>`;
 }
-
-// ─── Customer account emails ────────────────────────────────────────────────
 
 export function welcomeEmailHtml(name: string) {
   return `
@@ -151,7 +141,7 @@ export function passwordChangedEmailHtml(name: string) {
     <h1 style="color:#8B4513;">Your password was changed</h1>
     <p>Hi ${name},</p>
     <p>This is a confirmation that your password was just changed. All other active sessions have been signed out for your protection.</p>
-    <p style="color:#666;font-size:13px;">If this wasn't you, contact us immediately.</p>
+    <p style="color:#666;font-size:13px;">If this wasn't you, contact us immediately at support@vaibhavcelebrations.in.</p>
   </div>`;
 }
 
@@ -160,7 +150,7 @@ export function orderConfirmationHtml(input: {
   orderCode: string;
   totalInPaise: number;
   items: Array<{ title: string; quantity: number }>;
-  invoiceUrl?: string | null;
+  invoiceNumber?: string | null;
   customizationFollowUp?: boolean;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
@@ -172,7 +162,7 @@ export function orderConfirmationHtml(input: {
     <ul>
       ${input.items.map((i) => `<li>${i.title} × ${i.quantity}</li>`).join("")}
     </ul>
-    ${input.invoiceUrl ? `<p><a href="${input.invoiceUrl}">Download your invoice</a></p>` : ""}
+    ${input.invoiceNumber ? `<p>Your tax invoice <strong>${input.invoiceNumber}</strong> is attached as a PDF.</p>` : ""}
     ${input.customizationFollowUp ? `<p>This order includes personalization. Our team will contact you shortly to confirm the details before production.</p>` : ""}
     <p>You can track this order any time from your account's order history.</p>
     <p style="color:#666;font-size:13px;">Questions? Reply to this email or WhatsApp us.</p>

@@ -22,7 +22,7 @@ import {
   adminProductCategoriesRouter,
 } from "./modules/catalog/catalog.routes";
 import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
-import { cartRouter, wishlistRouter } from "./modules/shop/shop.routes";
+import { cartRouter, wishlistRouter, deliverySettingsRouter } from "./modules/shop/shop.routes";
 import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
@@ -34,11 +34,6 @@ import { contentRouter, adminContentRouter } from "./modules/content/content.rou
 import { blogRouter, adminBlogRouter } from "./modules/blog/blog.routes";
 import { eventsRouter, adminEventsRouter } from "./modules/events/events.routes";
 import { mediaRouter } from "./modules/media/media.routes";
-import { availabilityRouter } from "./modules/availability/availability.routes";
-import {
-  bookingsRouter,
-  checkoutRouter,
-} from "./modules/bookings/bookings.routes";
 import {
   paymentsRouter,
   invoicesRouter,
@@ -63,6 +58,8 @@ import {
   adminAuditRouter,
   adminCacheRouter,
 } from "./modules/admin/admin-ops.routes";
+import { recycleBinRouter } from "./modules/admin/recycle-bin.routes";
+import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
 
 export function createApp() {
   const app = express();
@@ -95,6 +92,23 @@ export function createApp() {
   // Razorpay webhook needs raw body for signature verification
   app.use(
     `${env.API_PREFIX}/payments/webhook`,
+    express.raw({ type: "application/json" }),
+    (req, _res, next) => {
+      if (Buffer.isBuffer(req.body)) {
+        (req as express.Request & { rawBody?: string }).rawBody = req.body.toString("utf8");
+        try {
+          req.body = JSON.parse((req as express.Request & { rawBody?: string }).rawBody ?? "{}");
+        } catch {
+          // leave as buffer; handler will stringify
+        }
+      }
+      next();
+    },
+  );
+
+  // Meta WhatsApp webhook needs raw body for X-Hub-Signature-256 verification
+  app.use(
+    `${env.API_PREFIX}/whatsapp/webhook`,
     express.raw({ type: "application/json" }),
     (req, _res, next) => {
       if (Buffer.isBuffer(req.body)) {
@@ -204,7 +218,7 @@ export function createApp() {
     },
   });
 
-  /** High-sensitivity write endpoints (bookings, consultations, leads) — keyed by IP. */
+  /** High-sensitivity write endpoints (orders, consultations, leads) — keyed by IP. */
   const strictLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
     max: 10,
@@ -311,16 +325,14 @@ export function createApp() {
   // Customer shop — requireCustomer enforced inside the routers themselves
   api.use("/cart", publicLimiter, cartRouter);
   api.use("/wishlist", publicLimiter, wishlistRouter);
+  api.use("/shop/delivery-settings", publicLimiter, deliverySettingsRouter);
   api.use("/shop/checkout", publicLimiter, shopCheckoutRouter);
   api.use("/shop/orders", strictLimiter, ordersRouter);
   api.use("/account/orders", publicLimiter, accountOrdersRouter);
   api.use("/account/registries", publicLimiter, accountRegistryRouter);
   api.use("/registry", publicLimiter, registryRouter);
 
-  // Booking journey — mix of public & strict
-  api.use("/availability", publicLimiter, availabilityRouter);
-  api.use("/bookings", strictLimiter, bookingsRouter);
-  api.use("/checkout", checkoutRouter);
+  api.use("/whatsapp/webhook", whatsappWebhookRouter);
   api.use("/payments", paymentsRouter);
   api.use("/invoices", publicLimiter, invoicesRouter);
   api.use("/consultations", strictLimiter, consultationsRouter);
@@ -361,6 +373,7 @@ export function createApp() {
   api.use("/admin/settings", adminLimiter, noStore, adminSettingsRouter);
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);
+  api.use("/admin/recycle-bin", adminLimiter, noStore, recycleBinRouter);
 
   app.use(env.API_PREFIX, api);
 

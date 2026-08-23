@@ -190,6 +190,7 @@ export type ApiPackageServiceItem = {
     locationScope: string | null;
     choiceCount: number | null;
     customizationPriceInPaise?: number;
+    isActive?: boolean;
   };
 };
 

@@ -115,8 +115,10 @@ async function assertPurchasable(productId: string, requestedQuantity: number) {
     include: { inventory: true },
   });
   if (!product || !product.isActive) throw new NotFoundError("Product not found or unavailable");
-  if (requestedQuantity < product.minOrderQuantity) {
-    throw new ValidationError(`Minimum order quantity for this product is ${product.minOrderQuantity}`);
+  // Shop / retail checkout allows qty 1+. Package builder still uses
+  // product.minOrderQuantity for per-child event quotes.
+  if (requestedQuantity < 1) {
+    throw new ValidationError("Quantity must be at least 1");
   }
   if (product.maxOrderQuantity && requestedQuantity > product.maxOrderQuantity) {
     throw new ValidationError(`Maximum order quantity for this product is ${product.maxOrderQuantity}`);

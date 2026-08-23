@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,9 +15,11 @@ import {
   Package,
   Users,
   Gift,
-  Sparkles,
   ClipboardCheck,
   ShoppingCart,
+  Info,
+  X,
+  Sparkles,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
@@ -32,6 +35,7 @@ import {
   type BuilderSelections,
 } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { ApiClientError } from "@/lib/api-client";
 
 type Tier = "standard" | "premium" | "luxe";
@@ -123,6 +127,8 @@ function ProductPicker({
   guestCount,
   multi,
   selectedSkus,
+  personalization,
+  onPersonalizationChange,
   onSelect,
   onToggle,
 }: {
@@ -132,6 +138,8 @@ function ProductPicker({
   guestCount: number;
   multi?: boolean;
   selectedSkus?: string[];
+  personalization?: Record<string, boolean>;
+  onPersonalizationChange?: (sku: string, enabled: boolean) => void;
   onSelect?: (sku: string) => void;
   onToggle?: (sku: string) => void;
 }) {
@@ -148,28 +156,38 @@ function ProductPicker({
               : selectedSku === p.sku;
             const qty = Math.max(guestCount, p.minOrderQuantity);
             const moqNote = guestCount < p.minOrderQuantity;
+            const personalizeOn = Boolean(personalization?.[p.sku]);
+            const unitWithPersonalization = p.priceInPaise + (personalizeOn ? p.personalizationCostInPaise : 0);
             const line =
               p.pricingMode === "PER_GROUP"
                 ? guestCount < p.minOrderQuantity
-                  ? p.priceInPaise * p.minOrderQuantity
-                  : p.priceInPaise
-                : p.priceInPaise * qty;
+                  ? unitWithPersonalization * p.minOrderQuantity
+                  : unitWithPersonalization
+                : unitWithPersonalization * qty;
             return (
-              <button
+              <div
                 key={p.sku}
-                type="button"
-                onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
                 className={`text-left rounded-xl p-3 border transition-all flex flex-col ${
                   selected
                     ? "border-2 border-mocha bg-mocha/5"
                     : "border-border hover:border-mocha/50"
                 }`}
               >
+                <button
+                  type="button"
+                  onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
+                  className="text-left flex flex-col flex-1 cursor-pointer"
+                >
                 <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
                   <Image src={p.imageUrl ?? "/placeholder-product.svg"} alt={p.title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
                 </div>
                 <div className="text-sm font-bold text-mocha">{formatPaise(p.priceInPaise)}</div>
                 <div className="text-sm text-charcoal mt-1 font-medium">{p.title}</div>
+                {p.personalizationEnabled && (
+                  <span className="inline-block mt-2 text-[10px] font-semibold text-mocha bg-mocha/10 px-2 py-0.5 rounded uppercase tracking-wider">
+                    Personalizable · +{formatPaise(p.personalizationCostInPaise)}
+                  </span>
+                )}
                 {p.pricingMode === "PER_GROUP" ? (
                   <span className="inline-block mt-2 text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded">
                     per group
@@ -184,7 +202,34 @@ function ProductPicker({
                     Minimum {p.minOrderQuantity} units — charged for {qty}
                   </p>
                 )}
-              </button>
+                </button>
+                {selected && p.personalizationEnabled && (
+                  <div className="mt-3 space-y-2 border-t border-border-light pt-3">
+                    <p className="text-[11px] font-semibold text-charcoal">Add personalization?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onPersonalizationChange?.(p.sku, true)}
+                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
+                      >
+                        Yes (+{formatPaise(p.personalizationCostInPaise)}/unit)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onPersonalizationChange?.(p.sku, false)}
+                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${!personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
+                      >
+                        No
+                      </button>
+                    </div>
+                    {personalizeOn && (
+                      <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2">
+                        Our team will contact you to collect personalization details.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -219,6 +264,8 @@ function BuildPackageContent() {
     returnGift: searchParams.get("gift"),
     familyActivity: searchParams.get("family"),
     decor: searchParams.get("decor") === "1",
+    giftRegistryCustomize: searchParams.get("grc") === "1",
+    personalization: {},
   });
 
   const [welcomeProducts, setWelcomeProducts] = useState<BuilderProduct[]>([]);
@@ -234,6 +281,10 @@ function BuildPackageContent() {
   const [guestName, setGuestName] = useState(user?.name ?? "");
   const [guestEmail, setGuestEmail] = useState(user?.email ?? "");
   const [guestPhone, setGuestPhone] = useState(user?.phone ?? "");
+  const [guestAddress, setGuestAddress] = useState("");
+  const [guestCity, setGuestCity] = useState("");
+  const [guestPincode, setGuestPincode] = useState("");
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const activeThemes = themes;
   const packages = useMemo(
@@ -273,6 +324,7 @@ function BuildPackageContent() {
       if (sel.returnGift) params.set("gift", sel.returnGift);
       if (sel.familyActivity) params.set("family", sel.familyActivity);
       if (sel.decor) params.set("decor", "1");
+      if (sel.giftRegistryCustomize) params.set("grc", "1");
       router.replace(`/build-package?${params.toString()}`, { scroll: false });
     },
     [step, themeSlug, pkgSlug, guestCount, location, selections, router],
@@ -407,10 +459,19 @@ function BuildPackageContent() {
     syncUrl({ selections: updated });
   };
 
+  const togglePersonalization = (sku: string, enabled: boolean) => {
+    const updated = {
+      ...selections,
+      personalization: { ...(selections.personalization ?? {}), [sku]: enabled },
+    };
+    setSelections(updated);
+    syncUrl({ selections: updated });
+  };
+
   const handleAddToCart = () => {
     if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
-    if (!eventDate || !guestName || !guestEmail || !guestPhone) {
-      setQuoteError("Please fill celebration date and contact details.");
+    if (!eventDate || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
+      setQuoteError("Please fill celebration date, contact, and address details.");
       return;
     }
     if (!isAuthenticated) {
@@ -429,6 +490,22 @@ function BuildPackageContent() {
         guestCount,
         location,
         selections,
+        eventDetails: {
+          eventDate,
+          childName: guestName, // Assuming the guest name is used as child name or booking name
+          venue: guestAddress,
+        },
+        contactEmail: guestEmail,
+        contactPhone: guestPhone,
+        shippingAddress: {
+          fullName: guestName,
+          line1: guestAddress,
+          city: guestCity,
+          state: "Rajasthan",
+          pincode: guestPincode,
+          country: "India",
+        },
+        quoteSnapshot: quote,
       },
     });
 
@@ -530,6 +607,22 @@ function BuildPackageContent() {
                   );
                 })}
               </div>
+              
+              {/* Custom Plan CTA */}
+              <div className="mt-8 bg-mocha/5 border border-mocha/20 rounded-2xl p-8 text-center">
+                <h3 className="font-display text-xl font-semibold text-charcoal mb-2">
+                  Want to build your own from scratch?
+                </h3>
+                <p className="text-text-muted text-sm max-w-lg mx-auto mb-5">
+                  Mix and match items from any package tier. Choose exactly what fits your celebration, budget, and number of guests.
+                </p>
+                <Link
+                  href="/custom-plan"
+                  className="btn-outline px-6 py-2.5 text-sm inline-flex font-semibold"
+                >
+                  Plan Your Custom Celebration
+                </Link>
+              </div>
             </section>
           )}
 
@@ -623,6 +716,87 @@ function BuildPackageContent() {
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-8 pt-8 border-t border-border-light grid md:grid-cols-2 gap-8 md:gap-12">
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-charcoal mb-4">Contact Information</h3>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
+                      <input
+                        type="text"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="Jane Doe"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
+                      <input
+                        type="email"
+                        value={guestEmail}
+                        onChange={(e) => setGuestEmail(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="jane@example.com"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
+                      <input
+                        type="tel"
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="+91 98765 43210"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-charcoal mb-4">Event & Location Details</h3>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
+                      <input
+                        type="date"
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1</span>
+                      <input
+                        type="text"
+                        value={guestAddress}
+                        onChange={(e) => setGuestAddress(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="Flat / House No. / Building"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City</span>
+                        <input
+                          type="text"
+                          value={guestCity}
+                          onChange={(e) => setGuestCity(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder={location === "jaipur" ? "Jaipur" : "City"}
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Pincode</span>
+                        <input
+                          type="text"
+                          value={guestPincode}
+                          onChange={(e) => setGuestPincode(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="302001"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -654,6 +828,8 @@ function BuildPackageContent() {
                       products={welcomeProducts}
                       selectedSku={selections.welcomeItem}
                       guestCount={guestCount}
+                      personalization={selections.personalization}
+                      onPersonalizationChange={togglePersonalization}
                       onSelect={(sku) => {
                         const updated = { ...selections, welcomeItem: sku };
                         setSelections(updated);
@@ -668,6 +844,8 @@ function BuildPackageContent() {
                     multi={needsTwoActivities}
                     selectedSku={selections.activity1}
                     selectedSkus={[selections.activity1, selections.activity2].filter(Boolean) as string[]}
+                    personalization={selections.personalization}
+                    onPersonalizationChange={togglePersonalization}
                     onSelect={(sku) => {
                       const updated = { ...selections, activity1: sku, activity2: null };
                       setSelections(updated);
@@ -681,6 +859,8 @@ function BuildPackageContent() {
                       products={familyProducts}
                       selectedSku={selections.familyActivity}
                       guestCount={guestCount}
+                      personalization={selections.personalization}
+                      onPersonalizationChange={togglePersonalization}
                       onSelect={(sku) => {
                         const updated = { ...selections, familyActivity: sku };
                         setSelections(updated);
@@ -693,6 +873,8 @@ function BuildPackageContent() {
                     products={giftProducts}
                     selectedSku={selections.returnGift}
                     guestCount={guestCount}
+                    personalization={selections.personalization}
+                    onPersonalizationChange={togglePersonalization}
                     onSelect={(sku) => {
                       const updated = { ...selections, returnGift: sku };
                       setSelections(updated);
@@ -702,6 +884,39 @@ function BuildPackageContent() {
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned for your package — shown on the review step.
                   </div>
+                  {(quote ? quote.giftRegistryIncluded : pkgSlug === "premium" || pkgSlug === "luxe") && (
+                    <div
+                      className={`mt-8 rounded-2xl border p-6 ${
+                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
+                      }`}
+                    >
+                      <div className="flex justify-between gap-4 items-start">
+                        <div>
+                          <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                          <p className="text-sm text-text-muted">
+                            Included with Signature and Grand. After you book, you&apos;ll set up and share the list from this order — not as a later add-on.
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">Included</div>
+                        </div>
+                      </div>
+                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selections.giftRegistryCustomize}
+                          onChange={(e) => {
+                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
+                            setSelections(updated);
+                            syncUrl({ selections: updated });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        Customize Gift Registry (+
+                        {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)})
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
             </section>
@@ -783,110 +998,112 @@ function BuildPackageContent() {
               {quoteError && <p className="text-sm text-red-600 mb-4">{quoteError}</p>}
 
               {quote && (
-                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start mb-12">
-                  <div className="bg-surface rounded-3xl border border-border-light p-6 shadow-sm">
-                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
-                      Quote Breakdown
+                <div className="max-w-2xl mx-auto items-start mb-12">
+                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm text-center">
+                    <h3 className="font-display text-2xl font-bold text-charcoal mb-2">
+                      Ready to Celebrate!
                     </h3>
-                    {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
-                      const items = quote.lineItems.filter((l) => l.section === section);
-                      if (!items.length) return null;
-                      const titles: Record<string, string> = {
-                        package: "Package",
-                        "per-child": "Per-child items",
-                        "per-group": "Per-group items",
-                        auto: "Included physical items",
-                        fixed: "Fixed digital add-ons",
-                        decor: "Decor",
-                      };
-                      return (
-                        <div key={section} className="mb-5">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
-                            {titles[section]}
-                          </div>
-                          <div className="space-y-3">
-                            {items.map((item) => (
-                              <div
-                                key={item.key}
-                                className="flex justify-between gap-4 text-sm items-start"
-                              >
-                                <div>
-                                  <div className="text-charcoal font-medium">{item.label}</div>
-                                  {item.sublabel && (
-                                    <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
-                                  )}
+                    <p className="text-sm text-text-muted mb-6">
+                      All your details have been securely saved. You can proceed to add this package to your cart.
+                    </p>
+                    <div className="bg-cream-dark p-6 rounded-2xl mb-6 flex flex-col items-center justify-center">
+                      <div className="text-sm text-text-muted mb-1 font-bold uppercase tracking-widest">Grand Total</div>
+                      <div className="font-display text-4xl font-bold text-mocha mb-3">{formatPaise(quote.totalInPaise)}</div>
+                      <button 
+                        onClick={() => setShowBreakdown(true)}
+                        className="text-xs font-semibold text-charcoal flex items-center gap-1 hover:text-mocha transition-colors"
+                      >
+                        <Info size={14} /> View Price Breakdown
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Breakdown Modal */}
+                  {showBreakdown && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-sm">
+                      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-5 border-b border-border-light bg-cream">
+                          <h3 className="font-display text-xl font-bold text-charcoal">Quote Breakdown</h3>
+                          <button onClick={() => setShowBreakdown(false)} className="text-text-muted hover:text-charcoal transition-colors">
+                            <X size={20} />
+                          </button>
+                        </div>
+                        <div className="p-6 max-h-[60vh] overflow-y-auto hide-scrollbar">
+                          {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
+                            const items = quote.lineItems.filter((l) => l.section === section);
+                            if (!items.length) return null;
+                            const titles: Record<string, string> = {
+                              package: "Package",
+                              "per-child": "Per-child items",
+                              "per-group": "Per-group items",
+                              auto: "Included physical items",
+                              fixed: "Fixed digital add-ons",
+                              decor: "Decor",
+                            };
+                            return (
+                              <div key={section} className="mb-5">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
+                                  {titles[section]}
                                 </div>
-                                <div className="font-bold text-charcoal whitespace-nowrap">
-                                  {formatPaise(item.lineTotalInPaise)}
+                                <div className="space-y-3">
+                                  {items.map((item) => (
+                                    <div
+                                      key={item.key}
+                                      className="flex justify-between gap-4 text-sm items-start"
+                                    >
+                                      <div>
+                                        <div className="text-charcoal font-medium">{item.label}</div>
+                                        {item.sublabel && (
+                                          <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
+                                        )}
+                                      </div>
+                                      <div className="font-bold text-charcoal whitespace-nowrap">
+                                        {formatPaise(item.lineTotalInPaise)}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
+                            );
+                          })}
+                          <div className="mt-6 pt-4 border-t border-border-light space-y-3">
+                            <FreeDeliveryProgress
+                              subtotalInPaise={quote.subtotalInPaise}
+                              freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
+                              shippingFeeInPaise={quote.shippingInPaise || 19_900}
+                              shippingWaived={quote.shippingWaived}
+                            />
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">Subtotal</span>
+                              <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">Shipping</span>
+                              <span className="font-bold text-charcoal">
+                                {quote.shippingWaived ? "FREE" : formatPaise(quote.shippingInPaise)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm text-text-muted">
+                              <span className="font-medium">GST ({quote.gstPercent}%)</span>
+                              <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
+                            </div>
+                            <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
+                              <span className="text-base font-bold text-charcoal">Grand total</span>
+                              <span className="font-display text-xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
+                            </div>
                           </div>
                         </div>
-                      );
-                    })}
-                    <div className="mt-6 pt-4 border-t border-border-light space-y-3">
-                      <div className="flex justify-between text-sm text-text-muted">
-                        <span className="font-medium">Subtotal</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-text-muted">
-                        <span className="font-medium">GST ({quote.gstPercent}%)</span>
-                        <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
-                      </div>
-                      <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
-                        <span className="text-base font-bold text-charcoal">Grand total</span>
-                        <span className="font-display text-2xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
+                        <div className="p-4 border-t border-border-light bg-cream-dark text-center">
+                          <button 
+                            onClick={() => setShowBreakdown(false)}
+                            className="btn-primary w-full py-3 text-sm font-semibold"
+                          >
+                            Close
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
-                    <h3 className="font-display text-xl font-bold text-charcoal mb-6 border-b border-border-light pb-4">
-                      Contact & Event Details
-                    </h3>
-                    <div className="space-y-5">
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
-                        <input
-                          type="date"
-                          value={eventDate}
-                          onChange={(e) => setEventDate(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
-                        <input
-                          type="text"
-                          value={guestName}
-                          onChange={(e) => setGuestName(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="Jane Doe"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
-                        <input
-                          type="email"
-                          value={guestEmail}
-                          onChange={(e) => setGuestEmail(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="jane@example.com"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
-                        <input
-                          type="tel"
-                          value={guestPhone}
-                          onChange={(e) => setGuestPhone(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="+91 98765 43210"
-                        />
-                      </label>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
               {!isAuthenticated && (

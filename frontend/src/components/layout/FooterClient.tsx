@@ -51,7 +51,7 @@ export function FooterClient({
       <div className="max-w-7xl mx-auto px-5 md:px-10 grid sm:grid-cols-2 lg:grid-cols-6 gap-10">
         <div className="lg:col-span-2">
           <Link href="/" className="flex items-center gap-2 mb-2">
-            <Image src="/logo-v2.png" alt={settings.businessName} width={192} height={192} className="shrink-0 w-48 h-auto" style={{ height: "auto", width: "auto" }} />
+            <Image src="/logo-v2.png" alt={settings.businessName} width={192} height={192} className="shrink-0 w-48 h-auto" style={{ height: "auto" }} />
           </Link>
           <p className="mt-4 text-xs text-text-muted leading-relaxed">
             {settings.businessName} is a thoughtfully curated kids celebration brand

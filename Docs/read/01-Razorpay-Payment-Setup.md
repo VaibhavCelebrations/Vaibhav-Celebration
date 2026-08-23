@@ -169,3 +169,9 @@ Never use live cards against Test keys (or test cards against Live keys).
 - Key Secret and Webhook Secret are **server-only**. Never put them in `NEXT_PUBLIC_*`.
 - Rotate keys if they were pasted in chat/email. Update `.env` and restart.
 - Share credentials via a password manager, not WhatsApp/Slack plaintext.
+
+## 10. Related docs
+
+- WhatsApp: `Docs/read/02-Meta-WhatsApp-Cloud-API-Setup.md`
+- Email: `Docs/read/04-SMTP-Titan-Support-Email-Setup.md`
+- Checkout UAT: `Docs/read/05-Checkout-Communications-UAT.md`

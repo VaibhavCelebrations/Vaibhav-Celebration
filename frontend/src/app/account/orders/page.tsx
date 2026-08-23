@@ -100,9 +100,18 @@ export default function OrderHistoryPage() {
                       Complete payment
                     </span>
                   )}
+                  {order.giftRegistry?.eligible && !order.giftRegistry.registryId && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-mocha/10 text-mocha">
+                      Set up Gift Registry
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted mt-1">
-                  {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? "s" : ""} · Placed {new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  {order.package
+                    ? `${order.package.themeTitle} · ${order.package.title}`
+                    : `${order.items?.length || 0} item${(order.items?.length || 0) !== 1 ? "s" : ""}`}
+                  {" · Placed "}
+                  {new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
               <div className="text-right shrink-0">

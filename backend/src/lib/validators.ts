@@ -13,10 +13,6 @@ export const slugParamSchema = z.object({
   slug: z.string().min(1),
 });
 
-export const bookingCodeParamSchema = z.object({
-  bookingCode: z.string().min(1),
-});
-
 export function slugify(input: string): string {
   return input
     .toLowerCase()

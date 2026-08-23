@@ -50,13 +50,20 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM_NAME: z.string().default("Vaibhav Celebrations"),
-  EMAIL_FROM_ADDRESS: z.string().optional(),
+  EMAIL_FROM_ADDRESS: z.string().email().optional(),
+  EMAIL_REPLY_TO: z.string().email().optional(),
   WHATSAPP_ENABLED: z
     .string()
     .optional()
     .transform((v) => v === "true"),
-  WHATSAPP_PROVIDER: z.enum(["meta", "twilio", "none"]).default("none"),
+  WHATSAPP_PROVIDER: z.enum(["meta", "none"]).default("none"),
   WHATSAPP_BUSINESS_NUMBER: z.string().optional(),
+  WHATSAPP_META_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_META_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_META_BUSINESS_ACCOUNT_ID: z.string().optional(),
+  WHATSAPP_META_API_VERSION: z.string().default("v21.0"),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_APP_SECRET: z.string().optional(),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().optional(),

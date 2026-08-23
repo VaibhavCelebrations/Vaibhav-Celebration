@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ImageIcon, Pencil, Plus, Tag, X } from "lucide-react";
+import { Trash2, ImageIcon, Pencil, Plus, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { AdminApiError, adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { galleryRepo } from "@/lib/data/resources";
@@ -239,7 +239,7 @@ export function GalleryScreen() {
           value={String(query.search ?? "")}
           onChange={(event) => setQuery({ ...query, search: event.target.value, page: 1 })}
           placeholder="Search caption or alt text…"
-          className="min-w-[220px]"
+          className="min-w-55"
         />
       </div>
 
@@ -271,7 +271,7 @@ export function GalleryScreen() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((row) => (
               <article key={row.id} className="card overflow-hidden">
-                <div className="relative aspect-[4/3] bg-(--color-surface)">
+                <div className="relative aspect-4/3 bg-(--color-surface)">
                   {row.media?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={row.media.url} alt={row.altText} className="h-full w-full object-cover" />
@@ -307,11 +307,11 @@ export function GalleryScreen() {
                       </button>
                       <button
                         type="button"
-                        aria-label="Archive"
+                        aria-label="Delete"
                         className="btn btn-ghost p-2 text-(--color-error)"
                         onClick={() => setArchiveTarget(row)}
                       >
-                        <Archive size={15} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   </div>

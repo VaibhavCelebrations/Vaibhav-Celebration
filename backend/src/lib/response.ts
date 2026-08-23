@@ -28,8 +28,8 @@ export function paginationMeta(page: number, pageSize: number, total: number): P
   };
 }
 
-export function parsePagination(query: { page?: number; pageSize?: number }) {
+export function parsePagination(query: { page?: number; pageSize?: number }, maxPageSize = 100) {
   const page = Math.max(1, query.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
+  const pageSize = Math.min(maxPageSize, Math.max(1, query.pageSize ?? 20));
   return { page, pageSize, skip: (page - 1) * pageSize, take: pageSize };
 }

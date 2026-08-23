@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive as ArchiveIcon, Layers, Loader2, Pencil, Plus } from "lucide-react";
+import { Trash2 as Trash2, Layers, Loader2, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import { collectionsRepo, emptyCollectionInput } from "@/lib/data/collections";
@@ -48,7 +48,7 @@ export function CollectionsScreen() {
 
   useEffect(() => {
     productsRepo
-      .list({ ...DEFAULT_LIST_QUERY, pageSize: 1000, sort: "title", dir: "asc" })
+      .list({ ...DEFAULT_LIST_QUERY, pageSize: 1000, sort: "title", dir: "asc", filters: { isActive: "true" } })
       .then((res) => setProducts(res.items))
       .catch(() => setProducts([]));
   }, []);
@@ -95,6 +95,11 @@ export function CollectionsScreen() {
     setSubmitting(true);
 
     try {
+      if (!form.productIds?.length) {
+        setFormError("Add at least one product so this collection can appear in the shop.");
+        setSubmitting(false);
+        return;
+      }
       const payload = { ...form, heroImageId: heroMedia?.id || null };
       if (editing) {
         await collectionsRepo.update(editing.id, payload);
@@ -185,7 +190,7 @@ export function CollectionsScreen() {
     <div className="p-4 md:p-8 space-y-6">
       <PageHeader
         title="Collections"
-        description="Manage festive collections and shop landing pages."
+        description="Create festive shop collections, pick active products, and publish them to /gifts."
         actions={
           <button type="button" onClick={openCreate} className="btn-primary inline-flex items-center gap-2">
             <Plus size={16} /> New Collection
@@ -217,7 +222,7 @@ export function CollectionsScreen() {
         ]}
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: ArchiveIcon, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{ icon: Layers, title: "No collections yet", description: "Create a collection to bundle products." }}
       />
@@ -274,7 +279,12 @@ export function CollectionsScreen() {
             />
           </FormField>
         </div>
-        <FormField label="Products" htmlFor="collection-products" hint="Select the products that belong in this collection.">
+        <FormField
+          label="Products"
+          htmlFor="collection-products"
+          hint="Select at least one active product. Empty collections stay hidden on the shop."
+          required
+        >
           <MultiSelectInput
             options={productOptions}
             value={form.productIds || []}
@@ -283,10 +293,10 @@ export function CollectionsScreen() {
           />
         </FormField>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-stone-100">
-          <FormField label="Active" htmlFor="collection-active" hint="Temporarily disable this collection">
+          <FormField label="Active" htmlFor="collection-active" hint="Turn off to hide this collection from the shop">
             <ToggleSwitch checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
           </FormField>
-          <FormField label="Homepage Featured" htmlFor="collection-homepage" hint="Show this collection on the main storefront">
+          <FormField label="Homepage Featured" htmlFor="collection-homepage" hint="Show this collection in the Festive Collections row on Shop">
             <ToggleSwitch checked={form.showOnHomepage} onChange={(v) => patchForm({ showOnHomepage: v })} />
           </FormField>
           <FormField label="Display Order" htmlFor="collection-order">

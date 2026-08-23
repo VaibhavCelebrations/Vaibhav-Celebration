@@ -21,7 +21,7 @@ const body = Poppins({
 
 export const metadata: Metadata = {
   title: {
-    default: "Vaibhav Celebrations | Thoughtfully Curated Kids Celebrations & Personalized Birthday Experiences",
+    default: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
     template: "%s | Vaibhav Celebrations",
   },
   description:

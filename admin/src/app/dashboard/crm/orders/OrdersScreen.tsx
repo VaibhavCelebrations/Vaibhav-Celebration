@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, ShoppingBag, Gift, PartyPopper } from "lucide-react";
+import { FileText, Loader2, ShoppingBag, Gift, PartyPopper, Eye } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -246,6 +246,20 @@ export function OrdersScreen() {
         <span className="font-medium text-(--color-charcoal)">₹{(row.totalInPaise / 100).toFixed(2)}</span>
       ),
     },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() => openOrder(row)}
+          className="btn btn-secondary px-3 py-1.5 text-xs font-semibold shadow-sm"
+        >
+          <Eye size={14} className="inline mr-1" /> View details
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -259,21 +273,21 @@ export function OrdersScreen() {
         <button
           type="button"
           onClick={() => setTab("shop")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
         >
           <ShoppingBag size={14} className="inline mr-1" /> Shop orders
         </button>
         <button
           type="button"
           onClick={() => setTab("package")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "package" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "package" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
         >
           <PartyPopper size={14} className="inline mr-1" /> Package orders
         </button>
         <button
           type="button"
           onClick={() => setTab("registry")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "registry" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream)"}`}
+          className={`hidden px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "registry" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
         >
           <Gift size={14} className="inline mr-1" /> Registry orders
         </button>
@@ -311,9 +325,7 @@ export function OrdersScreen() {
             options: [{ value: "REQUIRED_ANY", label: "Needs follow-up" }, ...FOLLOW_UP_OPTIONS],
           },
         ]}
-        rowActions={[
-          { id: "view", label: "View Details", onSelect: openOrder },
-        ]}
+        rowActions={[]}
         empty={{
           icon: FileText,
           title: tab === "shop" ? "No shop orders yet" : "No registry orders yet",
@@ -446,6 +458,14 @@ export function OrdersScreen() {
 
             <div className="border-t pt-4 text-sm space-y-2 text-right">
               <div className="flex justify-between"><span className="text-stone-500">Subtotal:</span><span>₹{(viewingOrder.subtotalInPaise / 100).toFixed(2)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Shipping:</span>
+                <span>
+                  {viewingOrder.shippingWaived || (viewingOrder.shippingInPaise ?? 0) === 0
+                    ? "FREE"
+                    : `₹${((viewingOrder.shippingInPaise ?? 0) / 100).toFixed(2)}`}
+                </span>
+              </div>
               <div className="flex justify-between"><span className="text-stone-500">GST:</span><span>₹{(viewingOrder.gstInPaise / 100).toFixed(2)}</span></div>
               <div className="flex justify-between font-medium text-base pt-2 border-t"><span>Total:</span><span>₹{(viewingOrder.totalInPaise / 100).toFixed(2)}</span></div>
               {viewingOrder.invoicePdfUrl && (

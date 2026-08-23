@@ -2,7 +2,7 @@
 
 **Audience:** QA, Project Lead, client UAT  
 **Apps:** Storefront `frontend` (customer + guest) · Admin `admin` · API `backend`  
-**Depends on:** [01-Razorpay-Payment-Setup.md](./01-Razorpay-Payment-Setup.md) for real checkout; Twilio is optional for this checklist.
+**Depends on:** [01-Razorpay-Payment-Setup.md](./01-Razorpay-Payment-Setup.md) for real checkout; WhatsApp Cloud API is optional for this checklist.
 
 Use this document to **operate** Gift Registry and to **sign off** that the full lifecycle works. Do not treat a public page that “loads” as done.
 

@@ -1,12 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
-import { cached, cacheKey, delPattern } from "../../lib/redis";
+import { cached, delPattern } from "../../lib/redis";
 
 const PUB_TTL = 5 * 60;
 
 const detailInclude = {
   serviceItems: {
+    where: { extraService: { deletedAt: null } },
     orderBy: { displayOrder: "asc" as const },
     include: {
       extraService: true,
@@ -48,9 +49,10 @@ export async function getPackageMatrix() {
   return cached(`pub:packages:matrix`, PUB_TTL, () =>
     Promise.all([
       prisma.package.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, isActive: true },
         include: {
           serviceItems: {
+            where: { extraService: { deletedAt: null } },
             orderBy: { displayOrder: "asc" },
             include: { extraService: true },
           },
@@ -151,11 +153,13 @@ async function syncPackageServiceItems(
   if (!orphans.length) return;
 
   const orphanIds = orphans.map((row) => row.id);
-  const referenced = await tx.bookingCustomization.findMany({
+  const referenced = await tx.orderPackageLine.findMany({
     where: { packageServiceItemId: { in: orphanIds } },
     select: { packageServiceItemId: true },
   });
-  const referencedIds = new Set(referenced.map((row) => row.packageServiceItemId));
+  const referencedIds = new Set(
+    referenced.map((row) => row.packageServiceItemId).filter((id): id is string => Boolean(id)),
+  );
   const deletableIds = orphanIds.filter((id) => !referencedIds.has(id));
   if (deletableIds.length) {
     await tx.packageServiceItem.deleteMany({ where: { id: { in: deletableIds } } });
@@ -189,9 +193,6 @@ export type PackageMatrixSaveInput = {
     description?: string | null;
     priceInPaise?: number;
     isRecommended?: boolean;
-    badgeText?: string | null;
-    pricingUnit?: string | null;
-    hasGiftRegistry?: boolean;
     isActive?: boolean;
     isCustomizable?: boolean;
     items: ServiceItemInput[];
@@ -217,12 +218,19 @@ export async function savePackageMatrix({ packages, extraServices }: PackageMatr
       for (const row of packages) {
         const { packageId, items, ...pkgData } = row;
         const cleanData = Object.fromEntries(
-          Object.entries(pkgData).filter(([, v]) => v !== undefined),
+          Object.entries(pkgData).filter(([key, v]) => {
+            if (v === undefined) return false;
+            return key !== "badgeText" && key !== "pricingUnit" && key !== "hasGiftRegistry";
+          }),
         );
         if (Object.keys(cleanData).length) {
           await tx.package.update({ where: { id: packageId }, data: cleanData });
         }
-        await syncPackageServiceItems(tx, packageId, items);
+        await syncPackageServiceItems(
+          tx,
+          packageId,
+          items.filter((item) => item.extraServiceId),
+        );
       }
 
       return tx.package.findMany({

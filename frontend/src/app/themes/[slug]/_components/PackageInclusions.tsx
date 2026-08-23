@@ -13,14 +13,14 @@ export function PackageInclusions({ packages, themeSlug }: { packages: PackageCa
   return (
     <div className="bg-surface border border-border-light rounded-[2rem] overflow-hidden shadow-sm">
       {/* Toggle Header */}
-      <div className="flex border-b border-border-light overflow-x-auto no-scrollbar relative">
+      <div className="flex border-b border-border-light overflow-x-auto hide-scrollbar relative">
         {packages.map((pkg) => {
           const isSelected = selectedPkgId === pkg.id;
           return (
             <button
               key={pkg.id}
               onClick={() => setSelectedPkgId(pkg.id)}
-              className={`flex-1 py-4 px-4 md:px-6 font-display font-bold whitespace-nowrap transition-colors relative ${
+              className={`flex-1 py-3 px-2 md:py-4 md:px-4 font-display font-bold text-center transition-colors relative ${
                 isSelected ? "text-mocha" : "text-charcoal hover:bg-cream"
               }`}
             >
@@ -62,6 +62,14 @@ export function PackageInclusions({ packages, themeSlug }: { packages: PackageCa
           className="btn-primary w-full py-4 text-center font-semibold text-sm block"
         >
           Build with {selectedPkg.title} →
+        </Link>
+
+        {/* Custom Plan Link */}
+        <Link
+          href={`/custom-plan`}
+          className="btn-outline w-full py-3 text-center font-semibold text-sm block mt-3"
+        >
+          Or Build Your Custom Plan
         </Link>
       </div>
     </div>

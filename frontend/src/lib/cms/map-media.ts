@@ -94,24 +94,13 @@ export function mapThemeDetail(theme: ApiThemeDetail): ThemeCard {
 
 export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | null): PackageCard {
   const price = priceOverrideInPaise ?? pkg.priceInPaise;
-  return {
-    id: pkg.id,
-    title: pkg.displayName?.trim() || pkg.title,
-    slug: pkg.slug,
-    priceLabel: `${formatInrFromPaise(price)}${pkg.pricingUnit ? ` ${pkg.pricingUnit}` : ""}`,
-    basePrice: price / 100,
-    tierRank: pkg.tierRank,
-    isRecommended: pkg.isRecommended,
-    badgeText: pkg.badgeText,
-    pricingUnit: pkg.pricingUnit,
-    hasGiftRegistry: pkg.hasGiftRegistry,
-    description: pkg.description ?? "",
-    features: pkg.serviceItems
+  const features = pkg.serviceItems
       .slice()
       .sort((a, b) => a.displayOrder - b.displayOrder)
       .filter((item) => {
-        // Packages page: show included non-decor services; hide orphans without slug (old seed)
         if (!item.isIncluded) return false;
+        if (!item.extraService.slug) return false;
+        if (item.extraService.isActive === false) return false;
         const cat = item.extraService.category;
         if (cat === "DECOR") return false;
         return true;
@@ -119,7 +108,20 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
       .map((item) => ({
         label: item.extraService.label,
         included: item.isIncluded,
-      })),
+      }));
+  return {
+    id: pkg.id,
+    title: pkg.displayName?.trim() || pkg.title,
+    slug: pkg.slug,
+    priceLabel: formatInrFromPaise(price),
+    basePrice: price / 100,
+    tierRank: pkg.tierRank,
+    isRecommended: pkg.isRecommended,
+    badgeText: pkg.isRecommended ? "Most Loved" : null,
+    pricingUnit: null,
+    hasGiftRegistry: pkg.slug === "premium" || pkg.slug === "luxe",
+    description: pkg.description ?? "",
+    features,
   };
 }
 

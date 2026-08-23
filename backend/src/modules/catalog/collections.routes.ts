@@ -80,6 +80,8 @@ adminProductCollectionsRouter.get(
     paginationQuerySchema.extend({
       search: z.string().optional(),
       isActive: z.string().optional(),
+      sort: z.string().optional(),
+      dir: z.enum(["asc", "desc"]).optional(),
     }),
     "query",
   ),

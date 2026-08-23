@@ -64,9 +64,6 @@ export function PackagesScreen() {
           description: pkg.description,
           priceInPaise: pkg.priceInPaise,
           isRecommended: pkg.isRecommended,
-          badgeText: pkg.badgeText,
-          pricingUnit: pkg.pricingUnit,
-          hasGiftRegistry: pkg.hasGiftRegistry,
           isActive: pkg.isActive,
           isCustomizable: pkg.isCustomizable,
           items: data.extraServices.map((svc) => {
@@ -235,7 +232,7 @@ export function PackagesScreen() {
       <PageHeader
         eyebrow="Content"
         title="Packages"
-        description="Manage pricing tiers and the Fiverr-style service matrix. Check services to include them in a package; set one customization price per service for add-ons at checkout."
+        description="Manage pricing for the three live celebration tiers. Inactive leftover packages and unused extra services are hidden from this matrix."
         actions={
           <div className="flex items-center gap-2">
             {tab === "matrix" && (
@@ -403,6 +400,7 @@ function PackageMatrixEditor({
   onPatchInclusion: (packageId: string, extraServiceId: string, isIncluded: boolean) => void;
   onPatchServicePrice: (extraServiceId: string, customizationPriceInPaise: number) => void;
 }) {
+  const liveServices = matrix.extraServices.filter((svc) => svc.isActive);
   const colCount = matrix.packages.length + 2;
 
   return (
@@ -424,7 +422,7 @@ function PackageMatrixEditor({
                 <div className="space-y-2">
                   <input
                     className="input w-full font-semibold"
-                    value={pkg.title}
+                    value={pkg.title ?? ""}
                     onChange={(e) => onPatchPackage(pkg.packageId, { title: e.target.value })}
                   />
                   <input
@@ -447,28 +445,14 @@ function PackageMatrixEditor({
                       Package price
                     </label>
                     <PriceInput
-                      value={pkg.priceInPaise}
+                      value={pkg.priceInPaise ?? 0}
                       onChange={(paise) => onPatchPackage(pkg.packageId, { priceInPaise: paise })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      className="input w-full text-xs"
-                      placeholder="Badge text"
-                      value={pkg.badgeText ?? ""}
-                      onChange={(e) => onPatchPackage(pkg.packageId, { badgeText: e.target.value || null })}
-                    />
-                    <input
-                      className="input w-full text-xs"
-                      placeholder="Pricing unit"
-                      value={pkg.pricingUnit ?? ""}
-                      onChange={(e) => onPatchPackage(pkg.packageId, { pricingUnit: e.target.value || null })}
                     />
                   </div>
                   <label className="flex items-center gap-2 text-xs">
                     <input
                       type="checkbox"
-                      checked={pkg.isRecommended}
+                      checked={!!pkg.isRecommended}
                       onChange={(e) =>
                         onPatchPackage(pkg.packageId, { isRecommended: e.target.checked })
                       }
@@ -478,17 +462,7 @@ function PackageMatrixEditor({
                   <label className="flex items-center gap-2 text-xs">
                     <input
                       type="checkbox"
-                      checked={pkg.hasGiftRegistry}
-                      onChange={(e) =>
-                        onPatchPackage(pkg.packageId, { hasGiftRegistry: e.target.checked })
-                      }
-                    />
-                    Gift registry
-                  </label>
-                  <label className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={pkg.isCustomizable}
+                      checked={!!pkg.isCustomizable}
                       onChange={(e) =>
                         onPatchPackage(pkg.packageId, { isCustomizable: e.target.checked })
                       }
@@ -498,7 +472,7 @@ function PackageMatrixEditor({
                   <label className="flex items-center gap-2 text-xs">
                     <input
                       type="checkbox"
-                      checked={pkg.isActive}
+                      checked={!!pkg.isActive}
                       onChange={(e) => onPatchPackage(pkg.packageId, { isActive: e.target.checked })}
                     />
                     Active
@@ -525,7 +499,7 @@ function PackageMatrixEditor({
           </tr>
         </thead>
         <tbody>
-          {matrix.extraServices.map((svc) => (
+          {liveServices.map((svc) => (
             <tr key={svc.id} className="border-b border-(--color-border-soft) hover:bg-(--color-surface)/40">
               <td className="sticky left-0 z-10 bg-white px-4 py-3 align-top">
                 <p className="font-medium text-(--color-charcoal)">{svc.label}</p>
@@ -538,7 +512,7 @@ function PackageMatrixEditor({
               </td>
               <td className="border-l border-(--color-border-soft) px-4 py-3 align-top">
                 <PriceInput
-                  value={svc.customizationPriceInPaise}
+                  value={svc.customizationPriceInPaise ?? 0}
                   onChange={(paise) => onPatchServicePrice(svc.id, paise)}
                 />
               </td>
@@ -552,7 +526,7 @@ function PackageMatrixEditor({
                   >
                     <input
                       type="checkbox"
-                      checked={cell.isIncluded}
+                      checked={!!cell.isIncluded}
                       onChange={(e) =>
                         onPatchInclusion(pkg.packageId, svc.id, e.target.checked)
                       }
@@ -631,7 +605,7 @@ function ExtraServicesList({
             </button>
             <button
               type="button"
-              aria-label="Archive"
+              aria-label="Delete"
               className="btn btn-ghost p-2 text-(--color-error)"
               onClick={() => onArchive(svc)}
             >

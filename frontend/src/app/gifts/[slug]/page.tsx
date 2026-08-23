@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2, Zap } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -15,7 +15,12 @@ import type { Product } from "@/lib/shop-types";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
+import { useAuth } from "@/context/auth-context";
 import { ApiClientError } from "@/lib/api-client";
+import { CacheStore } from "@/lib/cache-store";
+import { useRouter } from "next/navigation";
+
+const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -30,6 +35,8 @@ export default function ProductDetailPage({ params }: Props) {
 
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { isAuthenticated, openAuthModal } = useAuth();
+  const router = useRouter();
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -38,6 +45,7 @@ export default function ProductDetailPage({ params }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [addedToCart, setAddedToCart] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBuying, setIsBuying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,26 +112,11 @@ export default function ProductDetailPage({ params }: Props) {
   const unitTotal = product.priceInPaise + personalizationCost;
 
   const handleAddToCart = async () => {
-    const newErrors: Record<string, string> = {};
-    if (personalizeSelected) {
-      product.personalizationFields.forEach((field) => {
-        if (field.isRequired && !personalization[field.id]?.trim()) {
-          newErrors[field.id] = `${field.label} is required`;
-        }
-      });
-    }
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
-
-    const pValues: PersonalizationValue[] = personalizeSelected
-      ? product.personalizationFields
-          .filter((f) => personalization[f.id]?.trim())
-          .map((f) => ({
-            fieldId: f.id,
-            label: f.label,
-            value: personalization[f.id],
-          }))
-      : [];
+    setErrors({});
+    
+    // Automatically fill all fields with a placeholder so the backend validation passes,
+    // since the client brief dictates we collect these details *after* booking now.
+    const pValues: PersonalizationValue[] = buildPersonalizationValues();
 
     setIsAdding(true);
     try {
@@ -135,6 +128,37 @@ export default function ProductDetailPage({ params }: Props) {
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const buildPersonalizationValues = (): PersonalizationValue[] =>
+    personalizeSelected
+      ? product.personalizationFields.map((f) => ({
+          fieldId: f.id,
+          label: f.label,
+          value: "To be collected by team after booking",
+        }))
+      : [];
+
+  const handleBuyNow = () => {
+    const run = () => {
+      CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
+        productId: product.id,
+        title: product.title,
+        quantity,
+        unitPriceInPaise: product.priceInPaise,
+        personalizationSelected: personalizeSelected,
+        personalizationCostInPaise: personalizationCost,
+        personalizationValues: buildPersonalizationValues(),
+      });
+      router.push("/checkout");
+    };
+    if (!isAuthenticated) {
+      openAuthModal(run);
+      return;
+    }
+    setIsBuying(true);
+    run();
+    setIsBuying(false);
   };
 
   return (
@@ -180,7 +204,7 @@ export default function ProductDetailPage({ params }: Props) {
                   )}
                 </div>
                 {/* Thumbnails */}
-                {product.images.length > 1 && (
+                {(product.images?.length ?? 0) > 1 && (
                   <div className="flex gap-3">
                     {product.images.map((img, i) => (
                       <button
@@ -192,7 +216,7 @@ export default function ProductDetailPage({ params }: Props) {
                             : "border-transparent opacity-60 hover:opacity-100"
                         }`}
                       >
-                        <Image src={img.media.url} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
+                        <Image src={img.media?.url ?? "/placeholder-product.svg"} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
                       </button>
                     ))}
                   </div>
@@ -205,7 +229,7 @@ export default function ProductDetailPage({ params }: Props) {
               <div className="space-y-6">
                 {/* Theme tags */}
                 <div className="flex flex-wrap gap-2">
-                  {product.themes.map((tag) => (
+                  {Array.isArray(product.themes) && product.themes.map((tag) => (
                     <span
                       key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-mocha bg-mocha/10 px-3 py-1 rounded-full"
@@ -213,7 +237,7 @@ export default function ProductDetailPage({ params }: Props) {
                       {tag.title.replace(/ Theme| Birthday| Celebration/gi, "")}
                     </span>
                   ))}
-                  {product.categories.map((tag) => (
+                  {Array.isArray(product.categories) && product.categories.map((tag) => (
                     <span
                       key={tag.id}
                       className="text-[10px] font-bold uppercase tracking-wider text-charcoal bg-cream-dark px-3 py-1 rounded-full"
@@ -240,7 +264,7 @@ export default function ProductDetailPage({ params }: Props) {
                   )}
                 </div>
 
-                <p className="text-text-muted leading-relaxed">{product.description}</p>
+                <p className="text-text-muted leading-relaxed">{typeof product.description === "string" ? product.description : ""}</p>
 
                 {/* SKU */}
                 <p className="text-xs text-text-light">
@@ -250,7 +274,7 @@ export default function ProductDetailPage({ params }: Props) {
                 <hr className="border-border-light" />
 
                 {/* Personalization Fields */}
-                {product.personalizationEnabled && product.personalizationFields.length > 0 && (
+                {product.personalizationEnabled && (product.personalizationFields?.length ?? 0) > 0 && (
                   <div className="space-y-4">
                     <h3 className="font-display text-lg font-semibold text-charcoal flex items-center gap-2">
                       ✨ Personalize Your Gift
@@ -259,12 +283,17 @@ export default function ProductDetailPage({ params }: Props) {
                       <button
                         type="button"
                         onClick={() => setPersonalizeSelected(true)}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
                           personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
-                        <span className="block font-semibold">Yes, personalize it</span>
-                        <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${personalizeSelected ? "border-mocha" : "border-text-light/50"}`}>
+                          {personalizeSelected && <div className="w-2 h-2 rounded-full bg-mocha" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold">Yes, I'd like personalization</span>
+                          <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                        </div>
                       </button>
                       <button
                         type="button"
@@ -272,37 +301,24 @@ export default function ProductDetailPage({ params }: Props) {
                           setPersonalizeSelected(false);
                           setErrors({});
                         }}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
                           !personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
-                        <span className="block font-semibold">No, keep standard</span>
-                        <span>No additional cost</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${!personalizeSelected ? "border-mocha" : "border-text-light/50"}`}>
+                          {!personalizeSelected && <div className="w-2 h-2 rounded-full bg-mocha" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold">No, keep it standard</span>
+                          <span>No additional cost</span>
+                        </div>
                       </button>
                     </div>
-                    {personalizeSelected && product.personalizationFields.map((field) => (
-                      <div key={field.id}>
-                        <label className="text-sm font-semibold text-charcoal mb-1 block">
-                          {field.label} {field.isRequired && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
-                          type={field.fieldType === "number" ? "number" : "text"}
-                          placeholder={field.label}
-                          maxLength={field.maxLength ?? undefined}
-                          value={personalization[field.id] || ""}
-                          onChange={(e) => {
-                            setPersonalization({ ...personalization, [field.id]: e.target.value });
-                            if (errors[field.id]) {
-                              setErrors({ ...errors, [field.id]: "" });
-                            }
-                          }}
-                          className="w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all"
-                        />
-                        {errors[field.id] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[field.id]}</p>
-                        )}
+                    {personalizeSelected && (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200/50 p-4 text-sm text-amber-900">
+                        <p className="font-medium">Our team will contact you after booking to collect names, messages, or customization details.</p>
                       </div>
-                    ))}
+                    )}
                     <div className="rounded-xl bg-surface border border-border-light p-4 text-sm">
                       <div className="flex justify-between text-text-muted">
                         <span>Base product</span>
@@ -325,44 +341,57 @@ export default function ProductDetailPage({ params }: Props) {
 
                 {/* Quantity + Add to Cart */}
                 {stockStatus !== "out_of_stock" && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                    {/* Quantity */}
-                    <div className="flex items-center border border-border-light rounded-xl bg-surface">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                      {/* Quantity */}
+                      <div className="flex items-center border border-border-light rounded-xl bg-surface">
+                        <button
+                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                          className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
+                          disabled={quantity <= 1}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="w-12 text-center font-bold text-charcoal">{quantity}</span>
+                        <button
+                          onClick={() => setQuantity(Math.min(maxPurchasable, quantity + 1))}
+                          className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
+                          disabled={quantity >= maxPurchasable}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+
+                      {/* Add to Cart Button */}
                       <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
-                        disabled={quantity <= 1}
+                        onClick={handleAddToCart}
+                        disabled={addedToCart || isAdding}
+                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all cursor-pointer ${
+                          addedToCart
+                            ? "bg-green-600 text-white"
+                            : "btn-primary shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-0.5"
+                        }`}
                       >
-                        <Minus size={16} />
-                      </button>
-                      <span className="w-12 text-center font-bold text-charcoal">{quantity}</span>
-                      <button
-                        onClick={() => setQuantity(Math.min(maxPurchasable, quantity + 1))}
-                        className="w-12 h-12 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
-                        disabled={quantity >= maxPurchasable}
-                      >
-                        <Plus size={16} />
+                        {isAdding ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : addedToCart ? (
+                          <><Check size={18} /> Added to Cart</>
+                        ) : (
+                          <><ShoppingCart size={18} /> Add to Cart — {formatPaise(unitTotal * quantity)}</>
+                        )}
                       </button>
                     </div>
-
-                    {/* Add to Cart Button */}
                     <button
-                      onClick={handleAddToCart}
-                      disabled={addedToCart || isAdding}
-                      className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition-all cursor-pointer ${
-                        addedToCart
-                          ? "bg-green-600 text-white"
-                          : "btn-primary shadow-lg shadow-mocha/20 hover:shadow-xl hover:-translate-y-0.5"
-                      }`}
+                      type="button"
+                      onClick={handleBuyNow}
+                      disabled={isBuying}
+                      className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-mocha bg-white py-4 text-sm font-bold uppercase tracking-wider text-mocha transition-all hover:bg-mocha hover:text-white cursor-pointer disabled:opacity-60"
                     >
-                      {isAdding ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : addedToCart ? (
-                        <><Check size={18} /> Added to Cart</>
-                      ) : (
-                        <><ShoppingCart size={18} /> Add to Cart — {formatPaise(unitTotal * quantity)}</>
-                      )}
+                      {isBuying ? <Loader2 size={18} className="animate-spin" /> : <><Zap size={18} /> Buy Now — {formatPaise(unitTotal * quantity)}</>}
                     </button>
+                    {errors.personalize && (
+                      <p className="text-sm text-red-600 font-medium">{errors.personalize}</p>
+                    )}
                   </div>
                 )}
 

@@ -74,9 +74,9 @@ export type Package = SoftDeletable &
     priceInPaise: Paise;
     tierRank: number;
     isRecommended: boolean;
-    badgeText: string | null;
-    pricingUnit: string | null;
-    hasGiftRegistry: boolean;
+    badgeText?: string | null;
+    pricingUnit?: string | null;
+    hasGiftRegistry?: boolean;
     isActive: boolean;
     isCustomizable: boolean;
     displayOrder: number;
@@ -95,9 +95,6 @@ export type PackageInput = Pick<
   | "priceInPaise"
   | "tierRank"
   | "isRecommended"
-  | "badgeText"
-  | "pricingUnit"
-  | "hasGiftRegistry"
   | "isActive"
   | "isCustomizable"
   | "displayOrder"
@@ -143,9 +140,6 @@ export type PackageMatrixRow = {
   description: string | null;
   priceInPaise: number;
   isRecommended: boolean;
-  badgeText: string | null;
-  pricingUnit: string | null;
-  hasGiftRegistry: boolean;
   isActive: boolean;
   isCustomizable: boolean;
   items: PackageMatrixCell[];

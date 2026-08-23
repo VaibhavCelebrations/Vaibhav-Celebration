@@ -5,11 +5,13 @@ import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { HeroSection } from "@/components/home/HeroSection";
 import { DeliverableStrip } from "@/components/home/DeliverableStrip";
 import { ThemeShowcase } from "@/components/home/ThemeShowcase";
+import { CelebrationJourney } from "@/components/home/CelebrationJourney";
 import { PackagePreview } from "@/components/home/PackagePreview";
-import { OurStory } from "@/components/home/OurStory";
+import { WhyUsSection } from "@/components/home/WhyUsSection";
 import { GalleryPreview } from "@/components/home/GalleryPreview";
+import { ShopTeaser } from "@/components/home/ShopTeaser";
 import { TestimonialCarousel } from "@/components/home/TestimonialCarousel";
-import { CTABand } from "@/components/home/CTABand";
+import { EnquiryForm } from "@/components/home/EnquiryForm";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { getHomePageContent } from "@/lib/cms/pages";
 import { listThemes } from "@/lib/cms/themes";
@@ -20,7 +22,7 @@ import { getPublicSettings, getWhatsAppNumber } from "@/lib/cms/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("home", {
-    title: "Vaibhav Celebrations | Thoughtfully Curated Kids Celebrations",
+    title: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
     description:
       "Creating customized kids birthday celebrations, milestone moments, themed experiences, personalized return gifts, and memorable celebrations designed around every child's unique story.",
   });
@@ -48,11 +50,13 @@ export default async function HomePage() {
         <DeliverableStrip content={sections?.deliverables} />
         <ThemeShowcase themes={themes} />
         <div className="relative z-30 bg-cream">
+          <CelebrationJourney />
           <PackagePreview packages={packages} />
-          <OurStory content={sections?.ourStory} />
+          <WhyUsSection />
           <GalleryPreview images={gallery} />
+          <ShopTeaser />
           <TestimonialCarousel testimonials={testimonials} />
-          <CTABand content={sections?.ctaBand} settings={settings ?? undefined} whatsappNumber={whatsappNumber} />
+          <EnquiryForm />
         </div>
       </main>
       <Footer />

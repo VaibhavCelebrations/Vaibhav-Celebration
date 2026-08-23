@@ -31,6 +31,7 @@ import {
   updateRegistry,
   updateRegistryItem,
 } from "./registry.service";
+import { getRegistryAccess } from "../upgrades/upgrades.service";
 
 function customerId(req: import("express").Request): string {
   return (req as CustomerAuthenticatedRequest).customer!.sub;
@@ -57,10 +58,19 @@ accountRegistryRouter.get("/", async (req, res, next) => {
   }
 });
 
+accountRegistryRouter.get("/access", async (req, res, next) => {
+  try {
+    return ok(res, await getRegistryAccess(customerId(req)));
+  } catch (err) {
+    return next(err);
+  }
+});
+
 accountRegistryRouter.post(
   "/",
   validate(
     z.object({
+      sourceOrderCode: z.string().min(1),
       password: z.string().min(4).max(64).optional(),
       title: z.string().max(160).optional(),
       occasion: z.string().max(120).optional(),
@@ -75,7 +85,6 @@ accountRegistryRouter.post(
       coverImageUrl: z.string().url().optional(),
       shippingAddress: shippingAddressSchema.optional(),
       visibility: z.nativeEnum(RegistryVisibility).optional(),
-      bookingId: z.string().optional(),
     }),
   ),
   async (req, res, next) => {

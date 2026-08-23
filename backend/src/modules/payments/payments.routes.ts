@@ -25,7 +25,7 @@ export const paymentsRouter = Router();
   paymentsRouter.post(
   "/razorpay/order",
   idempotency,
-  validate(z.object({ bookingCode: z.string().min(1).optional(), orderCode: z.string().min(1).optional() })),
+  validate(z.object({ orderCode: z.string().min(1) })),
   async (req, res, next) => {
     try {
       return ok(res, await createPaymentOrder(req.body));
@@ -60,8 +60,8 @@ invoicesRouter.get("/:invoiceNumber/download", requireGuest, async (req, res, ne
   try {
     const invoice = await getInvoiceByNumber(param(req, "invoiceNumber"));
     const guest = (req as GuestAuthenticatedRequest).guest!;
-    const bookingCode = invoice.booking?.bookingCode;
-    if (guest.sub !== bookingCode) {
+    const orderCode = invoice.order?.orderCode;
+    if (guest.sub !== orderCode) {
       if (guest.email.toLowerCase() !== invoice.customer.email.toLowerCase()) {
         throw new ForbiddenError();
       }

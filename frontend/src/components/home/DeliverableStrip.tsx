@@ -1,14 +1,15 @@
 import { PartyPopper, Palette, Gift, Gamepad2, Mail, Award } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeDeliverablesSection } from "@/lib/cms/types";
+import { asText } from "@/lib/cms/text";
 
 const services = [
-  { slug: "customized-celebrations", icon: PartyPopper, title: "Customized Celebrations", desc: "Every detail curated around your child." },
-  { slug: "themed-experiences", icon: Palette, title: "Themed Experiences", desc: "Unique themes that bring imagination to life." },
-  { slug: "personalized-return-gifts", icon: Gift, title: "Personalized Return Gifts", desc: "Thoughtful keepsakes for little guests." },
-  { slug: "activity-experiences", icon: Gamepad2, title: "Activity Experiences", desc: "Fun-filled activities kids will love." },
-  { slug: "digital-invitations", icon: Mail, title: "Digital Invitations", desc: "Beautiful e-invites for your special day." },
-  { slug: "milestone-moments", icon: Award, title: "Milestone Moments", desc: "Cherishing every big moment beautifully." },
+  { slug: "customized-celebrations", icon: PartyPopper, title: "Customized Celebrations", desc: "Tailored around the person, milestone or moment being celebrated." },
+  { slug: "themed-experiences", icon: Palette, title: "Theme-Led Experiences", desc: "Every element — from décor to activities — unified under one beautiful concept." },
+  { slug: "digital-invitations", icon: Mail, title: "Digital Invitations", desc: "Beautifully designed e-invites that set the tone for the celebration." },
+  { slug: "activity-experiences", icon: Gamepad2, title: "Activities & Games", desc: "Fun-filled, age-appropriate activities kids absolutely love." },
+  { slug: "personalized-return-gifts", icon: Gift, title: "Personalized Return Gifts", desc: "Thoughtful keepsakes that guests will treasure." },
+  { slug: "milestone-moments", icon: Award, title: "Milestone Moments", desc: "Cherishing every big moment, beautifully and meaningfully." },
 ];
 
 type DeliverableStripProps = {
@@ -18,14 +19,16 @@ type DeliverableStripProps = {
 export function DeliverableStrip({ content }: DeliverableStripProps) {
   return (
     <section className="py-16 md:py-20 bg-surface">
-      {(content?.title || content?.subtitle) && (
-        <div className="max-w-7xl mx-auto px-5 md:px-10 mb-10 text-center">
-          {content.title && (
-            <h2 className="font-display text-3xl md:text-4xl text-charcoal font-semibold">{content.title}</h2>
-          )}
-          {content.subtitle && <p className="mt-3 text-text-muted">{content.subtitle}</p>}
-        </div>
-      )}
+      <div className="max-w-7xl mx-auto px-5 md:px-10 mb-10 text-center">
+        <ScrollReveal>
+          <h2 className="font-display text-2xl md:text-3xl text-charcoal font-semibold">
+            {asText(content?.title, "Everything You Need for a Thoughtfully Planned Celebration")}
+          </h2>
+          <p className="mt-3 text-text-muted text-sm md:text-base max-w-xl mx-auto">
+            {asText(content?.subtitle, "From concept to keepsakes, every element works together beautifully.")}
+          </p>
+        </ScrollReveal>
+      </div>
       <div className="max-w-7xl mx-auto px-5 md:px-10">
         {/* Desktop View */}
         <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-6">

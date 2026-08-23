@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ok } from "../../lib/response";
 import { requireGuest, requireGuestScope } from "../../middleware/guest-auth";
 import { validate } from "../../middleware/validate";
-import { getGuestBooking, requestOtp, verifyOtp } from "./guest.service";
+import { getGuestOrder, requestOtp, verifyOtp } from "./guest.service";
 
 export const guestRouter = Router();
 
@@ -13,7 +13,7 @@ guestRouter.post(
   validate(
     z.object({
       referenceCode: z.string().min(1),
-      referenceType: z.enum(["BOOKING", "ORDER", "REGISTRY"]),
+      referenceType: z.enum(["ORDER", "REGISTRY"]),
       email: z.string().email(),
     }),
   ),
@@ -44,12 +44,12 @@ guestRouter.post(
 );
 
 guestRouter.get(
-  "/booking/:bookingCode",
+  "/order/:orderCode",
   requireGuest,
-  requireGuestScope("bookingCode"),
+  requireGuestScope("orderCode"),
   async (req, res, next) => {
     try {
-      return ok(res, await getGuestBooking(param(req, "bookingCode")));
+      return ok(res, await getGuestOrder(param(req, "orderCode")));
     } catch (err) {
       return next(err);
     }

@@ -7,6 +7,7 @@ import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
+import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useRouter } from "next/navigation";
 
 export function CartDrawer() {
@@ -133,7 +134,7 @@ export function CartDrawer() {
                         {addons.map((addon) => (
                           <div key={addon.product.id} className="flex items-center gap-3 bg-white/50 p-2 rounded-lg">
                             <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0">
-                              <Image src={addon.product.images[0]?.media.url ?? "/placeholder-product.svg"} alt={addon.product.title} fill className="object-cover" sizes="40px" />
+                              <Image src={addon.product.images[0]?.media?.url ?? "/placeholder-product.svg"} alt={addon.product.title} fill className="object-cover" sizes="40px" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h5 className="text-xs font-semibold text-charcoal line-clamp-1">{addon.product.title}</h5>
@@ -185,9 +186,9 @@ export function CartDrawer() {
                     {/* Personalization values */}
                     {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {(item.personalizationValues as Array<{ fieldId: string; label: string; value: string }>).map((pv) => (
-                          <span key={pv.fieldId} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
-                            {pv.label}: {pv.value}
+                        {(item.personalizationValues as Array<{ fieldId?: string; label: string; value: string }>).map((pv, idx) => (
+                          <span key={pv.fieldId ?? `${pv.label}-${idx}`} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
+                            {typeof pv.label === "string" ? pv.label : "Personalization"}
                           </span>
                         ))}
                       </div>
@@ -241,10 +242,28 @@ export function CartDrawer() {
 
             {/* Footer Summary */}
             <div className="border-t border-border-light px-6 py-5 space-y-3 bg-cream/30 shrink-0">
+              {items.length > 0 && (
+                <FreeDeliveryProgress
+                  subtotalInPaise={quote.subtotalInPaise}
+                  freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
+                  shippingFeeInPaise={quote.shippingInPaise || 19_900}
+                  shippingWaived={quote.shippingWaived}
+                />
+              )}
               <div className="flex justify-between text-sm text-text-muted">
                 <span>Subtotal</span>
                 <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
               </div>
+              {items.length > 0 && (
+                <div className="flex justify-between text-sm text-text-muted">
+                  <span>Shipping</span>
+                  {quote.shippingWaived ? (
+                    <span className="font-semibold text-green-700">FREE</span>
+                  ) : (
+                    <span className="font-semibold text-charcoal">{formatPaise(quote.shippingInPaise)}</span>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between text-sm text-text-muted">
                 <span>GST ({quote.gstPercent}%)</span>
                 <span className="font-semibold text-charcoal">{formatPaise(quote.gstInPaise)}</span>

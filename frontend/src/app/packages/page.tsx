@@ -6,17 +6,16 @@ import { Footer } from "@/components/layout/Footer";
 import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { PackageComparisonGrid } from "@/components/packages/PackageComparisonGrid";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listPackages } from "@/lib/cms/packages";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("packages", {
     title: "Packages & Pricing",
-    description: "Compare Thoughtful Essentials, Complete Celebration, and Signature Luxe packages.",
+    description: "Compare Essential Celebration, Signature Celebration, and Grand Celebration packages.",
   });
 }
-
-const TIER_ORDER = ["standard", "premium", "luxe"] as const;
 
 const PACKAGING_NOTE: Record<string, string> = {
   standard: "Simple Packaging included",
@@ -31,10 +30,7 @@ const DECOR_OUTSIDE_NOTE: Record<string, string> = {
 };
 
 export default async function PackagesPage() {
-  const all = await listPackages().catch(() => []);
-  const packages = TIER_ORDER.map((slug) => all.find((p) => p.slug === slug)).filter(
-    (p): p is NonNullable<typeof p> => !!p,
-  );
+  const packages = await listPackages().catch(() => []);
 
   return (
     <>
@@ -49,9 +45,9 @@ export default async function PackagesPage() {
             />
           </ScrollReveal>
 
-          <div className="mt-16 grid md:grid-cols-3 gap-6 items-start">
+          <div className="mt-16 grid md:grid-cols-3 gap-6 items-stretch">
             {packages.map((pkg, i) => (
-              <ScrollReveal key={pkg.id} delay={i * 100}>
+              <ScrollReveal key={pkg.id} delay={i * 100} className="h-full">
                 <div
                   className={`rounded-2xl p-8 flex flex-col h-full transition-premium hover:-translate-y-2 ${
                     pkg.isRecommended
@@ -61,7 +57,7 @@ export default async function PackagesPage() {
                 >
                   {(pkg.badgeText || pkg.isRecommended) && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full whitespace-nowrap">
-                      {pkg.badgeText || "Most Popular"}
+                      {pkg.badgeText || "Most Loved"}
                     </span>
                   )}
                   <h3 className="font-display text-2xl font-semibold text-charcoal">{pkg.title}</h3>
@@ -97,11 +93,26 @@ export default async function PackagesPage() {
               </ScrollReveal>
             ))}
           </div>
+
+          <PackageComparisonGrid />
+
           <ScrollReveal>
-            <div className="flex flex-col items-center mt-16 mb-8">
-              <Link href="/contact" className="btn-primary text-base px-10 py-4 w-full sm:w-auto">
-                Book Consultation
-              </Link>
+            <div className="mt-16 mb-8 rounded-3xl border border-mocha/15 bg-cream-dark/50 px-6 py-10 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-mocha mb-3">Bespoke planning</p>
+              <h3 className="font-display text-2xl md:text-3xl font-semibold text-charcoal">
+                Plan a Custom Celebration
+              </h3>
+              <p className="mt-3 text-sm text-text-muted max-w-lg mx-auto leading-relaxed">
+                Have a unique theme, guest count, or venue in mind? We&apos;ll design every detail around your celebration.
+              </p>
+              <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link href="/consultation" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
+                  Plan Custom Celebration
+                </Link>
+                <Link href="/consultation" className="btn-outline text-sm px-8 py-3.5 w-full sm:w-auto uppercase tracking-wider font-bold bg-white">
+                  Book Consultation
+                </Link>
+              </div>
             </div>
             <p className="text-center text-xs text-text-light mt-8">
               *Base package price. Choosable activities, gifts, and Jaipur décor are added in the builder. GST applied at checkout.

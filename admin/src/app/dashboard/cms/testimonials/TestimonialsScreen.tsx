@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Pencil, Plus, Star } from "lucide-react";
+import { Trash2, Pencil, Plus, Star } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError, adminFetchList } from "@/lib/admin-api-client";
 import { testimonialsRepo } from "@/lib/data/resources";
@@ -188,7 +188,7 @@ export function TestimonialsScreen() {
         searchPlaceholder="Search testimonials…"
         rowActions={[
           { id: "edit", label: "Edit", icon: Pencil, onSelect: openEdit },
-          { id: "archive", label: "Archive", icon: Archive, tone: "danger", onSelect: setArchiveTarget },
+          { id: "archive", label: "Delete", icon: Trash2, tone: "danger", onSelect: setArchiveTarget },
         ]}
         empty={{
           icon: Star,

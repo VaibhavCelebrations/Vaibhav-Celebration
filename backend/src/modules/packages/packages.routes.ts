@@ -72,6 +72,7 @@ async function shapePackage(packageId: string) {
     where: { id: packageId, deletedAt: null },
     include: {
       serviceItems: {
+        where: { extraService: { deletedAt: null } },
         orderBy: { displayOrder: "asc" },
         include: { extraService: true },
       },
@@ -201,9 +202,6 @@ adminPackagesRouter.put(
           description: z.string().optional().nullable(),
           priceInPaise: z.number().int().min(0).optional(),
           isRecommended: z.boolean().optional(),
-          badgeText: z.string().optional().nullable(),
-          pricingUnit: z.string().optional().nullable(),
-          hasGiftRegistry: z.boolean().optional(),
           isActive: z.boolean().optional(),
           isCustomizable: z.boolean().optional(),
           items: z.array(serviceItemSchema),
