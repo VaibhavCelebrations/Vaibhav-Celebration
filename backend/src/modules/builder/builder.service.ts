@@ -198,6 +198,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     where: { slug: input.packageSlug, deletedAt: null, isActive: true },
     include: {
       serviceItems: {
+        where: { extraService: { deletedAt: null } },
         orderBy: { displayOrder: "asc" },
         include: { extraService: true },
       },
