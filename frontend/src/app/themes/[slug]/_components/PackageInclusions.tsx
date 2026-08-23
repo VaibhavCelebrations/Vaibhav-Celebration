@@ -63,6 +63,14 @@ export function PackageInclusions({ packages, themeSlug }: { packages: PackageCa
         >
           Build with {selectedPkg.title} →
         </Link>
+
+        {/* Custom Plan Link */}
+        <Link
+          href={`/custom-plan`}
+          className="btn-outline w-full py-3 text-center font-semibold text-sm block mt-3"
+        >
+          Or Build Your Custom Plan
+        </Link>
       </div>
     </div>
   );

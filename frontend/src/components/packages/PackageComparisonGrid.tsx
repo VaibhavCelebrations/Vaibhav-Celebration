@@ -1,4 +1,5 @@
-import { Check, Minus } from "lucide-react";
+import { Check, Minus, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const comparisonFeatures = [
@@ -81,6 +82,27 @@ export function PackageComparisonGrid() {
               ))}
             </tbody>
           </table>
+        </div>
+      </ScrollReveal>
+
+      {/* Custom Plan CTA */}
+      <ScrollReveal delay={200}>
+        <div className="mt-12 bg-mocha/5 border border-mocha/20 rounded-2xl p-8 md:p-10 text-center">
+          <div className="w-14 h-14 bg-mocha/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="text-mocha" size={24} />
+          </div>
+          <h3 className="font-display text-2xl font-semibold text-charcoal mb-2">
+            Want to build your own?
+          </h3>
+          <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
+            Mix and match items from any package tier. Choose exactly what fits your celebration, budget, and number of guests.
+          </p>
+          <Link
+            href="/custom-plan"
+            className="btn-primary px-8 py-3 text-sm inline-flex"
+          >
+            Build Your Custom Plan
+          </Link>
         </div>
       </ScrollReveal>
     </section>

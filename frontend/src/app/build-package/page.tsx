@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -550,6 +551,22 @@ function BuildPackageContent() {
                     </button>
                   );
                 })}
+              </div>
+              
+              {/* Custom Plan CTA */}
+              <div className="mt-8 bg-mocha/5 border border-mocha/20 rounded-2xl p-8 text-center">
+                <h3 className="font-display text-xl font-semibold text-charcoal mb-2">
+                  Want to build your own from scratch?
+                </h3>
+                <p className="text-text-muted text-sm max-w-lg mx-auto mb-5">
+                  Mix and match items from any package tier. Choose exactly what fits your celebration, budget, and number of guests.
+                </p>
+                <Link
+                  href="/custom-plan"
+                  className="btn-outline px-6 py-2.5 text-sm inline-flex font-semibold"
+                >
+                  Plan Your Custom Celebration
+                </Link>
               </div>
             </section>
           )}
