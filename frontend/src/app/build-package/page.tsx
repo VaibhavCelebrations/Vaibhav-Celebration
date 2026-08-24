@@ -884,7 +884,21 @@ function BuildPackageContent() {
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned for your package — shown on the review step.
                   </div>
-                  {(quote ? quote.giftRegistryIncluded : pkgSlug === "premium" || pkgSlug === "luxe") && (
+                  {(pkgSlug === "premium" || pkgSlug === "luxe") ? (
+                    <div className="mt-8 rounded-2xl border border-border p-6 bg-cream-dark">
+                      <div className="flex justify-between gap-4 items-start">
+                        <div>
+                          <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                          <p className="text-sm text-text-muted">
+                            Included with Signature and Grand. After you book, you&apos;ll set up and share the list from this order.
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">Included</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
                     <div
                       className={`mt-8 rounded-2xl border p-6 ${
                         selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
@@ -892,13 +906,15 @@ function BuildPackageContent() {
                     >
                       <div className="flex justify-between gap-4 items-start">
                         <div>
-                          <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                          <div className="font-semibold text-charcoal mb-1">Gift Registry (Add-on)</div>
                           <p className="text-sm text-text-muted">
-                            Included with Signature and Grand. After you book, you&apos;ll set up and share the list from this order — not as a later add-on.
+                            Add a guided gift list to share with your guests after booking.
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">Included</div>
+                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">
+                            + {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)}
+                          </div>
                         </div>
                       </div>
                       <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
@@ -912,8 +928,7 @@ function BuildPackageContent() {
                           }}
                           className="w-4 h-4"
                         />
-                        Customize Gift Registry (+
-                        {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)})
+                        Add Gift Registry
                       </label>
                     </div>
                   )}
