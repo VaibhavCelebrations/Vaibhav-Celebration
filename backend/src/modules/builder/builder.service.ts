@@ -433,24 +433,31 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
 
   const giftRegistryPsi = pkg.serviceItems.find(
     (s) =>
-      s.isIncluded &&
       s.extraService.isActive &&
       !s.extraService.deletedAt &&
       isGiftRegistryMatrixService(s.extraService),
   );
-  const giftRegistryIncluded = Boolean(giftRegistryPsi);
+  
+  const giftRegistryIncluded = giftRegistryPsi?.isIncluded ?? false;
   const giftRegistryCustomizePriceInPaise = giftRegistryPsi?.extraService.customizationPriceInPaise ?? 0;
-  if (sel.giftRegistryCustomize && giftRegistryPsi && giftRegistryCustomizePriceInPaise > 0) {
-    lineItems.push({
-      key: "gift-registry-customize",
-      label: `${giftRegistryPsi.extraService.label} customization`,
-      sublabel: "Fixed customize price",
-      section: "fixed",
-      packageServiceItemId: giftRegistryPsi.id,
-      quantity: 1,
-      unitPriceInPaise: giftRegistryCustomizePriceInPaise,
-      lineTotalInPaise: giftRegistryCustomizePriceInPaise,
-    });
+  
+  if (giftRegistryPsi) {
+    if (giftRegistryIncluded) {
+      // Included by default, no customization charge
+      includedLabels.push(giftRegistryPsi.extraService.label);
+    } else if (sel.giftRegistryCustomize && giftRegistryCustomizePriceInPaise > 0) {
+      // Opted-in as an add-on for standard tier
+      lineItems.push({
+        key: "gift-registry-addon",
+        label: giftRegistryPsi.extraService.label,
+        sublabel: "Digital add-on",
+        section: "fixed",
+        packageServiceItemId: giftRegistryPsi.id,
+        quantity: 1,
+        unitPriceInPaise: giftRegistryCustomizePriceInPaise,
+        lineTotalInPaise: giftRegistryCustomizePriceInPaise,
+      });
+    }
   }
 
   const customizationTotalInPaise = lineItems

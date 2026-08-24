@@ -105,7 +105,15 @@ export async function getRegistryAccess(userId: string) {
 
   for (const order of packageOrders) {
     const slug = order.packageOrder?.package.slug ?? "";
-    if (!(GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug)) continue;
+    const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
+    
+    // Check if purchased as an add-on in the builder
+    const hasAddon = order.packageOrder?.lineItems
+      ? Array.isArray(order.packageOrder.lineItems) &&
+        order.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+      : false;
+
+    if (!isIncluded && !hasAddon) continue;
     if (order.sourcedRegistries[0]) continue;
     pendingSetups.push({
       orderCode: order.orderCode,
@@ -114,9 +122,15 @@ export async function getRegistryAccess(userId: string) {
     });
   }
 
-  const eligibleOrderCount = packageOrders.filter((order) =>
-    (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(order.packageOrder?.package.slug ?? ""),
-  ).length;
+  const eligibleOrderCount = packageOrders.filter((order) => {
+    const slug = order.packageOrder?.package.slug ?? "";
+    const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
+    const hasAddon = order.packageOrder?.lineItems
+      ? Array.isArray(order.packageOrder.lineItems) &&
+        order.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+      : false;
+    return isIncluded || hasAddon;
+  }).length;
 
   return {
     canAccess: eligibleOrderCount > 0 || registries.length > 0,
@@ -146,10 +160,15 @@ export async function giftRegistryStateForPackageOrder(input: {
   packageSlug: string;
   paymentStatus: PaymentStatus;
   sourcedRegistries?: Array<{ id: string; title: string | null }>;
+  lineItems?: any;
 }): Promise<GiftRegistryUpgradeState | null> {
-  const eligible =
-    (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(input.packageSlug) &&
-    input.paymentStatus === PaymentStatus.PAID;
+  const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(input.packageSlug);
+  const hasAddon = input.lineItems
+    ? Array.isArray(input.lineItems) &&
+      input.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+    : false;
+
+  const eligible = (isIncluded || hasAddon) && input.paymentStatus === PaymentStatus.PAID;
 
   const registry =
     input.sourcedRegistries?.[0] ??
@@ -175,8 +194,14 @@ export async function assertGiftRegistryEntitlement(userId: string, sourceOrderC
     throw new ValidationError("This celebration is not paid yet");
   }
   const slug = parent.packageOrder?.package.slug ?? "";
-  if (!(GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug)) {
-    throw new ForbiddenError("Gift Registry is included with Signature and Grand packages only");
+  const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
+  const hasAddon = parent.packageOrder?.lineItems
+    ? Array.isArray(parent.packageOrder.lineItems) &&
+      parent.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+    : false;
+
+  if (!isIncluded && !hasAddon) {
+    throw new ForbiddenError("Gift Registry is included with Signature and Grand packages only, or as an add-on");
   }
   return parent;
 }

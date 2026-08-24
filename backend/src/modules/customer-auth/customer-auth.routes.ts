@@ -52,14 +52,14 @@ function setAuthCookies(res: import("express").Response, result: { accessToken: 
   res.cookie(CUSTOMER_ACCESS_COOKIE, result.accessToken, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: "lax",
+    sameSite: env.COOKIE_SECURE ? "none" : "lax",
     maxAge: 15 * 60 * 1000, // matches JWT_CUSTOMER_ACCESS_EXPIRES_IN default; refreshed silently
     path: "/",
   });
   res.cookie(CUSTOMER_SESSION_COOKIE, result.sessionToken, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: "lax",
+    sameSite: env.COOKIE_SECURE ? "none" : "lax",
     expires: result.sessionExpiresAt,
     path: SESSION_COOKIE_PATH,
   });
