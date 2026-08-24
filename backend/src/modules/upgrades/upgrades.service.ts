@@ -83,7 +83,7 @@ export async function getRegistryAccess(userId: string) {
         parentOrderId: null,
       },
       include: {
-        packageOrder: { include: { package: true, theme: true } },
+        packageOrder: { include: { package: true, theme: true, lines: true } },
         sourcedRegistries: {
           where: { status: { not: "ARCHIVED" } },
           select: { id: true, title: true },
@@ -108,9 +108,9 @@ export async function getRegistryAccess(userId: string) {
     const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
     
     // Check if purchased as an add-on in the builder
-    const hasAddon = order.packageOrder?.lineItems
-      ? Array.isArray(order.packageOrder.lineItems) &&
-        order.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+    const hasAddon = order.packageOrder?.lines
+      ? Array.isArray(order.packageOrder.lines) &&
+        order.packageOrder.lines.some((item: any) => item.label?.includes("Gift Registry"))
       : false;
 
     if (!isIncluded && !hasAddon) continue;
@@ -125,9 +125,9 @@ export async function getRegistryAccess(userId: string) {
   const eligibleOrderCount = packageOrders.filter((order) => {
     const slug = order.packageOrder?.package.slug ?? "";
     const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
-    const hasAddon = order.packageOrder?.lineItems
-      ? Array.isArray(order.packageOrder.lineItems) &&
-        order.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+    const hasAddon = order.packageOrder?.lines
+      ? Array.isArray(order.packageOrder.lines) &&
+        order.packageOrder.lines.some((item: any) => item.label?.includes("Gift Registry"))
       : false;
     return isIncluded || hasAddon;
   }).length;
@@ -165,7 +165,7 @@ export async function giftRegistryStateForPackageOrder(input: {
   const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(input.packageSlug);
   const hasAddon = input.lineItems
     ? Array.isArray(input.lineItems) &&
-      input.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+      input.lineItems.some((item: any) => item.label?.includes("Gift Registry") || item.key?.includes("gift-registry"))
     : false;
 
   const eligible = (isIncluded || hasAddon) && input.paymentStatus === PaymentStatus.PAID;
@@ -187,7 +187,7 @@ export async function giftRegistryStateForPackageOrder(input: {
 export async function assertGiftRegistryEntitlement(userId: string, sourceOrderCode: string) {
   const parent = await prisma.order.findFirst({
     where: { orderCode: sourceOrderCode, userId, kind: OrderKind.PACKAGE },
-    include: { packageOrder: { include: { package: true } } },
+    include: { packageOrder: { include: { package: true, lines: true } } },
   });
   if (!parent) throw new NotFoundError("Celebration order not found");
   if (parent.paymentStatus !== PaymentStatus.PAID) {
@@ -195,9 +195,9 @@ export async function assertGiftRegistryEntitlement(userId: string, sourceOrderC
   }
   const slug = parent.packageOrder?.package.slug ?? "";
   const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(slug);
-  const hasAddon = parent.packageOrder?.lineItems
-    ? Array.isArray(parent.packageOrder.lineItems) &&
-      parent.packageOrder.lineItems.some((item: any) => item.key === "gift-registry-addon" || item.key === "gift-registry-customize")
+  const hasAddon = parent.packageOrder?.lines
+    ? Array.isArray(parent.packageOrder.lines) &&
+      parent.packageOrder.lines.some((item: any) => item.label?.includes("Gift Registry"))
     : false;
 
   if (!isIncluded && !hasAddon) {
