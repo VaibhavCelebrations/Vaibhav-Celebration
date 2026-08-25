@@ -16,6 +16,7 @@ const redis_1 = require("../../lib/redis");
 const PUB_TTL = 5 * 60;
 const detailInclude = {
     serviceItems: {
+        where: { extraService: { deletedAt: null } },
         orderBy: { displayOrder: "asc" },
         include: {
             extraService: true,
@@ -49,9 +50,10 @@ async function getPackageBySlug(slug) {
 async function getPackageMatrix() {
     return (0, redis_1.cached)(`pub:packages:matrix`, PUB_TTL, () => Promise.all([
         prisma_1.prisma.package.findMany({
-            where: { deletedAt: null },
+            where: { deletedAt: null, isActive: true },
             include: {
                 serviceItems: {
+                    where: { extraService: { deletedAt: null } },
                     orderBy: { displayOrder: "asc" },
                     include: { extraService: true },
                 },
@@ -124,11 +126,11 @@ async function syncPackageServiceItems(tx, packageId, items) {
     if (!orphans.length)
         return;
     const orphanIds = orphans.map((row) => row.id);
-    const referenced = await tx.bookingCustomization.findMany({
+    const referenced = await tx.orderPackageLine.findMany({
         where: { packageServiceItemId: { in: orphanIds } },
         select: { packageServiceItemId: true },
     });
-    const referencedIds = new Set(referenced.map((row) => row.packageServiceItemId));
+    const referencedIds = new Set(referenced.map((row) => row.packageServiceItemId).filter((id) => Boolean(id)));
     const deletableIds = orphanIds.filter((id) => !referencedIds.has(id));
     if (deletableIds.length) {
         await tx.packageServiceItem.deleteMany({ where: { id: { in: deletableIds } } });
@@ -160,11 +162,15 @@ async function savePackageMatrix({ packages, extraServices }) {
         }
         for (const row of packages) {
             const { packageId, items, ...pkgData } = row;
-            const cleanData = Object.fromEntries(Object.entries(pkgData).filter(([, v]) => v !== undefined));
+            const cleanData = Object.fromEntries(Object.entries(pkgData).filter(([key, v]) => {
+                if (v === undefined)
+                    return false;
+                return key !== "badgeText" && key !== "pricingUnit" && key !== "hasGiftRegistry";
+            }));
             if (Object.keys(cleanData).length) {
                 await tx.package.update({ where: { id: packageId }, data: cleanData });
             }
-            await syncPackageServiceItems(tx, packageId, items);
+            await syncPackageServiceItems(tx, packageId, items.filter((item) => item.extraServiceId));
         }
         return tx.package.findMany({
             where: { deletedAt: null },

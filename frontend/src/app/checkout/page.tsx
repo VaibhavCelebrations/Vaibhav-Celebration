@@ -15,7 +15,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { useToast } from "@/components/ui/Toast";
 import { formatPaise, toRupees } from "@/lib/shop-types";
-import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult } from "@/lib/shop-types";
+import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult, ServerCartItem } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
@@ -24,6 +24,51 @@ import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
+
+function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQuantity: (id: string, qty: number) => void }) {
+  const [val, setVal] = useState(item.quantity.toString());
+
+  useEffect(() => {
+    setVal(item.quantity.toString());
+  }, [item.quantity]);
+
+  const handleBlur = () => {
+    let parsed = parseInt(val, 10);
+    const maxQty = item.maxOrderQuantity !== null ? Math.min(item.maxOrderQuantity, item.stockAvailable) : item.stockAvailable;
+    
+    if (isNaN(parsed) || parsed < 1) {
+      parsed = 1;
+    } else if (parsed > maxQty) {
+      parsed = maxQty;
+    }
+
+    if (parsed !== item.quantity) {
+      updateQuantity(item.id, parsed);
+    } else {
+      setVal(item.quantity.toString());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={1}
+      max={item.maxOrderQuantity ?? item.stockAvailable}
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="w-10 text-center text-xs font-bold text-charcoal bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-mocha rounded-sm"
+      style={{ MozAppearance: "textfield" }}
+    />
+  );
+}
 
 type DirectCheckoutPayload = {
   productId: string;
@@ -65,7 +110,7 @@ export default function CheckoutPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed" | "cancelled" | "pending">("idle");
+  const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed" | "cancelled" | "pending" | "success">("idle");
 
   const [confirmedOrderCode, setConfirmedOrderCode] = useState<string | null>(null);
   const [confirmedInvoiceUrl, setConfirmedInvoiceUrl] = useState<string | null>(null);
@@ -80,6 +125,12 @@ export default function CheckoutPage() {
     const payload = CacheStore.getSessionItem<DirectCheckoutPayload | null>(DIRECT_CHECKOUT_KEY, null);
     if (payload?.productId) setDirectCheckout(payload);
   }, []);
+
+  useEffect(() => {
+    if (currentStep === 1) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentStep]);
 
   useEffect(() => {
     if (user && !registryCheckout) {
@@ -105,6 +156,10 @@ export default function CheckoutPage() {
   useEffect(() => () => {
     if (pollTimer.current) clearInterval(pollTimer.current);
   }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   const hasItems = items.length > 0;
   const isDirectCheckout = Boolean(directCheckout);
@@ -172,6 +227,24 @@ export default function CheckoutPage() {
     return Object.keys(errors).length === 0;
   };
 
+  const isFormComplete = (): boolean => {
+    if (!hasItems && packages.length > 0 && !isDirectCheckout) {
+      return true;
+    }
+    if (hasItems || isDirectCheckout) {
+      if (!address.fullName.trim()) return false;
+      if (!address.line1.trim()) return false;
+      if (!address.city.trim()) return false;
+      if (!address.state.trim()) return false;
+      if (!/^\d{4,10}$/.test(address.pincode.trim())) return false;
+    } else {
+      if (!address.fullName.trim()) return false;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) return false;
+    if (contactPhone.trim().length < 6) return false;
+    return true;
+  };
+
   function pollOrderUntilPaid(orderCode: string) {
     setPaymentStatus("confirming");
     let attempts = 0;
@@ -181,15 +254,17 @@ export default function CheckoutPage() {
         const order = await shopApi.getMyOrder(orderCode);
         if (order.status === "PAID" || order.paymentStatus === "PAID") {
           if (pollTimer.current) clearInterval(pollTimer.current);
-          setConfirmedOrderCode(orderCode);
-          setConfirmedInvoiceUrl(order.invoicePdfUrl);
-          setHadPackagesAtCheckout(packages.length > 0);
-          setPaymentStatus("idle");
-          setIsPlacingOrder(false);
-          setPendingOrderCode(null);
-          await clearCart();
-          await refreshCart();
-          setCurrentStep(1);
+          setPaymentStatus("success");
+          setTimeout(() => {
+            setConfirmedOrderCode(orderCode);
+            setConfirmedInvoiceUrl(order.invoicePdfUrl);
+            setHadPackagesAtCheckout(packages.length > 0);
+            setPaymentStatus("idle");
+            setIsPlacingOrder(false);
+            setPendingOrderCode(null);
+            void clearCart().then(() => refreshCart());
+            setCurrentStep(1);
+          }, 2500);
         } else if (order.paymentStatus === "FAILED") {
           if (pollTimer.current) clearInterval(pollTimer.current);
           setPaymentStatus("failed");
@@ -239,15 +314,17 @@ export default function CheckoutPage() {
             razorpaySignature: response.razorpay_signature,
           });
           if (verified.status === "PAID" || verified.paymentStatus === "PAID") {
-            setConfirmedOrderCode(verified.orderCode);
-            setConfirmedInvoiceUrl(verified.invoicePdfUrl);
-            setPaymentStatus("idle");
-            setIsPlacingOrder(false);
-            setPendingOrderCode(null);
-            setHadPackagesAtCheckout(packages.length > 0);
-            await clearCart();
-            await refreshCart();
-            setCurrentStep(1);
+            setPaymentStatus("success");
+            setTimeout(() => {
+              setConfirmedOrderCode(verified.orderCode);
+              setConfirmedInvoiceUrl(verified.invoicePdfUrl);
+              setPaymentStatus("idle");
+              setIsPlacingOrder(false);
+              setPendingOrderCode(null);
+              setHadPackagesAtCheckout(packages.length > 0);
+              void clearCart().then(() => refreshCart());
+              setCurrentStep(1);
+            }, 2500);
           } else {
             pollOrderUntilPaid(order.orderCode);
           }
@@ -285,22 +362,13 @@ export default function CheckoutPage() {
       return;
     }
 
-    if ((hasItems || directCheckout) && packages.length > 0) {
-      push("Please checkout event packages and physical items separately.", "error");
-      return;
-    }
-
     setIsPlacingOrder(true);
+    try {
+      const pkg = packages.length > 0 ? packages[0] : null;
+      let packageData: any = undefined;
 
-    if (!hasItems && packages.length > 0) {
-      // Package celebration checkout → Order (kind=PACKAGE), same Razorpay verify path as shop
-      try {
-        const pkg = packages[0]!;
-        if (!pkg.builderInput) {
-          throw new Error("Package details missing. Please reconfigure this package.");
-        }
-
-        const order = await shopApi.createPackageOrder({
+      if (pkg && pkg.builderInput) {
+        packageData = {
           eventDate: pkg.builderInput.eventDetails?.eventDate || eventDetails.eventDate,
           contactEmail: pkg.builderInput.contactEmail || contactEmail.trim(),
           contactPhone: pkg.builderInput.contactPhone || contactPhone.trim(),
@@ -324,20 +392,9 @@ export default function CheckoutPage() {
             guestCount: parseInt(eventDetails.guestCount || String(pkg.builderInput.guestCount || "10"), 10),
             location: eventDetails.venue.toLowerCase().includes("jaipur") ? "jaipur" : "outside",
           },
-        });
-
-        await openShopRazorpay(order);
-        // Clear session packages after payment widget opens; paid path clears via refresh/verify
-        // Final clear happens after PAID confirmation below via clearCart in success handlers
-      } catch (err) {
-        push(err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Could not place package order", "error");
-        setIsPlacingOrder(false);
+        };
       }
-      return;
-    }
 
-    setIsPlacingOrder(true);
-    try {
       if (directCheckout) {
         const order = await shopApi.createDirectShopOrder({
           productId: directCheckout.productId,
@@ -347,16 +404,19 @@ export default function CheckoutPage() {
           contactPhone: contactPhone.trim(),
           personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
           personalizationSelected: directCheckout.personalizationSelected,
+          packageData,
         });
         CacheStore.removeSessionItem(DIRECT_CHECKOUT_KEY);
         setDirectCheckout(null);
         await openShopRazorpay(order);
         return;
       }
+      
       const order = await shopApi.createShopOrder({
         shippingAddress: address,
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
+        packageData,
       });
       await openShopRazorpay(order);
     } catch (err) {
@@ -371,6 +431,16 @@ export default function CheckoutPage() {
 
   return (
     <>
+      {paymentStatus === "success" && (
+        <div className="fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center animate-fade-in">
+          <div className="w-32 h-32 rounded-full bg-sage/20 flex items-center justify-center animate-bounce-slow mb-6">
+            <Check size={64} strokeWidth={3} className="text-sage-dark animate-scale-in" />
+          </div>
+          <h2 className="font-display text-3xl font-bold text-charcoal animate-slide-up">Payment Successful!</h2>
+          <p className="text-text-muted mt-2 animate-slide-up" style={{ animationDelay: "200ms" }}>Preparing your order...</p>
+        </div>
+      )}
+
       <Navbar />
       <main className="pt-28 md:pt-36 pb-16 md:pb-24 bg-cream min-h-screen">
         <div className="max-w-6xl mx-auto px-5 md:px-10">
@@ -480,7 +550,7 @@ export default function CheckoutPage() {
                               <div className="flex items-center justify-between mt-3">
                                 <div className="flex items-center gap-1 bg-cream-dark rounded-lg border border-border-light h-9">
                                   <button onClick={() => void updateQuantity(item.id, item.quantity - 1)} className="w-9 h-full flex items-center justify-center text-charcoal hover:text-mocha transition-colors"><Minus size={14} /></button>
-                                  <span className="w-8 text-center text-xs font-bold text-charcoal">{item.quantity}</span>
+                                  <QuantityInput item={item} updateQuantity={updateQuantity} />
                                   <button onClick={() => void updateQuantity(item.id, item.quantity + 1)} className="w-9 h-full flex items-center justify-center text-charcoal hover:text-mocha transition-colors" disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}><Plus size={14} /></button>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -637,7 +707,7 @@ export default function CheckoutPage() {
                     ) : (
                       <button
                         onClick={handlePlaceOrder}
-                        disabled={isPlacingOrder || paymentStatus === "confirming"}
+                        disabled={isPlacingOrder || paymentStatus === "confirming" || !isFormComplete()}
                         className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-8 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
                       >
                         {isPlacingOrder || paymentStatus === "confirming" ? (

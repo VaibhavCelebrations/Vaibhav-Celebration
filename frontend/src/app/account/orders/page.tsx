@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Loader2, Package, ChevronRight, FileText } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
 import * as shopApi from "@/lib/shop-api";
 import { formatPaise } from "@/lib/shop-types";
 import type { OrderDto, OrderStatus } from "@/lib/shop-types";
@@ -30,15 +31,24 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 
 export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<OrderDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingOrders, setIsFetchingOrders] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
+  const { isAuthenticated, isLoading } = useAuth();
+
   useEffect(() => {
+    if (isLoading) return;
+    if (!isAuthenticated) {
+      setOrders([]);
+      setIsFetchingOrders(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
-      setIsLoading(true);
+      setIsFetchingOrders(true);
       try {
         const result = await shopApi.listMyOrders(page, pageSize);
         if (!cancelled) {
@@ -48,13 +58,13 @@ export default function OrderHistoryPage() {
       } catch (err) {
         if (!cancelled) setOrders([]);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setIsFetchingOrders(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, isAuthenticated, isLoading]);
 
   return (
     <div className="space-y-6">
@@ -63,7 +73,7 @@ export default function OrderHistoryPage() {
         <p className="text-text-muted text-sm mt-1">Track and review your past purchases.</p>
       </div>
 
-      {isLoading ? (
+      {isLoading || (isFetchingOrders && orders.length === 0) ? (
         <div className="flex justify-center py-20">
           <Loader2 size={28} className="animate-spin text-mocha" />
         </div>

@@ -19,9 +19,9 @@ const passwordSchema = zod_1.z
     .regex(/[A-Z]/, "Password must include an uppercase letter")
     .regex(/[0-9]/, "Password must include a number");
 const signupSchema = zod_1.z.object({
-    name: zod_1.z.string().min(1).max(120),
-    email: zod_1.z.string().email(),
-    phone: zod_1.z.string().min(6).max(20).optional(),
+    name: zod_1.z.string().min(1, "Name is required").max(120, "Name is too long"),
+    email: zod_1.z.string().email("Invalid email address"),
+    phone: zod_1.z.string().min(6, "Phone number must be at least 6 characters").max(20, "Phone number cannot exceed 20 characters").optional(),
     password: passwordSchema,
 });
 const loginSchema = zod_1.z.object({
@@ -33,14 +33,14 @@ function setAuthCookies(res, result) {
     res.cookie(customer_auth_1.CUSTOMER_ACCESS_COOKIE, result.accessToken, {
         httpOnly: true,
         secure: env_1.env.COOKIE_SECURE,
-        sameSite: "lax",
+        sameSite: env_1.env.COOKIE_SECURE ? "none" : "lax",
         maxAge: 15 * 60 * 1000, // matches JWT_CUSTOMER_ACCESS_EXPIRES_IN default; refreshed silently
         path: "/",
     });
     res.cookie(customer_auth_1.CUSTOMER_SESSION_COOKIE, result.sessionToken, {
         httpOnly: true,
         secure: env_1.env.COOKIE_SECURE,
-        sameSite: "lax",
+        sameSite: env_1.env.COOKIE_SECURE ? "none" : "lax",
         expires: result.sessionExpiresAt,
         path: SESSION_COOKIE_PATH,
     });

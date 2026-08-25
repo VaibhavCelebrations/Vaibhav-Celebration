@@ -57,7 +57,7 @@ function shapeProduct(p) {
         images: p.images.map((img) => ({ id: img.id, displayOrder: img.displayOrder, media: (0, media_ref_1.toMediaRef)(img.media) })),
         categories: p.categoryTags.map((t) => ({ id: t.category.id, name: t.category.name, slug: t.category.slug })),
         themes: p.themeTags.map((t) => ({ id: t.theme.id, title: t.theme.title, slug: t.theme.slug })),
-        personalizationFields: p.personalizationFields.map((f) => ({
+        personalizationFields: (p.personalizationFields ?? []).map((f) => ({
             id: f.id,
             fieldKey: f.fieldKey,
             label: f.label,
@@ -132,6 +132,15 @@ async function ensureUniqueSlug(base, excludeId) {
         candidate = `${base}-${n}`;
     }
 }
+const collectionListInclude = {
+    heroImage: true,
+    items: {
+        orderBy: { displayOrder: "asc" },
+        include: {
+            product: { select: { id: true, title: true, isActive: true, deletedAt: true } },
+        },
+    },
+};
 async function adminListCollections(q) {
     const { page, pageSize, skip, take } = (0, response_1.parsePagination)(q);
     const where = {
@@ -149,10 +158,42 @@ async function adminListCollections(q) {
     const key = `adm:collections:${(0, redis_1.cacheKey)(q)}`;
     return (0, redis_1.cached)(key, ADM_TTL, async () => {
         const [rows, total] = await Promise.all([
-            prisma_1.prisma.productCollection.findMany({ where, skip, take, include: collectionInclude, orderBy: [{ displayOrder: "asc" }, { title: "asc" }] }),
+            prisma_1.prisma.productCollection.findMany({
+                where,
+                skip,
+                take,
+                include: collectionListInclude,
+                orderBy: [{ displayOrder: "asc" }, { title: "asc" }],
+            }),
             prisma_1.prisma.productCollection.count({ where }),
         ]);
-        return { items: rows.map((r) => shapeCollection(r, true)), total, page, pageSize };
+        return {
+            items: rows.map((c) => {
+                const products = c.items
+                    .filter((item) => item.product && !item.product.deletedAt)
+                    .map((item) => ({ id: item.product.id, title: item.product.title, isActive: item.product.isActive }));
+                return {
+                    id: c.id,
+                    title: c.title,
+                    slug: c.slug,
+                    description: c.description,
+                    heroImage: (0, media_ref_1.toMediaRef)(c.heroImage),
+                    startsAt: c.startsAt?.toISOString() ?? null,
+                    endsAt: c.endsAt?.toISOString() ?? null,
+                    showOnHomepage: c.showOnHomepage,
+                    isActive: c.isActive,
+                    displayOrder: c.displayOrder,
+                    createdAt: c.createdAt.toISOString(),
+                    updatedAt: c.updatedAt.toISOString(),
+                    deletedAt: c.deletedAt?.toISOString() ?? null,
+                    products,
+                    productCount: products.length,
+                };
+            }),
+            total,
+            page,
+            pageSize,
+        };
     });
 }
 async function adminGetCollection(id) {

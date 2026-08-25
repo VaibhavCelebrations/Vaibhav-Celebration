@@ -11,13 +11,19 @@ async function computeQuote(lines) {
         lineTotalInPaise: (l.unitPriceInPaise + (l.personalizationCostInPaise ?? 0)) * l.quantity,
     }));
     const subtotalInPaise = shapedLines.reduce((sum, l) => sum + l.lineTotalInPaise, 0);
+    const shipping = await (0, settings_1.computeShippingForSubtotal)(subtotalInPaise);
     const gstPercent = await (0, settings_1.getGstPercent)();
-    const gstInPaise = (0, settings_1.gstOn)(subtotalInPaise, gstPercent);
+    const taxable = subtotalInPaise + shipping.shippingInPaise;
+    const gstInPaise = (0, settings_1.gstOn)(taxable, gstPercent);
     return {
         subtotalInPaise,
+        shippingInPaise: shipping.shippingInPaise,
+        shippingWaived: shipping.shippingWaived,
+        freeShippingThresholdInPaise: shipping.freeShippingThresholdInPaise,
+        amountUntilFreeShippingInPaise: shipping.amountUntilFreeShippingInPaise,
         gstPercent,
         gstInPaise,
-        totalInPaise: subtotalInPaise + gstInPaise,
+        totalInPaise: taxable + gstInPaise,
         lines: shapedLines,
     };
 }

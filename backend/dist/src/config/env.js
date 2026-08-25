@@ -51,13 +51,20 @@ const envSchema = zod_1.z.object({
     SMTP_USER: zod_1.z.string().optional(),
     SMTP_PASS: zod_1.z.string().optional(),
     EMAIL_FROM_NAME: zod_1.z.string().default("Vaibhav Celebrations"),
-    EMAIL_FROM_ADDRESS: zod_1.z.string().optional(),
+    EMAIL_FROM_ADDRESS: zod_1.z.string().email().optional(),
+    EMAIL_REPLY_TO: zod_1.z.string().email().optional(),
     WHATSAPP_ENABLED: zod_1.z
         .string()
         .optional()
         .transform((v) => v === "true"),
-    WHATSAPP_PROVIDER: zod_1.z.enum(["meta", "twilio", "none"]).default("none"),
+    WHATSAPP_PROVIDER: zod_1.z.enum(["meta", "none"]).default("none"),
     WHATSAPP_BUSINESS_NUMBER: zod_1.z.string().optional(),
+    WHATSAPP_META_ACCESS_TOKEN: zod_1.z.string().optional(),
+    WHATSAPP_META_PHONE_NUMBER_ID: zod_1.z.string().optional(),
+    WHATSAPP_META_BUSINESS_ACCOUNT_ID: zod_1.z.string().optional(),
+    WHATSAPP_META_API_VERSION: zod_1.z.string().default("v21.0"),
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: zod_1.z.string().optional(),
+    WHATSAPP_APP_SECRET: zod_1.z.string().optional(),
     CLOUDFLARE_ACCOUNT_ID: zod_1.z.string().optional(),
     CLOUDFLARE_API_TOKEN: zod_1.z.string().optional(),
     CLOUDFLARE_R2_ACCESS_KEY_ID: zod_1.z.string().optional(),

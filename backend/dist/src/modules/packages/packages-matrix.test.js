@@ -18,7 +18,7 @@ let createdServiceId = null;
         createdServiceId = item.id;
         (0, vitest_1.expect)(item.label).toBe(testLabel);
         (0, vitest_1.expect)(item.customizationPriceInPaise).toBe(99000);
-        const packageCount = await prisma_1.prisma.package.count({ where: { deletedAt: null } });
+        const packageCount = await prisma_1.prisma.package.count({ where: { deletedAt: null, isActive: true } });
         const itemCount = await prisma_1.prisma.packageServiceItem.count({
             where: { extraServiceId: item.id },
         });
@@ -75,7 +75,7 @@ let createdServiceId = null;
         (0, vitest_1.expect)(matrix.packages.length).toBeGreaterThanOrEqual(3);
         (0, vitest_1.expect)(matrix.extraServices.length).toBeGreaterThan(0);
     });
-    (0, vitest_1.it)("updates package pricing without breaking booking references", async () => {
+    (0, vitest_1.it)("updates package pricing without breaking order package line references", async () => {
         const matrix = await (0, packages_service_1.getPackageMatrix)();
         const packages = matrix.packages.map((pkg) => ({
             packageId: pkg.id,
@@ -94,6 +94,11 @@ let createdServiceId = null;
                 };
             }),
         }));
+        const beforeCount = await prisma_1.prisma.orderPackageLine.count({
+            where: {
+                packageServiceItem: { packageId: premiumPkgId, extraServiceId: videoServiceId },
+            },
+        });
         const saved = await (0, packages_service_1.savePackageMatrix)({
             packages,
             extraServices: matrix.extraServices.map((svc) => ({
@@ -103,12 +108,12 @@ let createdServiceId = null;
         });
         const updatedPremium = saved.find((p) => p.id === premiumPkgId);
         (0, vitest_1.expect)(updatedPremium?.priceInPaise).toBe(originalPrice + 10000);
-        const bookingRefCount = await prisma_1.prisma.bookingCustomization.count({
+        const afterCount = await prisma_1.prisma.orderPackageLine.count({
             where: {
                 packageServiceItem: { packageId: premiumPkgId, extraServiceId: videoServiceId },
             },
         });
-        (0, vitest_1.expect)(bookingRefCount).toBeGreaterThan(0);
+        (0, vitest_1.expect)(afterCount).toBe(beforeCount);
     });
     (0, vitest_1.it)("updates inclusion flags and service customization prices", async () => {
         const matrix = await (0, packages_service_1.getPackageMatrix)();

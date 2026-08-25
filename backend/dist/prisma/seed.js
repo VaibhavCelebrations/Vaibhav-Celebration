@@ -57,6 +57,9 @@ async function clearDevData() {
         "GiftRegistryContribution",
         "GiftRegistryItem",
         "GiftRegistry",
+        "Invoice",
+        "OrderPackageLine",
+        "OrderPackage",
         "OrderItem",
         "Order",
         "WishlistItem",
@@ -76,9 +79,6 @@ async function clearDevData() {
         "User",
         "AuditLog",
         "GuestVerificationToken",
-        "BookingCustomization",
-        "Invoice",
-        "Booking",
         "ConsultationRequest",
         "Lead",
         "ChatbotSession",
@@ -107,7 +107,6 @@ async function clearDevData() {
         "Theme",
         "Package",
         "MediaAsset",
-        "BookingCapacityRule",
         "OperationalSetting",
         "SequenceCounter",
         "AdminRefreshToken",
@@ -156,7 +155,7 @@ async function main() {
     // ── Sequence Counters ───────────────────────────────────────────────────────
     await prisma.sequenceCounter.createMany({
         data: [
-            { key: "BOOKING-2026", lastValue: 3 },
+            { key: "ORDER-2026", lastValue: 0 },
             { key: "INVOICE-2026-27", lastValue: 3 },
         ],
     });
@@ -164,8 +163,11 @@ async function main() {
     await prisma.operationalSetting.createMany({
         data: [
             { key: "gst_percent", value: "18" },
+            { key: "GST_PERCENT", value: "18" },
             { key: "max_bookings_per_day", value: "2" },
             { key: "min_consultation_advance_days", value: "15" },
+            { key: "FREE_SHIPPING_THRESHOLD_IN_PAISE", value: "299900" },
+            { key: "SHIPPING_FEE_IN_PAISE", value: "19900" },
             { key: "business_name", value: "Vaibhav Celebrations" },
             { key: "business_phone", value: "+91 98765 43210" },
             { key: "business_email", value: "hello@vaibhavcelebrations.in" },
@@ -181,33 +183,6 @@ async function main() {
             {
                 key: "facebook_url",
                 value: "https://facebook.com/vaibhavcelebrations",
-            },
-        ],
-    });
-    // ── Booking Capacity Rules ─────────────────────────────────────────────────
-    const today = new Date();
-    const blockedDate = new Date(today);
-    blockedDate.setDate(blockedDate.getDate() + 45);
-    const overrideDate = new Date(today);
-    overrideDate.setDate(overrideDate.getDate() + 60);
-    await prisma.bookingCapacityRule.createMany({
-        data: [
-            {
-                scope: client_1.CapacityScope.GLOBAL_DEFAULT,
-                maxBookingsPerDay: 2,
-                isBlocked: false,
-            },
-            {
-                scope: client_1.CapacityScope.SPECIFIC_DATE,
-                specificDate: blockedDate,
-                maxBookingsPerDay: 0,
-                isBlocked: true,
-            },
-            {
-                scope: client_1.CapacityScope.SPECIFIC_DATE,
-                specificDate: overrideDate,
-                maxBookingsPerDay: 3,
-                isBlocked: false,
             },
         ],
     });
@@ -939,8 +914,8 @@ async function main() {
     const metadataPages = [
         {
             pageKey: "home",
-            metaTitle: "Kids Birthday Celebrations | Vaibhav Celebrations",
-            metaDescription: "Thoughtfully curated kids birthday celebrations with Space, Cocomelon, Princess, and Jungle Safari themes in Jaipur.",
+            metaTitle: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
+            metaDescription: "One Theme. Every Detail. Beautifully Celebrated — customized kids birthday celebrations, themed experiences, and personalized return gifts in Jaipur.",
             canonicalUrl: "https://vaibhavcelebrations.in",
         },
         {
@@ -1014,6 +989,8 @@ async function main() {
         });
     }
     // ── Page Content (Home / About / Contact) ───────────────────────────────────
+    // Home hero copy lives in defaultPageSections (pages.service.ts):
+    // "One Theme. Every Detail. Beautifully Celebrated"
     const { defaultPageSections } = await Promise.resolve().then(() => __importStar(require("../src/modules/pages/pages.service")));
     for (const pageKey of ["home", "about", "contact"]) {
         const sections = JSON.parse(JSON.stringify(defaultPageSections[pageKey]));
@@ -1302,6 +1279,7 @@ async function main() {
         });
     }
     // ── Consultation Requests (all statuses) ─────────────────────────────────────
+    const today = new Date();
     await prisma.consultationRequest.create({
         data: {
             name: "Kavita Singh",
@@ -1432,131 +1410,12 @@ async function main() {
     // ── Guest Verification Tokens ────────────────────────────────────────────────
     await prisma.guestVerificationToken.create({
         data: {
-            referenceCode: "BOOKING-2026-0001",
-            referenceType: "BOOKING",
-            email: "priya.sharma@example.com",
-            otpHash: await bcryptjs_1.default.hash("123456", 10),
-            otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-            verifiedAt: new Date(),
-            attemptCount: 0,
-        },
-    });
-    await prisma.guestVerificationToken.create({
-        data: {
             referenceCode: "CONSULT-001",
             referenceType: "CONSULTATION",
             email: "urgent@example.com",
             otpHash: await bcryptjs_1.default.hash("654321", 10),
             otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
             attemptCount: 2,
-        },
-    });
-    // ── Bookings & Invoices ──────────────────────────────────────────────────────
-    const booking1 = await prisma.booking.create({
-        data: {
-            bookingCode: "BOOKING-2026-0001",
-            customerId: customer1.id,
-            themeId: spaceTheme.id,
-            packageId: premiumPkg.id,
-            eventDate: new Date("2027-02-14"),
-            status: client_1.BookingStatus.CONFIRMED,
-            paymentStatus: client_1.PaymentStatus.PARTIALLY_REFUNDED,
-            basePriceInPaise: 7990000,
-            customizationTotalInPaise: 500000,
-            gstInPaise: 1528200,
-            totalPriceInPaise: 10018200,
-            guestEmail: customer1.email,
-            guestPhone: customer1.phone,
-            razorpayOrderId: "order_dev_bk001",
-            razorpayPaymentId: "pay_dev_bk001",
-        },
-    });
-    if (premiumVideoItem) {
-        await prisma.bookingCustomization.create({
-            data: {
-                bookingId: booking1.id,
-                packageServiceItemId: premiumVideoItem.id,
-                quantity: 1,
-                unitPriceInPaise: 500000,
-            },
-        });
-    }
-    await prisma.invoice.create({
-        data: {
-            invoiceNumber: "INVOICE-2026-27-0001",
-            linkedType: client_1.InvoiceLinkedType.BOOKING,
-            bookingId: booking1.id,
-            customerId: customer1.id,
-            subtotalInPaise: 8490000,
-            gstInPaise: 1528200,
-            totalInPaise: 10018200,
-            pdfUrl: img("invoices/INVOICE-2026-27-0001.pdf"),
-            emailSentAt: new Date(),
-            issuedAt: new Date(),
-        },
-    });
-    const booking2 = await prisma.booking.create({
-        data: {
-            bookingCode: "BOOKING-2026-0002",
-            customerId: customer2.id,
-            themeId: cocomelonTheme.id,
-            packageId: luxPkg.id,
-            eventDate: new Date("2027-11-20"),
-            status: client_1.BookingStatus.SCHEDULED,
-            paymentStatus: client_1.PaymentStatus.PENDING,
-            basePriceInPaise: 11990000,
-            customizationTotalInPaise: 0,
-            gstInPaise: 2158200,
-            totalPriceInPaise: 14148200,
-            guestEmail: customer2.email,
-            guestPhone: customer2.phone,
-        },
-    });
-    await prisma.invoice.create({
-        data: {
-            invoiceNumber: "INVOICE-2026-27-0002",
-            linkedType: client_1.InvoiceLinkedType.BOOKING,
-            bookingId: booking2.id,
-            customerId: customer2.id,
-            subtotalInPaise: 11990000,
-            gstInPaise: 2158200,
-            totalInPaise: 14148200,
-            issuedAt: new Date(),
-        },
-    });
-    const booking3 = await prisma.booking.create({
-        data: {
-            bookingCode: "BOOKING-2026-0003",
-            customerId: customer3.id,
-            themeId: jungleTheme.id,
-            packageId: standardPkg.id,
-            eventDate: new Date("2026-12-05"),
-            status: client_1.BookingStatus.COMPLETED,
-            paymentStatus: client_1.PaymentStatus.PAID,
-            basePriceInPaise: 4990000,
-            customizationTotalInPaise: 0,
-            gstInPaise: 898200,
-            totalPriceInPaise: 5888200,
-            guestEmail: customer3.email,
-            guestPhone: customer3.phone,
-            razorpayOrderId: "order_dev_bk003",
-            razorpayPaymentId: "pay_dev_bk003",
-        },
-    });
-    await prisma.invoice.create({
-        data: {
-            invoiceNumber: "INVOICE-2026-27-0003",
-            linkedType: client_1.InvoiceLinkedType.BOOKING,
-            bookingId: booking3.id,
-            customerId: customer3.id,
-            subtotalInPaise: 4990000,
-            gstInPaise: 898200,
-            totalInPaise: 5888200,
-            pdfUrl: img("invoices/INVOICE-2026-27-0003.pdf"),
-            emailSentAt: new Date(),
-            whatsappSentAt: new Date(),
-            whatsappSendStatus: "delivered",
-            issuedAt: new Date("2026-06-01"),
         },
     });
     // ── Audit Logs ───────────────────────────────────────────────────────────────
@@ -1568,14 +1427,6 @@ async function main() {
                 entityType: "AdminUser",
                 entityId: superAdmin.id,
                 metadata: { userAgent: "seed-script" },
-                ipAddress: "127.0.0.1",
-            },
-            {
-                adminUserId: opsAdmin.id,
-                action: "BOOKING_CONFIRMED",
-                entityType: "Booking",
-                entityId: booking1.id,
-                metadata: { bookingCode: "BOOKING-2026-0001" },
                 ipAddress: "127.0.0.1",
             },
             {

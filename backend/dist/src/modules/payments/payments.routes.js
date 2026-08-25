@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminInvoicesRouter = exports.invoicesRouter = exports.paymentsRouter = void 0;
+exports.adminPaymentsRouter = exports.adminInvoicesRouter = exports.invoicesRouter = exports.paymentsRouter = void 0;
 const params_1 = require("../../lib/params");
 const client_1 = require("@prisma/client");
 const express_1 = require("express");
@@ -15,7 +15,7 @@ const idempotency_1 = require("../../middleware/idempotency");
 const validate_1 = require("../../middleware/validate");
 const payments_service_1 = require("./payments.service");
 exports.paymentsRouter = (0, express_1.Router)();
-exports.paymentsRouter.post("/razorpay/order", idempotency_1.idempotency, (0, validate_1.validate)(zod_1.z.object({ bookingCode: zod_1.z.string().min(1).optional() })), async (req, res, next) => {
+exports.paymentsRouter.post("/razorpay/order", idempotency_1.idempotency, (0, validate_1.validate)(zod_1.z.object({ orderCode: zod_1.z.string().min(1) })), async (req, res, next) => {
     try {
         return (0, response_1.ok)(res, await (0, payments_service_1.createPaymentOrder)(req.body));
     }
@@ -46,8 +46,8 @@ exports.invoicesRouter.get("/:invoiceNumber/download", guest_auth_1.requireGuest
     try {
         const invoice = await (0, payments_service_1.getInvoiceByNumber)((0, params_1.param)(req, "invoiceNumber"));
         const guest = req.guest;
-        const bookingCode = invoice.booking?.bookingCode;
-        if (guest.sub !== bookingCode) {
+        const orderCode = invoice.order?.orderCode;
+        if (guest.sub !== orderCode) {
             if (guest.email.toLowerCase() !== invoice.customer.email.toLowerCase()) {
                 throw new errors_1.ForbiddenError();
             }
@@ -106,6 +106,21 @@ exports.adminInvoicesRouter.post("/:id/resend", async (req, res, next) => {
             ipAddress: (0, audit_1.clientIp)(req),
         });
         return (0, response_1.ok)(res, invoice);
+    }
+    catch (err) {
+        return next(err);
+    }
+});
+exports.adminPaymentsRouter = (0, express_1.Router)();
+exports.adminPaymentsRouter.use(auth_1.requireAdmin, (0, auth_1.requireRoles)(client_1.AdminRole.OPERATIONS, client_1.AdminRole.SUPER_ADMIN));
+exports.adminPaymentsRouter.get("/", (0, validate_1.validate)(validators_1.paginationQuerySchema.extend({
+    search: zod_1.z.string().optional(),
+}), "query"), async (req, res, next) => {
+    try {
+        const q = req.query;
+        const { page, pageSize } = (0, response_1.parsePagination)(q);
+        const { total, items } = await (0, payments_service_1.listPaymentEvents)({ search: q.search, page, pageSize });
+        return (0, response_1.ok)(res, items, { pagination: (0, response_1.paginationMeta)(page, pageSize, total) });
     }
     catch (err) {
         return next(err);

@@ -102,8 +102,8 @@ export declare function saveChatbotSession(input: {
         email: string | null;
         createdAt: Date;
         deletedAt: Date | null;
-        customerId: string | null;
         phone: string | null;
+        customerId: string | null;
         source: import(".prisma/client").$Enums.LeadSource;
         interestArea: string | null;
         chatbotSessionId: string | null;

@@ -21,6 +21,7 @@ export type BuilderProduct = {
     isRequired: boolean;
     maxLength: number | null;
   }>;
+  stockAvailable: number;
 };
 
 export type BuilderSelections = {

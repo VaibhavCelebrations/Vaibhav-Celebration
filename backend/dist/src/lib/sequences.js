@@ -1,14 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nextSequence = nextSequence;
-exports.nextBookingCode = nextBookingCode;
 exports.nextOrderCode = nextOrderCode;
 exports.nextRegistryCode = nextRegistryCode;
 exports.nextInvoiceNumber = nextInvoiceNumber;
 const prisma_1 = require("../db/prisma");
 /**
  * Atomically increment a named sequence counter and return the next value.
- * Used for bookingCode / invoiceNumber generation.
+ * Used for orderCode / invoiceNumber generation.
  */
 async function nextSequence(key) {
     const row = await prisma_1.prisma.sequenceCounter.upsert({
@@ -17,11 +16,6 @@ async function nextSequence(key) {
         update: { lastValue: { increment: 1 } },
     });
     return row.lastValue;
-}
-async function nextBookingCode(year = new Date().getFullYear()) {
-    const key = `BOOKING-${year}`;
-    const n = await nextSequence(key);
-    return `BOOKING-${year}-${String(n).padStart(4, "0")}`;
 }
 async function nextOrderCode(year = new Date().getFullYear()) {
     const key = `ORDER-${year}`;

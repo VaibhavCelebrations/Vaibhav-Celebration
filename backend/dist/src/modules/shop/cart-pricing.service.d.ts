@@ -12,6 +12,10 @@ export type QuoteLineInput = {
 };
 export type CartQuote = {
     subtotalInPaise: number;
+    shippingInPaise: number;
+    shippingWaived: boolean;
+    freeShippingThresholdInPaise: number;
+    amountUntilFreeShippingInPaise: number;
     gstPercent: number;
     gstInPaise: number;
     totalInPaise: number;

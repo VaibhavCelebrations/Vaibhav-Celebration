@@ -44,6 +44,22 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     headers.Authorization = `Bearer ${options.token}`;
   }
 
+  if (typeof window === "undefined") {
+    try {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const cookieString = cookieStore
+        .getAll()
+        .map((c: { name: string; value: string }) => `${c.name}=${c.value}`)
+        .join("; ");
+      if (cookieString) {
+        headers["Cookie"] = cookieString;
+      }
+    } catch {
+      // cookies() throws if used outside of request context
+    }
+  }
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {

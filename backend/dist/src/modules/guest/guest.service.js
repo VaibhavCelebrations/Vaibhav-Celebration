@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestOtp = requestOtp;
 exports.verifyOtp = verifyOtp;
-exports.getGuestBooking = getGuestBooking;
+exports.getGuestOrder = getGuestOrder;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = require("crypto");
 const prisma_1 = require("../../db/prisma");
@@ -13,25 +13,37 @@ const env_1 = require("../../config/env");
 const errors_1 = require("../../lib/errors");
 const mailer_1 = require("../../integrations/email/mailer");
 const guest_auth_1 = require("../../middleware/guest-auth");
-const bookings_service_1 = require("../bookings/bookings.service");
+const orders_service_1 = require("../orders/orders.service");
 function generateOtp() {
     return String((0, crypto_1.randomInt)(100000, 999999));
 }
 async function resolveReference(referenceCode, referenceType, email) {
     const normalized = email.toLowerCase();
-    if (referenceType === "BOOKING") {
-        const booking = await prisma_1.prisma.booking.findFirst({
-            where: { bookingCode: referenceCode, deletedAt: null },
-            include: { customer: true },
+    if (referenceType === "ORDER") {
+        const order = await prisma_1.prisma.order.findFirst({
+            where: { orderCode: referenceCode },
+            include: { user: true },
         });
-        if (!booking)
-            throw new errors_1.NotFoundError("Booking not found");
-        if (booking.guestEmail.toLowerCase() !== normalized && booking.customer.email.toLowerCase() !== normalized) {
-            throw new errors_1.UnauthorizedError("Email does not match this booking");
+        if (!order)
+            throw new errors_1.NotFoundError("Order not found");
+        if (order.contactEmail.toLowerCase() !== normalized && order.user.email.toLowerCase() !== normalized) {
+            throw new errors_1.UnauthorizedError("Email does not match this order");
         }
-        return { email: booking.guestEmail };
+        return { email: order.contactEmail };
     }
-    // Phase 2/3: ORDER / REGISTRY — same shape, extend here
+    if (referenceType === "REGISTRY") {
+        const registry = await prisma_1.prisma.giftRegistry.findFirst({
+            where: { registryCode: referenceCode },
+            include: { ownerUser: true },
+        });
+        if (!registry)
+            throw new errors_1.NotFoundError("Registry not found");
+        const ownerEmail = registry.contactEmail?.toLowerCase() ?? registry.ownerUser.email.toLowerCase();
+        if (ownerEmail !== normalized && registry.ownerUser.email.toLowerCase() !== normalized) {
+            throw new errors_1.UnauthorizedError("Email does not match this registry");
+        }
+        return { email: ownerEmail };
+    }
     throw new errors_1.AppError("VALIDATION_ERROR", `Unsupported referenceType: ${referenceType}`, 400);
 }
 async function requestOtp(input) {
@@ -57,7 +69,6 @@ async function requestOtp(input) {
     return {
         sent: true,
         expiresInMinutes: env_1.env.OTP_EXPIRES_MINUTES,
-        // Dev aid only — never in production responses
         ...(env_1.env.NODE_ENV !== "production" ? { devOtp: otp } : {}),
     };
 }
@@ -101,7 +112,7 @@ async function verifyOtp(input) {
         expiresInMinutes: env_1.env.GUEST_TOKEN_EXPIRES_MINUTES,
     };
 }
-async function getGuestBooking(bookingCode) {
-    return (0, bookings_service_1.getBookingByCode)(bookingCode);
+async function getGuestOrder(orderCode) {
+    return (0, orders_service_1.getOrderByCode)(orderCode);
 }
 //# sourceMappingURL=guest.service.js.map

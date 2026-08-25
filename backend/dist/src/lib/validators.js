@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bookingCodeParamSchema = exports.slugParamSchema = exports.idParamSchema = exports.paginationQuerySchema = void 0;
+exports.slugParamSchema = exports.idParamSchema = exports.paginationQuerySchema = void 0;
 exports.slugify = slugify;
 exports.toDateOnly = toDateOnly;
 exports.dateKey = dateKey;
@@ -14,9 +14,6 @@ exports.idParamSchema = zod_1.z.object({
 });
 exports.slugParamSchema = zod_1.z.object({
     slug: zod_1.z.string().min(1),
-});
-exports.bookingCodeParamSchema = zod_1.z.object({
-    bookingCode: zod_1.z.string().min(1),
 });
 function slugify(input) {
     return input

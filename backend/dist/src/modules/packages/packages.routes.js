@@ -59,6 +59,7 @@ async function shapePackage(packageId) {
         where: { id: packageId, deletedAt: null },
         include: {
             serviceItems: {
+                where: { extraService: { deletedAt: null } },
                 orderBy: { displayOrder: "asc" },
                 include: { extraService: true },
             },
@@ -165,9 +166,6 @@ exports.adminPackagesRouter.put("/matrix", (0, validate_1.validate)(zod_1.z.obje
         description: zod_1.z.string().optional().nullable(),
         priceInPaise: zod_1.z.number().int().min(0).optional(),
         isRecommended: zod_1.z.boolean().optional(),
-        badgeText: zod_1.z.string().optional().nullable(),
-        pricingUnit: zod_1.z.string().optional().nullable(),
-        hasGiftRegistry: zod_1.z.boolean().optional(),
         isActive: zod_1.z.boolean().optional(),
         isCustomizable: zod_1.z.boolean().optional(),
         items: zod_1.z.array(serviceItemSchema),

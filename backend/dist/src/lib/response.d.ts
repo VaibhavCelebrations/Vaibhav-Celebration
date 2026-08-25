@@ -11,7 +11,7 @@ export declare function paginationMeta(page: number, pageSize: number, total: nu
 export declare function parsePagination(query: {
     page?: number;
     pageSize?: number;
-}): {
+}, maxPageSize?: number): {
     page: number;
     pageSize: number;
     skip: number;

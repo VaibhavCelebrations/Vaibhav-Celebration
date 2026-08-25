@@ -9,6 +9,53 @@ import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import type { ServerCartItem } from "@/lib/shop-types";
+
+function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQuantity: (id: string, qty: number) => void }) {
+  const [val, setVal] = useState(item.quantity.toString());
+
+  useEffect(() => {
+    setVal(item.quantity.toString());
+  }, [item.quantity]);
+
+  const handleBlur = () => {
+    let parsed = parseInt(val, 10);
+    const maxQty = item.maxOrderQuantity !== null ? Math.min(item.maxOrderQuantity, item.stockAvailable) : item.stockAvailable;
+    
+    if (isNaN(parsed) || parsed < 1) {
+      parsed = 1;
+    } else if (parsed > maxQty) {
+      parsed = maxQty;
+    }
+
+    if (parsed !== item.quantity) {
+      updateQuantity(item.id, parsed);
+    } else {
+      setVal(item.quantity.toString());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={1}
+      max={item.maxOrderQuantity ?? item.stockAvailable}
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="w-10 text-center text-xs font-bold text-charcoal bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-mocha rounded-sm"
+      style={{ MozAppearance: "textfield" }}
+    />
+  );
+}
 
 export function CartDrawer() {
   const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
@@ -217,9 +264,7 @@ export function CartDrawer() {
                         >
                           <Minus size={12} />
                         </button>
-                        <span className="w-8 text-center text-xs font-bold text-charcoal">
-                          {item.quantity}
-                        </span>
+                        <QuantityInput item={item} updateQuantity={updateQuantity} />
                         <button
                           onClick={() => void updateQuantity(item.id, item.quantity + 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"

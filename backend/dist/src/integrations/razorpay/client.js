@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRazorpayOrder = createRazorpayOrder;
 exports.verifyWebhookSignature = verifyWebhookSignature;
+exports.verifyCheckoutPaymentSignature = verifyCheckoutPaymentSignature;
 exports.getRazorpayPublicKey = getRazorpayPublicKey;
 const crypto_1 = __importDefault(require("crypto"));
 const env_1 = require("../../config/env");
@@ -62,7 +63,6 @@ async function createRazorpayOrder(input) {
 }
 function verifyWebhookSignature(rawBody, signature) {
     if (!env_1.env.RAZORPAY_WEBHOOK_SECRET) {
-        // Dev-only bypass when webhook secret unset
         if (env_1.env.NODE_ENV !== "production") {
             logger_1.logger.warn("Razorpay webhook signature skipped — WEBHOOK_SECRET unset");
             return true;
@@ -77,6 +77,27 @@ function verifyWebhookSignature(rawBody, signature) {
         .digest("hex");
     try {
         return crypto_1.default.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Checkout.js handler payload: HMAC-SHA256(order_id|payment_id, KEY_SECRET).
+ * Mock orders (dev) skip cryptographic verification.
+ */
+function verifyCheckoutPaymentSignature(input) {
+    if (input.razorpayOrderId.startsWith("order_mock_")) {
+        return true;
+    }
+    const secret = env_1.env.RAZORPAY_KEY_SECRET ?? "";
+    if (!secret || secret.includes("xxxx") || secret.includes("your_")) {
+        return env_1.env.NODE_ENV !== "production";
+    }
+    const payload = `${input.razorpayOrderId}|${input.razorpayPaymentId}`;
+    const expected = crypto_1.default.createHmac("sha256", secret).update(payload).digest("hex");
+    try {
+        return crypto_1.default.timingSafeEqual(Buffer.from(expected), Buffer.from(input.razorpaySignature));
     }
     catch {
         return false;

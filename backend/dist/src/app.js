@@ -34,8 +34,6 @@ const content_routes_1 = require("./modules/content/content.routes");
 const blog_routes_1 = require("./modules/blog/blog.routes");
 const events_routes_1 = require("./modules/events/events.routes");
 const media_routes_1 = require("./modules/media/media.routes");
-const availability_routes_1 = require("./modules/availability/availability.routes");
-const bookings_routes_1 = require("./modules/bookings/bookings.routes");
 const payments_routes_1 = require("./modules/payments/payments.routes");
 const consultations_routes_1 = require("./modules/consultations/consultations.routes");
 const crm_routes_1 = require("./modules/crm/crm.routes");
@@ -43,6 +41,8 @@ const chatbot_routes_1 = require("./modules/chatbot/chatbot.routes");
 const pages_routes_1 = require("./modules/pages/pages.routes");
 const public_settings_routes_1 = require("./modules/settings/public-settings.routes");
 const admin_ops_routes_1 = require("./modules/admin/admin-ops.routes");
+const recycle_bin_routes_1 = require("./modules/admin/recycle-bin.routes");
+const whatsapp_routes_1 = require("./modules/whatsapp/whatsapp.routes");
 function createApp() {
     const app = (0, express_1.default)();
     app.set("trust proxy", 1);
@@ -65,6 +65,19 @@ function createApp() {
     }));
     // Razorpay webhook needs raw body for signature verification
     app.use(`${env_1.env.API_PREFIX}/payments/webhook`, express_1.default.raw({ type: "application/json" }), (req, _res, next) => {
+        if (Buffer.isBuffer(req.body)) {
+            req.rawBody = req.body.toString("utf8");
+            try {
+                req.body = JSON.parse(req.rawBody ?? "{}");
+            }
+            catch {
+                // leave as buffer; handler will stringify
+            }
+        }
+        next();
+    });
+    // Meta WhatsApp webhook needs raw body for X-Hub-Signature-256 verification
+    app.use(`${env_1.env.API_PREFIX}/whatsapp/webhook`, express_1.default.raw({ type: "application/json" }), (req, _res, next) => {
         if (Buffer.isBuffer(req.body)) {
             req.rawBody = req.body.toString("utf8");
             try {
@@ -102,7 +115,10 @@ function createApp() {
         },
     }));
     // Local media uploads (dev / fallback when R2 unset)
-    app.use("/uploads", express_1.default.static((0, storage_1.getUploadDir)()));
+    app.use("/uploads", (_req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        next();
+    }, express_1.default.static((0, storage_1.getUploadDir)()));
     // ─── Rate Limiters ────────────────────────────────────────────────────────
     //
     // Keying strategy:
@@ -155,7 +171,7 @@ function createApp() {
             error: { code: "RATE_LIMITED", message: "Too many authentication attempts. Please wait 15 minutes." },
         },
     });
-    /** High-sensitivity write endpoints (bookings, consultations, leads) — keyed by IP. */
+    /** High-sensitivity write endpoints (orders, consultations, leads) — keyed by IP. */
     const strictLimiter = (0, express_rate_limit_1.rateLimit)({
         windowMs: 10 * 60 * 1000,
         max: 10,
@@ -252,15 +268,13 @@ function createApp() {
     // Customer shop — requireCustomer enforced inside the routers themselves
     api.use("/cart", publicLimiter, shop_routes_1.cartRouter);
     api.use("/wishlist", publicLimiter, shop_routes_1.wishlistRouter);
+    api.use("/shop/delivery-settings", publicLimiter, shop_routes_1.deliverySettingsRouter);
     api.use("/shop/checkout", publicLimiter, orders_routes_1.shopCheckoutRouter);
     api.use("/shop/orders", strictLimiter, orders_routes_1.ordersRouter);
     api.use("/account/orders", publicLimiter, orders_routes_1.accountOrdersRouter);
     api.use("/account/registries", publicLimiter, registry_routes_1.accountRegistryRouter);
     api.use("/registry", publicLimiter, registry_routes_1.registryRouter);
-    // Booking journey — mix of public & strict
-    api.use("/availability", publicLimiter, availability_routes_1.availabilityRouter);
-    api.use("/bookings", strictLimiter, bookings_routes_1.bookingsRouter);
-    api.use("/checkout", bookings_routes_1.checkoutRouter);
+    api.use("/whatsapp/webhook", whatsapp_routes_1.whatsappWebhookRouter);
     api.use("/payments", payments_routes_1.paymentsRouter);
     api.use("/invoices", publicLimiter, payments_routes_1.invoicesRouter);
     api.use("/consultations", strictLimiter, consultations_routes_1.consultationsRouter);
@@ -289,17 +303,18 @@ function createApp() {
     mediaAdminRouter.use(["/presign", "/upload", "/upload-binary", "/complete"], mediaUploadLimiter);
     mediaAdminRouter.use(media_routes_1.mediaRouter);
     api.use("/admin/media", mediaAdminRouter);
-    api.use("/admin/bookings", adminLimiter, no_store_1.noStore, bookings_routes_1.adminBookingsRouter);
     api.use("/admin/orders", adminLimiter, no_store_1.noStore, orders_routes_1.adminOrdersRouter);
     api.use("/admin/invoices", adminLimiter, no_store_1.noStore, payments_routes_1.adminInvoicesRouter);
+    api.use("/admin/payments", adminLimiter, no_store_1.noStore, payments_routes_1.adminPaymentsRouter);
     api.use("/admin/consultations", adminLimiter, no_store_1.noStore, consultations_routes_1.adminConsultationsRouter);
     api.use("/admin/leads", adminLimiter, no_store_1.noStore, crm_routes_1.adminLeadsRouter);
     api.use("/admin/customers", adminLimiter, no_store_1.noStore, crm_routes_1.adminCustomersRouter);
     api.use("/admin/chatbot", adminLimiter, no_store_1.noStore, chatbot_routes_1.adminChatbotRouter);
-    api.use("/admin/capacity-rules", adminLimiter, no_store_1.noStore, admin_ops_routes_1.adminCapacityRouter);
+    api.use("/admin/calendar", adminLimiter, no_store_1.noStore, admin_ops_routes_1.adminCalendarRouter);
     api.use("/admin/settings", adminLimiter, no_store_1.noStore, admin_ops_routes_1.adminSettingsRouter);
     api.use("/admin/audit-log", adminLimiter, no_store_1.noStore, admin_ops_routes_1.adminAuditRouter);
     api.use("/admin/cache", adminLimiter, no_store_1.noStore, admin_ops_routes_1.adminCacheRouter);
+    api.use("/admin/recycle-bin", adminLimiter, no_store_1.noStore, recycle_bin_routes_1.recycleBinRouter);
     app.use(env_1.env.API_PREFIX, api);
     app.use((_req, res) => {
         res.status(404).json({

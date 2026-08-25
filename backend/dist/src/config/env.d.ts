@@ -25,7 +25,8 @@ export declare const env: {
     SMTP_SECURE: boolean;
     EMAIL_FROM_NAME: string;
     WHATSAPP_ENABLED: boolean;
-    WHATSAPP_PROVIDER: "meta" | "twilio" | "none";
+    WHATSAPP_PROVIDER: "meta" | "none";
+    WHATSAPP_META_API_VERSION: string;
     RATE_LIMIT_WINDOW_MS: number;
     RATE_LIMIT_MAX_PUBLIC: number;
     RATE_LIMIT_MAX_ADMIN: number;
@@ -48,7 +49,13 @@ export declare const env: {
     SMTP_USER?: string | undefined;
     SMTP_PASS?: string | undefined;
     EMAIL_FROM_ADDRESS?: string | undefined;
+    EMAIL_REPLY_TO?: string | undefined;
     WHATSAPP_BUSINESS_NUMBER?: string | undefined;
+    WHATSAPP_META_ACCESS_TOKEN?: string | undefined;
+    WHATSAPP_META_PHONE_NUMBER_ID?: string | undefined;
+    WHATSAPP_META_BUSINESS_ACCOUNT_ID?: string | undefined;
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string | undefined;
+    WHATSAPP_APP_SECRET?: string | undefined;
     CLOUDFLARE_ACCOUNT_ID?: string | undefined;
     CLOUDFLARE_API_TOKEN?: string | undefined;
     CLOUDFLARE_R2_ACCESS_KEY_ID?: string | undefined;

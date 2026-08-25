@@ -1,85 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminCacheRouter = exports.adminAuditRouter = exports.adminSettingsRouter = exports.adminCapacityRouter = void 0;
-const params_1 = require("../../lib/params");
+exports.adminCacheRouter = exports.adminCalendarRouter = exports.adminAuditRouter = exports.adminSettingsRouter = void 0;
 const client_1 = require("@prisma/client");
 const express_1 = require("express");
 const zod_1 = require("zod");
 const prisma_1 = require("../../db/prisma");
-const errors_1 = require("../../lib/errors");
 const response_1 = require("../../lib/response");
-const validators_1 = require("../../lib/validators");
 const auth_1 = require("../../middleware/auth");
 const validate_1 = require("../../middleware/validate");
 const settings_1 = require("../../lib/settings");
 const redis_1 = require("../../lib/redis");
-exports.adminCapacityRouter = (0, express_1.Router)();
-exports.adminCapacityRouter.use(auth_1.requireAdmin, (0, auth_1.requireRoles)(client_1.AdminRole.OPERATIONS, client_1.AdminRole.SUPER_ADMIN));
-exports.adminCapacityRouter.get("/", async (_req, res, next) => {
-    try {
-        const rules = await prisma_1.prisma.bookingCapacityRule.findMany({ orderBy: { updatedAt: "desc" } });
-        return (0, response_1.ok)(res, rules);
-    }
-    catch (err) {
-        return next(err);
-    }
-});
-exports.adminCapacityRouter.post("/", (0, validate_1.validate)(zod_1.z.object({
-    scope: zod_1.z.nativeEnum(client_1.CapacityScope),
-    specificDate: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-    maxBookingsPerDay: zod_1.z.number().int().min(0),
-    isBlocked: zod_1.z.boolean().optional(),
-})), async (req, res, next) => {
-    try {
-        const body = req.body;
-        if (body.scope === client_1.CapacityScope.SPECIFIC_DATE && !body.specificDate) {
-            return res.status(400).json({
-                success: false,
-                error: { code: "VALIDATION_ERROR", message: "specificDate required for SPECIFIC_DATE" },
-            });
-        }
-        const rule = await prisma_1.prisma.bookingCapacityRule.create({
-            data: {
-                scope: body.scope,
-                specificDate: body.specificDate ? (0, validators_1.toDateOnly)(body.specificDate) : null,
-                maxBookingsPerDay: body.maxBookingsPerDay,
-                isBlocked: body.isBlocked ?? false,
-            },
-        });
-        return (0, response_1.created)(res, rule);
-    }
-    catch (err) {
-        return next(err);
-    }
-});
-exports.adminCapacityRouter.put("/:id", (0, validate_1.validate)(zod_1.z.object({ id: zod_1.z.string().min(1) }), "params"), (0, validate_1.validate)(zod_1.z.object({
-    maxBookingsPerDay: zod_1.z.number().int().min(0).optional(),
-    isBlocked: zod_1.z.boolean().optional(),
-    specificDate: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-})), async (req, res, next) => {
-    try {
-        const existing = await prisma_1.prisma.bookingCapacityRule.findUnique({ where: { id: (0, params_1.param)(req, "id") } });
-        if (!existing)
-            throw new errors_1.NotFoundError("Capacity rule not found");
-        const body = req.body;
-        const rule = await prisma_1.prisma.bookingCapacityRule.update({
-            where: { id: (0, params_1.param)(req, "id") },
-            data: {
-                maxBookingsPerDay: body.maxBookingsPerDay,
-                isBlocked: body.isBlocked,
-                specificDate: body.specificDate === undefined
-                    ? undefined
-                    : body.specificDate
-                        ? (0, validators_1.toDateOnly)(body.specificDate)
-                        : null,
-            },
-        });
-        return (0, response_1.ok)(res, rule);
-    }
-    catch (err) {
-        return next(err);
-    }
-});
+const calendar_service_1 = require("./calendar.service");
 exports.adminSettingsRouter = (0, express_1.Router)();
 exports.adminSettingsRouter.use(auth_1.requireAdmin, (0, auth_1.requireRoles)(client_1.AdminRole.SUPER_ADMIN, client_1.AdminRole.OPERATIONS));
 exports.adminSettingsRouter.get("/", async (_req, res, next) => {
@@ -137,6 +68,20 @@ exports.adminAuditRouter.get("/", (0, validate_1.validate)(zod_1.z.object({
         return (0, response_1.ok)(res, items, {
             pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
         });
+    }
+    catch (err) {
+        return next(err);
+    }
+});
+exports.adminCalendarRouter = (0, express_1.Router)();
+exports.adminCalendarRouter.use(auth_1.requireAdmin, (0, auth_1.requireRoles)(client_1.AdminRole.OPERATIONS, client_1.AdminRole.SUPER_ADMIN));
+exports.adminCalendarRouter.get("/", (0, validate_1.validate)(zod_1.z.object({
+    view: zod_1.z.enum(["day", "week", "month"]).default("month"),
+    date: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}), "query"), async (req, res, next) => {
+    try {
+        const { view, date } = req.query;
+        return (0, response_1.ok)(res, await (0, calendar_service_1.getAdminCalendar)(view, date));
     }
     catch (err) {
         return next(err);

@@ -14,9 +14,9 @@ export declare function createConsultation(input: {
         email: string;
         createdAt: Date;
         deletedAt: Date | null;
+        phone: string;
         customerId: string | null;
         eventDate: Date;
-        phone: string;
         childOrEventDetails: string | null;
         customRequirements: string | null;
         advanceNoticeDays: number;
@@ -41,9 +41,9 @@ export declare function listConsultations(filters: {
         email: string;
         createdAt: Date;
         deletedAt: Date | null;
+        phone: string;
         customerId: string | null;
         eventDate: Date;
-        phone: string;
         childOrEventDetails: string | null;
         customRequirements: string | null;
         advanceNoticeDays: number;
@@ -57,9 +57,9 @@ export declare function updateConsultationStatus(id: string, status: Consultatio
     email: string;
     createdAt: Date;
     deletedAt: Date | null;
+    phone: string;
     customerId: string | null;
     eventDate: Date;
-    phone: string;
     childOrEventDetails: string | null;
     customRequirements: string | null;
     advanceNoticeDays: number;

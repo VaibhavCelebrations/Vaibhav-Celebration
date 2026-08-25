@@ -103,11 +103,11 @@ export function AuthModal() {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/60 backdrop-blur-sm p-4"
-      onClick={closeAuthModal}
+      onMouseDown={closeAuthModal}
     >
       <div
         className="relative w-full max-w-md bg-surface rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Close */}
         <button

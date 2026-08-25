@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MEDIA_CATEGORY_LABELS = exports.MEDIA_CATEGORIES = exports.CDN_CACHE_CONTROL = void 0;
 exports.publicUrlForKey = publicUrlForKey;
+exports.cdnKeyFromPublicUrl = cdnKeyFromPublicUrl;
+exports.deleteRegistryHostedImage = deleteRegistryHostedImage;
 exports.buildCdnKey = buildCdnKey;
 exports.isR2Enabled = isR2Enabled;
 exports.storeMediaBuffer = storeMediaBuffer;
@@ -74,6 +76,30 @@ function publicBaseUrl() {
 }
 function publicUrlForKey(cdnKey) {
     return `${publicBaseUrl()}/${cdnKey.replace(/^\//, "")}`;
+}
+/** Resolve a public CDN/uploads URL back to its object key, if hosted by us. */
+function cdnKeyFromPublicUrl(url) {
+    if (!url?.trim())
+        return null;
+    try {
+        const parsed = new URL(url.trim());
+        const base = new URL(publicBaseUrl());
+        if (parsed.hostname !== base.hostname || parsed.port !== base.port)
+            return null;
+        const key = parsed.pathname.replace(/^\//, "");
+        return key || null;
+    }
+    catch {
+        return null;
+    }
+}
+const REGISTRY_HOSTED_PREFIXES = ["media/registry/external/", "products/registry/external/"];
+/** Delete a rehosted gift-registry product image from R2/local storage. */
+async function deleteRegistryHostedImage(url) {
+    const key = cdnKeyFromPublicUrl(url);
+    if (!key || !REGISTRY_HOSTED_PREFIXES.some((prefix) => key.startsWith(prefix)))
+        return;
+    await deleteObjectByKey(key);
 }
 function mimeExt(mime, originalName) {
     const fromName = originalName ? path_1.default.extname(originalName).toLowerCase() : "";
