@@ -80,11 +80,13 @@ export async function listProducts(q: {
     isActive: true,
     ...(q.search
       ? {
-          OR: [
-            { title: { contains: q.search, mode: "insensitive" } },
-            { description: { contains: q.search, mode: "insensitive" } },
-            { sku: { contains: q.search, mode: "insensitive" } },
-          ],
+          AND: q.search.split(/\s+/).filter(Boolean).map((word) => ({
+            OR: [
+              { title: { contains: word, mode: "insensitive" } },
+              { description: { contains: word, mode: "insensitive" } },
+              { sku: { contains: word, mode: "insensitive" } },
+            ],
+          })) as Prisma.ProductWhereInput[],
         }
       : {}),
     ...(q.category ? { categoryTags: { some: { category: { slug: q.category } } } } : {}),
@@ -179,10 +181,12 @@ export async function adminListProducts(q: {
     ...(q.theme ? { themeTags: { some: { themeId: q.theme } } } : {}),
     ...(q.search
       ? {
-          OR: [
-            { title: { contains: q.search, mode: "insensitive" } },
-            { sku: { contains: q.search, mode: "insensitive" } },
-          ],
+          AND: q.search.split(/\s+/).filter(Boolean).map((word) => ({
+            OR: [
+              { title: { contains: word, mode: "insensitive" } },
+              { sku: { contains: word, mode: "insensitive" } },
+            ],
+          })) as Prisma.ProductWhereInput[],
         }
       : {}),
   };

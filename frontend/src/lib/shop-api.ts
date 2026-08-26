@@ -357,3 +357,24 @@ export async function confirmExternalRegistryGift(
 ) {
   return apiFetch(`/registry/${encodeURIComponent(code)}/items/${encodeURIComponent(itemId)}/confirm`, { method: "POST", body: input });
 }
+
+export async function uploadRegistryCoverImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const { getApiBaseUrl } = await import("./api-client");
+  const API_BASE = getApiBaseUrl();
+
+  const res = await fetch(`${API_BASE}/account/registries/upload-cover`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error?.message || `Upload failed with status ${res.status}`);
+  }
+
+  return json.data;
+}

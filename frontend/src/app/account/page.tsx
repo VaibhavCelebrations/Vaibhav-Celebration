@@ -94,6 +94,9 @@ function ProfileForm({ user, logout, refreshUser }: { user: User; logout: () => 
         </button>
       </form>
 
+      {/* Delivery Address */}
+      <AddressForm user={user} refreshUser={refreshUser} />
+
       {/* Change Password */}
       <form onSubmit={handleChangePassword} className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">
         <h3 className="font-display text-lg font-bold text-charcoal flex items-center gap-2"><KeyRound size={18} className="text-mocha" /> Change Password</h3>
@@ -118,5 +121,75 @@ function ProfileForm({ user, logout, refreshUser }: { user: User; logout: () => 
         <LogOut size={16} /> Sign Out
       </button>
     </div>
+  );
+}
+
+function AddressForm({ user, refreshUser }: { user: User; refreshUser: () => Promise<void> }) {
+  const { push } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+  const [address, setAddress] = useState(
+    user.defaultAddress ?? {
+      fullName: "",
+      line1: "",
+      line2: "",
+      city: "",
+      state: "",
+      pincode: "",
+      country: "India",
+    }
+  );
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      await authApi.updateProfile({ defaultAddress: address });
+      await refreshUser();
+      push("Default address updated successfully", "success");
+    } catch (err) {
+      push(friendlyAuthError(err), "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all";
+
+  return (
+    <form onSubmit={handleSaveAddress} className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">
+      <div>
+        <h3 className="font-display text-lg font-bold text-charcoal">Delivery Address</h3>
+        <p className="text-text-muted text-[13px] mt-1">This address will be used as the default for your future orders.</p>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold text-charcoal mb-1 block">Full Name</label>
+          <input className={inputClass} value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} required />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-charcoal mb-1 block">PIN Code</label>
+          <input className={inputClass} value={address.pincode} onChange={(e) => setAddress({ ...address, pincode: e.target.value })} required />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 1</label>
+          <input className={inputClass} value={address.line1} onChange={(e) => setAddress({ ...address, line1: e.target.value })} required placeholder="House No, Building, Street" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-xs font-semibold text-charcoal mb-1 block">Address Line 2 (Optional)</label>
+          <input className={inputClass} value={address.line2} onChange={(e) => setAddress({ ...address, line2: e.target.value })} placeholder="Area, Colony, Landmark" />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-charcoal mb-1 block">City</label>
+          <input className={inputClass} value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} required />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-charcoal mb-1 block">State</label>
+          <input className={inputClass} value={address.state} onChange={(e) => setAddress({ ...address, state: e.target.value })} required />
+        </div>
+      </div>
+      <button type="submit" disabled={isSaving} className="btn-primary px-8 py-3 text-sm font-semibold gap-2 disabled:opacity-60">
+        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Address
+      </button>
+    </form>
   );
 }

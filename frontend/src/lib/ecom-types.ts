@@ -22,6 +22,7 @@ export interface User {
   phone: string | null;
   emailVerified: boolean;
   lastLoginAt: string | null;
+  defaultAddress?: import("./shop-types").ShippingAddress | null;
 }
 
 /* ── Personalization (shared shape for cart line customization) ──────── */

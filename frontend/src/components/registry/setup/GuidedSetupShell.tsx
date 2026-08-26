@@ -8,12 +8,10 @@ import * as shopApi from "@/lib/shop-api";
 import { CheckoutStepper } from "@/components/ecom/CheckoutStepper";
 import type { GiftRegistryDetailDto } from "@/lib/shop-types";
 import { SETUP_STEPS, type SetupStepId } from "./types";
-import { WelcomeStep } from "./steps/WelcomeStep";
 import { DetailsStep } from "./steps/DetailsStep";
+import { CoverImageStep } from "./steps/CoverImageStep";
 import { ProductsStep } from "./steps/ProductsStep";
 import { ReviewStep } from "./steps/ReviewStep";
-import { PreviewStep } from "./steps/PreviewStep";
-import { PublishStep } from "./steps/PublishStep";
 
 const STORAGE_PREFIX = "vbc-registry-setup-step-";
 
@@ -23,11 +21,10 @@ function isStepId(value: string | null): value is SetupStepId {
 
 function inferInitialStep(registry: GiftRegistryDetailDto, stored: SetupStepId | null): SetupStepId {
   if (stored) return stored;
-  if (registry.status === "ACTIVE") return "publish";
+  if (registry.status === "ACTIVE") return "review";
   const done = (key: string) => registry.readiness?.checklist.find((c) => c.key === key)?.done ?? false;
-  const untouched = !done("details") && !done("eventDate") && !done("address") && registry.items.length === 0;
-  if (untouched) return "welcome";
   if (!done("details") || !done("eventDate") || !done("address")) return "details";
+  if (!registry.coverImageUrl) return "cover";
   if (registry.items.length === 0) return "products";
   return "review";
 }
@@ -117,7 +114,6 @@ export function GuidedSetupShell({ registryId }: { registryId: string }) {
   }
 
   const stepProps = { registry, onUpdated, goNext, goBack, goTo, refresh };
-  const showStepper = step !== "welcome";
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -132,20 +128,16 @@ export function GuidedSetupShell({ registryId }: { registryId: string }) {
         </button>
       </div>
 
-      {showStepper && (
-        <div className="mb-10 pb-2 overflow-x-auto">
-          <CheckoutStepper steps={SETUP_STEPS.slice(1).map((s) => ({ label: s.label }))} currentStep={Math.max(0, stepIndex - 1)} />
-        </div>
-      )}
+      <div className="mb-10 w-full">
+        <CheckoutStepper steps={SETUP_STEPS.map((s) => ({ label: s.label }))} currentStep={Math.max(0, stepIndex)} />
+      </div>
 
       {/* Focus target on step change so screen readers announce progress. */}
       <div ref={headingRef} tabIndex={-1} className="outline-none">
-        {step === "welcome" && <WelcomeStep {...stepProps} />}
         {step === "details" && <DetailsStep {...stepProps} />}
+        {step === "cover" && <CoverImageStep {...stepProps} />}
         {step === "products" && <ProductsStep {...stepProps} />}
         {step === "review" && <ReviewStep {...stepProps} />}
-        {step === "preview" && <PreviewStep {...stepProps} />}
-        {step === "publish" && <PublishStep {...stepProps} />}
       </div>
     </div>
   );

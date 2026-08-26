@@ -101,7 +101,7 @@ export function DetailsStep({ registry, onUpdated, goNext, goBack }: StepProps) 
   return (
     <div className="animate-step-in space-y-6">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-mocha">Step 2 of 6</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-mocha">Step 1 of 4</p>
         <h1 className="font-display text-2xl font-bold text-charcoal mt-1">Registry details</h1>
         <p className="text-text-muted text-sm mt-1">This is what guests will see first when they open your registry.</p>
       </div>

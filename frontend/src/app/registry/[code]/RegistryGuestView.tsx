@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Gift, Loader2, Check, ShoppingBag, Copy, ExternalLink, X, Calendar, MapPin } from "lucide-react";
+import { Lock, Gift, Loader2, Check, ShoppingBag, Copy, ExternalLink, X, Calendar, MapPin, Info } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -238,7 +238,20 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
                 </div>
                 <div className="flex flex-col">
                   <h2 className="font-display text-2xl font-bold text-charcoal">{item.title}</h2>
-                  {item.priceInPaise !== null && <p className="text-xl font-semibold mt-2 text-charcoal">{formatPaise(item.priceInPaise)}</p>}
+                  {item.priceInPaise !== null && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <p className="text-xl font-semibold text-charcoal">{formatPaise(item.priceInPaise)}</p>
+                      {item.sourceType === "EXTERNAL_LINK" && (
+                        <div className="group relative flex items-center">
+                          <Info size={16} className="text-text-muted cursor-help" />
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 p-2.5 bg-charcoal text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 text-center shadow-lg font-medium pointer-events-none">
+                            Pricing and details were fetched when the host added this link and may be outdated.
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-charcoal" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {item.description && <p className="text-sm text-text-muted mt-4">{item.description}</p>}
                   
                   <div className="mt-6 pt-6 border-t border-border-light space-y-4 flex-1 flex flex-col justify-end">

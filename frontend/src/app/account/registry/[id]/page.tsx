@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, Gift, Trash2, Copy, Check, Plus, X, Search, Link as LinkIcon, Package,
-  Share2, Lock, Globe, Eye, Archive,
+  Share2, Lock, Globe, Eye, Archive, UploadCloud
 } from "lucide-react";
 import * as shopApi from "@/lib/shop-api";
 import { useToast } from "@/components/ui/Toast";
@@ -25,6 +25,73 @@ const inputClass =
 
 function shareMessage(registry: GiftRegistryDetailDto) {
   return `You're invited to ${registry.ownerDisplayName || registry.title}'s gift registry${registry.occasion ? ` for their ${registry.occasion}` : ""}. ${registry.celebrationDetails ? `${registry.celebrationDetails.slice(0, 120)} ` : ""}View gifts: ${registry.shareUrl}`;
+}
+
+function CoverImageEditor({ url, onChange, disabled }: { url: string; onChange: (url: string | null) => void; disabled: boolean }) {
+  const [val, setVal] = useState(url);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync prop changes
+  useEffect(() => setVal(url), [url]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File is too large. Maximum size is 5MB.");
+      return;
+    }
+    setError("");
+    setIsUploading(true);
+    try {
+      const result = await shopApi.uploadRegistryCoverImage(file);
+      setVal(result.url);
+      onChange(result.url);
+    } catch (err: any) {
+      // The backend will return a RATE_LIMITED error if they upload more than 3 per day
+      setError(err.message || friendlyAuthError(err) || "Failed to upload image");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="md:col-span-2 space-y-2">
+      {error && <div className="text-xs text-red-600 bg-red-50 p-2 rounded-lg font-medium">{error}</div>}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            className={`${inputClass} pr-24`}
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={() => val !== url && onChange(val || null)}
+            placeholder="Cover Image URL (or upload a file)"
+            disabled={disabled || isUploading}
+          />
+          <button
+            type="button"
+            onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
+            disabled={disabled || isUploading}
+            className="absolute right-2 top-2 bottom-2 px-3 bg-cream hover:bg-mocha/10 text-charcoal text-xs font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5"
+            title="Upload image"
+          >
+            {isUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+            <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload"}</span>
+          </button>
+        </div>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={(e) => void handleFileUpload(e)}
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+        />
+      </div>
+    </div>
+  );
 }
 
 function AddItemForm({ registryId, onAdded }: { registryId: string; onAdded: () => void }) {
@@ -214,6 +281,109 @@ function AddItemForm({ registryId, onAdded }: { registryId: string; onAdded: () 
   );
 }
 
+function PasswordSetupDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  isChanging,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (password: string) => Promise<void>;
+  isChanging: boolean;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPassword("");
+      setConfirm("");
+      setError("");
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 4) return setError("Password must be at least 4 characters.");
+    if (password !== confirm) return setError("Passwords do not match.");
+    setError("");
+    setSaving(true);
+    try {
+      await onConfirm(password);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Failed to set password");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-scale-up">
+        <div className="p-6 border-b border-border-light flex items-center justify-between">
+          <h3 className="font-display text-lg font-bold text-charcoal">{isChanging ? "Change Password" : "Set Password"}</h3>
+          <button type="button" onClick={onClose} className="text-text-muted hover:text-charcoal transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-sm text-text-muted">
+            {isChanging ? "Enter a new password for this registry." : "Guests will need this password to view your registry."}
+          </p>
+          {error && <div className="text-xs font-medium text-red-600 bg-red-50 p-3 rounded-xl border border-red-200">{error}</div>}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-charcoal mb-1.5">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-border-light bg-cream/50 text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all"
+              placeholder="Enter password"
+              disabled={saving}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-charcoal mb-1.5">Confirm Password</label>
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-border-light bg-cream/50 text-charcoal text-sm placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all"
+              placeholder="Confirm password"
+              disabled={saving}
+            />
+          </div>
+          <div className="pt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs text-text-muted hover:bg-cream transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary py-2.5 px-6 text-xs font-bold uppercase tracking-wider flex items-center gap-2"
+            >
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function RegistryDetailPage({ params }: Props) {
   const { id } = use(params);
   const [registry, setRegistry] = useState<GiftRegistryDetailDto | null>(null);
@@ -221,6 +391,8 @@ export default function RegistryDetailPage({ params }: Props) {
   const [copied, setCopied] = useState<"link" | "address" | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const { push } = useToast();
 
@@ -349,16 +521,67 @@ export default function RegistryDetailPage({ params }: Props) {
           <input className={inputClass} defaultValue={registry.occasion ?? ""} onBlur={(e) => void saveField({ occasion: e.target.value })} placeholder="Occasion" />
           <input className={inputClass} defaultValue={registry.ownerDisplayName ?? ""} onBlur={(e) => void saveField({ ownerDisplayName: e.target.value, childOrPersonName: e.target.value })} placeholder="Recipient name" />
           <input type="date" className={inputClass} defaultValue={registry.eventDate?.slice(0, 10) ?? ""} onBlur={(e) => void saveField({ eventDate: e.target.value || null })} />
-          <input className={`md:col-span-2 ${inputClass}`} defaultValue={registry.coverImageUrl ?? ""} onBlur={(e) => void saveField({ coverImageUrl: e.target.value || null })} placeholder="Cover Image URL (e.g., https://example.com/image.jpg)" />
+          <CoverImageEditor 
+            url={registry.coverImageUrl ?? ""} 
+            onChange={(url) => void saveField({ coverImageUrl: url })} 
+            disabled={saving} 
+          />
         </div>
         <textarea className={inputClass} rows={3} defaultValue={registry.celebrationDetails ?? ""} onBlur={(e) => void saveField({ celebrationDetails: e.target.value })} placeholder="Message to guests" />
         <div>
-          <p className="text-xs font-semibold text-charcoal mb-2">Who can open this registry?</p>
-          <div className="flex flex-wrap gap-2">
-            {(["UNLISTED", "PUBLIC", "PRIVATE"] as RegistryVisibility[]).map((v) => (
-              <button key={v} type="button" disabled={saving} onClick={() => void saveField({ visibility: v })} className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase cursor-pointer ${registry.visibility === v ? "bg-mocha text-white" : "bg-cream text-text-muted"}`}>
-                {v === "PUBLIC" ? <Globe size={10} className="inline mr-1" /> : v === "PRIVATE" ? <Lock size={10} className="inline mr-1" /> : <Eye size={10} className="inline mr-1" />}
-                {v.toLowerCase()}
+          <p className="text-sm font-bold text-charcoal mb-3">Who can open this registry?</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {[
+              { v: "UNLISTED" as RegistryVisibility, label: "Unlisted", icon: Eye, desc: "Anyone with the link can view" },
+              { v: "PUBLIC" as RegistryVisibility, label: "Public", icon: Globe, desc: "Visible to everyone on the site" },
+              { v: "PRIVATE" as RegistryVisibility, label: "Private", icon: Lock, desc: "Requires a password to view" },
+            ].map(({ v, label, icon: Icon, desc }) => (
+              <button
+                key={v}
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  if (v === "PRIVATE" && registry.visibility !== "PRIVATE") {
+                    setIsChangingPassword(false);
+                    setPasswordDialogOpen(true);
+                  } else {
+                    void saveField({ visibility: v });
+                  }
+                }}
+                className={`relative flex flex-col items-start p-4 rounded-xl border text-left transition-all duration-200 focus:outline-none ${
+                  registry.visibility === v 
+                    ? "bg-mocha/5 border-mocha ring-1 ring-mocha" 
+                    : "bg-surface border-border-light hover:border-mocha/50 hover:bg-cream"
+                } ${saving ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Icon size={14} className={registry.visibility === v ? "text-mocha" : "text-text-muted"} />
+                    <span className={`text-xs font-bold uppercase tracking-wider ${registry.visibility === v ? "text-mocha" : "text-charcoal"}`}>
+                      {label}
+                    </span>
+                  </div>
+                  {registry.visibility === v && (
+                    <div className="text-mocha">
+                      <Check size={14} strokeWidth={3} />
+                    </div>
+                  )}
+                </div>
+                <p className={`text-[11px] leading-tight ${registry.visibility === v ? "text-mocha/80" : "text-text-muted"}`}>
+                  {desc}
+                </p>
+                {registry.visibility === v && v === "PRIVATE" && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsChangingPassword(true);
+                      setPasswordDialogOpen(true);
+                    }}
+                    className="mt-2 text-[10px] font-bold text-mocha hover:underline cursor-pointer"
+                  >
+                    CHANGE PASSWORD
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -373,6 +596,16 @@ export default function RegistryDetailPage({ params }: Props) {
           </button>
         )}
       </section>
+
+      <PasswordSetupDialog
+        isOpen={passwordDialogOpen}
+        isChanging={isChangingPassword}
+        onClose={() => setPasswordDialogOpen(false)}
+        onConfirm={async (password) => {
+          await saveField({ visibility: "PRIVATE", password });
+          push(isChangingPassword ? "Password updated" : "Registry is now private", "success");
+        }}
+      />
 
       <section id="address" className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
         <div className="flex items-center justify-between mb-3">

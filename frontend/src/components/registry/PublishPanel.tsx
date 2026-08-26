@@ -141,7 +141,7 @@ export function PublishPanel({ registry, onUpdated, onJumpTo }: Props) {
                 onClick={() => setUnpublishOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border-light px-4 py-2 text-xs font-bold uppercase tracking-wider text-text-muted hover:border-red-300 hover:text-red-600 cursor-pointer"
               >
-                <EyeOff size={13} /> Unpublish
+                <EyeOff size={13} /> Revert to draft
               </button>
             </div>
           </div>
@@ -149,16 +149,16 @@ export function PublishPanel({ registry, onUpdated, onJumpTo }: Props) {
 
         {unpublishOpen && (
           <ConfirmDialog
-            title="Unpublish this registry?"
+            title="Revert registry to draft?"
             tone="warning"
-            confirmLabel={isUnpublishing ? "Unpublishing…" : "Yes, unpublish"}
+            confirmLabel={isUnpublishing ? "Reverting…" : "Yes, revert to draft"}
             busy={isUnpublishing}
             onConfirm={() => void doUnpublish()}
             onCancel={() => setUnpublishOpen(false)}
           >
             <p>
               Guests will immediately lose access to <span className="font-semibold text-charcoal">{registry.shareUrl}</span> — the link will
-              stop working until you publish again. Gifts already purchased are not affected.
+              show a &quot;Not Found&quot; page. You can re-publish at any time.
             </p>
           </ConfirmDialog>
         )}
@@ -169,15 +169,35 @@ export function PublishPanel({ registry, onUpdated, onJumpTo }: Props) {
   if (isClosed || isExpired) {
     return (
       <section className="rounded-2xl border border-border-light bg-surface p-6 shadow-soft">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">{isExpired ? "Expired" : "Closed"}</p>
-        <h3 className="font-display text-xl font-bold text-charcoal mt-0.5">
-          {isExpired ? "This registry has expired" : "This registry is closed"}
-        </h3>
-        <p className="text-sm text-text-muted mt-1">
-          {isExpired
-            ? "Registries are open for a limited time after your celebration. Contact us if you need it reopened."
-            : "It's no longer visible to guests. You can still review gifts and orders below."}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">{isExpired ? "Expired" : "Closed"}</p>
+            <h3 className="font-display text-xl font-bold text-charcoal mt-0.5">
+              {isExpired ? "This registry has expired" : "This registry is closed"}
+            </h3>
+            <p className="text-sm text-text-muted mt-1">
+              {isExpired
+                ? "Registries are open for a limited time after your celebration. Contact us if you need it reopened."
+                : "It's no longer visible to guests. You can still review gifts and orders below."}
+            </p>
+          </div>
+          {!isExpired && (
+            <button
+              type="button"
+              onClick={() => void doPublish()}
+              disabled={isPublishing}
+              className="shrink-0 btn-primary px-4 py-2 text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-60"
+            >
+              {isPublishing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              Publish again
+            </button>
+          )}
+        </div>
+        {publishError && (
+          <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+            {publishError}
+          </div>
+        )}
       </section>
     );
   }

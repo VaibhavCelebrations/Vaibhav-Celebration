@@ -4,6 +4,10 @@ import { z } from "zod";
 import { param } from "../../lib/params";
 import { ok } from "../../lib/response";
 import { paginationQuerySchema } from "../../lib/validators";
+import { ValidationError } from "../../lib/errors";
+import multer from "multer";
+import { storeMediaBuffer } from "../../integrations/media/storage";
+import { created } from "../../lib/response";
 import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middleware/customer-auth";
 import { idempotency } from "../../middleware/idempotency";
@@ -50,6 +54,48 @@ const shippingAddressSchema = z.object({
 
 export const accountRegistryRouter = Router();
 accountRegistryRouter.use(requireCustomer);
+
+import { rateLimit } from "express-rate-limit";
+
+const coverUploadLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  limit: 3,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "RATE_LIMITED",
+      message: "You can only upload up to 3 cover images per day to prevent abuse. Please try again tomorrow."
+    }
+  },
+  keyGenerator: (req) => customerId(req)
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+accountRegistryRouter.post("/upload-cover", coverUploadLimiter, upload.single("file"), async (req, res, next) => {
+  try {
+    const file = req.file;
+    if (!file) throw new ValidationError("file is required");
+
+    const stored = await storeMediaBuffer({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      kind: "users",
+      scope: customerId(req),
+      role: "cover",
+    });
+
+    return created(res, { url: stored.url });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 accountRegistryRouter.get("/", async (req, res, next) => {
   try {
@@ -281,8 +327,27 @@ registryRouter.get("/:code", validate(z.object({ code: z.string().min(1) }), "pa
   }
 });
 
+const registryPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 10, // 10 attempts
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "RATE_LIMITED",
+      message: "Too many password attempts. Please try again later."
+    }
+  },
+  keyGenerator: (req) => {
+    // Key by IP and registry code
+    return `${req.ip}_${req.params.code}`;
+  }
+});
+
 registryRouter.post(
   "/:code/view",
+  registryPasswordLimiter,
   validate(z.object({ code: z.string().min(1) }), "params"),
   validate(z.object({ password: z.string().min(1).optional() })),
   async (req, res, next) => {

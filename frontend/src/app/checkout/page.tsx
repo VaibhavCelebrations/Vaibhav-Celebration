@@ -99,6 +99,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState<ShippingAddress>(EMPTY_ADDRESS);
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   
   const [eventDetails, setEventDetails] = useState({
     childName: "",
@@ -135,7 +136,14 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (user && !registryCheckout) {
-      setAddress((prev) => ({ ...prev, fullName: prev.fullName || user.name }));
+      setAddress((prev) => {
+        // If the form is essentially empty/default, pre-fill with defaultAddress
+        const isEmpty = prev.fullName === "" && prev.line1 === "" && prev.city === "";
+        if (isEmpty && user.defaultAddress) {
+          return { ...user.defaultAddress };
+        }
+        return { ...prev, fullName: prev.fullName || user.name };
+      });
       setContactEmail((prev) => prev || user.email);
       setContactPhone((prev) => prev || user.phone || "");
     }
@@ -389,12 +397,11 @@ export default function CheckoutPage() {
         };
       }
 
-      // Package-only checkout has no address form of its own — fall back to
-      // the address already collected in the package builder.
-      const effectiveShippingAddress =
-        hasItems || isDirectCheckout || !packageOnlyCheckout
-          ? address
-          : packageData?.shippingAddress ?? address;
+      // If a package is in the cart, use its address for the entire order
+      // to avoid asking the user twice for address details.
+      const effectiveShippingAddress = packages.length > 0
+          ? (packageData?.shippingAddress ?? address)
+          : address;
 
       if (directCheckout) {
         const order = await shopApi.createDirectShopOrder({
@@ -407,10 +414,27 @@ export default function CheckoutPage() {
           personalizationSelected: directCheckout.personalizationSelected,
           packageData,
         });
+
+        if (saveAsDefault && isAuthenticated) {
+          try {
+            await authApi.updateProfile({ defaultAddress: address });
+          } catch (e) {
+            console.error("Failed to save default address", e);
+          }
+        }
+
         CacheStore.removeSessionItem(DIRECT_CHECKOUT_KEY);
         setDirectCheckout(null);
         await openShopRazorpay(order);
         return;
+      }
+
+      if (saveAsDefault && isAuthenticated) {
+        try {
+          await authApi.updateProfile({ defaultAddress: address });
+        } catch (e) {
+          console.error("Failed to save default address", e);
+        }
       }
 
       const order = await shopApi.createShopOrder({
@@ -568,7 +592,7 @@ export default function CheckoutPage() {
 
 
                     {/* Shipping Address Form */}
-                    {(hasItems || packages.length === 0) && (
+                    {(packages.length === 0) && (
                     <ScrollReveal>
                       <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blush/20 rounded-bl-full -z-10" />
@@ -635,6 +659,21 @@ export default function CheckoutPage() {
                             {formErrors.contactPhone && <p className={errClass}>{formErrors.contactPhone}</p>}
                           </div>
                         </div>
+                        
+                        {!registryCheckout && (
+                          <div className="mt-5 flex items-center gap-3 bg-cream/30 p-3 rounded-xl border border-border-light">
+                            <input 
+                              type="checkbox" 
+                              id="saveAsDefault" 
+                              checked={saveAsDefault} 
+                              onChange={(e) => setSaveAsDefault(e.target.checked)} 
+                              className="w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha"
+                            />
+                            <label htmlFor="saveAsDefault" className="text-sm text-charcoal font-medium cursor-pointer">
+                              Save as my default delivery address for future orders
+                            </label>
+                          </div>
+                        )}
                       </div>
                     </ScrollReveal>
                     )}
@@ -711,9 +750,7 @@ export default function CheckoutPage() {
                         disabled={isPlacingOrder || paymentStatus === "confirming" || !isFormComplete()}
                         className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-8 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
                       >
-                        {isPlacingOrder || paymentStatus === "confirming" ? (
-                          <><Loader2 size={18} className="animate-spin" /> {paymentStatus === "confirming" ? "Confirming payment…" : "Processing…"}</>
-                        ) : paymentStatus === "cancelled" || paymentStatus === "failed" ? (
+                        {paymentStatus === "cancelled" || paymentStatus === "failed" ? (
                           <>Retry Payment <ArrowRight size={18} /></>
                         ) : (
                           <>Pay Securely <ArrowRight size={18} /></>
@@ -823,6 +860,21 @@ export default function CheckoutPage() {
       </main>
       <FooterClient />
       <WhatsAppFAB />
+      
+      {/* Payment Processing Overlay */}
+      {(isPlacingOrder || paymentStatus === "confirming") && (
+        <div className="fixed inset-0 z-[100] bg-cream/80 backdrop-blur-sm flex flex-col items-center justify-center p-4">
+          <div className="bg-surface border border-border-light shadow-2xl rounded-3xl p-8 max-w-sm w-full text-center flex flex-col items-center animate-scale-up">
+            <Loader2 size={48} className="animate-spin text-mocha mb-6" />
+            <h3 className="font-display text-2xl font-bold text-charcoal mb-3">
+              {paymentStatus === "confirming" ? "Confirming payment..." : "Processing Order..."}
+            </h3>
+            <p className="text-text-muted text-sm leading-relaxed">
+              Please do not close this window or click back while we process your request.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

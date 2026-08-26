@@ -1,14 +1,12 @@
 import type { GiftRegistryDetailDto } from "@/lib/shop-types";
 
-export type SetupStepId = "welcome" | "details" | "products" | "review" | "preview" | "publish";
+export type SetupStepId = "details" | "cover" | "products" | "review";
 
 export const SETUP_STEPS: Array<{ id: SetupStepId; label: string }> = [
-  { id: "welcome", label: "Welcome" },
   { id: "details", label: "Details" },
+  { id: "cover", label: "Cover Image" },
   { id: "products", label: "Add Gifts" },
   { id: "review", label: "Review" },
-  { id: "preview", label: "Preview" },
-  { id: "publish", label: "Publish" },
 ];
 
 export type StepProps = {
