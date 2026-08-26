@@ -57,4 +57,17 @@ describe("computeQuote", () => {
     expect(quote.lines[0]?.personalizationCostInPaise).toBe(0);
     expect(quote.subtotalInPaise).toBe(1000);
   });
+
+  it("includes extra merchandise (event package) in the free-shipping subtotal", async () => {
+    const shopOnly = await computeQuote([{ productId: "a", unitPriceInPaise: 50_000, quantity: 1 }]);
+    expect(shopOnly.shippingWaived).toBe(false);
+    expect(shopOnly.shippingInPaise).toBe(19_900);
+
+    const combined = await computeQuote([{ productId: "a", unitPriceInPaise: 50_000, quantity: 1 }], 260_000);
+    expect(combined.subtotalInPaise).toBe(310_000);
+    expect(combined.shippingWaived).toBe(true);
+    expect(combined.shippingInPaise).toBe(0);
+    expect(combined.gstInPaise).toBe(gstOn(310_000, 18));
+    expect(combined.totalInPaise).toBe(310_000 + combined.gstInPaise);
+  });
 });

@@ -26,6 +26,21 @@ const loginSchema = z.object({
  */
 const COOKIE_PATH = `${env.API_PREFIX}/auth`;
 
+/**
+ * Admin panel and API are deployed as separate Render services (different
+ * subdomains) in production, so this is a cross-site request from the
+ * browser's perspective — `SameSite=Strict` (and even `Lax`) would never be
+ * sent back on the refresh call. Mirror the customer-auth cookie policy:
+ * `None` (cross-site) when we're on HTTPS (`COOKIE_SECURE`), `Lax` for local
+ * HTTP dev where `None` is rejected without TLS.
+ */
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: env.COOKIE_SECURE,
+  sameSite: (env.COOKIE_SECURE ? "none" : "lax") as "none" | "lax",
+  path: COOKIE_PATH,
+};
+
 
 export const authRouter = Router();
 
@@ -44,11 +59,8 @@ authRouter.post("/admin/login", validate(loginSchema), async (req, res, next) =>
     );
 
     res.cookie(getRefreshCookieName(), result.refreshToken, {
-      httpOnly: true,
-      secure: env.COOKIE_SECURE,
-      sameSite: "strict", // upgraded from lax → strict for admin cookie
+      ...REFRESH_COOKIE_OPTIONS, // P5: path narrowed from "/" to auth prefix only
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: COOKIE_PATH, // P5: narrowed from "/" to auth prefix only
     });
 
     res.json({
@@ -79,11 +91,8 @@ authRouter.post("/admin/refresh", async (req, res, next) => {
 
     // P2 — Set the NEW rotated refresh token as a fresh HttpOnly cookie
     res.cookie(getRefreshCookieName(), result.newRefreshToken, {
-      httpOnly: true,
-      secure: env.COOKIE_SECURE,
-      sameSite: "strict",
+      ...REFRESH_COOKIE_OPTIONS,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: COOKIE_PATH,
     });
 
     res.json({
@@ -108,7 +117,13 @@ authRouter.post("/admin/logout", async (req, res) => {
     await logoutAdmin(rawToken);
   }
 
-  res.clearCookie(getRefreshCookieName(), { path: COOKIE_PATH });
+  // Browsers only clear a cookie when secure/sameSite match the attributes it
+  // was set with — path alone is not enough for SameSite=None cookies.
+  res.clearCookie(getRefreshCookieName(), {
+    path: COOKIE_PATH,
+    secure: env.COOKIE_SECURE,
+    sameSite: env.COOKIE_SECURE ? "none" : "lax",
+  });
   res.json({ success: true, data: { loggedOut: true } });
 });
 

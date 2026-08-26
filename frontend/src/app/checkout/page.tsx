@@ -22,6 +22,7 @@ import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";
 import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
+import { combineCartQuote } from "@/lib/cart-totals";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
@@ -163,9 +164,7 @@ export default function CheckoutPage() {
 
   const hasItems = items.length > 0;
   const isDirectCheckout = Boolean(directCheckout);
-  const packageQuote = packages[0]?.builderInput?.quoteSnapshot as
-    | { subtotalInPaise?: number; shippingInPaise?: number; shippingWaived?: boolean; freeShippingThresholdInPaise?: number; gstPercent?: number; gstInPaise?: number; totalInPaise?: number }
-    | undefined;
+  const pkg = packages.length > 0 ? packages[0] : null;
   const directSubtotal =
     directCheckout
       ? (directCheckout.unitPriceInPaise + (directCheckout.personalizationSelected ? directCheckout.personalizationCostInPaise : 0)) *
@@ -186,30 +185,19 @@ export default function CheckoutPage() {
     totalInPaise: directTaxable + directGst,
     lines: [],
   };
+  // One shipping/GST calculation across the shop cart AND event packages —
+  // free delivery must consider both, matching the backend's combined quote.
   const displayQuote = isDirectCheckout
     ? directQuote
-    : hasItems
-      ? quote
-      : packageQuote
-        ? {
-            subtotalInPaise: packageQuote.subtotalInPaise ?? 0,
-            shippingInPaise: packageQuote.shippingInPaise ?? 0,
-            shippingWaived: packageQuote.shippingWaived ?? false,
-            freeShippingThresholdInPaise: packageQuote.freeShippingThresholdInPaise ?? 299_900,
-            amountUntilFreeShippingInPaise: 0,
-            gstPercent: packageQuote.gstPercent ?? 18,
-            gstInPaise: packageQuote.gstInPaise ?? 0,
-            totalInPaise: packageQuote.totalInPaise ?? Math.round(packagesSubtotalRupees * 100),
-            lines: [],
-          }
-        : quote;
+    : combineCartQuote(quote, packages, deliverySettings.shippingFeeInPaise);
   const combinedTotalRupees = toRupees(displayQuote.totalInPaise);
 
-  const validateCheckout = (): boolean => {
-    if (!hasItems && packages.length > 0 && !isDirectCheckout) {
-      return true;
-    }
+  // Package-only checkout (no shop cart items) reuses the delivery address
+  // already collected in the package builder — it has no address form of
+  // its own here, so that address must exist and be sent to the backend.
+  const packageOnlyCheckout = !hasItems && !isDirectCheckout && packages.length > 0;
 
+  const validateCheckout = (): boolean => {
     const errors: Record<string, string> = {};
     if (hasItems || isDirectCheckout) {
       if (!address.fullName.trim()) errors.fullName = "Full name is required";
@@ -217,6 +205,10 @@ export default function CheckoutPage() {
       if (!address.city.trim()) errors.city = "City is required";
       if (!address.state.trim()) errors.state = "State is required";
       if (!/^\d{4,10}$/.test(address.pincode.trim())) errors.pincode = "Enter a valid PIN code";
+    } else if (packageOnlyCheckout) {
+      if (!pkg?.builderInput?.shippingAddress?.line1) {
+        errors.fullName = "Please complete the delivery address in the package builder";
+      }
     } else {
       if (!address.fullName.trim()) errors.fullName = "Full name is required";
     }
@@ -228,15 +220,14 @@ export default function CheckoutPage() {
   };
 
   const isFormComplete = (): boolean => {
-    if (!hasItems && packages.length > 0 && !isDirectCheckout) {
-      return true;
-    }
     if (hasItems || isDirectCheckout) {
       if (!address.fullName.trim()) return false;
       if (!address.line1.trim()) return false;
       if (!address.city.trim()) return false;
       if (!address.state.trim()) return false;
       if (!/^\d{4,10}$/.test(address.pincode.trim())) return false;
+    } else if (packageOnlyCheckout) {
+      if (!pkg?.builderInput?.shippingAddress?.line1) return false;
     } else {
       if (!address.fullName.trim()) return false;
     }
@@ -364,10 +355,13 @@ export default function CheckoutPage() {
 
     setIsPlacingOrder(true);
     try {
-      const pkg = packages.length > 0 ? packages[0] : null;
       let packageData: any = undefined;
 
       if (pkg && pkg.builderInput) {
+        const builderGuestCount =
+          parseInt(eventDetails.guestCount, 10) > 0
+            ? parseInt(eventDetails.guestCount, 10)
+            : Number(pkg.builderInput.guestCount) || 10;
         packageData = {
           eventDate: pkg.builderInput.eventDetails?.eventDate || eventDetails.eventDate,
           contactEmail: pkg.builderInput.contactEmail || contactEmail.trim(),
@@ -381,19 +375,26 @@ export default function CheckoutPage() {
             country: "India",
           },
           eventDetails: {
-            childName: eventDetails.childName,
+            childName: eventDetails.childName || pkg.builderInput.eventDetails?.childName,
             childAge: eventDetails.childAge,
-            venue: eventDetails.venue,
-            guestCount: eventDetails.guestCount,
+            venue: eventDetails.venue || pkg.builderInput.eventDetails?.venue,
+            guestCount: eventDetails.guestCount || pkg.builderInput.guestCount,
             notes: eventDetails.notes,
           },
           builder: {
             ...pkg.builderInput,
-            guestCount: parseInt(eventDetails.guestCount || String(pkg.builderInput.guestCount || "10"), 10),
-            location: eventDetails.venue.toLowerCase().includes("jaipur") ? "jaipur" : "outside",
+            guestCount: builderGuestCount,
+            location: pkg.builderInput.location || (eventDetails.venue.toLowerCase().includes("jaipur") ? "jaipur" : "outside"),
           },
         };
       }
+
+      // Package-only checkout has no address form of its own — fall back to
+      // the address already collected in the package builder.
+      const effectiveShippingAddress =
+        hasItems || isDirectCheckout || !packageOnlyCheckout
+          ? address
+          : packageData?.shippingAddress ?? address;
 
       if (directCheckout) {
         const order = await shopApi.createDirectShopOrder({
@@ -411,9 +412,9 @@ export default function CheckoutPage() {
         await openShopRazorpay(order);
         return;
       }
-      
+
       const order = await shopApi.createShopOrder({
-        shippingAddress: address,
+        shippingAddress: effectiveShippingAddress,
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
         packageData,

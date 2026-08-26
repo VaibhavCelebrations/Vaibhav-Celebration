@@ -23,7 +23,10 @@ const shippingAddressSchema = z.object({
 });
 
 const packageBuilderSchema = z.object({
-  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  contactEmail: z.string().email().optional(),
+  contactPhone: z.string().min(6).max(20).optional(),
+  shippingAddress: shippingAddressSchema.optional(),
   eventDetails: z
     .object({
       childName: z.string().optional(),
@@ -308,6 +311,28 @@ adminOrdersRouter.patch(
     try {
       const { adminUpdateOrderStatus } = require("./orders.service");
       return ok(res, await adminUpdateOrderStatus(param(req, "id"), req.body.status));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+adminOrdersRouter.post(
+  "/:id/resend-confirmation",
+  validate(z.object({ id: z.string() }), "params"),
+  async (req, res, next) => {
+    try {
+      const { resendOrderConfirmationEmail } = require("./orders.service");
+      const { writeAuditLog, clientIp } = require("../../lib/audit");
+      const result = await resendOrderConfirmationEmail(param(req, "id"));
+      await writeAuditLog({
+        adminUserId: (req as import("../../middleware/auth").AuthenticatedRequest).admin!.sub,
+        action: "ORDER_CONFIRMATION_RESEND",
+        entityType: "Order",
+        entityId: result.orderId,
+        ipAddress: clientIp(req),
+      });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }
