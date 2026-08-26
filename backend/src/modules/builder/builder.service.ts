@@ -185,7 +185,7 @@ export async function listBuilderProducts(q: {
         isRequired: f.isRequired,
         maxLength: f.maxLength,
       })),
-      stockAvailable: p.inventory?.availableQuantity ?? 0,
+      stockAvailable: p.inventory?.quantityAvailable ?? 0,
     };
   });
 }
