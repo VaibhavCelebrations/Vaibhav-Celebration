@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatPaise, toRupees } from "@/lib/shop-types";
 import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult, ServerCartItem } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
+import * as authApi from "@/lib/customer-auth-api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";

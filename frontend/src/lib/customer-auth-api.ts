@@ -33,7 +33,7 @@ export async function logoutAll(): Promise<void> {
   await apiFetch(`${BASE}/logout-all`, { method: "POST" });
 }
 
-export async function updateProfile(input: { name?: string; phone?: string }): Promise<User> {
+export async function updateProfile(input: { name?: string; phone?: string; defaultAddress?: import("./shop-types").ShippingAddress | null }): Promise<User> {
   return apiFetch<User>(`${BASE}/me`, { method: "PATCH", body: input });
 }
 
