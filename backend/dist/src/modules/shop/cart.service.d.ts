@@ -2,11 +2,15 @@ export declare function getCart(userId: string): Promise<{
     items: {
         id: string;
         productId: string;
+        registryItemId: string | null;
         title: string;
         slug: string;
         unitPriceInPaise: number;
         quantity: number;
         personalizationValues: unknown;
+        personalizationSelected: boolean;
+        personalizationCostInPaise: number;
+        personalizationEnabled: boolean;
         image: {
             url: string;
             altText: string | null;
@@ -15,6 +19,11 @@ export declare function getCart(userId: string): Promise<{
         stockAvailable: number;
         stockStatus: string;
         maxOrderQuantity: number | null;
+        registry: {
+            registryCode: string;
+            giftTitle: string;
+            recipientName: string | null;
+        } | null;
     }[];
     quote: import("./cart-pricing.service").CartQuote;
     itemCount: number;
@@ -23,15 +32,20 @@ export declare function addCartItem(userId: string, input: {
     productId: string;
     quantity: number;
     personalizationValues?: unknown;
+    registryItemId?: string;
 }): Promise<{
     items: {
         id: string;
         productId: string;
+        registryItemId: string | null;
         title: string;
         slug: string;
         unitPriceInPaise: number;
         quantity: number;
         personalizationValues: unknown;
+        personalizationSelected: boolean;
+        personalizationCostInPaise: number;
+        personalizationEnabled: boolean;
         image: {
             url: string;
             altText: string | null;
@@ -40,6 +54,11 @@ export declare function addCartItem(userId: string, input: {
         stockAvailable: number;
         stockStatus: string;
         maxOrderQuantity: number | null;
+        registry: {
+            registryCode: string;
+            giftTitle: string;
+            recipientName: string | null;
+        } | null;
     }[];
     quote: import("./cart-pricing.service").CartQuote;
     itemCount: number;
@@ -48,11 +67,15 @@ export declare function updateCartItemQuantity(userId: string, productId: string
     items: {
         id: string;
         productId: string;
+        registryItemId: string | null;
         title: string;
         slug: string;
         unitPriceInPaise: number;
         quantity: number;
         personalizationValues: unknown;
+        personalizationSelected: boolean;
+        personalizationCostInPaise: number;
+        personalizationEnabled: boolean;
         image: {
             url: string;
             altText: string | null;
@@ -61,6 +84,11 @@ export declare function updateCartItemQuantity(userId: string, productId: string
         stockAvailable: number;
         stockStatus: string;
         maxOrderQuantity: number | null;
+        registry: {
+            registryCode: string;
+            giftTitle: string;
+            recipientName: string | null;
+        } | null;
     }[];
     quote: import("./cart-pricing.service").CartQuote;
     itemCount: number;
@@ -69,11 +97,15 @@ export declare function removeCartItem(userId: string, productId: string): Promi
     items: {
         id: string;
         productId: string;
+        registryItemId: string | null;
         title: string;
         slug: string;
         unitPriceInPaise: number;
         quantity: number;
         personalizationValues: unknown;
+        personalizationSelected: boolean;
+        personalizationCostInPaise: number;
+        personalizationEnabled: boolean;
         image: {
             url: string;
             altText: string | null;
@@ -82,6 +114,11 @@ export declare function removeCartItem(userId: string, productId: string): Promi
         stockAvailable: number;
         stockStatus: string;
         maxOrderQuantity: number | null;
+        registry: {
+            registryCode: string;
+            giftTitle: string;
+            recipientName: string | null;
+        } | null;
     }[];
     quote: import("./cart-pricing.service").CartQuote;
     itemCount: number;
@@ -90,11 +127,15 @@ export declare function clearCart(userId: string): Promise<{
     items: {
         id: string;
         productId: string;
+        registryItemId: string | null;
         title: string;
         slug: string;
         unitPriceInPaise: number;
         quantity: number;
         personalizationValues: unknown;
+        personalizationSelected: boolean;
+        personalizationCostInPaise: number;
+        personalizationEnabled: boolean;
         image: {
             url: string;
             altText: string | null;
@@ -103,6 +144,11 @@ export declare function clearCart(userId: string): Promise<{
         stockAvailable: number;
         stockStatus: string;
         maxOrderQuantity: number | null;
+        registry: {
+            registryCode: string;
+            giftTitle: string;
+            recipientName: string | null;
+        } | null;
     }[];
     quote: import("./cart-pricing.service").CartQuote;
     itemCount: number;

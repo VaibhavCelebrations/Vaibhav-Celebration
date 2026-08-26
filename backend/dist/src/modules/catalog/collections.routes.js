@@ -61,6 +61,8 @@ exports.adminProductCollectionsRouter.use(...roleGuard);
 exports.adminProductCollectionsRouter.get("/", (0, validate_1.validate)(validators_1.paginationQuerySchema.extend({
     search: zod_1.z.string().optional(),
     isActive: zod_1.z.string().optional(),
+    sort: zod_1.z.string().optional(),
+    dir: zod_1.z.enum(["asc", "desc"]).optional(),
 }), "query"), async (req, res, next) => {
     try {
         return (0, response_1.ok)(res, await (0, collections_service_1.adminListCollections)(req.query));

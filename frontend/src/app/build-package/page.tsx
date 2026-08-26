@@ -43,7 +43,6 @@ type Location = "jaipur" | "outside";
 
 const STEPS = [
   { label: "Theme", icon: Palette },
-  { label: "Package", icon: Package },
   { label: "Details", icon: Users },
   { label: "Customize", icon: Gift },
   { label: "Decor", icon: Sparkles },
@@ -164,19 +163,29 @@ function ProductPicker({
                   ? unitWithPersonalization * p.minOrderQuantity
                   : unitWithPersonalization
                 : unitWithPersonalization * qty;
+            // Temporarily disable out-of-stock check in builder until backend correctly handles null inventory for unlimited stock
+            const isOutOfStock = false; // p.stockAvailable <= 0;
             return (
               <div
                 key={p.sku}
-                className={`text-left rounded-xl p-3 border transition-all flex flex-col ${
-                  selected
-                    ? "border-2 border-mocha bg-mocha/5"
-                    : "border-border hover:border-mocha/50"
+                className={`text-left rounded-xl p-3 border transition-all flex flex-col relative ${
+                  isOutOfStock 
+                    ? "opacity-60 grayscale border-border-light cursor-not-allowed" 
+                    : selected
+                      ? "border-2 border-mocha bg-mocha/5"
+                      : "border-border hover:border-mocha/50"
                 }`}
               >
+                {isOutOfStock && (
+                  <div className="absolute top-4 left-4 z-10 bg-black text-white text-[10px] uppercase font-bold px-2 py-1 rounded">
+                    Out of Stock
+                  </div>
+                )}
                 <button
                   type="button"
+                  disabled={isOutOfStock}
                   onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
-                  className="text-left flex flex-col flex-1 cursor-pointer"
+                  className={`text-left flex flex-col flex-1 ${isOutOfStock ? "cursor-not-allowed" : "cursor-pointer"}`}
                 >
                 <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
                   <Image src={p.imageUrl ?? "/placeholder-product.svg"} alt={p.title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
@@ -250,9 +259,9 @@ function BuildPackageContent() {
   const initialTheme = searchParams.get("theme");
   const initialGuests = Math.max(5, parseInt(searchParams.get("guests") || "10", 10) || 10);
   const initialLoc = (searchParams.get("loc") === "outside" ? "outside" : "jaipur") as Location;
-  const initialStep = Math.min(5, Math.max(0, parseInt(searchParams.get("step") || "0", 10) || 0));
+  const initialStep = Math.min(4, Math.max(0, parseInt(searchParams.get("step") || "0", 10) || 0));
 
-  const [step, setStep] = useState(initialTheme ? (initialPkg ? Math.max(initialStep, 2) : 1) : initialStep);
+  const [step, setStep] = useState(initialTheme ? Math.max(initialStep, 1) : initialStep);
   const [themeSlug, setThemeSlug] = useState<string | null>(initialTheme);
   const [pkgSlug, setPkgSlug] = useState<Tier | null>(initialPkg);
   const [guestCount, setGuestCount] = useState(initialGuests);
@@ -276,24 +285,55 @@ function BuildPackageContent() {
   const [quote, setQuote] = useState<BuilderQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
   const [eventDate, setEventDate] = useState("");
   const [guestName, setGuestName] = useState(user?.name ?? "");
   const [guestEmail, setGuestEmail] = useState(user?.email ?? "");
   const [guestPhone, setGuestPhone] = useState(user?.phone ?? "");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
   const [guestAddress, setGuestAddress] = useState("");
   const [guestCity, setGuestCity] = useState("");
   const [guestPincode, setGuestPincode] = useState("");
   const [showBreakdown, setShowBreakdown] = useState(false);
 
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("vc_builder_state");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.eventDate) setEventDate(data.eventDate);
+        if (data.guestName) setGuestName(data.guestName);
+        if (data.guestEmail) setGuestEmail(data.guestEmail);
+        if (data.guestPhone) setGuestPhone(data.guestPhone);
+        if (data.guestAddress) setGuestAddress(data.guestAddress);
+        if (data.guestCity) setGuestCity(data.guestCity);
+        if (data.guestPincode) setGuestPincode(data.guestPincode);
+        if (data.selections) setSelections((prev) => ({ ...prev, ...data.selections }));
+      }
+    } catch (err) {}
+  }, []);
+
+  // Save state to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem(
+      "vc_builder_state",
+      JSON.stringify({
+        eventDate,
+        guestName,
+        guestEmail,
+        guestPhone,
+        guestAddress,
+        guestCity,
+        guestPincode,
+        selections,
+      })
+    );
+  }, [eventDate, guestName, guestEmail, guestPhone, guestAddress, guestCity, guestPincode, selections]);
+
   const activeThemes = themes;
-  const packages = useMemo(
-    () =>
-      (["standard", "premium", "luxe"] as Tier[])
-        .map((s) => packagesBySlug[s])
-        .filter(Boolean),
-    [packagesBySlug],
-  );
 
   const selectedPkg = pkgSlug ? packagesBySlug[pkgSlug] : null;
 
@@ -325,7 +365,7 @@ function BuildPackageContent() {
       if (sel.familyActivity) params.set("family", sel.familyActivity);
       if (sel.decor) params.set("decor", "1");
       if (sel.giftRegistryCustomize) params.set("grc", "1");
-      router.replace(`/build-package?${params.toString()}`, { scroll: false });
+      window.history.replaceState(null, "", `/build-package?${params.toString()}`);
     },
     [step, themeSlug, pkgSlug, guestCount, location, selections, router],
   );
@@ -335,9 +375,8 @@ function BuildPackageContent() {
     syncUrl({ step: nextStep });
   };
 
-  // Load products when entering customize
   useEffect(() => {
-    if (step !== 3 || !themeSlug || !pkgSlug) return;
+    if (step !== 2 || !themeSlug || !pkgSlug) return;
     let cancelled = false;
     (async () => {
       setLoadingProducts(true);
@@ -366,7 +405,6 @@ function BuildPackageContent() {
     };
   }, [step, themeSlug, pkgSlug]);
 
-  // Refresh quote on review + sticky total when enough state
   const canQuote =
     !!themeSlug &&
     !!pkgSlug &&
@@ -378,34 +416,35 @@ function BuildPackageContent() {
     (pkgSlug !== "luxe" || !!selections.familyActivity);
 
   useEffect(() => {
-    if (!canQuote || step < 3) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      setQuoteLoading(true);
-      setQuoteError(null);
-      try {
-        const q = await getBuilderQuote({
-          packageSlug: pkgSlug!,
-          themeSlug: themeSlug!,
-          guestCount,
-          location,
-          selections,
-        });
-        if (!cancelled) setQuote(q);
-      } catch (err) {
-        if (!cancelled) {
-          setQuote(null);
-          setQuoteError(err instanceof ApiClientError ? err.message : "Quote failed");
+    if (step === 4) {
+      let cancelled = false;
+      const t = setTimeout(async () => {
+        setQuoteLoading(true);
+        setQuoteError(null);
+        try {
+          const q = await getBuilderQuote({
+            packageSlug: pkgSlug!,
+            themeSlug: themeSlug!,
+            guestCount,
+            location,
+            selections,
+          });
+          if (!cancelled) setQuote(q);
+        } catch (err) {
+          if (!cancelled) {
+            setQuote(null);
+            setQuoteError(err instanceof ApiClientError ? err.message : "Quote failed");
+          }
+        } finally {
+          if (!cancelled) setQuoteLoading(false);
         }
-      } finally {
-        if (!cancelled) setQuoteLoading(false);
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [canQuote, themeSlug, pkgSlug, guestCount, location, selections, step]);
+      }, 300);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
+    }
+  }, [step, canQuote, themeSlug, pkgSlug, guestCount, location, selections]);
 
   useEffect(() => {
     if (user) {
@@ -421,22 +460,30 @@ function BuildPackageContent() {
 
   const canContinue = () => {
     if (step === 0) return !!themeSlug;
-    if (step === 1) return !!pkgSlug;
-    if (step === 2) return guestCount >= 5;
-    if (step === 3) {
+    if (step === 1) {
+      if (guestCount < 5) return false;
+      if (!guestName.trim()) return false;
+      if (!guestEmail.trim() || !/^\S+@\S+\.\S+$/.test(guestEmail)) return false;
+      if (!guestPhone.trim() || guestPhone.trim().length < 6) return false;
+      if (!eventDate) return false;
+      if (!guestAddress.trim()) return false;
+      if (location === "outside" && !guestCity.trim()) return false;
+      if (!guestPincode.trim() || !/^\d{4,10}$/.test(guestPincode.trim())) return false;
+      return true;
+    }
+    if (step === 2) {
       if (!selections.activity1 || !selections.returnGift) return false;
       if (needsWelcome && !selections.welcomeItem) return false;
       if (needsTwoActivities && !selections.activity2) return false;
       if (needsFamily && !selections.familyActivity) return false;
       return true;
     }
-    if (step === 4) return true;
-    return false;
+    return true;
   };
 
   const onContinue = () => {
     if (!canContinue()) return;
-    goTo(Math.min(5, step + 1));
+    goTo(Math.min(4, step + 1));
   };
 
   const toggleActivity = (sku: string) => {
@@ -482,8 +529,8 @@ function BuildPackageContent() {
     addPackage({
       packageId: pkgSlug,
       themeSlug,
-      basePrice: quote.totalInPaise / 100, // store in rupees — includes all customizations
-      addons: [], // line items are already reflected in basePrice (the full quote total)
+      basePrice: quote.totalInPaise / 100, 
+      addons: [], 
       builderInput: {
         packageSlug: pkgSlug,
         themeSlug,
@@ -492,7 +539,7 @@ function BuildPackageContent() {
         selections,
         eventDetails: {
           eventDate,
-          childName: guestName, // Assuming the guest name is used as child name or booking name
+          childName: guestName, 
           venue: guestAddress,
         },
         contactEmail: guestEmail,
@@ -509,7 +556,6 @@ function BuildPackageContent() {
       },
     });
 
-    // Redirect to checkout
     router.push("/checkout");
   };
 
@@ -521,7 +567,7 @@ function BuildPackageContent() {
   return (
     <>
       <Navbar />
-      <main className="pt-28 md:pt-32 pb-36 min-h-screen bg-cream">
+      <main className="pt-28 md:pt-32 min-h-screen bg-cream pb-12">
         <div className="max-w-4xl mx-auto px-5 md:px-8">
           <BuilderStepper currentStep={step} onStepClick={goTo} />
 
@@ -564,76 +610,14 @@ function BuildPackageContent() {
             </section>
           )}
 
-          {/* Step 1 Package */}
+          {/* Step 1 Details */}
           {step === 1 && (
-            <section>
+            <section className="animate-slide-up">
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Choose your package
+                Celebration details
               </h1>
               <p className="text-sm text-text-muted mb-8">
-                All packages include theme-coordinated activities, gifts, and digital items.
-              </p>
-              <div className="grid md:grid-cols-3 gap-4">
-                {packages.map((pkg) => {
-                  const tier = pkg.slug as Tier;
-                  const meta = TIER_META[tier];
-                  const selected = pkgSlug === tier;
-                  return (
-                    <button
-                      key={pkg.slug}
-                      type="button"
-                      onClick={() => {
-                        setPkgSlug(tier);
-                        syncUrl({ pkg: tier, step: 1 });
-                      }}
-                      className={`relative rounded-2xl p-5 text-left border transition-all ${
-                        selected ? "border-2 border-mocha bg-mocha/5" : "border-border"
-                      }`}
-                    >
-                      {pkg.isRecommended && (
-                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-mocha text-white text-[10px] font-bold px-3 py-1 rounded-full">
-                          Most popular
-                        </span>
-                      )}
-                      <div className="text-xs font-bold tracking-wide text-mocha">{meta?.eyebrow}</div>
-                      <div className="font-display text-xl font-semibold mt-1">{pkg.priceLabel}</div>
-                      <div className="text-xs text-text-muted mt-1 mb-3">{pkg.title}</div>
-                      <ul className="space-y-1.5 text-xs text-charcoal">
-                        {pkg.features.slice(0, 6).map((f) => (
-                          <li key={f.label}>✓ {f.label}</li>
-                        ))}
-                      </ul>
-                    </button>
-                  );
-                })}
-              </div>
-              
-              {/* Custom Plan CTA */}
-              <div className="mt-8 bg-mocha/5 border border-mocha/20 rounded-2xl p-8 text-center">
-                <h3 className="font-display text-xl font-semibold text-charcoal mb-2">
-                  Want to build your own from scratch?
-                </h3>
-                <p className="text-text-muted text-sm max-w-lg mx-auto mb-5">
-                  Mix and match items from any package tier. Choose exactly what fits your celebration, budget, and number of guests.
-                </p>
-                <Link
-                  href="/custom-plan"
-                  className="btn-outline px-6 py-2.5 text-sm inline-flex font-semibold"
-                >
-                  Plan Your Custom Celebration
-                </Link>
-              </div>
-            </section>
-          )}
-
-          {/* Step 2 Details */}
-          {step === 2 && (
-            <section>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Your celebration details
-              </h1>
-              <p className="text-sm text-text-muted mb-8">
-                This sets per-child pricing and shows the right décor options.
+                Tell us about the event so we can prepare your quote.
               </p>
               
               <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
@@ -688,6 +672,7 @@ function BuildPackageContent() {
                           type="button"
                           onClick={() => {
                             setLocation("jaipur");
+                            setGuestCity("Jaipur");
                             syncUrl({ loc: "jaipur" });
                           }}
                           className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
@@ -702,6 +687,7 @@ function BuildPackageContent() {
                           type="button"
                           onClick={() => {
                             setLocation("outside");
+                            if (guestCity.toLowerCase() === "jaipur") setGuestCity("");
                             syncUrl({ loc: "outside" });
                           }}
                           className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
@@ -721,7 +707,7 @@ function BuildPackageContent() {
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-charcoal mb-4">Contact Information</h3>
                     <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name</span>
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name <span className="text-red-500">*</span></span>
                       <input
                         type="text"
                         value={guestName}
@@ -731,7 +717,7 @@ function BuildPackageContent() {
                       />
                     </label>
                     <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address</span>
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address <span className="text-red-500">*</span></span>
                       <input
                         type="email"
                         value={guestEmail}
@@ -741,7 +727,7 @@ function BuildPackageContent() {
                       />
                     </label>
                     <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number</span>
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number <span className="text-red-500">*</span></span>
                       <input
                         type="tel"
                         value={guestPhone}
@@ -755,7 +741,7 @@ function BuildPackageContent() {
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-charcoal mb-4">Event & Location Details</h3>
                     <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date</span>
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date <span className="text-red-500">*</span></span>
                       <input
                         type="date"
                         value={eventDate}
@@ -764,7 +750,7 @@ function BuildPackageContent() {
                       />
                     </label>
                     <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1</span>
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1 <span className="text-red-500">*</span></span>
                       <input
                         type="text"
                         value={guestAddress}
@@ -775,17 +761,22 @@ function BuildPackageContent() {
                     </label>
                     <div className="grid grid-cols-2 gap-4">
                       <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City</span>
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City <span className="text-red-500">*</span></span>
                         <input
                           type="text"
-                          value={guestCity}
+                          value={location === "jaipur" ? "Jaipur" : guestCity}
                           onChange={(e) => setGuestCity(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder={location === "jaipur" ? "Jaipur" : "City"}
+                          readOnly={location === "jaipur"}
+                          className={`w-full border rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50 ${
+                            location === "jaipur"
+                              ? "bg-cream-dark/50 border-border-light text-charcoal/70"
+                              : "bg-cream-dark border-border-light"
+                          }`}
+                          placeholder="City"
                         />
                       </label>
                       <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Pincode</span>
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Pincode <span className="text-red-500">*</span></span>
                         <input
                           type="text"
                           value={guestPincode}
@@ -801,21 +792,16 @@ function BuildPackageContent() {
             </section>
           )}
 
-          {/* Step 3 Customize */}
-          {step === 3 && (
+          {/* Step 2 Customize */}
+          {step === 2 && (
             <section>
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
                 Customize your celebration
               </h1>
               <p className="text-sm text-text-muted mb-4">
-                {selectedPkg?.title} · {activeThemes.find((t) => t.slug === themeSlug)?.title} ·{" "}
+                {activeThemes.find((t) => t.slug === themeSlug)?.title} ·{" "}
                 {guestCount} children · {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
               </p>
-              {includedForTier.length > 0 && (
-                <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm mb-8">
-                  <strong>Included:</strong> {includedForTier.join(" · ")}
-                </div>
-              )}
               {loadingProducts ? (
                 <div className="flex items-center gap-2 text-text-muted py-12 justify-center">
                   <Loader2 className="animate-spin" size={18} /> Loading options…
@@ -882,69 +868,22 @@ function BuildPackageContent() {
                     }}
                   />
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
-                    Packaging and thank-you tags (where included) are auto-assigned for your package — shown on the review step.
+                    Packaging and thank-you tags (where included) are auto-assigned — shown on the review step.
                   </div>
-                  {(pkgSlug === "premium" || pkgSlug === "luxe") ? (
-                    <div className="mt-8 rounded-2xl border border-border p-6 bg-cream-dark">
-                      <div className="flex justify-between gap-4 items-start">
-                        <div>
-                          <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
-                          <p className="text-sm text-text-muted">
-                            Included with Signature and Grand. After you book, you&apos;ll set up and share the list from this order.
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">Included</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className={`mt-8 rounded-2xl border p-6 ${
-                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
-                      }`}
-                    >
-                      <div className="flex justify-between gap-4 items-start">
-                        <div>
-                          <div className="font-semibold text-charcoal mb-1">Gift Registry (Add-on)</div>
-                          <p className="text-sm text-text-muted">
-                            Add a guided gift list to share with your guests after booking.
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">
-                            + {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)}
-                          </div>
-                        </div>
-                      </div>
-                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!selections.giftRegistryCustomize}
-                          onChange={(e) => {
-                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
-                            setSelections(updated);
-                            syncUrl({ selections: updated });
-                          }}
-                          className="w-4 h-4"
-                        />
-                        Add Gift Registry
-                      </label>
-                    </div>
-                  )}
+
                 </>
               )}
             </section>
           )}
 
-          {/* Step 4 Decor */}
-          {step === 4 && (
+          {/* Step 3 Decor */}
+          {step === 3 && (
             <section>
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
                 Décor for your celebration
               </h1>
               <p className="text-sm text-text-muted mb-8">
-                {selectedPkg?.title} · {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
+                {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
               </p>
               {location === "jaipur" ? (
                 <div
@@ -955,7 +894,7 @@ function BuildPackageContent() {
                   <div className="flex justify-between gap-4 items-start">
                     <div>
                       <div className="font-semibold text-charcoal mb-1">
-                        {selectedPkg?.title} theme décor — Jaipur
+                        Theme décor — Jaipur
                       </div>
                       <p className="text-sm text-text-muted">
                         Theme décor through our Jaipur vendor. Final quote may vary slightly on site.
@@ -991,15 +930,15 @@ function BuildPackageContent() {
             </section>
           )}
 
-          {/* Step 5 Review */}
-          {step === 5 && (
+          {/* Step 4 Review */}
+          {step === 4 && (
             <section>
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
                 Review your order
               </h1>
               <p className="text-sm text-text-muted mb-6">
                 {quote
-                  ? `${quote.packageTitle} · ${quote.themeTitle} · ${quote.guestCount} children · ${
+                  ? `${quote.themeTitle} · ${quote.guestCount} children · ${
                       quote.location === "jaipur" ? "Jaipur" : "Outside Jaipur"
                     }`
                   : "Loading quote…"}
@@ -1044,11 +983,10 @@ function BuildPackageContent() {
                           </button>
                         </div>
                         <div className="p-6 max-h-[60vh] overflow-y-auto hide-scrollbar">
-                          {(["package", "per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
+                          {(["per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
                             const items = quote.lineItems.filter((l) => l.section === section);
                             if (!items.length) return null;
                             const titles: Record<string, string> = {
-                              package: "Package",
                               "per-child": "Per-child items",
                               "per-group": "Per-group items",
                               auto: "Included physical items",
@@ -1121,11 +1059,6 @@ function BuildPackageContent() {
                   )}
                 </div>
               )}
-              {!isAuthenticated && (
-                <p className="text-sm text-text-muted mb-2">
-                  You&apos;ll be asked to log in when you add to cart — browsing stays free until then.
-                </p>
-              )}
             </section>
           )}
         </div>
@@ -1149,7 +1082,7 @@ function BuildPackageContent() {
                   <ArrowLeft size={14} /> Back
                 </button>
               )}
-              {step < 5 ? (
+              {step < 4 ? (
                 <button
                   type="button"
                   disabled={!canContinue()}

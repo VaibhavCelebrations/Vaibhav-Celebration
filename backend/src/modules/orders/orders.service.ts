@@ -118,6 +118,28 @@ type OrderLine = {
   registryItemId?: string | null;
 };
 
+/** Event-package builder payload attached to a shop/direct checkout — see PackageBuilderSchema in orders.routes.ts. */
+export type PackageDataInput = {
+  eventDate: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  shippingAddress?: ShippingAddress;
+  eventDetails?: {
+    childName?: string;
+    childAge?: string;
+    venue?: string;
+    guestCount?: number | string;
+    notes?: string;
+  };
+  builder: {
+    packageSlug: string;
+    themeSlug: string;
+    guestCount: number;
+    location: BuilderLocation;
+    selections: BuilderSelections;
+  };
+};
+
 /**
  * Shared order-creation core: re-validates stock/prices inside the
  * transaction, snapshots unit prices onto OrderItem, and reserves inventory
@@ -271,6 +293,189 @@ async function createOrderFromLines(
   };
 }
 
+/** Validates + prices the builder payload — shared by the package-only and combined checkout paths. */
+async function computePackagePieces(packageData: PackageDataInput) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(packageData.eventDate)) {
+    throw new ValidationError("eventDate must be YYYY-MM-DD");
+  }
+  if (!packageData.builder?.packageSlug || !packageData.builder?.themeSlug) {
+    throw new ValidationError("Package and theme are required");
+  }
+  if (!Number.isFinite(packageData.builder.guestCount) || packageData.builder.guestCount < 5) {
+    throw new ValidationError("Guest count must be at least 5");
+  }
+
+  const builderInput: BuilderQuoteInput = {
+    packageSlug: packageData.builder.packageSlug,
+    themeSlug: packageData.builder.themeSlug,
+    guestCount: Math.floor(packageData.builder.guestCount),
+    location: packageData.builder.location === "outside" ? "outside" : "jaipur",
+    selections: packageData.builder.selections ?? {},
+  };
+  const quote = await computeBuilderQuote(builderInput);
+  const eventDate = toDateOnly(packageData.eventDate);
+  return { builderInput, quote, eventDate };
+}
+
+/**
+ * Creates a single order covering the shop cart AND an event package
+ * together — one combined subtotal (so free-delivery correctly considers
+ * both), one GST calculation, and one Razorpay payment. `lines` may be
+ * empty (package-only checkout); prices are always recomputed server-side.
+ */
+async function createCombinedPackageAndShopOrder(
+  userId: string,
+  lines: OrderLine[],
+  input: { shippingAddress: ShippingAddress; contactEmail: string; contactPhone: string },
+  packageData: PackageDataInput,
+) {
+  const { builderInput, quote: packageQuote, eventDate } = await computePackagePieces(packageData);
+
+  const order = await prisma.$transaction(async (tx) => {
+    const products = await tx.product.findMany({
+      where: { id: { in: lines.map((l) => l.productId) }, deletedAt: null },
+      include: { inventory: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    for (const line of lines) {
+      const product = productMap.get(line.productId);
+      if (!product || !product.isActive) {
+        throw new ValidationError(`One of the items is no longer available`);
+      }
+    }
+
+    // Merchandise from BOTH the shop cart and the event package count toward
+    // the free-delivery threshold and share one shipping/GST calculation.
+    const combinedQuote = await computeQuote(
+      lines.map((l) => {
+        const product = productMap.get(l.productId)!;
+        const selected = Boolean(l.personalizationSelected && product.personalizationEnabled);
+        return {
+          productId: l.productId,
+          unitPriceInPaise: product.priceInPaise,
+          quantity: l.quantity,
+          personalizationCostInPaise: selected ? product.personalizationCostInPaise : 0,
+        };
+      }),
+      packageQuote.subtotalInPaise,
+    );
+
+    const hasCustomization =
+      lines.some((l) => {
+        const product = productMap.get(l.productId)!;
+        return Boolean(l.personalizationSelected && product.personalizationEnabled);
+      }) ||
+      packageQuote.hasPersonalization ||
+      packageQuote.lineItems.some((li) => li.personalizationSelected);
+
+    const shippingAddress = packageData.shippingAddress ?? input.shippingAddress;
+    const contactEmail = (packageData.contactEmail ?? input.contactEmail).toLowerCase().trim();
+    const contactPhone = (packageData.contactPhone ?? input.contactPhone).trim();
+
+    const orderCode = await nextOrderCode();
+    const created = await tx.order.create({
+      data: {
+        orderCode,
+        userId,
+        kind: OrderKind.PACKAGE,
+        status: OrderStatus.PENDING_PAYMENT,
+        paymentStatus: PaymentStatus.PENDING,
+        customizationFollowUpStatus: hasCustomization
+          ? CustomizationFollowUpStatus.REQUIRED
+          : CustomizationFollowUpStatus.NOT_REQUIRED,
+        subtotalInPaise: combinedQuote.subtotalInPaise,
+        gstInPaise: combinedQuote.gstInPaise,
+        totalInPaise: combinedQuote.totalInPaise,
+        shippingInPaise: combinedQuote.shippingInPaise,
+        shippingWaived: combinedQuote.shippingWaived,
+        freeShippingThresholdSnapshotInPaise: combinedQuote.freeShippingThresholdInPaise,
+        shippingAddress: shippingAddress as never,
+        contactEmail,
+        contactPhone,
+        eventDate,
+        eventDetails: {
+          childName: packageData.eventDetails?.childName ?? null,
+          childAge: packageData.eventDetails?.childAge ?? null,
+          venue: packageData.eventDetails?.venue ?? null,
+          guestCount: packageData.eventDetails?.guestCount ?? builderInput.guestCount,
+          notes: packageData.eventDetails?.notes ?? null,
+          packageTitle: packageQuote.packageTitle,
+          themeTitle: packageQuote.themeTitle,
+        } as never,
+        items: lines.length
+          ? {
+              create: lines.map((l) => {
+                const product = productMap.get(l.productId)!;
+                const selected = Boolean(l.personalizationSelected && product.personalizationEnabled);
+                return {
+                  productId: l.productId,
+                  registryItemId: l.registryItemId || null,
+                  quantity: l.quantity,
+                  unitPriceInPaise: product.priceInPaise,
+                  personalizationValues: (l.personalizationValues ?? null) as never,
+                  personalizationSelected: selected,
+                  personalizationCostSnapshot: selected ? product.personalizationCostInPaise : 0,
+                };
+              }),
+            }
+          : undefined,
+        packageOrder: {
+          create: {
+            packageId: packageQuote.packageId,
+            themeId: packageQuote.themeId,
+            basePriceInPaise: packageQuote.basePriceInPaise,
+            customizationTotalInPaise: packageQuote.customizationTotalInPaise,
+            guestCount: packageQuote.guestCount,
+            location: packageQuote.location,
+            builderInput: builderInput as never,
+            quoteSnapshot: packageQuote as never,
+            lines: {
+              create: packageQuote.lineItems.map((line) => ({
+                packageServiceItemId: line.packageServiceItemId || null,
+                label: line.label,
+                sku: line.sku ?? null,
+                section: line.section,
+                quantity: line.quantity,
+                unitPriceInPaise: line.unitPriceInPaise,
+              })),
+            },
+          },
+        },
+      },
+      include: { items: true, packageOrder: true },
+    });
+
+    for (const orderItem of created.items) {
+      await adjustInventoryInTx(tx, {
+        productId: orderItem.productId,
+        delta: -orderItem.quantity,
+        reason: InventoryLedgerReason.SALE,
+        orderItemId: orderItem.id,
+        note: `Reserved for order ${orderCode}`,
+      });
+    }
+
+    return created;
+  });
+
+  const razorpayOrder = await createRazorpayOrder({
+    amountInPaise: order.totalInPaise,
+    receipt: order.orderCode,
+    notes: { orderCode: order.orderCode, userId, type: "PACKAGE_AND_SHOP_ORDER" },
+  });
+
+  await prisma.order.update({ where: { id: order.id }, data: { razorpayOrderId: razorpayOrder.id } });
+
+  return {
+    orderId: order.id,
+    orderCode: order.orderCode,
+    totalInPaise: order.totalInPaise,
+    razorpayOrderId: razorpayOrder.id,
+    razorpayKeyId: getRazorpayPublicKey(),
+  };
+}
+
 /**
  * Create a PACKAGE celebration order from the builder quote.
  * Prices are always recomputed server-side — never trust the client total.
@@ -298,26 +503,7 @@ export async function createPackageOrder(
     };
   },
 ) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.eventDate)) {
-    throw new ValidationError("eventDate must be YYYY-MM-DD");
-  }
-  if (!input.builder?.packageSlug || !input.builder?.themeSlug) {
-    throw new ValidationError("Package and theme are required");
-  }
-  if (!Number.isFinite(input.builder.guestCount) || input.builder.guestCount < 5) {
-    throw new ValidationError("Guest count must be at least 5");
-  }
-
-  const builderInput: BuilderQuoteInput = {
-    packageSlug: input.builder.packageSlug,
-    themeSlug: input.builder.themeSlug,
-    guestCount: Math.floor(input.builder.guestCount),
-    location: input.builder.location === "outside" ? "outside" : "jaipur",
-    selections: input.builder.selections ?? {},
-  };
-
-  const quote = await computeBuilderQuote(builderInput);
-  const eventDate = toDateOnly(input.eventDate);
+  const { builderInput, quote, eventDate } = await computePackagePieces(input);
   const shippingAddress: ShippingAddress = input.shippingAddress ?? {
     fullName: input.eventDetails?.childName?.trim() || "Celebration guest",
     line1: input.eventDetails?.venue?.trim() || "Venue to be confirmed",
@@ -415,13 +601,18 @@ export async function createPackageOrder(
  */
 export async function createOrderFromCart(
   userId: string,
-  input: { shippingAddress: ShippingAddress; contactEmail: string; contactPhone: string },
+  input: {
+    shippingAddress: ShippingAddress;
+    contactEmail: string;
+    contactPhone: string;
+    packageData?: PackageDataInput;
+  },
 ) {
   const cart = await prisma.cart.findUnique({ where: { userId } });
   if (!cart) throw new ValidationError("Your cart is empty");
 
   const items = await prisma.cartItem.findMany({ where: { cartId: cart.id } });
-  if (items.length === 0) throw new ValidationError("Your cart is empty");
+  if (items.length === 0 && !input.packageData) throw new ValidationError("Your cart is empty");
 
   const lines = items.map((i) => ({
     productId: i.productId,
@@ -431,6 +622,14 @@ export async function createOrderFromCart(
     personalizationCostSnapshot: i.personalizationCostSnapshot,
     registryItemId: i.registryItemId || null,
   }));
+
+  // Combined checkout — an event package (with or without shop items) is
+  // priced as one order so free-delivery/GST reflect the true combined
+  // subtotal. This bypasses the pending-order-reuse path below, which only
+  // applies to plain shop carts.
+  if (input.packageData) {
+    return createCombinedPackageAndShopOrder(userId, lines, input, input.packageData);
+  }
 
   const pending = await prisma.order.findFirst({
     where: {
@@ -507,22 +706,24 @@ export async function createDirectOrder(
     registryId?: string;
     personalizationValues?: unknown;
     personalizationSelected?: boolean;
+    packageData?: PackageDataInput;
   },
 ) {
-  return createOrderFromLines(
-    userId,
-    [
-      {
-        productId: input.productId,
-        quantity: input.quantity,
-        registryItemId: input.registryItemId,
-        personalizationValues: input.personalizationValues,
-        personalizationSelected: input.personalizationSelected,
-      },
-    ],
-    input,
-    input.registryItemId ? "REGISTRY_GIFT" : "SHOP_DIRECT",
-  );
+  const lines: OrderLine[] = [
+    {
+      productId: input.productId,
+      quantity: input.quantity,
+      registryItemId: input.registryItemId,
+      personalizationValues: input.personalizationValues,
+      personalizationSelected: input.personalizationSelected,
+    },
+  ];
+
+  if (input.packageData) {
+    return createCombinedPackageAndShopOrder(userId, lines, input, input.packageData);
+  }
+
+  return createOrderFromLines(userId, lines, input, input.registryItemId ? "REGISTRY_GIFT" : "SHOP_DIRECT");
 }
 
 /** Restocks reserved inventory and cancels the order — used on payment.failed / manual cancellation. */
@@ -642,18 +843,49 @@ export async function verifyShopCheckoutPayment(input: {
   return getOrderForUser(input.userId, order.orderCode);
 }
 
-/** Called from webhook or verified checkout callback — marks paid, invoices, notifies, clears purchased cart lines. */
-export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
-  await prisma.order.updateMany({
-    where: { id: orderId, paymentStatus: { not: PaymentStatus.PAID } },
-    data: {
-      status: OrderStatus.PAID,
-      paymentStatus: PaymentStatus.PAID,
-      ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
-    },
-  });
+/** A send stuck at PENDING this long almost certainly means the process crashed mid-send — safe to reclaim. */
+const EMAIL_PENDING_STALE_MINUTES = 10;
 
-  const order = await prisma.order.findFirst({
+/**
+ * Atomically claims the right to (re)send an order-confirmation email.
+ * Reclaimable states: never attempted (`null`), a previous attempt that
+ * failed or was skipped (SMTP not configured at the time), or a `PENDING`
+ * claim old enough to indicate the process died before finishing the send.
+ * Using `updateMany` with the status filter keeps the claim race-free even
+ * if webhook + polling both fire around the same time.
+ */
+async function claimOrderConfirmationEmail(orderId: string) {
+  const staleBefore = new Date(Date.now() - EMAIL_PENDING_STALE_MINUTES * 60 * 1000);
+  return prisma.order.updateMany({
+    where: {
+      id: orderId,
+      OR: [
+        { emailSendStatus: null },
+        { emailSendStatus: "FAILED" },
+        { emailSendStatus: "SKIPPED" },
+        { emailSendStatus: "PENDING", updatedAt: { lt: staleBefore } },
+      ],
+    },
+    data: { emailSendStatus: "PENDING" },
+  });
+}
+
+/** Retries transient SMTP failures (e.g. brief network blip) before giving up; skips retry when SMTP is simply unconfigured. */
+async function sendEmailWithRetry(
+  payload: Parameters<typeof sendEmail>[0],
+  attempts = 2,
+  delayMs = 1500,
+): Promise<ReturnType<typeof sendEmail> extends Promise<infer T> ? T : never> {
+  let last = await sendEmail(payload);
+  for (let attempt = 1; attempt < attempts && last.status === "FAILED"; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    last = await sendEmail(payload);
+  }
+  return last;
+}
+
+function findOrderForConfirmationEmail(orderId: string) {
+  return prisma.order.findFirst({
     where: { id: orderId },
     include: {
       items: { include: { product: true } },
@@ -669,6 +901,113 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
       },
     },
   });
+}
+
+/** Builds and sends the order-confirmation email + invoice attachment, then records the outcome. Shared by the payment webhook and the admin resend action. */
+async function sendOrderConfirmationEmailNow(
+  order: NonNullable<Awaited<ReturnType<typeof findOrderForConfirmationEmail>>>,
+  invoiceNumber: string | null | undefined,
+  pdfUrl: string | null | undefined,
+) {
+  const packageConfirmationItems =
+    order.kind === OrderKind.PACKAGE && order.packageOrder
+      ? [
+          {
+            title: `${order.packageOrder.theme.title} — ${order.packageOrder.package.title}`,
+            quantity: 1,
+          },
+          ...order.packageOrder.lines
+            .filter((line) => line.section !== "package")
+            .map((line) => ({ title: line.label, quantity: line.quantity })),
+        ]
+      : [];
+  const shopConfirmationItems = order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
+  const confirmationItems =
+    order.kind === OrderKind.UPGRADE
+      ? [
+          {
+            title:
+              (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
+              "Gift Registry",
+            quantity: 1,
+          },
+        ]
+      : [...packageConfirmationItems, ...shopConfirmationItems];
+
+  const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
+  const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
+
+  const confirmation = await sendEmailWithRetry({
+    to: order.contactEmail,
+    subject: `Order Confirmed — ${order.orderCode}`,
+    html: orderConfirmationHtml({
+      name: order.user.name,
+      orderCode: order.orderCode,
+      totalInPaise: order.totalInPaise,
+      items: confirmationItems,
+      invoiceNumber: invoiceNumber ?? null,
+      customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
+    }),
+    attachments:
+      pdfAttachmentBuffer
+        ? [{ filename: attachmentName, content: pdfAttachmentBuffer, contentType: "application/pdf" }]
+        : undefined,
+  });
+
+  if (invoiceNumber) {
+    await prisma.invoice.updateMany({
+      where: { orderId: order.id },
+      data: {
+        emailSentAt: confirmation.sent ? new Date() : undefined,
+        emailSendStatus: confirmation.status,
+      },
+    });
+  }
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
+      emailSendStatus: confirmation.status,
+    },
+  });
+
+  return confirmation;
+}
+
+/**
+ * Admin-triggered resend — mirrors the invoice-resend pattern in
+ * payments.service.ts, but for the order-confirmation email (which also
+ * carries the invoice PDF as an attachment). Forces the claim regardless of
+ * current emailSendStatus so it works even right after an automatic attempt.
+ */
+export async function resendOrderConfirmationEmail(orderId: string) {
+  const order = await findOrderForConfirmationEmail(orderId);
+  if (!order) throw new NotFoundError("Order not found");
+  if (order.paymentStatus !== PaymentStatus.PAID) {
+    throw new ValidationError("Order confirmation can only be resent for paid orders");
+  }
+
+  await prisma.order.update({ where: { id: order.id }, data: { emailSendStatus: "PENDING" } });
+
+  const invoiceNumber = order.invoice?.invoiceNumber ?? order.invoiceNumber;
+  const pdfUrl = order.invoice?.pdfUrl ?? order.invoicePdfUrl;
+  const confirmation = await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl);
+  return { orderId: order.id, orderCode: order.orderCode, ...confirmation };
+}
+
+/** Called from webhook or verified checkout callback — marks paid, invoices, notifies, clears purchased cart lines. */
+export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
+  await prisma.order.updateMany({
+    where: { id: orderId, paymentStatus: { not: PaymentStatus.PAID } },
+    data: {
+      status: OrderStatus.PAID,
+      paymentStatus: PaymentStatus.PAID,
+      ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
+    },
+  });
+
+  const order = await findOrderForConfirmationEmail(orderId);
   if (!order) throw new NotFoundError("Order not found");
 
   const shipping = order.shippingAddress as unknown as ShippingAddress;
@@ -678,7 +1017,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
   if (!order.invoice) {
     invoiceNumber = invoiceNumber ?? (await nextInvoiceNumber());
     try {
-      const lineItems =
+      // A combined checkout has BOTH a packageOrder and shop OrderItems on
+      // the same order — list both so the invoice reflects everything paid for.
+      const packageLineItems =
         order.kind === OrderKind.PACKAGE && order.packageOrder
           ? [
               {
@@ -692,21 +1033,24 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
                   amountInPaise: line.unitPriceInPaise * line.quantity,
                 })),
             ]
-          : order.kind === OrderKind.UPGRADE
-            ? [
-                {
-                  label:
-                    (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
-                    "Gift Registry",
-                  amountInPaise: order.subtotalInPaise,
-                },
-              ]
-          : order.items.map((i) => ({
-              label: i.personalizationSelected
-                ? `${i.product.title} × ${i.quantity} (personalized)`
-                : `${i.product.title} × ${i.quantity}`,
-              amountInPaise: (i.unitPriceInPaise + i.personalizationCostSnapshot) * i.quantity,
-            }));
+          : [];
+      const shopLineItems = order.items.map((i) => ({
+        label: i.personalizationSelected
+          ? `${i.product.title} × ${i.quantity} (personalized)`
+          : `${i.product.title} × ${i.quantity}`,
+        amountInPaise: (i.unitPriceInPaise + i.personalizationCostSnapshot) * i.quantity,
+      }));
+      const lineItems =
+        order.kind === OrderKind.UPGRADE
+          ? [
+              {
+                label:
+                  (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
+                  "Gift Registry",
+                amountInPaise: order.subtotalInPaise,
+              },
+            ]
+          : [...packageLineItems, ...shopLineItems];
 
       const pdf = await generateInvoicePdf({
         invoiceNumber,
@@ -761,7 +1105,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     },
   });
 
-  if (order.kind === OrderKind.SHOP) {
+  // Any order with shop OrderItems (plain SHOP orders, or a combined
+  // PACKAGE + shop-cart checkout) should clear those lines from the cart.
+  if (order.items.length > 0) {
     const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
     if (cart) {
       await prisma.cartItem.deleteMany({
@@ -770,71 +1116,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     }
   }
 
-  const claimedEmail = await prisma.order.updateMany({
-    where: { id: order.id, emailSendStatus: null },
-    data: { emailSendStatus: "PENDING" },
-  });
-
+  const claimedEmail = await claimOrderConfirmationEmail(order.id);
   if (claimedEmail.count > 0) {
-    const confirmationItems =
-      order.kind === OrderKind.PACKAGE && order.packageOrder
-        ? [
-            {
-              title: `${order.packageOrder.theme.title} — ${order.packageOrder.package.title}`,
-              quantity: 1,
-            },
-            ...order.packageOrder.lines
-              .filter((line) => line.section !== "package")
-              .map((line) => ({ title: line.label, quantity: line.quantity })),
-          ]
-        : order.kind === OrderKind.UPGRADE
-          ? [
-              {
-                title:
-                  (order.eventDetails as { upgradeTitle?: string } | null)?.upgradeTitle ||
-                  "Gift Registry",
-                quantity: 1,
-              },
-            ]
-        : order.items.map((i) => ({ title: i.product.title, quantity: i.quantity }));
-
-    const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
-    const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
-
-    const confirmation = await sendEmail({
-      to: order.contactEmail,
-      subject: `Order Confirmed — ${order.orderCode}`,
-      html: orderConfirmationHtml({
-        name: order.user.name,
-        orderCode: order.orderCode,
-        totalInPaise: order.totalInPaise,
-        items: confirmationItems,
-        invoiceNumber: invoiceNumber ?? null,
-        customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
-      }),
-      attachments:
-        pdfAttachmentBuffer
-          ? [{ filename: attachmentName, content: pdfAttachmentBuffer, contentType: "application/pdf" }]
-          : undefined,
-    });
-
-    if (invoiceNumber) {
-      await prisma.invoice.updateMany({
-        where: { orderId: order.id },
-        data: {
-          emailSentAt: confirmation.sent ? new Date() : undefined,
-          emailSendStatus: confirmation.status,
-        },
-      });
-    }
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
-        emailSendStatus: confirmation.status,
-      },
-    });
+    await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl);
   }
 
   const claimedWhatsapp = await prisma.order.updateMany({

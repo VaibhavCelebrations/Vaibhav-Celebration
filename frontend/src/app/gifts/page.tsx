@@ -134,7 +134,7 @@ function GiftsPageContent() {
     setFilter({ theme: null, category: null, search: "", sortBy: "newest" });
   };
 
-  const SidebarContent = () => (
+  const sidebarContentNode = (
     <div className="space-y-8">
       {/* Search */}
       <div>
@@ -278,7 +278,7 @@ function GiftsPageContent() {
             {/* Desktop Sidebar */}
             <aside className="hidden lg:block w-72 shrink-0">
               <div className="sticky top-32 bg-white/50 backdrop-blur-md p-6 rounded-3xl border border-border-light shadow-sm">
-                <SidebarContent />
+                {sidebarContentNode}
               </div>
             </aside>
 
@@ -293,7 +293,7 @@ function GiftsPageContent() {
                       <X size={18} />
                     </button>
                   </div>
-                  <SidebarContent />
+                  {sidebarContentNode}
                   <div className="mt-auto pt-8">
                     <button onClick={() => setShowFilters(false)} className="btn-primary w-full py-3 text-sm cursor-pointer">
                       Apply Filters

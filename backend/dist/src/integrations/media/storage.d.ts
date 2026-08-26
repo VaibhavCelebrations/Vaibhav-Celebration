@@ -12,6 +12,10 @@ export type StoredObject = {
     storage: "r2" | "local";
 };
 export declare function publicUrlForKey(cdnKey: string): string;
+/** Resolve a public CDN/uploads URL back to its object key, if hosted by us. */
+export declare function cdnKeyFromPublicUrl(url: string | null | undefined): string | null;
+/** Delete a rehosted gift-registry product image from R2/local storage. */
+export declare function deleteRegistryHostedImage(url: string | null | undefined): Promise<void>;
 /**
  * Builds R2 object keys with logical folder prefixes.
  * Examples:

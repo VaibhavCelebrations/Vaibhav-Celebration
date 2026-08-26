@@ -157,47 +157,7 @@ export declare function adminListCollections(q: {
         products: {
             id: string;
             title: string;
-            slug: string;
-            sku: string;
-            description: string;
-            priceInPaise: number;
-            compareAtPriceInPaise: number | null;
-            personalizationEnabled: boolean;
-            personalizationCostInPaise: number;
             isActive: boolean;
-            minOrderQuantity: number;
-            maxOrderQuantity: number | null;
-            images: {
-                id: string;
-                displayOrder: number;
-                media: import("../../lib/media-ref").MediaRef | null;
-            }[];
-            categories: {
-                id: string;
-                name: string;
-                slug: string;
-            }[];
-            themes: {
-                id: string;
-                title: string;
-                slug: string;
-            }[];
-            personalizationFields: {
-                id: string;
-                fieldKey: string;
-                label: string;
-                fieldType: string;
-                isRequired: boolean;
-                maxLength: number | null;
-            }[];
-            stock: {
-                quantityAvailable: number;
-                statusFlag: import(".prisma/client").$Enums.StockStatusFlag;
-                lowStockThreshold: number;
-            } | null;
-            createdAt: string;
-            updatedAt: string;
-            deletedAt: string | null;
         }[];
         productCount: number;
     }[];

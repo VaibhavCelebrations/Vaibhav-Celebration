@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ShoppingCart, Heart } from "lucide-react";
 import type { Product } from "@/lib/shop-types";
 import { formatPaise, getStockStatus, productImageUrl } from "@/lib/shop-types";
@@ -9,6 +10,7 @@ import { useDeliverySettings } from "@/lib/delivery-settings";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
+import { QuickViewModal } from "./QuickViewModal";
 
 interface ProductCardProps {
   product: Product;
@@ -19,6 +21,8 @@ interface ProductCardProps {
 export function ProductCard({ product, compact = false }: ProductCardProps) {
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
+  const router = useRouter();
   const delivery = useDeliverySettings();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
@@ -43,9 +47,12 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
   };
 
   return (
-    <Link
-      href={`/gifts/${product.slug}`}
-      className="group block relative"
+    <div
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        router.push(`/gifts/${product.slug}`);
+      }}
+      className="group block relative cursor-pointer"
     >
       <div className="relative overflow-hidden rounded-[2rem] bg-white p-3 sm:p-4 shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-1 border border-border-light/40">
         
@@ -160,6 +167,12 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
           )}
         </button>
       )}
-    </Link>
+
+      <QuickViewModal
+        product={product}
+        isOpen={quickViewOpen}
+        onClose={() => setQuickViewOpen(false)}
+      />
+    </div>
   );
 }

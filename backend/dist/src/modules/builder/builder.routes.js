@@ -23,6 +23,8 @@ const quoteSchema = zod_1.z.object({
         returnGift: zod_1.z.string().min(1).optional().nullable(),
         familyActivity: zod_1.z.string().min(1).optional().nullable(),
         decor: zod_1.z.boolean().optional().default(false),
+        personalization: zod_1.z.record(zod_1.z.string(), zod_1.z.boolean()).optional(),
+        giftRegistryCustomize: zod_1.z.boolean().optional().default(false),
     }),
 });
 exports.builderRouter = (0, express_1.Router)();

@@ -66,8 +66,11 @@ function setAuthCookies(res: import("express").Response, result: { accessToken: 
 }
 
 function clearAuthCookies(res: import("express").Response) {
-  res.clearCookie(CUSTOMER_ACCESS_COOKIE, { path: "/" });
-  res.clearCookie(CUSTOMER_SESSION_COOKIE, { path: SESSION_COOKIE_PATH });
+  // Browsers only clear a cookie when secure/sameSite match the attributes it
+  // was set with — path alone is not enough for SameSite=None cookies.
+  const sameSite = env.COOKIE_SECURE ? "none" : "lax";
+  res.clearCookie(CUSTOMER_ACCESS_COOKIE, { path: "/", secure: env.COOKIE_SECURE, sameSite });
+  res.clearCookie(CUSTOMER_SESSION_COOKIE, { path: SESSION_COOKIE_PATH, secure: env.COOKIE_SECURE, sameSite });
 }
 
 export const customerAuthRouter = Router();

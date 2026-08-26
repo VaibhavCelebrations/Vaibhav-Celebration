@@ -51,7 +51,7 @@ function shapeProduct(p) {
         images: p.images.map((img) => ({ id: img.id, displayOrder: img.displayOrder, media: (0, media_ref_1.toMediaRef)(img.media) })),
         categories: p.categoryTags.map((t) => ({ id: t.category.id, name: t.category.name, slug: t.category.slug })),
         themes: p.themeTags.map((t) => ({ id: t.theme.id, title: t.theme.title, slug: t.theme.slug })),
-        personalizationFields: p.personalizationFields.map((f) => ({
+        personalizationFields: (p.personalizationFields ?? []).map((f) => ({
             id: f.id,
             fieldKey: f.fieldKey,
             label: f.label,
@@ -73,7 +73,7 @@ function shapeProduct(p) {
 }
 // ─── Public catalog ───────────────────────────────────────────────────────────
 async function listProducts(q) {
-    const { page, pageSize, skip, take } = (0, response_1.parsePagination)(q);
+    const { page, pageSize, skip, take } = (0, response_1.parsePagination)(q, 1000);
     const where = {
         deletedAt: null,
         isActive: true,

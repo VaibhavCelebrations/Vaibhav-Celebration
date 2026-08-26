@@ -121,6 +121,8 @@ export async function createShopOrder(input: {
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;
+  /** Present when an event package (built via /build-package) is checked out alongside — or instead of — the shop cart. */
+  packageData?: unknown;
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders", {
     method: "POST",
@@ -137,6 +139,7 @@ export async function createDirectShopOrder(input: {
   contactPhone: string;
   personalizationValues?: unknown;
   personalizationSelected?: boolean;
+  packageData?: unknown;
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders/direct", {
     method: "POST",

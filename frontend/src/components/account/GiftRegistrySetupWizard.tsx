@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Gift } from "lucide-react";
 import * as shopApi from "@/lib/shop-api";
 import { friendlyAuthError } from "@/lib/customer-auth-api";
 import type { GiftRegistryDto, RegistryVisibility, ShippingAddress } from "@/lib/shop-types";
@@ -100,6 +100,11 @@ export function GiftRegistrySetupWizard({
 
   return (
     <div className="rounded-2xl border border-border-light bg-cream/60 p-5 space-y-5">
+      <div className="bg-mocha/10 rounded-xl p-4 text-sm text-charcoal border border-mocha/20">
+        <h4 className="font-bold flex items-center gap-2 mb-1"><Gift size={16} className="text-mocha" /> Create your Gift Registry</h4>
+        <p className="text-text-muted text-xs">Set up a wishlist of gifts for your celebration, share the link with guests, and let them easily purchase presents that get delivered straight to your door.</p>
+      </div>
+
       <ol className="flex gap-2">
         {STEPS.map((label, i) => (
           <li key={label} className="flex-1">

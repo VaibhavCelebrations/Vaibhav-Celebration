@@ -7,6 +7,7 @@ exports.updateExtraService = updateExtraService;
 exports.deleteExtraService = deleteExtraService;
 const prisma_1 = require("../../db/prisma");
 const errors_1 = require("../../lib/errors");
+const redis_1 = require("../../lib/redis");
 async function listExtraServices(includeInactive = false) {
     return prisma_1.prisma.extraService.findMany({
         where: { deletedAt: null, ...(includeInactive ? {} : { isActive: true }) },
@@ -25,7 +26,7 @@ async function createExtraService(data) {
     return prisma_1.prisma.$transaction(async (tx) => {
         const item = await tx.extraService.create({ data });
         const packages = await tx.package.findMany({
-            where: { deletedAt: null },
+            where: { deletedAt: null, isActive: true },
             select: { id: true },
             orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
         });
@@ -39,6 +40,7 @@ async function createExtraService(data) {
                 })),
             });
         }
+        void (0, redis_1.delPattern)("pub:packages:*");
         return item;
     });
 }
@@ -49,6 +51,7 @@ async function updateExtraService(id, data) {
     });
     if (!updated.count)
         throw new errors_1.NotFoundError("Extra service not found");
+    void (0, redis_1.delPattern)("pub:packages:*");
     return prisma_1.prisma.extraService.findUniqueOrThrow({ where: { id } });
 }
 async function deleteExtraService(id) {
@@ -58,5 +61,6 @@ async function deleteExtraService(id) {
     });
     if (!updated.count)
         throw new errors_1.NotFoundError("Extra service not found");
+    void (0, redis_1.delPattern)("pub:packages:*");
 }
 //# sourceMappingURL=extra-services.service.js.map

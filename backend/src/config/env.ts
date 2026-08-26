@@ -98,7 +98,14 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+// Cross-site cookies (Vercel frontend/admin <-> Render API) require
+// Secure=true + SameSite=None — browsers silently drop the cookie otherwise.
+// Force this on in production even if COOKIE_SECURE was left unset on the
+// hosting dashboard, so a forgotten env var can't reintroduce logout-on-refresh.
+export const env = {
+  ...parsed.data,
+  COOKIE_SECURE: parsed.data.COOKIE_SECURE || parsed.data.NODE_ENV === "production",
+};
 
 export const corsOrigins = env.CORS_ORIGINS.split(",")
   .map((o) => o.trim())

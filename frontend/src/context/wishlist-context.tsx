@@ -26,25 +26,28 @@ interface WishlistContextType {
 const WishlistContext = createContext<WishlistContextType | null>(null);
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated, openAuthModal, isLoading } = useAuth();
   const { push } = useToast();
   const [items, setItems] = useState<WishlistItemDto[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [optimisticAdditions, setOptimisticAdditions] = useState<Set<string>>(new Set());
+  const [optimisticRemovals, setOptimisticRemovals] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
+    if (isLoading) return;
     if (!isAuthenticated) {
       setItems([]);
       return;
     }
-    setIsLoading(true);
+    setIsFetching(true);
     try {
       setItems(await shopApi.listWishlist());
     } catch {
       // Silently ignore — wishlist is non-critical UI state
     } finally {
-      setIsLoading(false);
+      setIsFetching(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isLoading]);
 
   useEffect(() => {
     void (async () => {
@@ -52,7 +55,13 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     })();
   }, [refresh]);
 
-  const isWishlisted = useCallback((productId: string) => items.some((i) => i.productId === productId), [items]);
+  const isWishlisted = useCallback((productId: string) => {
+    if (optimisticRemovals.has(productId)) return false;
+    if (optimisticAdditions.has(productId)) return true;
+    return items.some((i) => i.productId === productId);
+  }, [items, optimisticAdditions, optimisticRemovals]);
+
+  const [toggling, setToggling] = useState<Set<string>>(new Set());
 
   const toggleWishlistRef = useRef<((productId: string) => Promise<void>) | null>(null);
 
@@ -62,7 +71,29 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         openAuthModal(() => void toggleWishlistRef.current?.(productId));
         return;
       }
-      const alreadyIn = items.some((i) => i.productId === productId);
+      if (toggling.has(productId)) return; // prevent spam
+      
+      const alreadyIn = isWishlisted(productId);
+      
+      setToggling((prev) => new Set(prev).add(productId));
+      
+      // Optimistic update
+      if (alreadyIn) {
+        setOptimisticRemovals((prev) => new Set(prev).add(productId));
+        setOptimisticAdditions((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+      } else {
+        setOptimisticAdditions((prev) => new Set(prev).add(productId));
+        setOptimisticRemovals((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+      }
+      
       try {
         if (alreadyIn) {
           setItems(await shopApi.removeFromWishlist(productId));
@@ -73,9 +104,29 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not update your saved products", "error");
+      } finally {
+        // Clear optimistic state for this item
+        if (alreadyIn) {
+          setOptimisticRemovals((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
+        } else {
+          setOptimisticAdditions((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
+        }
+        setToggling((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
       }
     },
-    [isAuthenticated, items, openAuthModal, push],
+    [isAuthenticated, isWishlisted, items, openAuthModal, push, toggling],
   );
   useEffect(() => {
     toggleWishlistRef.current = toggleWishlist;
@@ -83,17 +134,25 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   const removeFromWishlist = useCallback(
     async (productId: string) => {
+      // Optimistic
+      setOptimisticRemovals((prev) => new Set(prev).add(productId));
       try {
         setItems(await shopApi.removeFromWishlist(productId));
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not remove item", "error");
+      } finally {
+        setOptimisticRemovals((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
       }
     },
     [push],
   );
 
   return (
-    <WishlistContext.Provider value={{ items, isLoading, isWishlisted, toggleWishlist, removeFromWishlist }}>
+    <WishlistContext.Provider value={{ items, isLoading: isLoading, isWishlisted, toggleWishlist, removeFromWishlist }}>
       {children}
     </WishlistContext.Provider>
   );

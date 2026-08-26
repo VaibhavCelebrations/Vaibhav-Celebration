@@ -76,13 +76,8 @@ async function getCustomer360(id) {
     const customer = await prisma_1.prisma.customer.findFirst({
         where: { id, deletedAt: null },
         include: {
-            bookings: {
-                where: { deletedAt: null },
-                include: { theme: true, package: true },
-                orderBy: { createdAt: "desc" },
-            },
             consultations: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
-            invoices: { where: { deletedAt: null }, orderBy: { issuedAt: "desc" } },
+            invoices: { where: { deletedAt: null }, include: { order: true }, orderBy: { issuedAt: "desc" } },
             leads: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
             notes: { orderBy: { createdAt: "desc" } },
         },

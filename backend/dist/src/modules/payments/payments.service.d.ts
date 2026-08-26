@@ -1,5 +1,5 @@
 export declare function createPaymentOrder(input: {
-    bookingCode?: string;
+    orderCode?: string;
     eventRegistrationId?: string;
 }): Promise<{
     razorpayOrderId: string | null;
@@ -11,43 +11,39 @@ export declare function handleRazorpayWebhook(rawBody: string, signature: string
     handled: boolean;
     type?: undefined;
     id?: undefined;
+    duplicate?: undefined;
 } | {
     handled: boolean;
     type: string;
     id: string;
-}>;
-export declare function enqueueInvoiceForBooking(bookingId: string): Promise<{
+    duplicate: boolean;
+} | {
+    handled: boolean;
+    duplicate: boolean;
+    type?: undefined;
+    id?: undefined;
+} | {
+    handled: boolean;
+    type: string;
     id: string;
-    deletedAt: Date | null;
-    customerId: string;
-    gstInPaise: number;
-    bookingId: string | null;
-    invoiceNumber: string;
-    linkedType: import(".prisma/client").$Enums.InvoiceLinkedType;
-    orderId: string | null;
-    subtotalInPaise: number;
-    totalInPaise: number;
-    pdfUrl: string | null;
-    emailSentAt: Date | null;
-    whatsappSentAt: Date | null;
-    whatsappSendStatus: string | null;
-    issuedAt: Date;
+    duplicate?: undefined;
 }>;
 export declare function deliverInvoice(invoiceId: string): Promise<{
     id: string;
     deletedAt: Date | null;
+    orderId: string | null;
     customerId: string;
-    gstInPaise: number;
-    bookingId: string | null;
     invoiceNumber: string;
     linkedType: import(".prisma/client").$Enums.InvoiceLinkedType;
-    orderId: string | null;
     subtotalInPaise: number;
+    gstInPaise: number;
     totalInPaise: number;
     pdfUrl: string | null;
     emailSentAt: Date | null;
+    emailSendStatus: string | null;
     whatsappSentAt: Date | null;
     whatsappSendStatus: string | null;
+    whatsappMessageId: string | null;
     issuedAt: Date;
 }>;
 export declare function listInvoices(filters: {
@@ -65,42 +61,25 @@ export declare function listInvoices(filters: {
             phone: string;
             fullName: string;
         };
-        booking: {
-            status: import(".prisma/client").$Enums.BookingStatus;
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            deletedAt: Date | null;
-            themeId: string;
-            packageId: string;
-            bookingCode: string;
-            customerId: string;
-            eventDate: Date;
-            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
-            basePriceInPaise: number;
-            customizationTotalInPaise: number;
-            gstInPaise: number;
-            totalPriceInPaise: number;
-            razorpayOrderId: string | null;
-            razorpayPaymentId: string | null;
-            guestEmail: string;
-            guestPhone: string;
+        order: {
+            orderCode: string;
         } | null;
     } & {
         id: string;
         deletedAt: Date | null;
+        orderId: string | null;
         customerId: string;
-        gstInPaise: number;
-        bookingId: string | null;
         invoiceNumber: string;
         linkedType: import(".prisma/client").$Enums.InvoiceLinkedType;
-        orderId: string | null;
         subtotalInPaise: number;
+        gstInPaise: number;
         totalInPaise: number;
         pdfUrl: string | null;
         emailSentAt: Date | null;
+        emailSendStatus: string | null;
         whatsappSentAt: Date | null;
         whatsappSendStatus: string | null;
+        whatsappMessageId: string | null;
         issuedAt: Date;
     })[];
 }>;
@@ -114,42 +93,69 @@ export declare function getInvoiceByNumber(invoiceNumber: string): Promise<{
         phone: string;
         fullName: string;
     };
-    booking: {
-        status: import(".prisma/client").$Enums.BookingStatus;
+    order: {
+        status: import(".prisma/client").$Enums.OrderStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        deletedAt: Date | null;
-        themeId: string;
-        packageId: string;
-        bookingCode: string;
-        customerId: string;
-        eventDate: Date;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
-        basePriceInPaise: number;
-        customizationTotalInPaise: number;
-        gstInPaise: number;
-        totalPriceInPaise: number;
         razorpayOrderId: string | null;
         razorpayPaymentId: string | null;
-        guestEmail: string;
-        guestPhone: string;
+        eventDate: Date | null;
+        invoiceNumber: string | null;
+        subtotalInPaise: number;
+        gstInPaise: number;
+        totalInPaise: number;
+        emailSendStatus: string | null;
+        whatsappSentAt: Date | null;
+        whatsappSendStatus: string | null;
+        whatsappMessageId: string | null;
+        orderCode: string;
+        userId: string;
+        kind: import(".prisma/client").$Enums.OrderKind;
+        customizationFollowUpStatus: import(".prisma/client").$Enums.CustomizationFollowUpStatus;
+        adminNotes: string | null;
+        shippingAddress: import("@prisma/client/runtime/library").JsonValue;
+        contactEmail: string;
+        contactPhone: string;
+        eventDetails: import("@prisma/client/runtime/library").JsonValue | null;
+        invoicePdfUrl: string | null;
+        confirmationEmailSentAt: Date | null;
+        placedAt: Date;
+        registryId: string | null;
     } | null;
 } & {
     id: string;
     deletedAt: Date | null;
+    orderId: string | null;
     customerId: string;
-    gstInPaise: number;
-    bookingId: string | null;
     invoiceNumber: string;
     linkedType: import(".prisma/client").$Enums.InvoiceLinkedType;
-    orderId: string | null;
     subtotalInPaise: number;
+    gstInPaise: number;
     totalInPaise: number;
     pdfUrl: string | null;
     emailSentAt: Date | null;
+    emailSendStatus: string | null;
     whatsappSentAt: Date | null;
     whatsappSendStatus: string | null;
+    whatsappMessageId: string | null;
     issuedAt: Date;
 }>;
 export declare function exportInvoicesCsv(from?: string, to?: string): Promise<string>;
+export declare function listPaymentEvents(filters: {
+    search?: string;
+    page: number;
+    pageSize: number;
+}): Promise<{
+    total: number;
+    items: {
+        id: string;
+        razorpayOrderId: string | null;
+        razorpayPaymentId: string | null;
+        eventKey: string;
+        eventType: string;
+        processedAt: Date;
+        payload: import("@prisma/client/runtime/library").JsonValue | null;
+    }[];
+}>;

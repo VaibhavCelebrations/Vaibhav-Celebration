@@ -9,6 +9,7 @@ const prisma_1 = require("../../db/prisma");
 const errors_1 = require("../../lib/errors");
 const media_ref_1 = require("../../lib/media-ref");
 const settings_1 = require("../../lib/settings");
+const upgrades_service_1 = require("../upgrades/upgrades.service");
 /** Category slug on ProductCategory → ExtraServiceCategory for filtering */
 const CATEGORY_SLUG_BY_SLOT = {
     "welcome-items": "welcome-items",
@@ -75,14 +76,17 @@ async function listBuilderProducts(q) {
             images: { include: { media: true }, orderBy: { displayOrder: "asc" } },
             categoryTags: { include: { category: true } },
             inventory: true,
+            personalizationFields: { orderBy: { fieldKey: "asc" } },
         },
         orderBy: { title: "asc" },
     });
     const allowed = rows.filter((p) => {
         const tiers = exports.PRODUCT_TIER_MAP[p.sku];
-        if (!tiers)
-            return false;
-        return tiers.includes(tier) && !p.sku.startsWith("SP-PACK-") && p.sku !== "SP-TAG-THANK";
+        if (tiers) {
+            return tiers.includes(tier) && !p.sku.startsWith("SP-PACK-") && p.sku !== "SP-TAG-THANK";
+        }
+        // Allow dynamically added products from Admin panel to appear in all tiers
+        return true;
     });
     return allowed.map((p) => {
         const firstImage = p.images[0];
@@ -98,6 +102,17 @@ async function listBuilderProducts(q) {
             pricingMode: PER_GROUP_SKUS.has(p.sku) ? "PER_GROUP" : "PER_CHILD",
             categories: p.categoryTags.map((t) => ({ slug: t.category.slug, name: t.category.name })),
             imageUrl: media ? (0, media_ref_1.toMediaRef)(media)?.url ?? null : null,
+            personalizationEnabled: p.personalizationEnabled,
+            personalizationCostInPaise: p.personalizationCostInPaise,
+            personalizationFields: p.personalizationFields.map((f) => ({
+                id: f.id,
+                fieldKey: f.fieldKey,
+                label: f.label,
+                fieldType: f.fieldType,
+                isRequired: f.isRequired,
+                maxLength: f.maxLength,
+            })),
+            stockAvailable: p.inventory?.availableQuantity ?? 0,
         };
     });
 }
@@ -112,6 +127,7 @@ async function computeBuilderQuote(input) {
         where: { slug: input.packageSlug, deletedAt: null, isActive: true },
         include: {
             serviceItems: {
+                where: { extraService: { deletedAt: null } },
                 orderBy: { displayOrder: "asc" },
                 include: { extraService: true },
             },
@@ -179,21 +195,28 @@ async function computeBuilderQuote(input) {
         const { qty, moqApplied } = isGroup
             ? perGroupQty(input.guestCount, product.minOrderQuantity)
             : perChildQty(input.guestCount, product.minOrderQuantity);
+        const personalizationSelected = Boolean(product.personalizationEnabled && input.selections.personalization?.[product.sku]);
+        const personalizationCostInPaise = personalizationSelected ? product.personalizationCostInPaise : 0;
+        const unitWithPersonalization = product.priceInPaise + personalizationCostInPaise;
         lineItems.push({
             key: opts.key,
-            label: `${opts.labelPrefix}: ${product.title}`,
+            label: personalizationSelected
+                ? `${opts.labelPrefix}: ${product.title} (personalized)`
+                : `${opts.labelPrefix}: ${product.title}`,
             sublabel: moqApplied
                 ? `Minimum ${product.minOrderQuantity} units — charged for ${qty}`
                 : isGroup
-                    ? `₹${(product.priceInPaise / 100).toFixed(0)} × ${qty} group`
-                    : `₹${(product.priceInPaise / 100).toFixed(0)} × ${qty}`,
+                    ? `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty} group`
+                    : `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty}`,
             section: opts.section,
             sku: product.sku,
             packageServiceItemId: opts.packageServiceItemId,
             quantity: qty,
-            unitPriceInPaise: product.priceInPaise,
-            lineTotalInPaise: product.priceInPaise * qty,
+            unitPriceInPaise: unitWithPersonalization,
+            lineTotalInPaise: unitWithPersonalization * qty,
             moqApplied,
+            personalizationSelected,
+            personalizationCostInPaise,
         });
     }
     const sel = input.selections;
@@ -309,13 +332,40 @@ async function computeBuilderQuote(input) {
             includedLabels.push(guide.extraService.label);
         }
     }
+    const giftRegistryPsi = pkg.serviceItems.find((s) => s.extraService.isActive &&
+        !s.extraService.deletedAt &&
+        (0, upgrades_service_1.isGiftRegistryMatrixService)(s.extraService));
+    const giftRegistryIncluded = giftRegistryPsi?.isIncluded ?? false;
+    const giftRegistryCustomizePriceInPaise = giftRegistryPsi?.extraService.customizationPriceInPaise ?? 0;
+    if (giftRegistryPsi) {
+        if (giftRegistryIncluded) {
+            // Included by default, no customization charge
+            includedLabels.push(giftRegistryPsi.extraService.label);
+        }
+        else if (sel.giftRegistryCustomize && giftRegistryCustomizePriceInPaise > 0) {
+            // Opted-in as an add-on for standard tier
+            lineItems.push({
+                key: "gift-registry-addon",
+                label: giftRegistryPsi.extraService.label,
+                sublabel: "Digital add-on",
+                section: "fixed",
+                packageServiceItemId: giftRegistryPsi.id,
+                quantity: 1,
+                unitPriceInPaise: giftRegistryCustomizePriceInPaise,
+                lineTotalInPaise: giftRegistryCustomizePriceInPaise,
+            });
+        }
+    }
     const customizationTotalInPaise = lineItems
         .filter((l) => l.key !== "base")
         .reduce((sum, l) => sum + l.lineTotalInPaise, 0);
     const subtotalInPaise = basePriceInPaise + customizationTotalInPaise;
+    const shipping = await (0, settings_1.computeShippingForSubtotal)(subtotalInPaise);
     const gstPercent = await (0, settings_1.getGstPercent)();
-    const gstInPaise = (0, settings_1.gstOn)(subtotalInPaise, gstPercent);
-    const totalInPaise = subtotalInPaise + gstInPaise;
+    const taxable = subtotalInPaise + shipping.shippingInPaise;
+    const gstInPaise = (0, settings_1.gstOn)(taxable, gstPercent);
+    const totalInPaise = taxable + gstInPaise;
+    const hasPersonalization = lineItems.some((l) => l.personalizationSelected);
     return {
         packageId: pkg.id,
         packageSlug: pkg.slug,
@@ -329,10 +379,17 @@ async function computeBuilderQuote(input) {
         basePriceInPaise,
         customizationTotalInPaise,
         subtotalInPaise,
+        shippingInPaise: shipping.shippingInPaise,
+        shippingWaived: shipping.shippingWaived,
+        freeShippingThresholdInPaise: shipping.freeShippingThresholdInPaise,
+        amountUntilFreeShippingInPaise: shipping.amountUntilFreeShippingInPaise,
         gstPercent,
         gstInPaise,
         totalInPaise,
         includedLabels,
+        hasPersonalization,
+        giftRegistryIncluded,
+        giftRegistryCustomizePriceInPaise,
     };
 }
 //# sourceMappingURL=builder.service.js.map

@@ -15,6 +15,8 @@ const public_settings_service_1 = require("../settings/public-settings.service")
         const about = pages_service_1.defaultPageSections.about;
         const contact = pages_service_1.defaultPageSections.contact;
         (0, vitest_1.expect)(home.hero).toBeDefined();
+        (0, vitest_1.expect)(home.hero?.headline).toBe("One Theme. Every Detail. Beautifully Celebrated");
+        (0, vitest_1.expect)(home.hero?.headlineAccent).toBe("Beautifully Celebrated");
         (0, vitest_1.expect)(about.values).toBeDefined();
         (0, vitest_1.expect)(contact.formLabels).toBeDefined();
     });

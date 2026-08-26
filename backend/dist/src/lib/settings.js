@@ -5,6 +5,9 @@ exports.getSettingNumber = getSettingNumber;
 exports.getGstPercent = getGstPercent;
 exports.getMaxBookingsPerDay = getMaxBookingsPerDay;
 exports.getMinConsultationAdvanceDays = getMinConsultationAdvanceDays;
+exports.getFreeShippingThresholdInPaise = getFreeShippingThresholdInPaise;
+exports.getShippingFeeInPaise = getShippingFeeInPaise;
+exports.computeShippingForSubtotal = computeShippingForSubtotal;
 exports.invalidateSettingsCache = invalidateSettingsCache;
 exports.gstOn = gstOn;
 const prisma_1 = require("../db/prisma");
@@ -52,6 +55,27 @@ async function getMinConsultationAdvanceDays() {
     if (Number.isFinite(primary))
         return primary;
     return getSettingNumber("min_consultation_advance_days", env_1.env.MIN_CONSULTATION_ADVANCE_DAYS);
+}
+/** Cart/package subtotal (pre-GST) at or above this unlocks free delivery. Default ₹2,999. */
+async function getFreeShippingThresholdInPaise() {
+    return getSettingNumber("FREE_SHIPPING_THRESHOLD_IN_PAISE", 299_900);
+}
+/** Flat delivery fee when subtotal is below the free-shipping threshold. Default ₹199. */
+async function getShippingFeeInPaise() {
+    return getSettingNumber("SHIPPING_FEE_IN_PAISE", 19_900);
+}
+/** Derive shipping fee from product subtotal (excludes GST and shipping itself). */
+async function computeShippingForSubtotal(subtotalInPaise) {
+    const freeShippingThresholdInPaise = await getFreeShippingThresholdInPaise();
+    const fee = await getShippingFeeInPaise();
+    const shippingWaived = subtotalInPaise >= freeShippingThresholdInPaise;
+    const shippingInPaise = shippingWaived ? 0 : fee;
+    return {
+        shippingInPaise,
+        shippingWaived,
+        freeShippingThresholdInPaise,
+        amountUntilFreeShippingInPaise: Math.max(0, freeShippingThresholdInPaise - subtotalInPaise),
+    };
 }
 function invalidateSettingsCache() {
     _memCache.clear();

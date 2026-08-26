@@ -9,11 +9,61 @@ import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import type { ServerCartItem } from "@/lib/shop-types";
+import { combineCartQuote } from "@/lib/cart-totals";
+import { useDeliverySettings } from "@/lib/delivery-settings";
+
+function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQuantity: (id: string, qty: number) => void }) {
+  const [val, setVal] = useState(item.quantity.toString());
+
+  useEffect(() => {
+    setVal(item.quantity.toString());
+  }, [item.quantity]);
+
+  const handleBlur = () => {
+    let parsed = parseInt(val, 10);
+    const maxQty = item.maxOrderQuantity !== null ? Math.min(item.maxOrderQuantity, item.stockAvailable) : item.stockAvailable;
+    
+    if (isNaN(parsed) || parsed < 1) {
+      parsed = 1;
+    } else if (parsed > maxQty) {
+      parsed = maxQty;
+    }
+
+    if (parsed !== item.quantity) {
+      updateQuantity(item.id, parsed);
+    } else {
+      setVal(item.quantity.toString());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={1}
+      max={item.maxOrderQuantity ?? item.stockAvailable}
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="w-10 text-center text-xs font-bold text-charcoal bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-mocha rounded-sm"
+      style={{ MozAppearance: "textfield" }}
+    />
+  );
+}
 
 export function CartDrawer() {
   const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
   const { isAuthenticated, openAuthModal } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
+  const deliverySettings = useDeliverySettings();
   const router = useRouter();
 
   const handleCheckout = () => {
@@ -27,7 +77,10 @@ export function CartDrawer() {
 
   if (!isCartOpen) return null;
 
-  const combinedTotalRupees = toRupees(quote.totalInPaise) + packagesSubtotalRupees;
+  // One shipping/GST calculation across the shop cart AND event packages —
+  // free delivery must consider both, not just the shop subtotal.
+  const combinedQuote = combineCartQuote(quote, packages, deliverySettings.shippingFeeInPaise);
+  const combinedTotalRupees = combinedQuote.totalInPaise / 100;
 
   return (
     <>
@@ -217,9 +270,7 @@ export function CartDrawer() {
                         >
                           <Minus size={12} />
                         </button>
-                        <span className="w-8 text-center text-xs font-bold text-charcoal">
-                          {item.quantity}
-                        </span>
+                        <QuantityInput item={item} updateQuantity={updateQuantity} />
                         <button
                           onClick={() => void updateQuantity(item.id, item.quantity + 1)}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
@@ -242,31 +293,31 @@ export function CartDrawer() {
 
             {/* Footer Summary */}
             <div className="border-t border-border-light px-6 py-5 space-y-3 bg-cream/30 shrink-0">
-              {items.length > 0 && (
+              {(items.length > 0 || packages.length > 0) && (
                 <FreeDeliveryProgress
-                  subtotalInPaise={quote.subtotalInPaise}
-                  freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
-                  shippingFeeInPaise={quote.shippingInPaise || 19_900}
-                  shippingWaived={quote.shippingWaived}
+                  subtotalInPaise={combinedQuote.subtotalInPaise}
+                  freeShippingThresholdInPaise={combinedQuote.freeShippingThresholdInPaise}
+                  shippingFeeInPaise={combinedQuote.shippingWaived ? 0 : combinedQuote.shippingInPaise || 19_900}
+                  shippingWaived={combinedQuote.shippingWaived}
                 />
               )}
               <div className="flex justify-between text-sm text-text-muted">
                 <span>Subtotal</span>
-                <span className="font-semibold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
+                <span className="font-semibold text-charcoal">{formatPaise(combinedQuote.subtotalInPaise)}</span>
               </div>
-              {items.length > 0 && (
+              {(items.length > 0 || packages.length > 0) && (
                 <div className="flex justify-between text-sm text-text-muted">
                   <span>Shipping</span>
-                  {quote.shippingWaived ? (
+                  {combinedQuote.shippingWaived ? (
                     <span className="font-semibold text-green-700">FREE</span>
                   ) : (
-                    <span className="font-semibold text-charcoal">{formatPaise(quote.shippingInPaise)}</span>
+                    <span className="font-semibold text-charcoal">{formatPaise(combinedQuote.shippingInPaise)}</span>
                   )}
                 </div>
               )}
               <div className="flex justify-between text-sm text-text-muted">
-                <span>GST ({quote.gstPercent}%)</span>
-                <span className="font-semibold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
+                <span>GST ({combinedQuote.gstPercent}%)</span>
+                <span className="font-semibold text-charcoal">{formatPaise(combinedQuote.gstInPaise)}</span>
               </div>
               {packages.length > 0 && (
                 <div className="flex justify-between text-sm text-text-muted">

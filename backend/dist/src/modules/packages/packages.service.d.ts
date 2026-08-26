@@ -307,9 +307,6 @@ export type PackageMatrixSaveInput = {
         description?: string | null;
         priceInPaise?: number;
         isRecommended?: boolean;
-        badgeText?: string | null;
-        pricingUnit?: string | null;
-        hasGiftRegistry?: boolean;
         isActive?: boolean;
         isCustomizable?: boolean;
         items: ServiceItemInput[];

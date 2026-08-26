@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { env } from "./config/env";
+import { isSmtpConfigured } from "./integrations/email/mailer";
 import { logger } from "./lib/logger";
 import { getRedisClient, disconnectRedis } from "./lib/redis";
 import { ensureGiftRegistryService } from "./modules/upgrades/upgrades.service";
@@ -19,6 +20,20 @@ const server = app.listen(env.PORT, () => {
     },
     "Vaibhav Celebrations API listening",
   );
+  // In production, missing SMTP env vars fail silently per-order (email gets
+  // marked SKIPPED) — surface it loudly at boot instead so it's caught before
+  // customers start missing order confirmations.
+  if (env.NODE_ENV === "production" && !isSmtpConfigured()) {
+    logger.warn(
+      {
+        smtpHostSet: Boolean(env.SMTP_HOST),
+        smtpUserSet: Boolean(env.SMTP_USER),
+        smtpPassSet: Boolean(env.SMTP_PASS),
+        emailFromAddressSet: Boolean(env.EMAIL_FROM_ADDRESS),
+      },
+      "SMTP is not fully configured in production — order confirmation, invoice, and account emails will be skipped",
+    );
+  }
   void ensureGiftRegistryService().catch((err) => {
     logger.error({ err }, "Failed to ensure Gift Registry package service");
   });

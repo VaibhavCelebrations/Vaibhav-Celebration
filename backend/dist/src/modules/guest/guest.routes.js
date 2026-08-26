@@ -11,7 +11,7 @@ const guest_service_1 = require("./guest.service");
 exports.guestRouter = (0, express_1.Router)();
 exports.guestRouter.post("/lookup/request-otp", (0, validate_1.validate)(zod_1.z.object({
     referenceCode: zod_1.z.string().min(1),
-    referenceType: zod_1.z.enum(["BOOKING", "ORDER", "REGISTRY"]),
+    referenceType: zod_1.z.enum(["ORDER", "REGISTRY"]),
     email: zod_1.z.string().email(),
 })), async (req, res, next) => {
     try {
@@ -32,9 +32,9 @@ exports.guestRouter.post("/lookup/verify-otp", (0, validate_1.validate)(zod_1.z.
         return next(err);
     }
 });
-exports.guestRouter.get("/booking/:bookingCode", guest_auth_1.requireGuest, (0, guest_auth_1.requireGuestScope)("bookingCode"), async (req, res, next) => {
+exports.guestRouter.get("/order/:orderCode", guest_auth_1.requireGuest, (0, guest_auth_1.requireGuestScope)("orderCode"), async (req, res, next) => {
     try {
-        return (0, response_1.ok)(res, await (0, guest_service_1.getGuestBooking)((0, params_1.param)(req, "bookingCode")));
+        return (0, response_1.ok)(res, await (0, guest_service_1.getGuestOrder)((0, params_1.param)(req, "orderCode")));
     }
     catch (err) {
         return next(err);

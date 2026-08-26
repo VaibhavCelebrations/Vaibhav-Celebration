@@ -1,4 +1,4 @@
-import { LeadSource, LeadStatus } from "@prisma/client";
+import { LeadSource, LeadStatus, type Prisma } from "@prisma/client";
 export declare function createContactLead(input: {
     name: string;
     email?: string;
@@ -13,8 +13,8 @@ export declare function createContactLead(input: {
     email: string | null;
     createdAt: Date;
     deletedAt: Date | null;
-    customerId: string | null;
     phone: string | null;
+    customerId: string | null;
     source: import(".prisma/client").$Enums.LeadSource;
     interestArea: string | null;
     chatbotSessionId: string | null;
@@ -35,8 +35,8 @@ export declare function listLeads(filters: {
         email: string | null;
         createdAt: Date;
         deletedAt: Date | null;
-        customerId: string | null;
         phone: string | null;
+        customerId: string | null;
         source: import(".prisma/client").$Enums.LeadSource;
         interestArea: string | null;
         chatbotSessionId: string | null;
@@ -50,8 +50,8 @@ export declare function updateLeadStatus(id: string, status: LeadStatus): Promis
     email: string | null;
     createdAt: Date;
     deletedAt: Date | null;
-    customerId: string | null;
     phone: string | null;
+    customerId: string | null;
     source: import(".prisma/client").$Enums.LeadSource;
     interestArea: string | null;
     chatbotSessionId: string | null;
@@ -73,81 +73,55 @@ export declare function listCustomers(filters: {
     }[];
 }>;
 export declare function getCustomer360(id: string): Promise<{
-    invoices: {
+    invoices: ({
+        order: {
+            status: import(".prisma/client").$Enums.OrderStatus;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            razorpayOrderId: string | null;
+            razorpayPaymentId: string | null;
+            eventDate: Date | null;
+            invoiceNumber: string | null;
+            subtotalInPaise: number;
+            gstInPaise: number;
+            totalInPaise: number;
+            emailSendStatus: string | null;
+            whatsappSentAt: Date | null;
+            whatsappSendStatus: string | null;
+            whatsappMessageId: string | null;
+            orderCode: string;
+            userId: string;
+            kind: import(".prisma/client").$Enums.OrderKind;
+            customizationFollowUpStatus: import(".prisma/client").$Enums.CustomizationFollowUpStatus;
+            adminNotes: string | null;
+            shippingAddress: Prisma.JsonValue;
+            contactEmail: string;
+            contactPhone: string;
+            eventDetails: Prisma.JsonValue | null;
+            invoicePdfUrl: string | null;
+            confirmationEmailSentAt: Date | null;
+            placedAt: Date;
+            registryId: string | null;
+        } | null;
+    } & {
         id: string;
         deletedAt: Date | null;
+        orderId: string | null;
         customerId: string;
-        gstInPaise: number;
-        bookingId: string | null;
         invoiceNumber: string;
         linkedType: import(".prisma/client").$Enums.InvoiceLinkedType;
-        orderId: string | null;
         subtotalInPaise: number;
+        gstInPaise: number;
         totalInPaise: number;
         pdfUrl: string | null;
         emailSentAt: Date | null;
+        emailSendStatus: string | null;
         whatsappSentAt: Date | null;
         whatsappSendStatus: string | null;
+        whatsappMessageId: string | null;
         issuedAt: Date;
-    }[];
-    bookings: ({
-        theme: {
-            id: string;
-            isActive: boolean;
-            createdAt: Date;
-            updatedAt: Date;
-            deletedAt: Date | null;
-            title: string;
-            slug: string;
-            shortDescription: string;
-            storyDescription: string | null;
-            audienceNote: string | null;
-            heroImageId: string | null;
-            displayOrder: number;
-            seoTitle: string | null;
-            seoDescription: string | null;
-            ogImageId: string | null;
-        };
-        package: {
-            id: string;
-            isActive: boolean;
-            createdAt: Date;
-            updatedAt: Date;
-            deletedAt: Date | null;
-            title: string;
-            slug: string;
-            displayOrder: number;
-            description: string | null;
-            displayName: string | null;
-            priceInPaise: number;
-            tierRank: number;
-            isRecommended: boolean;
-            badgeText: string | null;
-            pricingUnit: string | null;
-            hasGiftRegistry: boolean;
-            isCustomizable: boolean;
-            internalKey: string | null;
-        };
-    } & {
-        status: import(".prisma/client").$Enums.BookingStatus;
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        themeId: string;
-        packageId: string;
-        bookingCode: string;
-        customerId: string;
-        eventDate: Date;
-        paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
-        basePriceInPaise: number;
-        customizationTotalInPaise: number;
-        gstInPaise: number;
-        totalPriceInPaise: number;
-        razorpayOrderId: string | null;
-        razorpayPaymentId: string | null;
-        guestEmail: string;
-        guestPhone: string;
     })[];
     notes: {
         id: string;
@@ -163,9 +137,9 @@ export declare function getCustomer360(id: string): Promise<{
         email: string;
         createdAt: Date;
         deletedAt: Date | null;
+        phone: string;
         customerId: string | null;
         eventDate: Date;
-        phone: string;
         childOrEventDetails: string | null;
         customRequirements: string | null;
         advanceNoticeDays: number;
@@ -179,8 +153,8 @@ export declare function getCustomer360(id: string): Promise<{
         email: string | null;
         createdAt: Date;
         deletedAt: Date | null;
-        customerId: string | null;
         phone: string | null;
+        customerId: string | null;
         source: import(".prisma/client").$Enums.LeadSource;
         interestArea: string | null;
         chatbotSessionId: string | null;

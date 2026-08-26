@@ -76,10 +76,17 @@ export function createApp() {
     }),
   );
 
+  // Vercel preview deployments get a unique subdomain per branch/PR
+  // (`vaibhav-celebration-<hash>-<team>.vercel.app`), so an exact-match
+  // allowlist would break auth on every preview. Match only this project's
+  // preview naming pattern — the production allowlist (`corsOrigins`) stays
+  // exact-match for everything else.
+  const vercelPreviewOriginPattern = /^https:\/\/vaibhav-celebration[a-z0-9-]*\.vercel\.app$/;
+
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || corsOrigins.includes(origin)) {
+        if (!origin || corsOrigins.includes(origin) || vercelPreviewOriginPattern.test(origin)) {
           callback(null, true);
           return;
         }

@@ -31,7 +31,7 @@ export type CartQuote = {
   }>;
 };
 
-export async function computeQuote(lines: QuoteLineInput[]): Promise<CartQuote> {
+export async function computeQuote(lines: QuoteLineInput[], extraMerchandiseInPaise = 0): Promise<CartQuote> {
   const shapedLines = lines.map((l) => ({
     productId: l.productId,
     unitPriceInPaise: l.unitPriceInPaise,
@@ -39,7 +39,8 @@ export async function computeQuote(lines: QuoteLineInput[]): Promise<CartQuote> 
     quantity: l.quantity,
     lineTotalInPaise: (l.unitPriceInPaise + (l.personalizationCostInPaise ?? 0)) * l.quantity,
   }));
-  const subtotalInPaise = shapedLines.reduce((sum, l) => sum + l.lineTotalInPaise, 0);
+  const extra = Number.isFinite(extraMerchandiseInPaise) ? Math.max(0, Math.round(extraMerchandiseInPaise)) : 0;
+  const subtotalInPaise = shapedLines.reduce((sum, l) => sum + l.lineTotalInPaise, 0) + extra;
   const shipping = await computeShippingForSubtotal(subtotalInPaise);
   const gstPercent = await getGstPercent();
   const taxable = subtotalInPaise + shipping.shippingInPaise;

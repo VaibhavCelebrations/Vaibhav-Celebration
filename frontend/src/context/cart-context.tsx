@@ -104,6 +104,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [packages, setPackages] = useState<CartPackage[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [optimisticCartQuantities, setOptimisticCartQuantities] = useState<Record<string, number>>({});
   const isHydrated = useRef(false);
 
   useEffect(() => {
@@ -153,17 +154,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
         openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues, registryItemId));
         return;
       }
+      setOptimisticCartQuantities((prev) => ({
+        ...prev,
+        [productId]: (prev[productId] ?? 0) + quantity,
+      }));
+      setIsCartOpen(true);
+
       try {
         const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
         setItems(cart.items);
         setQuote(normalizeQuote(cart.quote));
-        setIsCartOpen(true);
       } catch (err) {
         const message =
           err instanceof ApiClientError && typeof err.message === "string"
             ? err.message
             : "Could not add this item to your cart";
         push(message, "error");
+      } finally {
+        setOptimisticCartQuantities((prev) => {
+          const next = { ...prev };
+          delete next[productId];
+          return next;
+        });
       }
     },
     [isAuthenticated, openAuthModal, push],
@@ -229,8 +241,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const getItemQuantity = useCallback(
-    (productId: string) => items.find((i) => i.productId === productId)?.quantity ?? 0,
-    [items],
+    (productId: string) => {
+      const realCount = items.find((i) => i.productId === productId)?.quantity ?? 0;
+      const optimisticCount = optimisticCartQuantities[productId] ?? 0;
+      return realCount + optimisticCount;
+    },
+    [items, optimisticCartQuantities],
   );
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
@@ -242,7 +258,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return sum + pkg.basePrice + addonsTotal;
   }, 0);
 
-  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0) + packages.length;
+  const itemCount = 
+    items.reduce((sum, i) => sum + i.quantity, 0) + 
+    packages.length + 
+    Object.values(optimisticCartQuantities).reduce((a, b) => a + b, 0);
 
   return (
     <CartContext.Provider

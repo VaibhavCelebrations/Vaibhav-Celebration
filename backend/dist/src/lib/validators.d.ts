@@ -23,13 +23,6 @@ export declare const slugParamSchema: z.ZodObject<{
 }, {
     slug: string;
 }>;
-export declare const bookingCodeParamSchema: z.ZodObject<{
-    bookingCode: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-    bookingCode: string;
-}, {
-    bookingCode: string;
-}>;
 export declare function slugify(input: string): string;
 /** Start-of-day UTC date for Postgres @db.Date comparisons */
 export declare function toDateOnly(input: string | Date): Date;

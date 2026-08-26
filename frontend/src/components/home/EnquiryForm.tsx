@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Send, HeartHandshake, Gift, Sparkles } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { apiFetch } from "@/lib/api-client";
 
 const celebrationTypes = [
   "Kids' Birthday",
@@ -33,15 +34,10 @@ export function EnquiryForm() {
     const data = Object.fromEntries(formData);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/enquiries`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      );
-      if (!res.ok) throw new Error("Failed");
+      // Reuses the shared API client so this hits the same base URL
+      // (NEXT_PUBLIC_API_BASE_URL) as the rest of the app in every
+      // environment, instead of the unused NEXT_PUBLIC_API_URL var.
+      await apiFetch("/enquiries", { method: "POST", body: data });
     } catch {
       // Silently continue
     }

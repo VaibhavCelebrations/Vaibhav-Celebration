@@ -154,8 +154,11 @@ export async function listBuilderProducts(q: {
 
   const allowed = rows.filter((p) => {
     const tiers = PRODUCT_TIER_MAP[p.sku];
-    if (!tiers) return false;
-    return tiers.includes(tier) && !p.sku.startsWith("SP-PACK-") && p.sku !== "SP-TAG-THANK";
+    if (tiers) {
+      return tiers.includes(tier) && !p.sku.startsWith("SP-PACK-") && p.sku !== "SP-TAG-THANK";
+    }
+    // Allow dynamically added products from Admin panel to appear in all tiers
+    return true;
   });
 
   return allowed.map((p) => {
@@ -182,6 +185,7 @@ export async function listBuilderProducts(q: {
         isRequired: f.isRequired,
         maxLength: f.maxLength,
       })),
+      stockAvailable: p.inventory?.availableQuantity ?? 0,
     };
   });
 }

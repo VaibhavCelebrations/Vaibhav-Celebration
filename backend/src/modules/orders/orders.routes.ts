@@ -22,6 +22,40 @@ const shippingAddressSchema = z.object({
   country: z.string().min(1).default("India"),
 });
 
+const packageBuilderSchema = z.object({
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  contactEmail: z.string().email().optional(),
+  contactPhone: z.string().min(6).max(20).optional(),
+  shippingAddress: shippingAddressSchema.optional(),
+  eventDetails: z
+    .object({
+      childName: z.string().optional(),
+      childAge: z.string().optional(),
+      venue: z.string().optional(),
+      guestCount: z.union([z.number(), z.string()]).optional(),
+      notes: z.string().optional(),
+    })
+    .optional(),
+  builder: z.object({
+    packageSlug: z.string().min(1),
+    themeSlug: z.string().min(1),
+    guestCount: z.number().int().min(5).max(200),
+    location: z.enum(["jaipur", "outside"]),
+    selections: z
+      .object({
+        welcomeItem: z.string().min(1).optional().nullable(),
+        activity1: z.string().min(1).optional().nullable(),
+        activity2: z.string().min(1).optional().nullable(),
+        returnGift: z.string().min(1).optional().nullable(),
+        familyActivity: z.string().min(1).optional().nullable(),
+        decor: z.boolean().optional(),
+        personalization: z.record(z.string(), z.boolean()).optional(),
+        giftRegistryCustomize: z.boolean().optional(),
+      })
+      .default({}),
+  }),
+});
+
 export const shopCheckoutRouter = Router();
 shopCheckoutRouter.use(requireCustomer);
 
@@ -44,6 +78,7 @@ ordersRouter.post(
       shippingAddress: shippingAddressSchema,
       contactEmail: z.string().email(),
       contactPhone: z.string().min(6).max(20),
+      packageData: packageBuilderSchema.optional(),
     }),
   ),
   async (req, res, next) => {
@@ -68,6 +103,7 @@ ordersRouter.post(
       contactPhone: z.string().min(6).max(20),
       personalizationValues: z.unknown().optional(),
       personalizationSelected: z.boolean().optional(),
+      packageData: packageBuilderSchema.optional(),
     }),
   ),
   async (req, res, next) => {
@@ -80,6 +116,7 @@ ordersRouter.post(
         contactPhone: string;
         personalizationValues?: unknown;
         personalizationSelected?: boolean;
+        packageData?: z.infer<typeof packageBuilderSchema>;
       };
       const result = await createDirectOrder(customerId(req), {
         productId: body.productId,
@@ -89,6 +126,7 @@ ordersRouter.post(
         contactPhone: body.contactPhone,
         personalizationValues: body.personalizationValues,
         personalizationSelected: body.personalizationSelected,
+        packageData: body.packageData,
       });
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
@@ -106,33 +144,8 @@ ordersRouter.post(
       contactEmail: z.string().email(),
       contactPhone: z.string().min(6).max(20),
       shippingAddress: shippingAddressSchema.optional(),
-      eventDetails: z
-        .object({
-          childName: z.string().optional(),
-          childAge: z.string().optional(),
-          venue: z.string().optional(),
-          guestCount: z.union([z.number(), z.string()]).optional(),
-          notes: z.string().optional(),
-        })
-        .optional(),
-      builder: z.object({
-        packageSlug: z.string().min(1),
-        themeSlug: z.string().min(1),
-        guestCount: z.number().int().min(5).max(200),
-        location: z.enum(["jaipur", "outside"]),
-        selections: z
-          .object({
-            welcomeItem: z.string().min(1).optional().nullable(),
-            activity1: z.string().min(1).optional().nullable(),
-            activity2: z.string().min(1).optional().nullable(),
-            returnGift: z.string().min(1).optional().nullable(),
-            familyActivity: z.string().min(1).optional().nullable(),
-            decor: z.boolean().optional(),
-            personalization: z.record(z.string(), z.boolean()).optional(),
-            giftRegistryCustomize: z.boolean().optional(),
-          })
-          .default({}),
-      }),
+      eventDetails: packageBuilderSchema.shape.eventDetails,
+      builder: packageBuilderSchema.shape.builder,
     }),
   ),
   async (req, res, next) => {
@@ -298,6 +311,28 @@ adminOrdersRouter.patch(
     try {
       const { adminUpdateOrderStatus } = require("./orders.service");
       return ok(res, await adminUpdateOrderStatus(param(req, "id"), req.body.status));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+adminOrdersRouter.post(
+  "/:id/resend-confirmation",
+  validate(z.object({ id: z.string() }), "params"),
+  async (req, res, next) => {
+    try {
+      const { resendOrderConfirmationEmail } = require("./orders.service");
+      const { writeAuditLog, clientIp } = require("../../lib/audit");
+      const result = await resendOrderConfirmationEmail(param(req, "id"));
+      await writeAuditLog({
+        adminUserId: (req as import("../../middleware/auth").AuthenticatedRequest).admin!.sub,
+        action: "ORDER_CONFIRMATION_RESEND",
+        entityType: "Order",
+        entityId: result.orderId,
+        ipAddress: clientIp(req),
+      });
+      return ok(res, result);
     } catch (err) {
       return next(err);
     }
