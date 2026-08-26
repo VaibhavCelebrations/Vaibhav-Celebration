@@ -11,10 +11,550 @@ import {
   PrismaClient,
   SampleAssetType,
   TestimonialSubjectType,
+  ExtraServiceCategory,
+  LocationScope,
+  PricingMode,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+
+type ServiceDef = {
+  slug: string;
+  label: string;
+  description: string;
+  category: ExtraServiceCategory;
+  pricingMode: PricingMode;
+  locationScope: LocationScope;
+  choiceCount: number | null;
+  customizationPriceInPaise: number;
+  displayOrder: number;
+  tiers: Array<"essential" | "signature" | "grand">;
+};
+
+const SERVICES: ServiceDef[] = [
+  {
+    slug: "digital-invite-std",
+    label: "Static / Minimal Animated Invite",
+    description: "Static or minimal animated digital invitation",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 1,
+    tiers: ["essential"],
+  },
+  {
+    slug: "digital-invite-vid",
+    label: "Premium Animated / Video Invite",
+    description: "Premium animated or video invitation",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 2,
+    tiers: ["signature", "grand"],
+  },
+  {
+    slug: "reminder-one",
+    label: "Celebration Reminder",
+    description: "One celebration reminder message",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 3,
+    tiers: ["essential"],
+  },
+  {
+    slug: "countdown-3",
+    label: "Countdown Cards ×3",
+    description: "Three countdown cards",
+    category: "DIGITAL",
+    pricingMode: "PER_CARD",
+    locationScope: "ALL",
+    choiceCount: 3,
+    customizationPriceInPaise: 15000, // ₹150 per card
+    displayOrder: 4,
+    tiers: ["signature"],
+  },
+  {
+    slug: "countdown-5",
+    label: "Countdown Cards ×5",
+    description: "Five countdown cards",
+    category: "DIGITAL",
+    pricingMode: "PER_CARD",
+    locationScope: "ALL",
+    choiceCount: 5,
+    customizationPriceInPaise: 15000,
+    displayOrder: 5,
+    tiers: ["grand"],
+  },
+  {
+    slug: "brief-pdf",
+    label: "Parent Party Brief PDF",
+    description: "Parent party brief as PDF",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 6,
+    tiers: ["signature"],
+  },
+  {
+    slug: "brief-animated",
+    label: "Animated Parent Party Brief",
+    description: "Animated parent party brief",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 7,
+    tiers: ["grand"],
+  },
+  {
+    slug: "photo-1",
+    label: "Highlight Picture",
+    description: "1 edited highlight picture",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 8,
+    tiers: ["essential"],
+  },
+  {
+    slug: "photo-3",
+    label: "Edited Highlight Pictures ×3",
+    description: "3 edited highlight pictures",
+    category: "DIGITAL",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 9,
+    tiers: ["signature"],
+  },
+  {
+    slug: "keepsake-7",
+    label: "Animated Seven-page Keepsake PDF",
+    description: "7-page keepsake PDF",
+    category: "KEEPSAKE",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 10,
+    tiers: ["grand"],
+  },
+  {
+    slug: "gift-registry",
+    label: "Gift Registry",
+    description:
+      "Share a guided gift list with guests. Included with Signature and Grand. Optional customization is a fixed ₹500 in the builder.",
+    category: "GIFT_REGISTRY",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 50000,
+    displayOrder: 11,
+    tiers: ["signature", "grand"],
+  },
+  {
+    slug: "consultation-priority",
+    label: "Priority Consultation",
+    description: "Priority consultation booking",
+    category: "CONSULTATION",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 12,
+    tiers: ["grand"],
+  },
+  {
+    slug: "personalization-basic",
+    label: "Basic Personalization",
+    description: "Basic personalization of package elements",
+    category: "PERSONALIZATION",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 13,
+    tiers: ["essential"],
+  },
+  {
+    slug: "personalization-moderate",
+    label: "Moderate Personalization",
+    description: "Moderate personalization of package elements",
+    category: "PERSONALIZATION",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 14,
+    tiers: ["signature"],
+  },
+  {
+    slug: "personalization-high",
+    label: "High Personalization",
+    description: "High personalization of package elements",
+    category: "PERSONALIZATION",
+    pricingMode: "FIXED",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 15,
+    tiers: ["grand"],
+  },
+  {
+    slug: "activity-choose-1",
+    label: "Children Activity (choose 1)",
+    description: "Choose 1 children activity — priced per selected product × children",
+    category: "CHILDREN_ACTIVITY",
+    pricingMode: "PER_CHILD_CHOOSABLE",
+    locationScope: "ALL",
+    choiceCount: 1,
+    customizationPriceInPaise: 0,
+    displayOrder: 16,
+    tiers: ["essential"],
+  },
+  {
+    slug: "activity-choose-2",
+    label: "Children Activities (choose 2)",
+    description: "Choose 2 children activities — both priced × children",
+    category: "CHILDREN_ACTIVITY",
+    pricingMode: "PER_CHILD_CHOOSABLE",
+    locationScope: "ALL",
+    choiceCount: 2,
+    customizationPriceInPaise: 0,
+    displayOrder: 17,
+    tiers: ["signature", "grand"],
+  },
+  {
+    slug: "welcome-item-1",
+    label: "Welcome Item (choose 1)",
+    description: "Choose 1 welcome item per child",
+    category: "WELCOME_ITEM",
+    pricingMode: "PER_CHILD_CHOOSABLE",
+    locationScope: "ALL",
+    choiceCount: 1,
+    customizationPriceInPaise: 0,
+    displayOrder: 18,
+    tiers: ["signature", "grand"],
+  },
+  {
+    slug: "return-gift-1",
+    label: "Return Gift (choose 1)",
+    description: "Choose 1 return gift — priced × children",
+    category: "RETURN_GIFT",
+    pricingMode: "PER_CHILD_CHOOSABLE",
+    locationScope: "ALL",
+    choiceCount: 1,
+    customizationPriceInPaise: 0,
+    displayOrder: 19,
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    slug: "family-activity-1",
+    label: "Family Activity (choose 1)",
+    description: "Choose 1 family activity — per group",
+    category: "FAMILY_ACTIVITY",
+    pricingMode: "PER_CHILD_CHOOSABLE",
+    locationScope: "ALL",
+    choiceCount: 1,
+    customizationPriceInPaise: 0,
+    displayOrder: 20,
+    tiers: ["grand"],
+  },
+  {
+    slug: "thankyou-tag",
+    label: "Personalized Thank-you Tag",
+    description: "Auto-included thank-you tag per child (Luxe)",
+    category: "THANK_YOU_TAG",
+    pricingMode: "PER_CHILD",
+    locationScope: "ALL",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 21,
+    tiers: ["grand"],
+  },
+  {
+    slug: "decor-jaipur-std",
+    label: "Decor — Jaipur Standard",
+    description: "Theme décor through Jaipur vendor (Standard)",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "JAIPUR_ONLY",
+    choiceCount: null,
+    customizationPriceInPaise: 500000, // ₹5,000
+    displayOrder: 22,
+    tiers: ["essential"],
+  },
+  {
+    slug: "decor-jaipur-prm",
+    label: "Decor — Jaipur Premium",
+    description: "Theme décor through Jaipur vendor (Premium)",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "JAIPUR_ONLY",
+    choiceCount: null,
+    customizationPriceInPaise: 1000000, // ₹10,000
+    displayOrder: 23,
+    tiers: ["signature"],
+  },
+  {
+    slug: "decor-jaipur-lux",
+    label: "Decor — Jaipur Luxe",
+    description: "Theme décor through Jaipur vendor (Luxe)",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "JAIPUR_ONLY",
+    choiceCount: null,
+    customizationPriceInPaise: 2000000, // ₹20,000
+    displayOrder: 24,
+    tiers: ["grand"],
+  },
+  {
+    slug: "decor-guide-std",
+    label: "Basic Decor Guide (Outside Jaipur)",
+    description: "Free basic décor guide for celebrations outside Jaipur",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "OUTSIDE_JAIPUR",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 25,
+    tiers: ["essential"],
+  },
+  {
+    slug: "decor-guide-prm",
+    label: "Detailed Decor Guide (Outside Jaipur)",
+    description: "Free detailed décor guide for celebrations outside Jaipur",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "OUTSIDE_JAIPUR",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 26,
+    tiers: ["signature"],
+  },
+  {
+    slug: "decor-guide-lux",
+    label: "Premium Luxe Decor Guide (Outside Jaipur)",
+    description: "Free premium décor guide for celebrations outside Jaipur",
+    category: "DECOR",
+    pricingMode: "FIXED",
+    locationScope: "OUTSIDE_JAIPUR",
+    choiceCount: null,
+    customizationPriceInPaise: 0,
+    displayOrder: 27,
+    tiers: ["grand"],
+  },
+];
+
+
+type ProductDef = {
+  sku: string;
+  title: string;
+  slug: string;
+  description: string;
+  categorySlug: string;
+  priceInPaise: number;
+  minOrderQuantity: number;
+  pricingHint: "per-child" | "per-group";
+  tiers: Array<"essential" | "signature" | "grand">;
+  autoForTier?: "essential" | "signature" | "grand";
+};
+
+const SPACE_PRODUCTS: ProductDef[] = [
+  {
+    sku: "SP-WEL-BDG",
+    title: "Space Badge",
+    slug: "space-badge",
+    description: "Theme welcome badge for each child",
+    categorySlug: "welcome-items",
+    priceInPaise: 5000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["signature", "grand"],
+  },
+  {
+    sku: "SP-WEL-HDB",
+    title: "Personalised Wristband",
+    slug: "space-wristband",
+    description: "Personalised space theme wristband",
+    categorySlug: "welcome-items",
+    priceInPaise: 3000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["signature", "grand"],
+  },
+  {
+    sku: "SP-WEL-ID",
+    title: "Space ID Card",
+    slug: "space-id-card",
+    description: "Space theme ID card for each child",
+    categorySlug: "welcome-items",
+    priceInPaise: 5000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["signature", "grand"],
+  },
+  {
+    sku: "SP-WEL-QR",
+    title: "QR Space ID Card",
+    slug: "qr-space-id-card",
+    description: "QR-enabled space ID card",
+    categorySlug: "welcome-items",
+    priceInPaise: 6000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["grand"],
+  },
+  {
+    sku: "SP-ACT-HDG",
+    title: "Astronaut Headgear",
+    slug: "astronaut-headgear",
+    description: "Astronaut headgear activity",
+    categorySlug: "children-activities",
+    priceInPaise: 8000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    sku: "SP-ACT-PUZ",
+    title: "Space Puzzle",
+    slug: "space-puzzle",
+    description: "Space theme puzzle activity",
+    categorySlug: "children-activities",
+    priceInPaise: 5000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    sku: "SP-ACT-BNG",
+    title: "Space Bingo",
+    slug: "space-bingo",
+    description: "Space bingo — priced per group",
+    categorySlug: "children-activities",
+    priceInPaise: 19900,
+    minOrderQuantity: 10,
+    pricingHint: "per-group",
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    sku: "SP-FAM-BNG",
+    title: "Cosmic Family Bingo",
+    slug: "cosmic-family-bingo",
+    description: "Family activity — cosmic bingo per group",
+    categorySlug: "family-activities",
+    priceInPaise: 19900,
+    minOrderQuantity: 10,
+    pricingHint: "per-group",
+    tiers: ["grand"],
+  },
+  {
+    sku: "SP-RG-STAT",
+    title: "Space Stationery Set",
+    slug: "space-stationery-set",
+    description: "Space theme stationery return gift",
+    categorySlug: "return-gifts",
+    priceInPaise: 12000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    sku: "SP-RG-LBOX",
+    title: "Space Lunchbox",
+    slug: "space-lunchbox",
+    description: "Space theme lunchbox return gift",
+    categorySlug: "return-gifts",
+    priceInPaise: 15000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["essential", "signature", "grand"],
+  },
+  {
+    sku: "SP-RG-BAG",
+    title: "Space Mini Backpack",
+    slug: "space-mini-backpack",
+    description: "Space mini backpack — premium upgrade gift",
+    categorySlug: "return-gifts",
+    priceInPaise: 23000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["signature", "grand"],
+  },
+  {
+    sku: "SP-PACK-BAS",
+    title: "Simple Packaging",
+    slug: "simple-packaging",
+    description: "Simple packaging auto-included with Standard",
+    categorySlug: "packaging",
+    priceInPaise: 3000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["essential"],
+    autoForTier: "essential",
+  },
+  {
+    sku: "SP-PACK-THM",
+    title: "Space Theme Gift Bag",
+    slug: "space-theme-gift-bag",
+    description: "Theme gift bag auto-included with Premium",
+    categorySlug: "packaging",
+    priceInPaise: 3500,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["signature"],
+    autoForTier: "signature",
+  },
+  {
+    sku: "SP-PACK-CUS",
+    title: "Custom Space Gift Bag",
+    slug: "custom-space-gift-bag",
+    description: "Customized theme gift bag auto-included with Luxe",
+    categorySlug: "packaging",
+    priceInPaise: 8500,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["grand"],
+    autoForTier: "grand",
+  },
+  {
+    sku: "SP-TAG-THANK",
+    title: "Space Thank-you Tag",
+    slug: "space-thank-you-tag",
+    description: "Personalized thank-you tag auto-included with Luxe",
+    categorySlug: "thank-you-tags",
+    priceInPaise: 1000,
+    minOrderQuantity: 5,
+    pricingHint: "per-child",
+    tiers: ["grand"],
+    autoForTier: "grand",
+  },
+];
+
+const CATEGORIES = [
+  { name: "Welcome Items", slug: "welcome-items", displayOrder: 1 },
+  { name: "Children Activities", slug: "children-activities", displayOrder: 2 },
+  { name: "Family Activities", slug: "family-activities", displayOrder: 3 },
+  { name: "Return Gifts", slug: "return-gifts", displayOrder: 4 },
+  { name: "Packaging", slug: "packaging", displayOrder: 5 },
+  { name: "Thank-you Tags", slug: "thank-you-tags", displayOrder: 6 },
+];
 
 const CDN = "https://cdn.vaibhavcelebrations.in";
 const img = (path: string) => `${CDN}/${path}`;
@@ -304,10 +844,10 @@ async function main() {
   const sampleInviteMedia = spaceMedia;
 
   // ── Packages (Standard / Premium / Luxe) ─────────────────────────────────────
-  const standardPkg = await prisma.package.create({
+  const essentialPkg = await prisma.package.create({
     data: {
-      title: "Thoughtful Essentials",
-      slug: "standard",
+      title: "Essential",
+      slug: "essential",
       priceInPaise: 4990000,
       tierRank: 1,
       isRecommended: false,
@@ -319,10 +859,10 @@ async function main() {
     },
   });
 
-  const premiumPkg = await prisma.package.create({
+  const signaturePkg = await prisma.package.create({
     data: {
-      title: "Complete Celebration Experience",
-      slug: "premium",
+      title: "Signature",
+      slug: "signature",
       priceInPaise: 7990000,
       tierRank: 2,
       isRecommended: true,
@@ -334,10 +874,10 @@ async function main() {
     },
   });
 
-  const luxPkg = await prisma.package.create({
+  const grandPkg = await prisma.package.create({
     data: {
-      title: "The Signature Celebration Experience",
-      slug: "luxe",
+      title: "Grand",
+      slug: "grand",
       priceInPaise: 11990000,
       tierRank: 3,
       isRecommended: false,
@@ -349,261 +889,77 @@ async function main() {
     },
   });
 
-  // ── Extra Services (global catalog — Fiverr-style rows) ─────────────────────
-  const svcReturnGift = await prisma.extraService.create({
-    data: {
-      label: "Return gift",
-      description: "Curated return gifts matching your theme and guest count.",
-      requirements:
-        "Guest count and theme preference required at least 7 days before the event.",
-      displayOrder: 1,
-      isActive: true,
-    },
-  });
+  // ── Extra Services & Matrix ──────────────────────────────────────────────────
+  const extraServicesBySlug: Record<string, string> = {};
+  for (const svc of SERVICES) {
+    const row = await prisma.extraService.create({
+      data: {
+        slug: svc.slug,
+        label: svc.label,
+        description: svc.description,
+        category: svc.category,
+        pricingMode: svc.pricingMode,
+        locationScope: svc.locationScope,
+        choiceCount: svc.choiceCount,
+        customizationPriceInPaise: svc.customizationPriceInPaise,
+        displayOrder: svc.displayOrder,
+        isActive: true,
+      }
+    });
+    extraServicesBySlug[svc.slug] = row.id;
+  }
 
-  const svcVideoInvites = await prisma.extraService.create({
-    data: {
-      label: "Video invites",
-      description:
-        "Animated or live-action video invitations for your celebration.",
-      requirements:
-        "Provide child name, event date, venue, and theme artwork references.",
-      displayOrder: 2,
-      isActive: true,
-    },
-  });
-
-  const svcThemeDecor = await prisma.extraService.create({
-    data: {
-      label: "Theme based decorations",
-      description:
-        "Full theme-aligned décor including backdrop, props, and table styling.",
-      requirements: "Theme selection and venue walkthrough recommended.",
-      displayOrder: 3,
-      isActive: true,
-    },
-  });
-
-  const svcDigitalInvites = await prisma.extraService.create({
-    data: {
-      label: "Digital invites",
-      description:
-        "Shareable digital invitation cards for WhatsApp and social media.",
-      requirements:
-        "Event details, RSVP contact, and preferred colour palette.",
-      displayOrder: 4,
-      isActive: true,
-    },
-  });
-
-  const svcCustomBackdrop = await prisma.extraService.create({
-    data: {
-      label: "Custom backdrop",
-      description:
-        "Personalised photo backdrop with name, age, and theme elements.",
-      requirements:
-        "Child name, age, and high-resolution theme assets if available.",
-      displayOrder: 5,
-      isActive: true,
-    },
-  });
-
-  const svcPersonalized = await prisma.extraService.create({
-    data: {
-      label: "Personalized details",
-      description:
-        "Custom signage, name boards, cake toppers, and themed printables.",
-      requirements: "Spelling of names and any special messages to include.",
-      displayOrder: 6,
-      isActive: true,
-    },
-  });
-
-  const svcActivities = await prisma.extraService.create({
-    data: {
-      label: "Activities & games",
-      description:
-        "Hosted games, craft stations, and age-appropriate party activities.",
-      requirements:
-        "Guest age range and headcount; outdoor space details if applicable.",
-      displayOrder: 7,
-      isActive: true,
-    },
-  });
-
-  const svcOrganiser = await prisma.extraService.create({
-    data: {
-      label: "Organiser support",
-      description:
-        "Dedicated on-day coordinator to manage vendors, timeline, and guests.",
-      requirements: "Final run-sheet shared 48 hours before the event.",
-      displayOrder: 8,
-      isActive: true,
-    },
-  });
-
-  const svcPhotoDoc = await prisma.extraService.create({
-    data: {
-      label: "Photo documentation",
-      description:
-        "Professional photo coverage of décor, candid moments, and cake cutting.",
-      requirements: "Coverage hours and key moments list.",
-      displayOrder: 9,
-      isActive: true,
-    },
-  });
-
-  const svcBalloons = await prisma.extraService.create({
-    data: {
-      label: "Balloons & props",
-      description: "Balloon garlands, arches, and themed prop sets.",
-      displayOrder: 10,
-      isActive: true,
-    },
-  });
-
-  const svcWelcomeBoard = await prisma.extraService.create({
-    data: {
-      label: "Welcome board",
-      description: "Entrance welcome board with theme styling.",
-      displayOrder: 11,
-      isActive: true,
-    },
-  });
-
-  type MatrixRow = {
-    svcId: string;
-    standard: boolean;
-    premium: boolean;
-    lux: boolean;
-    customPrice: number;
+  const packagesBySlug: Record<string, string> = {
+    essential: essentialPkg.id,
+    signature: signaturePkg.id,
+    grand: grandPkg.id,
   };
 
-  const matrix: MatrixRow[] = [
-    {
-      svcId: svcReturnGift.id,
-      standard: true,
-      premium: true,
-      lux: true,
-      customPrice: 250000,
-    },
-    {
-      svcId: svcVideoInvites.id,
-      standard: false,
-      premium: true,
-      lux: true,
-      customPrice: 500000,
-    },
-    {
-      svcId: svcThemeDecor.id,
-      standard: true,
-      premium: true,
-      lux: true,
-      customPrice: 0,
-    },
-    {
-      svcId: svcDigitalInvites.id,
-      standard: true,
-      premium: true,
-      lux: true,
-      customPrice: 150000,
-    },
-    {
-      svcId: svcCustomBackdrop.id,
-      standard: false,
-      premium: true,
-      lux: true,
-      customPrice: 800000,
-    },
-    {
-      svcId: svcPersonalized.id,
-      standard: false,
-      premium: true,
-      lux: true,
-      customPrice: 600000,
-    },
-    {
-      svcId: svcActivities.id,
-      standard: false,
-      premium: false,
-      lux: true,
-      customPrice: 1200000,
-    },
-    {
-      svcId: svcOrganiser.id,
-      standard: false,
-      premium: false,
-      lux: true,
-      customPrice: 1500000,
-    },
-    {
-      svcId: svcPhotoDoc.id,
-      standard: false,
-      premium: false,
-      lux: true,
-      customPrice: 1000000,
-    },
-    {
-      svcId: svcBalloons.id,
-      standard: true,
-      premium: true,
-      lux: true,
-      customPrice: 300000,
-    },
-    {
-      svcId: svcWelcomeBoard.id,
-      standard: true,
-      premium: true,
-      lux: true,
-      customPrice: 200000,
-    },
-  ];
-
-  for (const row of matrix) {
-    await prisma.extraService.update({
-      where: { id: row.svcId },
-      data: { customizationPriceInPaise: row.customPrice },
-    });
+  const packageServiceItems: any[] = [];
+  let displayOrderCounter = 0;
+  for (const svc of SERVICES) {
+    for (const tier of ["essential", "signature", "grand"]) {
+      if (!packagesBySlug[tier]) continue;
+      packageServiceItems.push({
+        packageId: packagesBySlug[tier]!,
+        extraServiceId: extraServicesBySlug[svc.slug]!,
+        isIncluded: svc.tiers.includes(tier as any),
+        displayOrder: displayOrderCounter,
+      });
+      displayOrderCounter++;
+    }
   }
-
-  const packageServiceItems: Array<{
-    packageId: string;
-    extraServiceId: string;
-    isIncluded: boolean;
-    displayOrder: number;
-  }> = [];
-
-  for (let i = 0; i < matrix.length; i++) {
-    const row = matrix[i]!;
-    packageServiceItems.push(
-      {
-        packageId: standardPkg.id,
-        extraServiceId: row.svcId,
-        isIncluded: row.standard,
-        displayOrder: i,
-      },
-      {
-        packageId: premiumPkg.id,
-        extraServiceId: row.svcId,
-        isIncluded: row.premium,
-        displayOrder: i,
-      },
-      {
-        packageId: luxPkg.id,
-        extraServiceId: row.svcId,
-        isIncluded: row.lux,
-        displayOrder: i,
-      },
-    );
-  }
-
   await prisma.packageServiceItem.createMany({ data: packageServiceItems });
 
-  const premiumVideoItem = await prisma.packageServiceItem.findFirst({
-    where: { packageId: premiumPkg.id, extraServiceId: svcVideoInvites.id },
-  });
+  // ── Categories & Products ──────────────────────────────────────────────────
+  const catIds: Record<string, string> = {};
+  for (const cat of CATEGORIES) {
+    const row = await prisma.productCategory.create({
+      data: { ...cat, isActive: true },
+    });
+    catIds[cat.slug] = row.id;
+  }
 
-  // ── Kids Birthday Themes ─────────────────────────────────────────────────────
+  for (const p of SPACE_PRODUCTS) {
+    const product = await prisma.product.create({
+      data: {
+        title: p.title,
+        slug: p.slug,
+        sku: p.sku,
+        description: p.description,
+        priceInPaise: p.priceInPaise,
+        minOrderQuantity: p.minOrderQuantity,
+        isActive: true,
+        inventory: {
+          create: { quantityAvailable: 999, lowStockThreshold: 10 },
+        },
+      }
+    });
+    await prisma.productCategoryTag.create({
+      data: { productId: product.id, categoryId: catIds[p.categorySlug]! }
+    });
+  }
+// ── Kids Birthday Themes ─────────────────────────────────────────────────────
   const spaceTheme = await prisma.theme.create({
     data: {
       title: "Space Theme Celebration",
@@ -622,6 +978,14 @@ async function main() {
         "Launch into an unforgettable space birthday celebration — immersive, themed, and memorable for curious young explorers.",
     },
   });
+
+  const spaceProducts = await prisma.product.findMany();
+  for (const p of spaceProducts) {
+    await prisma.productThemeTag.create({
+      data: { productId: p.id, themeId: spaceTheme.id }
+    });
+  }
+
 
   const cocomelonTheme = await prisma.theme.create({
     data: {
@@ -682,18 +1046,18 @@ async function main() {
 
   await prisma.themePackage.createMany({
     data: [
-      { themeId: spaceTheme.id, packageId: standardPkg.id },
-      { themeId: spaceTheme.id, packageId: premiumPkg.id },
-      { themeId: spaceTheme.id, packageId: luxPkg.id },
-      { themeId: cocomelonTheme.id, packageId: standardPkg.id },
-      { themeId: cocomelonTheme.id, packageId: premiumPkg.id },
-      { themeId: cocomelonTheme.id, packageId: luxPkg.id },
-      { themeId: princessTheme.id, packageId: standardPkg.id },
-      { themeId: princessTheme.id, packageId: premiumPkg.id },
-      { themeId: princessTheme.id, packageId: luxPkg.id },
-      { themeId: jungleTheme.id, packageId: standardPkg.id },
-      { themeId: jungleTheme.id, packageId: premiumPkg.id },
-      { themeId: jungleTheme.id, packageId: luxPkg.id },
+      { themeId: spaceTheme.id, packageId: essentialPkg.id },
+      { themeId: spaceTheme.id, packageId: signaturePkg.id },
+      { themeId: spaceTheme.id, packageId: grandPkg.id },
+      { themeId: cocomelonTheme.id, packageId: essentialPkg.id },
+      { themeId: cocomelonTheme.id, packageId: signaturePkg.id },
+      { themeId: cocomelonTheme.id, packageId: grandPkg.id },
+      { themeId: princessTheme.id, packageId: essentialPkg.id },
+      { themeId: princessTheme.id, packageId: signaturePkg.id },
+      { themeId: princessTheme.id, packageId: grandPkg.id },
+      { themeId: jungleTheme.id, packageId: essentialPkg.id },
+      { themeId: jungleTheme.id, packageId: signaturePkg.id },
+      { themeId: jungleTheme.id, packageId: grandPkg.id },
     ],
   });
 
@@ -915,7 +1279,7 @@ async function main() {
           "Our daughter felt like a real princess! The Premium package was worth every rupee — seamless coordination and stunning decor.",
         rating: 5,
         subjectType: TestimonialSubjectType.PACKAGE,
-        packageId: premiumPkg.id,
+        packageId: signaturePkg.id,
         isFeatured: true,
         isActive: true,
       },
@@ -1024,7 +1388,8 @@ async function main() {
   }[] = [
     {
       pageKey: "home",
-      metaTitle: "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
+      metaTitle:
+        "Vaibhav Celebrations | One Theme. Every Detail. Beautifully Celebrated",
       metaDescription:
         "One Theme. Every Detail. Beautifully Celebrated — customized kids birthday celebrations, themed experiences, and personalized return gifts in Jaipur.",
       canonicalUrl: "https://vaibhavcelebrations.in",

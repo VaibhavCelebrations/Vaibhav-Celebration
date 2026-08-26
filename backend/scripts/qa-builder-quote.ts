@@ -16,16 +16,16 @@ async function main() {
   const activities = await listBuilderProducts({
     theme,
     category: "children-activities",
-    tier: "luxe",
+    tier: "grand",
   });
   await assert(activities.length >= 2, `luxe activities available (${activities.length})`);
 
-  const gifts = await listBuilderProducts({ theme, category: "return-gifts", tier: "standard" });
+  const gifts = await listBuilderProducts({ theme, category: "return-gifts", tier: "essential" });
   await assert(gifts.some((g) => g.sku === "SP-RG-STAT"), "standard return gifts include stationery");
 
   // MOQ: guests=5, bingo MOQ=10
   const quoteMoq = await computeBuilderQuote({
-    packageSlug: "standard",
+    packageSlug: "essential",
     themeSlug: theme,
     guestCount: 5,
     location: "outside",
@@ -40,7 +40,7 @@ async function main() {
 
   // Jaipur decor opt-in
   const quoteDecor = await computeBuilderQuote({
-    packageSlug: "luxe",
+    packageSlug: "grand",
     themeSlug: theme,
     guestCount: 10,
     location: "jaipur",
@@ -67,7 +67,7 @@ async function main() {
 
   // Outside Jaipur must not charge Jaipur decor even if decor=true
   const quoteOutside = await computeBuilderQuote({
-    packageSlug: "premium",
+    packageSlug: "signature",
     themeSlug: theme,
     guestCount: 8,
     location: "outside",

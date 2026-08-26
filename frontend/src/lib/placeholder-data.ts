@@ -262,13 +262,13 @@ export const placeholderThemes: PlaceholderTheme[] = [
   },
 ];
 
-// ── Packages (from client: Basic, Standard, Premium) ────────────────
+// ── Packages (from client: Basic, Essential, Signature) ────────────────
 
 export const placeholderPackages: PlaceholderPackage[] = [
   {
     id: "pkg-1",
-    title: "STANDARD",
-    slug: "standard",
+    title: "ESSENTIAL",
+    slug: "essential",
     priceLabel: "₹ XX,XXX",
     basePrice: 15000,
     tierRank: 1,
@@ -287,8 +287,8 @@ export const placeholderPackages: PlaceholderPackage[] = [
   },
   {
     id: "pkg-2",
-    title: "PREMIUM",
-    slug: "premium",
+    title: "SIGNATURE",
+    slug: "signature",
     priceLabel: "₹ XX,XXX",
     basePrice: 25000,
     tierRank: 2,
@@ -299,7 +299,7 @@ export const placeholderPackages: PlaceholderPackage[] = [
       { label: "Custom Backdrop", included: true },
       { label: "Balloons & Props", included: true },
       { label: "Personalized Details", included: true },
-      { label: "Return Gifts (Standard)", included: true },
+      { label: "Return Gifts (Essential)", included: true },
       { label: "Basic Activities", included: true },
       { label: "Activities & Games", included: false },
       { label: "Organiser Support", included: false },
@@ -308,18 +308,18 @@ export const placeholderPackages: PlaceholderPackage[] = [
   {
     id: "pkg-3",
     title: "The Signature Celebration Experience",
-    slug: "luxe",
+    slug: "grand",
     priceLabel: "₹1,19,900",
     basePrice: 119900,
     tierRank: 3,
     isRecommended: false,
     description: "Signature celebration with keepsake PDF, family activity, and priority consultation",
     features: [
-      { label: "Premium Decorations", included: true },
+      { label: "Signature Decorations", included: true },
       { label: "Custom Theme Design", included: true },
       { label: "Balloons & Props", included: true },
       { label: "Personalized Details", included: true },
-      { label: "Return Gifts (Premium)", included: true },
+      { label: "Return Gifts (Signature)", included: true },
       { label: "Activities & Games", included: true },
       { label: "Organiser Support", included: true },
       { label: "Photo Documentation", included: true },

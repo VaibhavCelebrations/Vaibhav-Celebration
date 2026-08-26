@@ -14,6 +14,7 @@ import type {
   ExtractedProductDto, GiftRegistryDetailDto, GiftRegistryItemDto, Product, RegistryVisibility, ShippingAddress,
 } from "@/lib/shop-types";
 import { SafeGiftImage } from "@/components/registry/SafeGiftImage";
+import { PublishPanel } from "@/components/registry/PublishPanel";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -258,6 +259,10 @@ export default function RegistryDetailPage({ params }: Props) {
     await copy(registry.shareUrl, "link");
   };
 
+  const jumpToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const saveField = async (patch: Parameters<typeof shopApi.updateMyRegistry>[1]) => {
     if (!registry) return;
     setSaving(true);
@@ -300,6 +305,14 @@ export default function RegistryDetailPage({ params }: Props) {
           <p className="text-text-muted text-sm mt-1 font-mono">{registry.registryCode} · {registry.viewCount} views</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {registry.status !== "ACTIVE" && (
+            <Link
+              href={`/account/registry/${registry.id}/setup`}
+              className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
+            >
+              Guided setup
+            </Link>
+          )}
           <button type="button" onClick={() => void share()} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border-light text-sm font-semibold cursor-pointer">
             <Share2 size={14} /> Share
           </button>
@@ -327,7 +340,9 @@ export default function RegistryDetailPage({ params }: Props) {
         </div>
       )}
 
-      <section className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">
+      <PublishPanel registry={registry} onUpdated={setRegistry} onJumpTo={jumpToSection} />
+
+      <section id="details" className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">
         <h3 className="font-display text-lg font-bold text-charcoal">Registry details</h3>
         <div className="grid md:grid-cols-2 gap-3">
           <input className={inputClass} defaultValue={registry.title} onBlur={(e) => void saveField({ title: e.target.value })} placeholder="Title" />
@@ -337,28 +352,29 @@ export default function RegistryDetailPage({ params }: Props) {
           <input className={`md:col-span-2 ${inputClass}`} defaultValue={registry.coverImageUrl ?? ""} onBlur={(e) => void saveField({ coverImageUrl: e.target.value || null })} placeholder="Cover Image URL (e.g., https://example.com/image.jpg)" />
         </div>
         <textarea className={inputClass} rows={3} defaultValue={registry.celebrationDetails ?? ""} onBlur={(e) => void saveField({ celebrationDetails: e.target.value })} placeholder="Message to guests" />
-        <div className="flex flex-wrap gap-2">
-          {(["UNLISTED", "PUBLIC", "PRIVATE"] as RegistryVisibility[]).map((v) => (
-            <button key={v} type="button" disabled={saving} onClick={() => void saveField({ visibility: v })} className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase cursor-pointer ${registry.visibility === v ? "bg-mocha text-white" : "bg-cream text-text-muted"}`}>
-              {v === "PUBLIC" ? <Globe size={10} className="inline mr-1" /> : v === "PRIVATE" ? <Lock size={10} className="inline mr-1" /> : <Eye size={10} className="inline mr-1" />}
-              {v.toLowerCase()}
-            </button>
-          ))}
+        <div>
+          <p className="text-xs font-semibold text-charcoal mb-2">Who can open this registry?</p>
+          <div className="flex flex-wrap gap-2">
+            {(["UNLISTED", "PUBLIC", "PRIVATE"] as RegistryVisibility[]).map((v) => (
+              <button key={v} type="button" disabled={saving} onClick={() => void saveField({ visibility: v })} className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase cursor-pointer ${registry.visibility === v ? "bg-mocha text-white" : "bg-cream text-text-muted"}`}>
+                {v === "PUBLIC" ? <Globe size={10} className="inline mr-1" /> : v === "PRIVATE" ? <Lock size={10} className="inline mr-1" /> : <Eye size={10} className="inline mr-1" />}
+                {v.toLowerCase()}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {registry.status !== "ACTIVE" && (
-            <button type="button" onClick={() => void saveField({ status: "ACTIVE" })} className="btn-primary px-4 py-2 text-xs">Publish</button>
-          )}
-          {registry.status === "ACTIVE" && (
-            <button type="button" onClick={() => void saveField({ status: "DRAFT" })} className="px-4 py-2 text-xs rounded-lg border border-border-light font-semibold cursor-pointer">Unpublish</button>
-          )}
-          {registry.status !== "CLOSED" && (
-            <button type="button" onClick={() => void saveField({ status: "CLOSED" })} className="px-4 py-2 text-xs rounded-lg border border-border-light font-semibold cursor-pointer">Close</button>
-          )}
-        </div>
+        {registry.status !== "CLOSED" && registry.status !== "ARCHIVED" && (
+          <button
+            type="button"
+            onClick={() => void saveField({ status: registry.status === "CLOSED" ? "ACTIVE" : "CLOSED" })}
+            className="text-xs font-semibold text-text-muted hover:text-red-600 cursor-pointer"
+          >
+            Close registry (stop accepting new gifts)
+          </button>
+        )}
       </section>
 
-      <section className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
+      <section id="address" className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-display text-lg font-bold text-charcoal">Delivery address</h3>
           {address && (
@@ -378,7 +394,7 @@ export default function RegistryDetailPage({ params }: Props) {
         />
       </section>
 
-      <section className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
+      <section id="gifts" className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display text-lg font-bold text-charcoal">Gifts ({registry.items.length})</h3>
           <button type="button" onClick={() => setShowAddForm(!showAddForm)} className="flex items-center gap-1.5 text-sm text-mocha font-semibold cursor-pointer">

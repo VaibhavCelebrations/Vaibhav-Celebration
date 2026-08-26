@@ -244,6 +244,7 @@ export interface GiftRegistryUpgradeState {
   eligible: boolean;
   registryId: string | null;
   registryTitle: string | null;
+  registryStatus: RegistryStatus | null;
 }
 
 export interface RegistryAccessDto {
@@ -375,6 +376,21 @@ export interface GiftRegistryItemDto {
   }>;
 }
 
+export interface RegistryReadinessItem {
+  key: string;
+  label: string;
+  description: string;
+  done: boolean;
+  required: boolean;
+}
+
+export interface RegistryReadiness {
+  isReady: boolean;
+  completedRequired: number;
+  totalRequired: number;
+  checklist: RegistryReadinessItem[];
+}
+
 export interface RegistryStats {
   totalGifts: number;
   quantityDesired: number;
@@ -409,6 +425,7 @@ export interface GiftRegistryDto {
   contactEmail?: string | null;
   contactPhone?: string | null;
   stats?: RegistryStats;
+  readiness?: RegistryReadiness;
 }
 
 export interface GiftRegistryDetailDto extends GiftRegistryDto {

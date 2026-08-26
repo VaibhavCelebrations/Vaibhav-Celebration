@@ -110,6 +110,78 @@ function shapeItem(item: {
   };
 }
 
+export interface RegistryReadinessItem {
+  key: string;
+  label: string;
+  description: string;
+  done: boolean;
+  required: boolean;
+}
+
+export interface RegistryReadiness {
+  isReady: boolean;
+  completedRequired: number;
+  totalRequired: number;
+  checklist: RegistryReadinessItem[];
+}
+
+function computeReadiness(
+  registry: {
+    title: string | null;
+    childOrPersonName: string | null;
+    eventDate: Date | null;
+    shippingAddress: unknown;
+    celebrationDetails: string | null;
+  },
+  itemCount: number,
+): RegistryReadiness {
+  const address = parseShippingAddress(registry.shippingAddress);
+  const checklist: RegistryReadinessItem[] = [
+    {
+      key: "details",
+      label: "Registry title added",
+      description: "Give your registry a name so guests recognise it right away.",
+      done: Boolean((registry.title || registry.childOrPersonName || "").trim()),
+      required: true,
+    },
+    {
+      key: "eventDate",
+      label: "Event date added",
+      description: "Let guests know when the celebration is happening.",
+      done: Boolean(registry.eventDate),
+      required: true,
+    },
+    {
+      key: "address",
+      label: "Delivery address added",
+      description: "Gifts bought from your registry need somewhere to be delivered.",
+      done: Boolean(address),
+      required: true,
+    },
+    {
+      key: "items",
+      label: "At least one gift added",
+      description: "Add products from our shop or link gifts from other stores.",
+      done: itemCount > 0,
+      required: true,
+    },
+    {
+      key: "message",
+      label: "Message to guests added",
+      description: "A short personal note makes your registry feel complete (optional).",
+      done: Boolean((registry.celebrationDetails || "").trim()),
+      required: false,
+    },
+  ];
+  const requiredItems = checklist.filter((c) => c.required);
+  return {
+    isReady: requiredItems.every((c) => c.done),
+    completedRequired: requiredItems.filter((c) => c.done).length,
+    totalRequired: requiredItems.length,
+    checklist,
+  };
+}
+
 function publicAddress(address: ShippingAddress | null) {
   if (!address) return null;
   return {
@@ -149,7 +221,7 @@ function shapeRegistry(
     ownerUserId: string;
     passwordHash?: string | null;
   },
-  options?: { includePrivate?: boolean },
+  options?: { includePrivate?: boolean; itemCount?: number },
 ) {
   const address = parseShippingAddress(registry.shippingAddress);
   return {
@@ -176,6 +248,7 @@ function shapeRegistry(
     shippingAddress: publicAddress(address),
     contactEmail: options?.includePrivate ? registry.contactEmail : undefined,
     contactPhone: options?.includePrivate ? registry.contactPhone : undefined,
+    readiness: options?.itemCount !== undefined ? computeReadiness(registry, options.itemCount) : undefined,
   };
 }
 
@@ -207,7 +280,10 @@ export async function listRegistriesForOwner(userId: string) {
     include: { items: true },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((r) => ({ ...shapeRegistry(r, { includePrivate: true }), stats: statsForItems(r.items) }));
+  return rows.map((r) => ({
+    ...shapeRegistry(r, { includePrivate: true, itemCount: r.items.length }),
+    stats: statsForItems(r.items),
+  }));
 }
 
 export async function createRegistry(
@@ -272,7 +348,7 @@ export async function createRegistry(
       expiresAt,
     },
   });
-  return shapeRegistry(registry, { includePrivate: true });
+  return shapeRegistry(registry, { includePrivate: true, itemCount: 0 });
 }
 
 async function assertOwner(userId: string, registryId: string) {
@@ -303,7 +379,7 @@ export async function getRegistryForOwner(userId: string, registryId: string) {
     take: 50,
   });
   return {
-    ...shapeRegistry(registry, { includePrivate: true }),
+    ...shapeRegistry(registry, { includePrivate: true, itemCount: items.length }),
     stats: statsForItems(items),
     items: items.map((item) => ({
       ...shapeItem(item),
@@ -318,6 +394,21 @@ export async function getRegistryForOwner(userId: string, registryId: string) {
       })),
     })),
     orders,
+  };
+}
+
+/** Lets the owner see exactly what guests will see, even before publishing. */
+export async function getRegistryPreviewForOwner(userId: string, registryId: string) {
+  const registry = await assertOwner(userId, registryId);
+  const items = await prisma.giftRegistryItem.findMany({
+    where: { registryId },
+    include: registryItemInclude,
+    orderBy: [{ priority: "desc" }, { displayOrder: "asc" }],
+  });
+  return {
+    ...shapeRegistry(registry, { includePrivate: true, itemCount: items.length }),
+    items: items.map(shapeItem),
+    stats: statsForItems(items),
   };
 }
 
@@ -350,7 +441,26 @@ export async function updateRegistry(
     throw new ValidationError("A password is required for private registries");
   }
 
+  const itemCount = await prisma.giftRegistryItem.count({ where: { registryId } });
   const nextStatus = input.status as RegistryStatus | undefined;
+
+  // Publishing (→ ACTIVE) is a one-way promise to guests that the registry is
+  // usable — gate it server-side so the UI can never bypass the checklist.
+  if (nextStatus === RegistryStatus.ACTIVE) {
+    const mergedForReadiness = {
+      title: input.title !== undefined ? input.title : current.title,
+      childOrPersonName: input.childOrPersonName !== undefined ? input.childOrPersonName : current.childOrPersonName,
+      eventDate: input.eventDate !== undefined ? (input.eventDate ? new Date(input.eventDate) : null) : current.eventDate,
+      shippingAddress: input.shippingAddress !== undefined ? (input.shippingAddress as never) : current.shippingAddress,
+      celebrationDetails: input.celebrationDetails !== undefined ? input.celebrationDetails : current.celebrationDetails,
+    };
+    const readiness = computeReadiness(mergedForReadiness, itemCount);
+    if (!readiness.isReady) {
+      const missing = readiness.checklist.filter((c) => c.required && !c.done).map((c) => c.label);
+      throw new ValidationError("Your registry isn't ready to publish yet", { missing, readiness });
+    }
+  }
+
   const registry = await prisma.giftRegistry.update({
     where: { id: registryId },
     data: {
@@ -377,7 +487,7 @@ export async function updateRegistry(
             : undefined,
     },
   });
-  return shapeRegistry(registry, { includePrivate: true });
+  return shapeRegistry(registry, { includePrivate: true, itemCount });
 }
 
 export async function archiveRegistry(userId: string, registryId: string) {

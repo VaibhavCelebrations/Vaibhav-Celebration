@@ -10,7 +10,7 @@ describe("gift registry package service", () => {
   });
 
   it("is included on Signature and Grand, with a fixed ₹500 customize price", () => {
-    expect(GIFT_REGISTRY_ELIGIBLE_SLUGS).toEqual(["premium", "luxe"]);
+    expect(GIFT_REGISTRY_ELIGIBLE_SLUGS).toEqual(["signature", "grand"]);
     expect(GIFT_REGISTRY_PRICE_IN_PAISE).toBe(50_000);
   });
 });

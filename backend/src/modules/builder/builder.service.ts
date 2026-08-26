@@ -17,34 +17,34 @@ const CATEGORY_SLUG_BY_SLOT: Record<string, string> = {
 };
 
 /** SKU → package tiers that may select this product (mirrors seed) */
-export const PRODUCT_TIER_MAP: Record<string, Array<"standard" | "premium" | "luxe">> = {
-  "SP-WEL-BDG": ["premium", "luxe"],
-  "SP-WEL-HDB": ["premium", "luxe"],
-  "SP-WEL-ID": ["premium", "luxe"],
-  "SP-WEL-QR": ["luxe"],
-  "SP-ACT-HDG": ["standard", "premium", "luxe"],
-  "SP-ACT-PUZ": ["standard", "premium", "luxe"],
-  "SP-ACT-BNG": ["standard", "premium", "luxe"],
-  "SP-FAM-BNG": ["luxe"],
-  "SP-RG-STAT": ["standard", "premium", "luxe"],
-  "SP-RG-LBOX": ["standard", "premium", "luxe"],
-  "SP-RG-BAG": ["premium", "luxe"],
-  "SP-PACK-BAS": ["standard"],
-  "SP-PACK-THM": ["premium"],
-  "SP-PACK-CUS": ["luxe"],
-  "SP-TAG-THANK": ["luxe"],
+export const PRODUCT_TIER_MAP: Record<string, Array<"essential" | "signature" | "grand">> = {
+  "SP-WEL-BDG": ["signature", "grand"],
+  "SP-WEL-HDB": ["signature", "grand"],
+  "SP-WEL-ID": ["signature", "grand"],
+  "SP-WEL-QR": ["grand"],
+  "SP-ACT-HDG": ["essential", "signature", "grand"],
+  "SP-ACT-PUZ": ["essential", "signature", "grand"],
+  "SP-ACT-BNG": ["essential", "signature", "grand"],
+  "SP-FAM-BNG": ["grand"],
+  "SP-RG-STAT": ["essential", "signature", "grand"],
+  "SP-RG-LBOX": ["essential", "signature", "grand"],
+  "SP-RG-BAG": ["signature", "grand"],
+  "SP-PACK-BAS": ["essential"],
+  "SP-PACK-THM": ["signature"],
+  "SP-PACK-CUS": ["grand"],
+  "SP-TAG-THANK": ["grand"],
 };
 
 export const AUTO_PACKAGING_SKU: Record<string, string> = {
-  standard: "SP-PACK-BAS",
-  premium: "SP-PACK-THM",
-  luxe: "SP-PACK-CUS",
+  essential: "SP-PACK-BAS",
+  signature: "SP-PACK-THM",
+  grand: "SP-PACK-CUS",
 };
 
 export const AUTO_THANKYOU_SKU: Record<string, string | null> = {
-  standard: null,
-  premium: null,
-  luxe: "SP-TAG-THANK",
+  essential: null,
+  signature: null,
+  grand: "SP-TAG-THANK",
 };
 
 /** Group / per-group SKUs — charged ×1 (or MOQ units as group fee) */
@@ -130,8 +130,8 @@ export async function listBuilderProducts(q: {
   category: string;
   tier: string;
 }) {
-  const tier = q.tier as "standard" | "premium" | "luxe";
-  if (!["standard", "premium", "luxe"].includes(tier)) {
+  const tier = q.tier as "essential" | "signature" | "grand";
+  if (!["essential", "signature", "grand"].includes(tier)) {
     throw new ValidationError("tier must be standard, premium, or luxe");
   }
   const categorySlug = CATEGORY_SLUG_BY_SLOT[q.category] ?? q.category;
@@ -279,7 +279,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     if (!product) throw new ValidationError(`Product not found: ${opts.sku}`);
 
     const tiers = PRODUCT_TIER_MAP[product.sku] ?? [];
-    if (!tiers.includes(input.packageSlug as "standard" | "premium" | "luxe")) {
+    if (!tiers.includes(input.packageSlug as "essential" | "signature" | "grand")) {
       throw new ValidationError(`Product ${opts.sku} is not available for ${input.packageSlug}`);
     }
 
@@ -317,7 +317,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   }
 
   const sel = input.selections;
-  const tier = input.packageSlug as "standard" | "premium" | "luxe";
+  const tier = input.packageSlug as "essential" | "signature" | "grand";
 
   // Validate choosable requirements
   const activitySvc = included.find((s) => s.extraService.category === "CHILDREN_ACTIVITY");
@@ -408,7 +408,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   // Decor
   if (input.location === "jaipur") {
     const decorSlug =
-      tier === "standard" ? "decor-jaipur-std" : tier === "premium" ? "decor-jaipur-prm" : "decor-jaipur-lux";
+      tier === "essential" ? "decor-jaipur-std" : tier === "signature" ? "decor-jaipur-prm" : "decor-jaipur-lux";
     const decorPsi = pkg.serviceItems.find(
       (s) => s.extraService.slug === decorSlug && s.extraService.locationScope === "JAIPUR_ONLY",
     );
@@ -428,7 +428,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   } else {
     // Outside — free guide, informational only (₹0)
     const guideSlug =
-      tier === "standard" ? "decor-guide-std" : tier === "premium" ? "decor-guide-prm" : "decor-guide-lux";
+      tier === "essential" ? "decor-guide-std" : tier === "signature" ? "decor-guide-prm" : "decor-guide-lux";
     const guide = pkg.serviceItems.find((s) => s.extraService.slug === guideSlug);
     if (guide) {
       includedLabels.push(guide.extraService.label);

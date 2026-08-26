@@ -495,7 +495,7 @@ export async function createPackageOrder(
       notes?: string;
     };
     builder: {
-      packageSlug: "standard" | "premium" | "luxe" | string;
+      packageSlug: "essential" | "signature" | "grand" | string;
       themeSlug: string;
       guestCount: number;
       location: BuilderLocation;
@@ -1193,7 +1193,7 @@ const customerOrderInclude = {
       status: true,
     },
   },
-  sourcedRegistries: { where: { status: { not: "ARCHIVED" as const } }, select: { id: true, title: true } },
+  sourcedRegistries: { where: { status: { not: "ARCHIVED" as const } }, select: { id: true, title: true, status: true } },
 } as const;
 
 export async function listOrdersForUser(userId: string, q: { page?: number; pageSize?: number }) {
@@ -1286,7 +1286,7 @@ async function shapeOrder(order: {
     paymentStatus: PaymentStatus;
     status: OrderStatus;
   }>;
-  sourcedRegistries?: Array<{ id: string; title: string | null }>;
+  sourcedRegistries?: Array<{ id: string; title: string | null; status?: string }>;
 }) {
   const kind = order.kind ?? OrderKind.SHOP;
   const giftRegistry =
@@ -1297,6 +1297,7 @@ async function shapeOrder(order: {
           packageSlug: order.packageOrder.package.slug,
           paymentStatus: order.paymentStatus ?? PaymentStatus.PENDING,
           sourcedRegistries: order.sourcedRegistries,
+          lineItems: order.packageOrder.lines,
         })
       : null;
 

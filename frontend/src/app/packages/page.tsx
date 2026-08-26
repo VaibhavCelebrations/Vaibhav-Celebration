@@ -18,15 +18,15 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const PACKAGING_NOTE: Record<string, string> = {
-  standard: "Simple Packaging included",
-  premium: "Theme-based Gift Bag included",
-  luxe: "Customized Theme Gift Bag included",
+  essential: "Simple Packaging included",
+  signature: "Theme-based Gift Bag included",
+  grand: "Customized Theme Gift Bag included",
 };
 
 const DECOR_OUTSIDE_NOTE: Record<string, string> = {
-  standard: "Basic Decor Guide (outside Jaipur)",
-  premium: "Detailed Decor Guide (outside Jaipur)",
-  luxe: "Premium Luxe Decor Guide (outside Jaipur)",
+  essential: "Basic Decor Guide (outside Jaipur)",
+  signature: "Detailed Decor Guide (outside Jaipur)",
+  grand: "Premium Luxe Decor Guide (outside Jaipur)",
 };
 
 export default async function PackagesPage() {

@@ -7,11 +7,11 @@ import { computeBuilderQuote, listBuilderProducts } from "./builder.service";
 const productsQuerySchema = z.object({
   theme: z.string().min(1),
   category: z.string().min(1),
-  tier: z.enum(["standard", "premium", "luxe"]),
+  tier: z.enum(["essential", "signature", "grand"]),
 });
 
 const quoteSchema = z.object({
-  packageSlug: z.enum(["standard", "premium", "luxe"]),
+  packageSlug: z.enum(["essential", "signature", "grand"]),
   themeSlug: z.string().min(1),
   guestCount: z.number().int().min(5).max(200),
   location: z.enum(["jaipur", "outside"]),

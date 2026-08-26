@@ -245,6 +245,11 @@ export async function getMyRegistry(id: string): Promise<GiftRegistryDetailDto> 
   return apiFetch<GiftRegistryDetailDto>(`/account/registries/${encodeURIComponent(id)}`, { cache: "no-store" });
 }
 
+/** Guest-eye view of the owner's own registry, regardless of publish status. */
+export async function getMyRegistryPreview(id: string): Promise<PublicRegistryDto> {
+  return apiFetch<PublicRegistryDto>(`/account/registries/${encodeURIComponent(id)}/preview`, { cache: "no-store" });
+}
+
 export async function updateMyRegistry(
   id: string,
   input: Partial<{

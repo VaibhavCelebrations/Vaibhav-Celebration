@@ -119,7 +119,7 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
     isRecommended: pkg.isRecommended,
     badgeText: pkg.isRecommended ? "Most Loved" : null,
     pricingUnit: null,
-    hasGiftRegistry: pkg.slug === "premium" || pkg.slug === "luxe",
+    hasGiftRegistry: pkg.slug === "signature" || pkg.slug === "grand",
     description: pkg.description ?? "",
     features,
   };

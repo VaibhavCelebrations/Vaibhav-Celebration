@@ -38,7 +38,7 @@ import { formatPaise } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { ApiClientError } from "@/lib/api-client";
 
-type Tier = "standard" | "premium" | "luxe";
+type Tier = "essential" | "signature" | "grand";
 type Location = "jaipur" | "outside";
 
 const STEPS = [
@@ -53,14 +53,14 @@ const TIER_META: Record<
   Tier,
   { eyebrow: string; blurb: string }
 > = {
-  standard: { eyebrow: "STANDARD", blurb: "Thoughtful essentials" },
-  premium: { eyebrow: "PREMIUM", blurb: "Complete experience" },
-  luxe: { eyebrow: "LUXE", blurb: "Signature celebration" },
+  essential: { eyebrow: "ESSENTIAL", blurb: "Thoughtful essentials" },
+  signature: { eyebrow: "SIGNATURE", blurb: "Complete experience" },
+  grand: { eyebrow: "GRAND", blurb: "Signature celebration" },
 };
 
 function parseTier(v: string | null): Tier | null {
-  if (v === "standard" || v === "premium" || v === "luxe") return v;
-  if (v === "lux") return "luxe";
+  if (v === "essential" || v === "signature" || v === "grand") return v;
+  if (v === "lux") return "grand";
   return null;
 }
 
@@ -385,7 +385,7 @@ function BuildPackageContent() {
           listBuilderProducts({ theme: themeSlug, category: "welcome-items", tier: pkgSlug }),
           listBuilderProducts({ theme: themeSlug, category: "children-activities", tier: pkgSlug }),
           listBuilderProducts({ theme: themeSlug, category: "return-gifts", tier: pkgSlug }),
-          pkgSlug === "luxe"
+          pkgSlug === "grand"
             ? listBuilderProducts({ theme: themeSlug, category: "family-activities", tier: pkgSlug })
             : Promise.resolve([]),
         ]);
@@ -411,9 +411,9 @@ function BuildPackageContent() {
     guestCount >= 5 &&
     !!selections.activity1 &&
     !!selections.returnGift &&
-    (pkgSlug === "standard" || !!selections.welcomeItem) &&
-    (pkgSlug === "standard" || !!selections.activity2) &&
-    (pkgSlug !== "luxe" || !!selections.familyActivity);
+    (pkgSlug === "essential" || !!selections.welcomeItem) &&
+    (pkgSlug === "essential" || !!selections.activity2) &&
+    (pkgSlug !== "grand" || !!selections.familyActivity);
 
   useEffect(() => {
     if (step === 4) {
@@ -454,9 +454,9 @@ function BuildPackageContent() {
     }
   }, [user]);
 
-  const needsWelcome = pkgSlug === "premium" || pkgSlug === "luxe";
-  const needsTwoActivities = pkgSlug === "premium" || pkgSlug === "luxe";
-  const needsFamily = pkgSlug === "luxe";
+  const needsWelcome = pkgSlug === "signature" || pkgSlug === "grand";
+  const needsTwoActivities = pkgSlug === "signature" || pkgSlug === "grand";
+  const needsFamily = pkgSlug === "grand";
 
   const canContinue = () => {
     if (step === 0) return !!themeSlug;
@@ -560,7 +560,7 @@ function BuildPackageContent() {
   };
 
   const decorPriceLabel =
-    pkgSlug === "standard" ? "₹5,000" : pkgSlug === "premium" ? "₹10,000" : "₹20,000";
+    pkgSlug === "essential" ? "₹5,000" : pkgSlug === "signature" ? "₹10,000" : "₹20,000";
 
   const includedForTier = selectedPkg?.features?.filter((f) => f.included).map((f) => f.label) ?? [];
 
@@ -867,6 +867,63 @@ function BuildPackageContent() {
                       syncUrl({ selections: updated });
                     }}
                   />
+                  {pkgSlug === "signature" || pkgSlug === "grand" ? (
+                    <div className="rounded-2xl border-2 border-mocha/30 bg-mocha/5 p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-mocha/15 flex items-center justify-center shrink-0">
+                        <Gift size={18} className="text-mocha" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-charcoal">Gift Registry</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-mocha/15 text-mocha">
+                            Included with {TIER_META[pkgSlug].eyebrow}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text-muted mt-1">
+                          Share a guided gift list with your guests — no extra charge. You can set it up from your
+                          order after checkout.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`rounded-2xl border p-4 ${
+                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
+                      }`}
+                    >
+                      <div className="flex justify-between gap-4 items-start">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-mocha/10 flex items-center justify-center shrink-0">
+                            <Gift size={18} className="text-mocha" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                            <p className="text-sm text-text-muted">
+                              Add a guided gift list your guests can shop from. Optional add-on for Essential.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-lg font-bold text-charcoal">₹500</div>
+                          <div className="text-[11px] text-text-light">one-time</div>
+                        </div>
+                      </div>
+                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selections.giftRegistryCustomize}
+                          onChange={(e) => {
+                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
+                            setSelections(updated);
+                            syncUrl({ selections: updated });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        Add Gift Registry to my order
+                      </label>
+                    </div>
+                  )}
+
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned — shown on the review step.
                   </div>

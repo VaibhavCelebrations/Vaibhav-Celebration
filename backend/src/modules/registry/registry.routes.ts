@@ -22,6 +22,7 @@ import {
   deleteRegistryItem,
   getPublicRegistry,
   getRegistryForOwner,
+  getRegistryPreviewForOwner,
   getRegistrySeo,
   giftRegistryItem,
   listRegistriesForOwner,
@@ -116,6 +117,18 @@ accountRegistryRouter.get("/:id", validate(z.object({ id: z.string().min(1) }), 
     return next(err);
   }
 });
+
+accountRegistryRouter.get(
+  "/:id/preview",
+  validate(z.object({ id: z.string().min(1) }), "params"),
+  async (req, res, next) => {
+    try {
+      return ok(res, await getRegistryPreviewForOwner(customerId(req), param(req, "id")));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 accountRegistryRouter.put(
   "/:id",

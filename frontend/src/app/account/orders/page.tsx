@@ -115,6 +115,16 @@ export default function OrderHistoryPage() {
                       Set up Gift Registry
                     </span>
                   )}
+                  {order.giftRegistry?.registryId && order.giftRegistry.registryStatus === "ACTIVE" && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                      Registry published
+                    </span>
+                  )}
+                  {order.giftRegistry?.registryId && order.giftRegistry.registryStatus !== "ACTIVE" && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                      Registry draft
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted mt-1">
                   {order.package

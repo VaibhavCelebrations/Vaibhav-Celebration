@@ -3,7 +3,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const steps = [
   { num: "01", title: "Explore Themes", desc: "Browse curated celebration themes designed for ages 1–10." },
-  { num: "02", title: "Choose Your Package", desc: "Compare Standard, Premium and Luxe experiences side by side." },
+  { num: "02", title: "Choose Your Package", desc: "Compare Essential, Signature and Grand experiences side by side." },
   { num: "03", title: "Customize & Book", desc: "Add optional extras, pick your date, and confirm online." },
   { num: "04", title: "We Bring It to Life", desc: "Sit back and celebrate — we handle every detail, start to finish." },
 ];

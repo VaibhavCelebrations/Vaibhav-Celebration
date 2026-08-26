@@ -531,7 +531,7 @@ export default function CheckoutPage() {
                           );
                         })}
 
-                        {/* Standard Items */}
+                        {/* Essential Items */}
                         {items.map((item) => (
                           <div key={item.id} className="flex items-start gap-4 p-4 rounded-2xl border border-border-light bg-surface hover:border-mocha/30 transition-colors">
                             <div className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-cream-dark">
