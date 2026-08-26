@@ -55,7 +55,7 @@ const shippingAddressSchema = z.object({
 export const accountRegistryRouter = Router();
 accountRegistryRouter.use(requireCustomer);
 
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
 const coverUploadLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
@@ -341,7 +341,7 @@ const registryPasswordLimiter = rateLimit({
   },
   keyGenerator: (req) => {
     // Key by IP and registry code
-    return `${req.ip}_${req.params.code}`;
+    return `${ipKeyGenerator(req.ip ?? "unknown")}_${req.params.code}`;
   }
 });
 
