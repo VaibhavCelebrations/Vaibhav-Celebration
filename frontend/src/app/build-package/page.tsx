@@ -870,38 +870,7 @@ function BuildPackageContent() {
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned — shown on the review step.
                   </div>
-                  <div
-                      className={`mt-8 rounded-2xl border p-6 ${
-                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
-                      }`}
-                    >
-                      <div className="flex justify-between gap-4 items-start">
-                        <div>
-                          <div className="font-semibold text-charcoal mb-1">Gift Registry (Add-on)</div>
-                          <p className="text-sm text-text-muted">
-                            Add a guided gift list to share with your guests after booking.
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-xs font-bold uppercase tracking-wider text-mocha">
-                            + {formatPaise(quote?.giftRegistryCustomizePriceInPaise || 50_000)}
-                          </div>
-                        </div>
-                      </div>
-                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!selections.giftRegistryCustomize}
-                          onChange={(e) => {
-                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
-                            setSelections(updated);
-                            syncUrl({ selections: updated });
-                          }}
-                          className="w-4 h-4"
-                        />
-                        Add Gift Registry
-                      </label>
-                    </div>
+
                 </>
               )}
             </section>
