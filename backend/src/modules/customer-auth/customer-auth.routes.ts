@@ -144,7 +144,11 @@ customerAuthRouter.get("/me", requireCustomer, async (req, res, next) => {
 customerAuthRouter.patch(
   "/me",
   requireCustomer,
-  validate(z.object({ name: z.string().min(1).max(120).optional(), phone: z.string().min(6).max(20).optional() })),
+  validate(z.object({ 
+    name: z.string().min(1).max(120).optional(), 
+    phone: z.string().min(6).max(20).optional(),
+    defaultAddress: z.any().optional(),
+  })),
   async (req, res, next) => {
     try {
       const customer = (req as CustomerAuthenticatedRequest).customer!;

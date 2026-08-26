@@ -432,7 +432,7 @@ async function main() {
   }
 
   const packages = await prisma.package.findMany({
-    where: { slug: { in: ["standard", "premium", "lux"] }, deletedAt: null },
+    where: { slug: { in: ["essential", "signature", "lux"] }, deletedAt: null },
     select: { id: true, slug: true },
   });
   for (const theme of themeRecords.values()) {

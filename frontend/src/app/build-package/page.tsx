@@ -37,8 +37,9 @@ import {
 import { formatPaise } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { ApiClientError } from "@/lib/api-client";
+import * as authApi from "@/lib/customer-auth-api";
 
-type Tier = "standard" | "premium" | "luxe";
+type Tier = "essential" | "signature" | "grand";
 type Location = "jaipur" | "outside";
 
 const STEPS = [
@@ -53,14 +54,14 @@ const TIER_META: Record<
   Tier,
   { eyebrow: string; blurb: string }
 > = {
-  standard: { eyebrow: "STANDARD", blurb: "Thoughtful essentials" },
-  premium: { eyebrow: "PREMIUM", blurb: "Complete experience" },
-  luxe: { eyebrow: "LUXE", blurb: "Signature celebration" },
+  essential: { eyebrow: "ESSENTIAL", blurb: "Thoughtful essentials" },
+  signature: { eyebrow: "SIGNATURE", blurb: "Complete experience" },
+  grand: { eyebrow: "GRAND", blurb: "Signature celebration" },
 };
 
 function parseTier(v: string | null): Tier | null {
-  if (v === "standard" || v === "premium" || v === "luxe") return v;
-  if (v === "lux") return "luxe";
+  if (v === "essential" || v === "signature" || v === "grand") return v;
+  if (v === "lux") return "grand";
   return null;
 }
 
@@ -258,7 +259,7 @@ function BuildPackageContent() {
     parseTier(searchParams.get("pkg")) ?? parseTier(searchParams.get("package"));
   const initialTheme = searchParams.get("theme");
   const initialGuests = Math.max(5, parseInt(searchParams.get("guests") || "10", 10) || 10);
-  const initialLoc = (searchParams.get("loc") === "outside" ? "outside" : "jaipur") as Location;
+  const initialLoc = (searchParams.get("loc") === "jaipur" ? "jaipur" : "outside") as Location;
   const initialStep = Math.min(4, Math.max(0, parseInt(searchParams.get("step") || "0", 10) || 0));
 
   const [step, setStep] = useState(initialTheme ? Math.max(initialStep, 1) : initialStep);
@@ -294,9 +295,13 @@ function BuildPackageContent() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
   const [guestAddress, setGuestAddress] = useState("");
+  const [guestAddressLine2, setGuestAddressLine2] = useState("");
   const [guestCity, setGuestCity] = useState("");
+  const [guestState, setGuestState] = useState("Rajasthan");
+  const [guestCountry, setGuestCountry] = useState("India");
   const [guestPincode, setGuestPincode] = useState("");
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   // Restore state from sessionStorage on mount
   useEffect(() => {
@@ -309,12 +314,36 @@ function BuildPackageContent() {
         if (data.guestEmail) setGuestEmail(data.guestEmail);
         if (data.guestPhone) setGuestPhone(data.guestPhone);
         if (data.guestAddress) setGuestAddress(data.guestAddress);
+        if (data.guestAddressLine2) setGuestAddressLine2(data.guestAddressLine2);
         if (data.guestCity) setGuestCity(data.guestCity);
+        if (data.guestState) setGuestState(data.guestState);
+        if (data.guestCountry) setGuestCountry(data.guestCountry);
         if (data.guestPincode) setGuestPincode(data.guestPincode);
         if (data.selections) setSelections((prev) => ({ ...prev, ...data.selections }));
       }
     } catch (err) {}
   }, []);
+
+  // Pre-fill from user profile default address if available and not overridden
+  useEffect(() => {
+    if (user && user.defaultAddress) {
+      const addr = user.defaultAddress as import("@/lib/shop-types").ShippingAddress;
+      setGuestName((prev) => prev || addr.fullName || user.name);
+      setGuestAddress((prev) => prev || addr.line1 || "");
+      setGuestAddressLine2((prev) => prev || addr.line2 || "");
+      setGuestState((prev) => prev !== "Rajasthan" && prev ? prev : (addr.state || "Rajasthan"));
+      setGuestCountry((prev) => prev !== "India" && prev ? prev : (addr.country || "India"));
+      setGuestCity((prev) => {
+        const c = prev || addr.city;
+        if (c.toLowerCase() === "jaipur" && location !== "jaipur") {
+          setLocation("jaipur");
+          syncUrl({ loc: "jaipur" });
+        }
+        return c;
+      });
+      setGuestPincode((prev) => prev || addr.pincode);
+    }
+  }, [user]);
 
   // Save state to sessionStorage on change
   useEffect(() => {
@@ -326,7 +355,10 @@ function BuildPackageContent() {
         guestEmail,
         guestPhone,
         guestAddress,
+        guestAddressLine2,
         guestCity,
+        guestState,
+        guestCountry,
         guestPincode,
         selections,
       })
@@ -385,7 +417,7 @@ function BuildPackageContent() {
           listBuilderProducts({ theme: themeSlug, category: "welcome-items", tier: pkgSlug }),
           listBuilderProducts({ theme: themeSlug, category: "children-activities", tier: pkgSlug }),
           listBuilderProducts({ theme: themeSlug, category: "return-gifts", tier: pkgSlug }),
-          pkgSlug === "luxe"
+          pkgSlug === "grand"
             ? listBuilderProducts({ theme: themeSlug, category: "family-activities", tier: pkgSlug })
             : Promise.resolve([]),
         ]);
@@ -411,9 +443,9 @@ function BuildPackageContent() {
     guestCount >= 5 &&
     !!selections.activity1 &&
     !!selections.returnGift &&
-    (pkgSlug === "standard" || !!selections.welcomeItem) &&
-    (pkgSlug === "standard" || !!selections.activity2) &&
-    (pkgSlug !== "luxe" || !!selections.familyActivity);
+    (pkgSlug === "essential" || !!selections.welcomeItem) &&
+    (pkgSlug === "essential" || !!selections.activity2) &&
+    (pkgSlug !== "grand" || !!selections.familyActivity);
 
   useEffect(() => {
     if (step === 4) {
@@ -454,9 +486,9 @@ function BuildPackageContent() {
     }
   }, [user]);
 
-  const needsWelcome = pkgSlug === "premium" || pkgSlug === "luxe";
-  const needsTwoActivities = pkgSlug === "premium" || pkgSlug === "luxe";
-  const needsFamily = pkgSlug === "luxe";
+  const needsWelcome = pkgSlug === "signature" || pkgSlug === "grand";
+  const needsTwoActivities = pkgSlug === "signature" || pkgSlug === "grand";
+  const needsFamily = pkgSlug === "grand";
 
   const canContinue = () => {
     if (step === 0) return !!themeSlug;
@@ -515,7 +547,7 @@ function BuildPackageContent() {
     syncUrl({ selections: updated });
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
     if (!eventDate || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
       setQuoteError("Please fill celebration date, contact, and address details.");
@@ -524,6 +556,24 @@ function BuildPackageContent() {
     if (!isAuthenticated) {
       openAuthModal();
       return;
+    }
+
+    if (saveAsDefault) {
+      try {
+        await authApi.updateProfile({
+          defaultAddress: {
+            fullName: guestName,
+            line1: guestAddress,
+            line2: guestAddressLine2,
+            city: guestCity,
+            state: guestState,
+            pincode: guestPincode,
+            country: guestCountry,
+          }
+        });
+      } catch (e) {
+        console.error("Failed to save default address", e);
+      }
     }
 
     addPackage({
@@ -547,10 +597,11 @@ function BuildPackageContent() {
         shippingAddress: {
           fullName: guestName,
           line1: guestAddress,
+          line2: guestAddressLine2,
           city: guestCity,
-          state: "Rajasthan",
+          state: guestState,
           pincode: guestPincode,
-          country: "India",
+          country: guestCountry,
         },
         quoteSnapshot: quote,
       },
@@ -560,7 +611,7 @@ function BuildPackageContent() {
   };
 
   const decorPriceLabel =
-    pkgSlug === "standard" ? "₹5,000" : pkgSlug === "premium" ? "₹10,000" : "₹20,000";
+    pkgSlug === "essential" ? "₹5,000" : pkgSlug === "signature" ? "₹10,000" : "₹20,000";
 
   const includedForTier = selectedPkg?.features?.filter((f) => f.included).map((f) => f.label) ?? [];
 
@@ -640,9 +691,25 @@ function BuildPackageContent() {
                           >
                             <Minus size={18} />
                           </button>
-                          <span className="flex-1 text-center font-display text-xl font-bold text-charcoal">
-                            {guestCount}
-                          </span>
+                          <input
+                            type="number"
+                            min="5"
+                            value={guestCount}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val)) {
+                                setGuestCount(val);
+                                syncUrl({ guests: val });
+                              }
+                            }}
+                            onBlur={() => {
+                              if (guestCount < 5) {
+                                setGuestCount(5);
+                                syncUrl({ guests: 5 });
+                              }
+                            }}
+                            className="flex-1 text-center font-display text-xl font-bold text-charcoal bg-transparent border-none outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
                           <button
                             type="button"
                             onClick={() => {
@@ -759,13 +826,30 @@ function BuildPackageContent() {
                         placeholder="Flat / House No. / Building"
                       />
                     </label>
+                    <label className="block text-sm">
+                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 2</span>
+                      <input
+                        type="text"
+                        value={guestAddressLine2}
+                        onChange={(e) => setGuestAddressLine2(e.target.value)}
+                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                        placeholder="Locality / Area / Street"
+                      />
+                    </label>
                     <div className="grid grid-cols-2 gap-4">
                       <label className="block text-sm">
                         <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City <span className="text-red-500">*</span></span>
                         <input
                           type="text"
                           value={location === "jaipur" ? "Jaipur" : guestCity}
-                          onChange={(e) => setGuestCity(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setGuestCity(val);
+                            if (val.toLowerCase().trim() === "jaipur" && location !== "jaipur") {
+                              setLocation("jaipur");
+                              syncUrl({ loc: "jaipur" });
+                            }
+                          }}
                           readOnly={location === "jaipur"}
                           className={`w-full border rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50 ${
                             location === "jaipur"
@@ -773,6 +857,33 @@ function BuildPackageContent() {
                               : "bg-cream-dark border-border-light"
                           }`}
                           placeholder="City"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">State <span className="text-red-500">*</span></span>
+                        <input
+                          type="text"
+                          value={location === "jaipur" ? "Rajasthan" : guestState}
+                          onChange={(e) => setGuestState(e.target.value)}
+                          readOnly={location === "jaipur"}
+                          className={`w-full border rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50 ${
+                            location === "jaipur"
+                              ? "bg-cream-dark/50 border-border-light text-charcoal/70"
+                              : "bg-cream-dark border-border-light"
+                          }`}
+                          placeholder="State"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <label className="block text-sm">
+                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Country <span className="text-red-500">*</span></span>
+                        <input
+                          type="text"
+                          value={guestCountry}
+                          onChange={(e) => setGuestCountry(e.target.value)}
+                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
+                          placeholder="India"
                         />
                       </label>
                       <label className="block text-sm">
@@ -786,6 +897,21 @@ function BuildPackageContent() {
                         />
                       </label>
                     </div>
+                    
+                    {isAuthenticated && (
+                      <div className="mt-4 flex items-center gap-3 bg-cream/30 p-3 rounded-xl border border-border-light">
+                        <input 
+                          type="checkbox" 
+                          id="saveAsDefaultBuilder" 
+                          checked={saveAsDefault} 
+                          onChange={(e) => setSaveAsDefault(e.target.checked)} 
+                          className="w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha"
+                        />
+                        <label htmlFor="saveAsDefaultBuilder" className="text-sm text-charcoal font-medium cursor-pointer">
+                          Save as my default delivery address for future orders
+                        </label>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -867,6 +993,63 @@ function BuildPackageContent() {
                       syncUrl({ selections: updated });
                     }}
                   />
+                  {pkgSlug === "signature" || pkgSlug === "grand" ? (
+                    <div className="rounded-2xl border-2 border-mocha/30 bg-mocha/5 p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-mocha/15 flex items-center justify-center shrink-0">
+                        <Gift size={18} className="text-mocha" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-charcoal">Gift Registry</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-mocha/15 text-mocha">
+                            Included with {TIER_META[pkgSlug].eyebrow}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text-muted mt-1">
+                          Share a guided gift list with your guests — no extra charge. You can set it up from your
+                          order after checkout.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`rounded-2xl border p-4 ${
+                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
+                      }`}
+                    >
+                      <div className="flex justify-between gap-4 items-start">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-mocha/10 flex items-center justify-center shrink-0">
+                            <Gift size={18} className="text-mocha" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
+                            <p className="text-sm text-text-muted">
+                              Add a guided gift list your guests can shop from. Optional add-on for Essential.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-lg font-bold text-charcoal">₹500</div>
+                          <div className="text-[11px] text-text-light">one-time</div>
+                        </div>
+                      </div>
+                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selections.giftRegistryCustomize}
+                          onChange={(e) => {
+                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
+                            setSelections(updated);
+                            syncUrl({ selections: updated });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        Add Gift Registry to my order
+                      </label>
+                    </div>
+                  )}
+
                   <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
                     Packaging and thank-you tags (where included) are auto-assigned — shown on the review step.
                   </div>

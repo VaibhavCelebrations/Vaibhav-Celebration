@@ -42,7 +42,15 @@ function absoluteExpiry(): Date {
   return new Date(Date.now() + env.CUSTOMER_SESSION_ABSOLUTE_DAYS * DAY_MS);
 }
 
-function toPublicUser(user: { id: string; name: string; email: string; phone: string | null; emailVerifiedAt: Date | null; lastLoginAt: Date | null }) {
+function toPublicUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  emailVerifiedAt: Date | null;
+  lastLoginAt: Date | null;
+  defaultAddress?: any;
+}) {
   return {
     id: user.id,
     name: user.name,
@@ -50,6 +58,7 @@ function toPublicUser(user: { id: string; name: string; email: string; phone: st
     phone: user.phone,
     emailVerified: user.emailVerifiedAt !== null,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    defaultAddress: user.defaultAddress ?? null,
   };
 }
 
@@ -350,10 +359,18 @@ export async function verifyEmail(rawToken: string): Promise<void> {
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
-export async function updateCustomerProfile(userId: string, data: { name?: string; phone?: string }) {
+export async function updateCustomerProfile(userId: string, data: { name?: string; phone?: string; defaultAddress?: any }) {
+  const updateData: any = {
+    name: data.name?.trim(),
+    phone: data.phone?.trim(),
+  };
+  if (data.defaultAddress !== undefined) {
+    updateData.defaultAddress = data.defaultAddress;
+  }
+  
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { name: data.name?.trim(), phone: data.phone?.trim() },
+    data: updateData,
   });
   return toPublicUser(user);
 }

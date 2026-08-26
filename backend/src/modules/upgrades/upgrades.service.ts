@@ -3,7 +3,7 @@ import { prisma } from "../../db/prisma";
 import { ForbiddenError, NotFoundError, ValidationError } from "../../lib/errors";
 import { delPattern } from "../../lib/redis";
 
-export const GIFT_REGISTRY_ELIGIBLE_SLUGS = ["premium", "luxe"] as const;
+export const GIFT_REGISTRY_ELIGIBLE_SLUGS = ["signature", "grand"] as const;
 export const GIFT_REGISTRY_PRICE_IN_PAISE = 50_000;
 
 export function isGiftRegistryMatrixService(svc: {
@@ -152,6 +152,7 @@ export type GiftRegistryUpgradeState = {
   eligible: boolean;
   registryId: string | null;
   registryTitle: string | null;
+  registryStatus: "DRAFT" | "ACTIVE" | "EXPIRED" | "CLOSED" | "ARCHIVED" | null;
 };
 
 export async function giftRegistryStateForPackageOrder(input: {
@@ -159,7 +160,7 @@ export async function giftRegistryStateForPackageOrder(input: {
   userId: string;
   packageSlug: string;
   paymentStatus: PaymentStatus;
-  sourcedRegistries?: Array<{ id: string; title: string | null }>;
+  sourcedRegistries?: Array<{ id: string; title: string | null; status?: string }>;
   lineItems?: any;
 }): Promise<GiftRegistryUpgradeState | null> {
   const isIncluded = (GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(input.packageSlug);
@@ -174,13 +175,14 @@ export async function giftRegistryStateForPackageOrder(input: {
     input.sourcedRegistries?.[0] ??
     (await prisma.giftRegistry.findFirst({
       where: { sourceOrderId: input.orderId, ownerUserId: input.userId, status: { not: "ARCHIVED" } },
-      select: { id: true, title: true },
+      select: { id: true, title: true, status: true },
     }));
 
   return {
     eligible,
     registryId: registry?.id ?? null,
     registryTitle: registry?.title ?? null,
+    registryStatus: (registry as { status?: GiftRegistryUpgradeState["registryStatus"] })?.status ?? null,
   };
 }
 

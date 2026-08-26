@@ -10,9 +10,9 @@ const EXTRA_ENDPOINT = "/admin/extra-services";
 const seed: Package[] = [
   {
     id: "pkg_1",
-    title: "Standard",
+    title: "Essential",
     displayName: "Essential Celebration",
-    slug: "standard",
+    slug: "essential",
     priceInPaise: 4990000,
     tierRank: 1,
     isRecommended: false,
@@ -29,9 +29,9 @@ const seed: Package[] = [
   },
   {
     id: "pkg_2",
-    title: "Premium",
+    title: "Signature",
     displayName: "Signature Celebration",
-    slug: "premium",
+    slug: "signature",
     priceInPaise: 7990000,
     tierRank: 2,
     isRecommended: true,

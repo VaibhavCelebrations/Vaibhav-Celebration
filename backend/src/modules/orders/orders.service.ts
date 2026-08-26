@@ -329,6 +329,8 @@ async function createCombinedPackageAndShopOrder(
   input: { shippingAddress: ShippingAddress; contactEmail: string; contactPhone: string },
   packageData: PackageDataInput,
 ) {
+  await saveDefaultAddressIfNeeded(userId, packageData.shippingAddress ?? input.shippingAddress);
+  
   const { builderInput, quote: packageQuote, eventDate } = await computePackagePieces(packageData);
 
   const order = await prisma.$transaction(async (tx) => {
@@ -495,7 +497,7 @@ export async function createPackageOrder(
       notes?: string;
     };
     builder: {
-      packageSlug: "standard" | "premium" | "luxe" | string;
+      packageSlug: "essential" | "signature" | "grand" | string;
       themeSlug: string;
       guestCount: number;
       location: BuilderLocation;
@@ -503,6 +505,9 @@ export async function createPackageOrder(
     };
   },
 ) {
+  if (input.shippingAddress) {
+    await saveDefaultAddressIfNeeded(userId, input.shippingAddress);
+  }
   const { builderInput, quote, eventDate } = await computePackagePieces(input);
   const shippingAddress: ShippingAddress = input.shippingAddress ?? {
     fullName: input.eventDetails?.childName?.trim() || "Celebration guest",
@@ -594,6 +599,16 @@ export async function createPackageOrder(
   };
 }
 
+async function saveDefaultAddressIfNeeded(userId: string, shippingAddress: ShippingAddress) {
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+  if (user && !user.defaultAddress) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultAddress: shippingAddress as never },
+    });
+  }
+}
+
 /**
  * Creates the order from the server cart. Cart is NOT cleared until payment
  * is verified — cancelled/failed Razorpay checkouts must not empty the cart.
@@ -613,6 +628,8 @@ export async function createOrderFromCart(
 
   const items = await prisma.cartItem.findMany({ where: { cartId: cart.id } });
   if (items.length === 0 && !input.packageData) throw new ValidationError("Your cart is empty");
+
+  await saveDefaultAddressIfNeeded(userId, input.shippingAddress);
 
   const lines = items.map((i) => ({
     productId: i.productId,
@@ -709,6 +726,8 @@ export async function createDirectOrder(
     packageData?: PackageDataInput;
   },
 ) {
+  await saveDefaultAddressIfNeeded(userId, input.shippingAddress);
+
   const lines: OrderLine[] = [
     {
       productId: input.productId,
@@ -1193,7 +1212,7 @@ const customerOrderInclude = {
       status: true,
     },
   },
-  sourcedRegistries: { where: { status: { not: "ARCHIVED" as const } }, select: { id: true, title: true } },
+  sourcedRegistries: { where: { status: { not: "ARCHIVED" as const } }, select: { id: true, title: true, status: true } },
 } as const;
 
 export async function listOrdersForUser(userId: string, q: { page?: number; pageSize?: number }) {
@@ -1286,7 +1305,7 @@ async function shapeOrder(order: {
     paymentStatus: PaymentStatus;
     status: OrderStatus;
   }>;
-  sourcedRegistries?: Array<{ id: string; title: string | null }>;
+  sourcedRegistries?: Array<{ id: string; title: string | null; status?: string }>;
 }) {
   const kind = order.kind ?? OrderKind.SHOP;
   const giftRegistry =
@@ -1297,6 +1316,7 @@ async function shapeOrder(order: {
           packageSlug: order.packageOrder.package.slug,
           paymentStatus: order.paymentStatus ?? PaymentStatus.PENDING,
           sourcedRegistries: order.sourcedRegistries,
+          lineItems: order.packageOrder.lines,
         })
       : null;
 

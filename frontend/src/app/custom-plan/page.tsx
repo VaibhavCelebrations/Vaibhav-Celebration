@@ -80,7 +80,7 @@ type ServiceItem = {
   name: string;
   description: string;
   priceInPaise: number;
-  tier: "standard" | "premium" | "luxe";
+  tier: "essential" | "signature" | "grand";
   phase: "before" | "during" | "after";
   category: string;
   hasQuantity?: boolean;
@@ -129,29 +129,29 @@ type CelebrationDetails = {
 
 const SERVICE_CATALOG: ServiceItem[] = [
   // BEFORE THE CELEBRATION
-  { id: "svc-digital-invite", name: "Digital Theme Invite", description: "Beautifully designed digital invitation matching your chosen theme.", priceInPaise: 149900, tier: "standard", phase: "before", category: "Invitations" },
-  { id: "svc-animated-invite", name: "Premium Animated / Video Invite", description: "Animated or video-based theme invitation with custom details and music.", priceInPaise: 399900, tier: "premium", phase: "before", category: "Invitations" },
-  { id: "svc-countdown-cards-3", name: "Countdown Cards (3 Days)", description: "Fun daily countdown cards to build excitement before the big day.", priceInPaise: 99900, tier: "premium", phase: "before", category: "Pre-Event Excitement" },
-  { id: "svc-countdown-cards-5", name: "Countdown Cards (5 Days)", description: "Extended 5-day countdown cards with unique designs for each day.", priceInPaise: 149900, tier: "luxe", phase: "before", category: "Pre-Event Excitement" },
-  { id: "svc-parent-brief", name: "Parent Party Brief PDF", description: "A comprehensive guide covering timeline, setup, and day-of coordination.", priceInPaise: 99900, tier: "premium", phase: "before", category: "Planning" },
-  { id: "svc-animated-brief", name: "Animated Parent Party Brief", description: "Animated PDF brief with interactive timeline and checklist.", priceInPaise: 199900, tier: "luxe", phase: "before", category: "Planning" },
+  { id: "svc-digital-invite", name: "Digital Theme Invite", description: "Beautifully designed digital invitation matching your chosen theme.", priceInPaise: 149900, tier: "essential", phase: "before", category: "Invitations" },
+  { id: "svc-animated-invite", name: "Signature Animated / Video Invite", description: "Animated or video-based theme invitation with custom details and music.", priceInPaise: 399900, tier: "signature", phase: "before", category: "Invitations" },
+  { id: "svc-countdown-cards-3", name: "Countdown Cards (3 Days)", description: "Fun daily countdown cards to build excitement before the big day.", priceInPaise: 99900, tier: "signature", phase: "before", category: "Pre-Event Excitement" },
+  { id: "svc-countdown-cards-5", name: "Countdown Cards (5 Days)", description: "Extended 5-day countdown cards with unique designs for each day.", priceInPaise: 149900, tier: "grand", phase: "before", category: "Pre-Event Excitement" },
+  { id: "svc-parent-brief", name: "Parent Party Brief PDF", description: "A comprehensive guide covering timeline, setup, and day-of coordination.", priceInPaise: 99900, tier: "signature", phase: "before", category: "Planning" },
+  { id: "svc-animated-brief", name: "Animated Parent Party Brief", description: "Animated PDF brief with interactive timeline and checklist.", priceInPaise: 199900, tier: "grand", phase: "before", category: "Planning" },
   // DURING THE CELEBRATION
-  { id: "svc-welcome-board", name: "Welcome Board / Standee", description: "A custom-designed welcome board or standee at the venue entrance.", priceInPaise: 249900, tier: "standard", phase: "during", category: "Venue Setup" },
-  { id: "svc-table-elements", name: "Theme Table Elements", description: "Themed centerpieces, table toppers, and coordinating elements.", priceInPaise: 199900, tier: "standard", phase: "during", category: "Venue Setup" },
-  { id: "svc-activity-1", name: "Children Activity (1 Activity)", description: "One themed craft or game activity for children at the party.", priceInPaise: 14900, tier: "standard", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-activity-2", name: "Children Activities (2 Activities)", description: "Two unique themed activities — craft + game for extra engagement.", priceInPaise: 14900, tier: "premium", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-family-activity", name: "Family Activity", description: "A group activity that involves the whole family.", priceInPaise: 19900, tier: "luxe", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-welcome-item", name: "Welcome Item for Kids", description: "A themed welcome gift for each child at the entrance.", priceInPaise: 9900, tier: "premium", phase: "during", category: "Gifts", hasQuantity: true },
-  { id: "svc-photo-props", name: "Theme Photo Props", description: "Fun themed photo props for memorable photos.", priceInPaise: 149900, tier: "premium", phase: "during", category: "Venue Setup" },
-  { id: "svc-on-day-coordination", name: "On-Day Coordination (Jaipur)", description: "Full on-site coordination and setup management.", priceInPaise: 999900, tier: "luxe", phase: "during", category: "Coordination" },
+  { id: "svc-welcome-board", name: "Welcome Board / Standee", description: "A custom-designed welcome board or standee at the venue entrance.", priceInPaise: 249900, tier: "essential", phase: "during", category: "Venue Setup" },
+  { id: "svc-table-elements", name: "Theme Table Elements", description: "Themed centerpieces, table toppers, and coordinating elements.", priceInPaise: 199900, tier: "essential", phase: "during", category: "Venue Setup" },
+  { id: "svc-activity-1", name: "Children Activity (1 Activity)", description: "One themed craft or game activity for children at the party.", priceInPaise: 14900, tier: "essential", phase: "during", category: "Activities", hasQuantity: true },
+  { id: "svc-activity-2", name: "Children Activities (2 Activities)", description: "Two unique themed activities — craft + game for extra engagement.", priceInPaise: 14900, tier: "signature", phase: "during", category: "Activities", hasQuantity: true },
+  { id: "svc-family-activity", name: "Family Activity", description: "A group activity that involves the whole family.", priceInPaise: 19900, tier: "grand", phase: "during", category: "Activities", hasQuantity: true },
+  { id: "svc-welcome-item", name: "Welcome Item for Kids", description: "A themed welcome gift for each child at the entrance.", priceInPaise: 9900, tier: "signature", phase: "during", category: "Gifts", hasQuantity: true },
+  { id: "svc-photo-props", name: "Theme Photo Props", description: "Fun themed photo props for memorable photos.", priceInPaise: 149900, tier: "signature", phase: "during", category: "Venue Setup" },
+  { id: "svc-on-day-coordination", name: "On-Day Coordination (Jaipur)", description: "Full on-site coordination and setup management.", priceInPaise: 999900, tier: "grand", phase: "during", category: "Coordination" },
   // AFTER THE CELEBRATION
-  { id: "svc-return-gift", name: "Return Gift Sourcing", description: "Carefully sourced themed return gifts for young guests.", priceInPaise: 14900, tier: "standard", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-thank-you-tags", name: "Thank You Tags", description: "Custom themed thank you tags for return gift bags.", priceInPaise: 4900, tier: "standard", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-gift-bag", name: "Theme Gift Bag", description: "Custom printed or assembled gift bags matching the theme.", priceInPaise: 9900, tier: "premium", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-custom-gift-box", name: "Custom Gift Box", description: "Premium custom-designed gift boxes with name and theme artwork.", priceInPaise: 19900, tier: "luxe", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-edited-pictures", name: "Edited Highlight Pictures (3)", description: "3 professionally edited pictures from the celebration.", priceInPaise: 299900, tier: "premium", phase: "after", category: "Memories" },
-  { id: "svc-keepsake-box", name: "Premium Keepsake Box", description: "A beautifully crafted keepsake box with mementos.", priceInPaise: 499900, tier: "luxe", phase: "after", category: "Memories" },
-  { id: "svc-gift-registry", name: "Gift Registry Access", description: "Digital gift registry — guests can contribute to specific gifts.", priceInPaise: 199900, tier: "premium", phase: "after", category: "Gifts" },
+  { id: "svc-return-gift", name: "Return Gift Sourcing", description: "Carefully sourced themed return gifts for young guests.", priceInPaise: 14900, tier: "essential", phase: "after", category: "Return Gifts", hasQuantity: true },
+  { id: "svc-thank-you-tags", name: "Thank You Tags", description: "Custom themed thank you tags for return gift bags.", priceInPaise: 4900, tier: "essential", phase: "after", category: "Return Gifts", hasQuantity: true },
+  { id: "svc-gift-bag", name: "Theme Gift Bag", description: "Custom printed or assembled gift bags matching the theme.", priceInPaise: 9900, tier: "signature", phase: "after", category: "Return Gifts", hasQuantity: true },
+  { id: "svc-custom-gift-box", name: "Custom Gift Box", description: "Signature custom-designed gift boxes with name and theme artwork.", priceInPaise: 19900, tier: "grand", phase: "after", category: "Return Gifts", hasQuantity: true },
+  { id: "svc-edited-pictures", name: "Edited Highlight Pictures (3)", description: "3 professionally edited pictures from the celebration.", priceInPaise: 299900, tier: "signature", phase: "after", category: "Memories" },
+  { id: "svc-keepsake-box", name: "Signature Keepsake Box", description: "A beautifully crafted keepsake box with mementos.", priceInPaise: 499900, tier: "grand", phase: "after", category: "Memories" },
+  { id: "svc-gift-registry", name: "Gift Registry Access", description: "Digital gift registry — guests can contribute to specific gifts.", priceInPaise: 199900, tier: "signature", phase: "after", category: "Gifts" },
 ];
 
 const ADDON_CATALOG: AddOnItem[] = [
@@ -169,7 +169,7 @@ const ADDON_CATALOG: AddOnItem[] = [
   { id: "addon-personalized-tags", name: "Personalized Gift Tags", description: "Custom tags with each guest child's name.", priceInPaise: 4900, hasQuantity: true, hasPersonalization: true, personalizationFields: [
     { key: "names", label: "Guest Names (comma-separated)", type: "textarea", placeholder: "Enter each child's name, separated by commas" },
   ]},
-  { id: "addon-video-invite-upgrade", name: "Upgraded Video Invitation", description: "Premium animated video invitation with voiceover and music.", priceInPaise: 249900 },
+  { id: "addon-video-invite-upgrade", name: "Upgraded Video Invitation", description: "Signature animated video invitation with voiceover and music.", priceInPaise: 249900 },
   { id: "addon-extra-signage", name: "Additional Signage & Photo Props", description: "Extra themed signage boards, photo props, and standees.", priceInPaise: 199900 },
   { id: "addon-gift-registry", name: "Gift Registry (Custom Plan)", description: "Enable a digital gift registry for guest contributions.", priceInPaise: 199900 },
   { id: "addon-personalized-item", name: "Special Personalized Item", description: "Any custom personalized item — describe your requirements.", priceInPaise: 0, hasPersonalization: true, personalizationFields: [
@@ -627,7 +627,7 @@ function CustomPlanContent() {
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
                                         <h4 className="text-sm font-semibold text-charcoal">{svc.name}</h4>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${svc.tier === "standard" ? "bg-emerald-50 text-emerald-700" : svc.tier === "premium" ? "bg-amber-50 text-amber-700" : "bg-purple-50 text-purple-700"}`}>{svc.tier}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${svc.tier === "essential" ? "bg-emerald-50 text-emerald-700" : svc.tier === "signature" ? "bg-amber-50 text-amber-700" : "bg-purple-50 text-purple-700"}`}>{svc.tier}</span>
                                       </div>
                                       <p className="text-xs text-text-muted">{svc.description}</p>
                                       <p className="text-sm font-bold text-mocha mt-1">{formatPaise(svc.priceInPaise)}{svc.hasQuantity && <span className="font-normal text-text-muted"> / unit</span>}</p>
@@ -656,12 +656,12 @@ function CustomPlanContent() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {(["standard", "premium", "luxe"] as const).map((tier) => {
+                  {(["essential", "signature", "grand"] as const).map((tier) => {
                     const tierItems = SERVICE_CATALOG.filter((s) => s.tier === tier);
-                    const labels = { standard: "Standard Package Items", premium: "Premium Package Items", luxe: "Luxe Package Items" };
+                    const labels = { essential: "Essential Package Items", signature: "Signature Package Items", grand: "Grand Package Items" };
                     return (
                       <div key={tier}>
-                        <h3 className={`text-base font-display font-semibold mb-3 ${tier === "standard" ? "text-emerald-700" : tier === "premium" ? "text-amber-700" : "text-purple-700"}`}>{labels[tier]}</h3>
+                        <h3 className={`text-base font-display font-semibold mb-3 ${tier === "essential" ? "text-emerald-700" : tier === "signature" ? "text-amber-700" : "text-purple-700"}`}>{labels[tier]}</h3>
                         <div className="grid gap-3">
                           {tierItems.map((svc) => {
                             const isSelected = selectedServices.some((s) => s.serviceId === svc.id);

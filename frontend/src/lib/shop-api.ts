@@ -245,6 +245,11 @@ export async function getMyRegistry(id: string): Promise<GiftRegistryDetailDto> 
   return apiFetch<GiftRegistryDetailDto>(`/account/registries/${encodeURIComponent(id)}`, { cache: "no-store" });
 }
 
+/** Guest-eye view of the owner's own registry, regardless of publish status. */
+export async function getMyRegistryPreview(id: string): Promise<PublicRegistryDto> {
+  return apiFetch<PublicRegistryDto>(`/account/registries/${encodeURIComponent(id)}/preview`, { cache: "no-store" });
+}
+
 export async function updateMyRegistry(
   id: string,
   input: Partial<{
@@ -351,4 +356,25 @@ export async function confirmExternalRegistryGift(
   input: { password?: string; quantity?: number; guestName?: string; guestEmail?: string },
 ) {
   return apiFetch(`/registry/${encodeURIComponent(code)}/items/${encodeURIComponent(itemId)}/confirm`, { method: "POST", body: input });
+}
+
+export async function uploadRegistryCoverImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const { getApiBaseUrl } = await import("./api-client");
+  const API_BASE = getApiBaseUrl();
+
+  const res = await fetch(`${API_BASE}/account/registries/upload-cover`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error?.message || `Upload failed with status ${res.status}`);
+  }
+
+  return json.data;
 }

@@ -36,7 +36,7 @@ export type BuilderSelections = {
 };
 
 export type BuilderQuoteInput = {
-  packageSlug: "standard" | "premium" | "luxe";
+  packageSlug: "essential" | "signature" | "grand";
   themeSlug: string;
   guestCount: number;
   location: "jaipur" | "outside";
