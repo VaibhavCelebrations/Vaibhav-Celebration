@@ -1,6 +1,6 @@
 import { createApp } from "./app";
 import { env } from "./config/env";
-import { isSmtpConfigured } from "./integrations/email/mailer";
+import { isEmailConfigured } from "./integrations/email/mailer";
 import { logger } from "./lib/logger";
 import { getRedisClient, disconnectRedis } from "./lib/redis";
 import { ensureGiftRegistryService } from "./modules/upgrades/upgrades.service";
@@ -23,7 +23,7 @@ const server = app.listen(env.PORT, () => {
   // In production, missing SMTP env vars fail silently per-order (email gets
   // marked SKIPPED) — surface it loudly at boot instead so it's caught before
   // customers start missing order confirmations.
-  if (env.NODE_ENV === "production" && !isSmtpConfigured()) {
+  if (env.NODE_ENV === "production" && !isEmailConfigured()) {
     logger.warn(
       {
         smtpHostSet: Boolean(env.SMTP_HOST),
