@@ -1,3 +1,4 @@
+import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { env } from "../../config/env";
 import { logger } from "../../lib/logger";
@@ -17,15 +18,16 @@ type MailPayload = {
   }>;
 };
 
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 let transporter: nodemailer.Transporter | null = null;
 
-export function isSmtpConfigured(): boolean {
-  return Boolean(env.SMTP_HOST && env.EMAIL_FROM_ADDRESS && env.SMTP_USER && env.SMTP_PASS);
+export function isEmailConfigured(): boolean {
+  return Boolean(resend || (env.SMTP_HOST && env.EMAIL_FROM_ADDRESS && env.SMTP_USER && env.SMTP_PASS));
 }
 
 function getTransporter() {
   if (transporter) return transporter;
-  if (!isSmtpConfigured()) return null;
+  if (!env.SMTP_HOST || !env.EMAIL_FROM_ADDRESS || !env.SMTP_USER || !env.SMTP_PASS) return null;
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 587,
@@ -39,23 +41,45 @@ function getTransporter() {
 }
 
 export async function sendEmail(payload: MailPayload): Promise<NotificationResult> {
-  const tx = getTransporter();
-  if (!tx || !env.EMAIL_FROM_ADDRESS) {
-    logger.warn({ to: payload.to, subject: payload.subject }, "Email skipped — SMTP not configured");
+  if (!isEmailConfigured() || !env.EMAIL_FROM_ADDRESS) {
+    logger.warn({ to: payload.to, subject: payload.subject }, "Email skipped — email provider not configured");
     return { channel: "email", sent: false, skipped: true, status: "SKIPPED" };
   }
 
   try {
-    await tx.sendMail({
-      from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
-      replyTo: env.EMAIL_REPLY_TO ?? env.EMAIL_FROM_ADDRESS,
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
-      attachments: payload.attachments,
-    });
-    return { channel: "email", sent: true, status: "SENT" };
+    if (resend) {
+      // Convert nodemailer attachments to resend format
+      const resendAttachments = payload.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        path: a.path,
+      }));
+
+      await resend.emails.send({
+        from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
+        replyTo: env.EMAIL_REPLY_TO ?? env.EMAIL_FROM_ADDRESS,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        attachments: resendAttachments,
+      });
+      return { channel: "email", sent: true, status: "SENT" };
+    } else {
+      // Fallback to SMTP
+      const tx = getTransporter();
+      if (!tx) throw new Error("SMTP not configured properly");
+      await tx.sendMail({
+        from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM_ADDRESS}>`,
+        replyTo: env.EMAIL_REPLY_TO ?? env.EMAIL_FROM_ADDRESS,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        attachments: payload.attachments,
+      });
+      return { channel: "email", sent: true, status: "SENT" };
+    }
   } catch (error) {
     logger.error({ err: error, to: payload.to }, "Failed to send email");
     return {
@@ -67,15 +91,38 @@ export async function sendEmail(payload: MailPayload): Promise<NotificationResul
   }
 }
 
-export function otpEmailHtml(otp: string, referenceCode: string) {
+function baseEmailLayout(contentHtml: string) {
   return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="font-size:22px;color:#8B4513;">Vaibhav Celebrations</h1>
-    <p>Your verification code for <strong>${referenceCode}</strong> is:</p>
-    <p style="font-size:32px;letter-spacing:6px;font-weight:bold;">${otp}</p>
-    <p style="color:#666;font-size:13px;">This code expires in ${env.OTP_EXPIRES_MINUTES} minutes. If you did not request this, ignore this email.</p>
-    <p style="color:#666;font-size:12px;">Questions? Reply to this email or write to ${env.EMAIL_FROM_ADDRESS ?? "support@vaibhavcelebrations.in"}.</p>
+  <div style="background-color:#fdfbf9;padding:40px 20px;font-family:system-ui,-apple-system,sans-serif;color:#2c1810;line-height:1.6;">
+    <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(139,69,19,0.08);">
+      <div style="text-align:center;padding:32px 20px;border-bottom:1px solid #f4ede8;background-color:#ffffff;">
+        <img src="https://cdn.vaibhavcelebrations.in/logo-v2.png" alt="Vaibhav Celebrations" style="height:70px;width:auto;" />
+      </div>
+      <div style="padding:40px 32px;">
+        ${contentHtml}
+      </div>
+      <div style="background-color:#faf7f5;padding:24px 32px;text-align:center;border-top:1px solid #f4ede8;">
+        <p style="color:#888;font-size:12px;margin:0;">
+          This is an automated system-generated email. Please do not reply directly to this address. <br/>
+          Need help? Contact us at <a href="mailto:${env.EMAIL_FROM_ADDRESS ?? "support@vaibhavcelebrations.in"}" style="color:#8B4513;text-decoration:underline;">${env.EMAIL_FROM_ADDRESS ?? "support@vaibhavcelebrations.in"}</a>.
+        </p>
+        <p style="color:#b0a8a3;font-size:11px;margin-top:16px;">
+          &copy; ${new Date().getFullYear()} Vaibhav Celebrations. All rights reserved.
+        </p>
+      </div>
+    </div>
   </div>`;
+}
+
+export function otpEmailHtml(otp: string, referenceCode: string) {
+  return baseEmailLayout(`
+    <h1 style="font-size:20px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Sign in to Vaibhav Celebrations</h1>
+    <p>Your secure verification code for request <strong>${referenceCode}</strong> is:</p>
+    <div style="background:#f4ede8;padding:16px;text-align:center;border-radius:8px;margin:24px 0;">
+      <span style="font-size:36px;letter-spacing:8px;font-weight:700;color:#2c1810;font-family:monospace;">${otp}</span>
+    </div>
+    <p style="font-size:13px;color:#666;">This code expires in ${env.OTP_EXPIRES_MINUTES} minutes. If you didn't request this code, you can safely ignore this email.</p>
+  `);
 }
 
 export function invoiceEmailHtml(input: {
@@ -84,65 +131,67 @@ export function invoiceEmailHtml(input: {
   totalInPaise: number;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
-  return `
-  <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Invoice ${input.invoiceNumber}</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Invoice ${input.invoiceNumber}</h1>
     <p>Dear ${input.guestName},</p>
-    <p>Thank you for choosing Vaibhav Celebrations. Your invoice total is <strong>₹${total}</strong>.</p>
-    <p>Your tax invoice is attached to this email as a PDF.</p>
-    <p style="color:#666;font-size:13px;">Questions? Reply to this email — we read every message at support@vaibhavcelebrations.in.</p>
-  </div>`;
+    <p>Thank you for choosing Vaibhav Celebrations! Your total comes to <strong>₹${total}</strong>.</p>
+    <p>For your records, we have attached your official tax invoice to this email as a PDF document.</p>
+  `);
 }
 
 export function consultationAckHtml(name: string) {
-  return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Consultation received</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Consultation Request Received</h1>
     <p>Dear ${name},</p>
-    <p>We've received your consultation request. Our team will reach out shortly.</p>
-  </div>`;
+    <p>Thank you for reaching out! We've received your consultation request and our team is currently reviewing your details.</p>
+    <p>One of our celebration experts will get back to you shortly to discuss your upcoming event.</p>
+  `);
 }
 
 export function welcomeEmailHtml(name: string) {
-  return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Welcome to Vaibhav Celebrations</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Welcome to Vaibhav Celebrations! 🎉</h1>
     <p>Hi ${name},</p>
-    <p>Your account has been created. You can now save favourites, track orders, and manage gift registries any time you're signed in.</p>
-  </div>`;
+    <p>We are absolutely thrilled to have you here. Your account has been successfully created.</p>
+    <p>You can now save your favourite items, easily track your orders, and manage personalized gift registries anytime you sign in.</p>
+    <p>Let's make every moment a celebration!</p>
+  `);
 }
 
 export function verifyEmailHtml(name: string, verifyUrl: string) {
-  return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Verify your email</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Verify your email address</h1>
     <p>Hi ${name},</p>
-    <p>Please confirm this is your email address by clicking the button below.</p>
-    <p><a href="${verifyUrl}" style="display:inline-block;background:#8B4513;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Verify email</a></p>
-    <p style="color:#666;font-size:13px;">If the button doesn't work, copy this link: ${verifyUrl}</p>
-  </div>`;
+    <p>Welcome! Before we get started, please confirm that this is your email address by clicking the button below.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="${verifyUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Verify Email Address</a>
+    </div>
+    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste this link into your browser:<br/>
+    <a href="${verifyUrl}" style="color:#8B4513;word-break:break-all;">${verifyUrl}</a></p>
+  `);
 }
 
 /** Reset link validity is enforced server-side by PASSWORD_RESET_TOKEN_TTL_MINUTES (default 10 min). */
 export function passwordResetEmailHtml(name: string, resetUrl: string, ttlMinutes: number) {
-  return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Reset your password</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Reset your password</h1>
     <p>Hi ${name},</p>
-    <p>We received a request to reset your password. This link expires in <strong>${ttlMinutes} minutes</strong> and can only be used once.</p>
-    <p><a href="${resetUrl}" style="display:inline-block;background:#8B4513;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Reset password</a></p>
-    <p style="color:#666;font-size:13px;">If you didn't request this, you can safely ignore this email — your password will not change.</p>
-  </div>`;
+    <p>We received a request to reset the password for your account. This link expires in <strong>${ttlMinutes} minutes</strong> and can only be used once.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="${resetUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Reset Password</a>
+    </div>
+    <p style="font-size:13px;color:#888;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+  `);
 }
 
 export function passwordChangedEmailHtml(name: string) {
-  return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Your password was changed</h1>
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Password Changed</h1>
     <p>Hi ${name},</p>
-    <p>This is a confirmation that your password was just changed. All other active sessions have been signed out for your protection.</p>
-    <p style="color:#666;font-size:13px;">If this wasn't you, contact us immediately at support@vaibhavcelebrations.in.</p>
-  </div>`;
+    <p>This is a confirmation that the password for your Vaibhav Celebrations account was just changed.</p>
+    <p>For your security, we have signed you out of all other active sessions.</p>
+    <p style="font-size:13px;color:#888;margin-top:24px;">If you did not make this change, please contact us immediately to secure your account.</p>
+  `);
 }
 
 export function orderConfirmationHtml(input: {
@@ -154,17 +203,30 @@ export function orderConfirmationHtml(input: {
   customizationFollowUp?: boolean;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
-  return `
-  <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#2c1810;">
-    <h1 style="color:#8B4513;">Order Confirmed</h1>
+  const itemsHtml = input.items
+    .map(
+      (i) =>
+        `<tr>
+          <td style="padding:12px 0;border-bottom:1px solid #f4ede8;">${i.title}</td>
+          <td style="padding:12px 0;border-bottom:1px solid #f4ede8;text-align:right;"><strong>× ${i.quantity}</strong></td>
+        </tr>`
+    )
+    .join("");
+
+  return baseEmailLayout(`
+    <h1 style="font-size:24px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Order Confirmed! 🎊</h1>
     <p>Hi ${input.name},</p>
-    <p>Your order <strong>${input.orderCode}</strong> has been confirmed. Payment of <strong>₹${total}</strong> was received.</p>
-    <ul>
-      ${input.items.map((i) => `<li>${i.title} × ${i.quantity}</li>`).join("")}
-    </ul>
-    ${input.invoiceNumber ? `<p>Your tax invoice <strong>${input.invoiceNumber}</strong> is attached as a PDF.</p>` : ""}
-    ${input.customizationFollowUp ? `<p>This order includes personalization. Our team will contact you shortly to confirm the details before production.</p>` : ""}
-    <p>You can track this order any time from your account's order history.</p>
-    <p style="color:#666;font-size:13px;">Questions? Reply to this email or WhatsApp us.</p>
-  </div>`;
+    <p>Thank you for your purchase! We've received your order <strong>${input.orderCode}</strong> and payment of <strong>₹${total}</strong>.</p>
+    
+    <div style="margin:32px 0;">
+      <h3 style="font-size:14px;text-transform:uppercase;color:#888;letter-spacing:1px;margin-bottom:16px;">Order Summary</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:15px;">
+        ${itemsHtml}
+      </table>
+    </div>
+
+    ${input.customizationFollowUp ? `<div style="background-color:#fff7eb;border-left:4px solid #f59e0b;padding:16px;margin:24px 0;border-radius:4px;"><p style="margin:0;color:#92400e;"><strong>Personalization Required:</strong> This order includes custom items. Our team will contact you shortly to confirm details before we start production.</p></div>` : ""}
+    ${input.invoiceNumber ? `<p>Your official tax invoice (<strong>${input.invoiceNumber}</strong>) is attached to this email as a PDF.</p>` : ""}
+    <p style="margin-top:24px;">You can track the status of this order anytime from your account dashboard.</p>
+  `);
 }
