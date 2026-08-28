@@ -368,7 +368,7 @@ export function OrdersScreen() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm bg-stone-50 rounded-md p-4">
+            <div className="grid grid-cols-3 gap-4 text-sm bg-stone-50 rounded-md p-4">
               <div>
                 <p className="text-stone-500 mb-1">Order status</p>
                 <SelectInput
@@ -387,6 +387,24 @@ export function OrdersScreen() {
                 )}
                 {viewingOrder.razorpayPaymentId && (
                   <p className="text-xs font-mono text-stone-500 break-all">Rzp payment: {viewingOrder.razorpayPaymentId}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1">Email Status</p>
+                <p className="font-medium">{viewingOrder.emailSendStatus ?? "NOT_SENT"}</p>
+                {viewingOrder.emailSendError && (
+                  <p className="text-xs text-red-600 mt-1 break-all">Error: {viewingOrder.emailSendError}</p>
+                )}
+                {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1"
+                    onClick={() => void resendConfirmationEmail()}
+                    disabled={resendingEmail}
+                  >
+                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    Resend Email
+                  </button>
                 )}
               </div>
             </div>
