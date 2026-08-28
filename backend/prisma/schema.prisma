@@ -888,6 +888,7 @@ model Order {
   /// childName, age, venue, guestCount, notes, etc.
   eventDetails                Json?
   emailSendStatus             String?
+  emailSendError              String?
   whatsappSendStatus          String?
   whatsappMessageId           String?
   giftContributions           GiftRegistryContribution[]

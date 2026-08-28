@@ -988,6 +988,7 @@ async function sendOrderConfirmationEmailNow(
     data: {
       confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
       emailSendStatus: confirmation.status,
+      emailSendError: confirmation.error ?? null,
     },
   });
 
