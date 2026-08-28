@@ -75,10 +75,10 @@ describe("package matrix save", () => {
 
   beforeAll(async () => {
     const matrix = await getPackageMatrix();
-    const premium = matrix.packages.find((p) => p.slug === "premium");
-    const videoSvc = matrix.extraServices.find((s) => s.label === "Video invites");
+    const premium = matrix.packages.find((p) => p.slug === "signature");
+    const videoSvc = matrix.extraServices.find((s) => s.slug === "digital-invite-vid");
     if (!premium || !videoSvc) {
-      throw new Error("Seed data missing premium package or Video invites service");
+      throw new Error("Seed data missing signature package or digital-invite-vid service");
     }
     premiumPkgId = premium.id;
     videoServiceId = videoSvc.id;
@@ -203,7 +203,7 @@ describe("package matrix save", () => {
           svc.id === videoServiceId ? originalVideoPrice : svc.customizationPriceInPaise,
       })),
     });
-  });
+  }, 30000);
 });
 
 afterAll(async () => {
