@@ -1,5 +1,5 @@
 import { AdminRole } from "@prisma/client";
-import { Router } from "express";
+import express, { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../../db/prisma";
@@ -22,7 +22,7 @@ import {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
 });
 
 const roles = [
@@ -294,7 +294,7 @@ mediaRouter.post("/upload", upload.single("file"), async (req, res, next) => {
 });
 
 /** Local-dev target used when R2 is not configured (presign returns this URL). */
-mediaRouter.put("/upload-binary", upload.single("file"), async (req, res, next) => {
+mediaRouter.put("/upload-binary", express.raw({ type: "*/*", limit: "25mb" }), async (req, res, next) => {
   try {
     const cdnKey = req.header("x-cdn-key");
     const contentType = req.header("content-type") ?? "application/octet-stream";

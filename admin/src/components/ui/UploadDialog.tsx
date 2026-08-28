@@ -73,71 +73,38 @@ function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function presignAndUpload(entry: FileEntry, onProgress: (p: number) => void): Promise<UploadedMediaAsset> {
-  // Step 1: Presign
+async function uploadViaBackend(entry: FileEntry, onProgress: (p: number) => void): Promise<UploadedMediaAsset> {
   onProgress(5);
-  const presignRes = await fetch(`${API_BASE}/admin/media/presign`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({
-      kind: entry.category,
-      scope: entry.folder || "general",
-      role: "photo",
-      fileName: entry.file.name,
-      contentType: entry.file.type,
-      altText: entry.altText.trim() || null,
-      category: entry.category,
-      folder: entry.folder || null,
-    }),
-  });
-  if (!presignRes.ok) {
-    const err = (await presignRes.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? "Failed to get upload URL");
-  }
-  const presign = (await presignRes.json()) as {
-    data: {
-      uploadUrl: string;
-      cdnKey: string;
-      publicUrl: string;
-      headers: Record<string, string>;
-      r2Enabled: boolean;
-    };
-  };
-  const { uploadUrl, cdnKey, publicUrl, headers: putHeaders } = presign.data;
+  const token = typeof window !== "undefined" ? window.localStorage.getItem("vbc_admin_access") : null;
+
+  const form = new FormData();
+  form.append("file", entry.file);
+  form.append("kind", entry.category);
+  form.append("scope", entry.folder || "general");
+  form.append("role", "photo");
+  form.append("category", entry.category);
+  if (entry.folder) form.append("folder", entry.folder);
+  if (entry.altText.trim()) form.append("altText", entry.altText.trim());
+
   onProgress(15);
 
-  // Step 2: PUT directly to R2 (or local fallback endpoint)
-  const putRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { ...putHeaders, ...getAuthHeaders() },
-    body: entry.file,
+  const res = await fetch(`${API_BASE}/admin/media/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+    credentials: "include",
   });
-  if (!putRes.ok) throw new Error(`Upload to storage failed (${putRes.status})`);
+
   onProgress(80);
 
-  // Step 3: Register with backend
-  const completeRes = await fetch(`${API_BASE}/admin/media/complete`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({
-      cdnKey,
-      contentType: entry.file.type,
-      altText: entry.altText.trim() || null,
-      category: entry.category,
-      folder: entry.folder || null,
-      sizeBytes: entry.file.size,
-      url: publicUrl,
-    }),
-  });
-  if (!completeRes.ok) {
-    const err = (await completeRes.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? "Failed to register asset");
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new Error(err.error?.message ?? `Upload failed (${res.status})`);
   }
-  const complete = (await completeRes.json()) as { data: UploadedMediaAsset };
+
+  const body = (await res.json()) as { data: UploadedMediaAsset };
   onProgress(100);
-  return complete.data;
+  return body.data;
 }
 
 export function UploadDialog({ open, onClose, defaultCategory = "gallery", onUploaded }: Props) {
@@ -193,7 +160,7 @@ export function UploadDialog({ open, onClose, defaultCategory = "gallery", onUpl
     for (const entry of toUpload) {
       patchEntry(entry.id, { status: "uploading", progress: 0 });
       try {
-        const result = await presignAndUpload(entry, (p) => patchEntry(entry.id, { progress: p }));
+        const result = await uploadViaBackend(entry, (p) => patchEntry(entry.id, { progress: p }));
         patchEntry(entry.id, { status: "done", progress: 100, result });
       } catch (err) {
         patchEntry(entry.id, {
