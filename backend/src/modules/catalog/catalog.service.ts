@@ -171,7 +171,7 @@ export async function adminListProducts(q: {
   sort?: string;
   dir?: "asc" | "desc";
 }) {
-  const { page, pageSize, skip, take } = parsePagination(q);
+  const { page, pageSize, skip, take } = parsePagination(q, 1000);
   const where: Prisma.ProductWhereInput = {
     deletedAt: null,
     ...(q.isActive !== undefined && q.isActive !== "" ? { isActive: q.isActive === "true" } : {}),
