@@ -156,9 +156,9 @@ export async function syncThemeGalleryImages(
   const theme = await prisma.theme.findFirst({ where: { id: themeId, deletedAt: null } });
   if (!theme) throw new NotFoundError("Theme not found");
 
-  // Soft-delete all existing gallery-image sample assets
+  // Soft-delete all existing sample assets
   await prisma.themeSampleAsset.updateMany({
-    where: { themeId, title: "gallery-image", deletedAt: null },
+    where: { themeId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
 

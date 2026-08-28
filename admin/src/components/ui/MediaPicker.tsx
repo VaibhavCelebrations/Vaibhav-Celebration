@@ -97,54 +97,29 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
     setUploading(true);
     setShowAltPrompt(false);
     try {
-      // Use presign → R2 direct upload
-      const presignRes = await fetch(`${API_BASE}/admin/media/presign`, {
+      // Use proxy upload via backend
+      const form = new FormData();
+      form.append("file", pendingFile);
+      form.append("kind", kind);
+      form.append("scope", scope ?? "general");
+      form.append("role", "photo");
+      form.append("category", kind);
+      if (scope) form.append("folder", scope);
+      if (altDraft.trim()) form.append("altText", altDraft.trim());
+
+      const res = await fetch(`${API_BASE}/admin/media/upload`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({
-          kind,
-          scope: scope ?? "general",
-          role: "photo",
-          fileName: pendingFile.name,
-          contentType: pendingFile.type,
-          altText: altDraft.trim(),
-          category: kind,
-          folder: scope ?? null,
-        }),
+        headers: getAuthHeaders(),
+        body: form,
       });
-      if (!presignRes.ok) throw new Error("Failed to get upload URL");
-      const presign = (await presignRes.json()) as {
-        data: { uploadUrl: string; cdnKey: string; publicUrl: string; headers: Record<string, string>; r2Enabled: boolean };
-      };
-      const { uploadUrl, cdnKey, publicUrl, headers: putHeaders } = presign.data;
 
-      // PUT to R2
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { ...putHeaders, ...getAuthHeaders() },
-        body: pendingFile,
-      });
-      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`);
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const completeResJson = (await res.json()) as ApiSuccess<UploadedMediaAsset>;
+      if (!completeResJson.success) throw new Error("Upload failed");
 
-      // Register with backend
-      const completeRes = await fetch(`${API_BASE}/admin/media/complete`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({
-          cdnKey,
-          contentType: pendingFile.type,
-          altText: altDraft.trim(),
-          category: kind,
-          folder: scope ?? null,
-          sizeBytes: pendingFile.size,
-          url: publicUrl,
-        }),
-      });
-      if (!completeRes.ok) throw new Error("Failed to register asset");
-      const complete = (await completeRes.json()) as { data: MediaItem };
-      onChange(complete.data);
+      const asset = completeResJson.data;
+      onChange(asset);
       setOpen(false);
       toast({ tone: "success", title: "Media uploaded" });
     } catch (error) {
