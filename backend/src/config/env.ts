@@ -58,8 +58,8 @@ export const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
-  /** "mock" simulates sends for local/dev/test — no network call, no real message. "meta" calls the real Graph API. */
-  WHATSAPP_PROVIDER: z.enum(["meta", "mock"]).default("mock"),
+  /** "mock" simulates sends for local/dev/test — no network call, no real message. "meta" calls the real Graph API. "none" is accepted for backwards compatibility with older .env files. */
+  WHATSAPP_PROVIDER: z.enum(["meta", "mock", "none"]).default("mock"),
   /** Business-facing contact number (display/CTA only) — NEVER used as the Graph API sending endpoint. */
   WHATSAPP_BUSINESS_NUMBER: z.string().optional(),
   WHATSAPP_META_ACCESS_TOKEN: z.string().optional(),

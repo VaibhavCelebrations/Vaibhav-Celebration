@@ -24,9 +24,9 @@ describe("env WhatsApp configuration", () => {
     if (result.success) expect(result.data.WHATSAPP_PROVIDER).toBe("meta");
   });
 
-  it("rejects an invalid WHATSAPP_PROVIDER value (e.g. the old 'none')", () => {
+  it("accepts 'none' for backwards compatibility with older .env files", () => {
     const result = envSchema.safeParse({ ...REQUIRED_BASE, WHATSAPP_PROVIDER: "none" });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("leaves WHATSAPP_ENABLED false when unset (missing Meta token/phone-number-id/app-secret is not fatal)", () => {
