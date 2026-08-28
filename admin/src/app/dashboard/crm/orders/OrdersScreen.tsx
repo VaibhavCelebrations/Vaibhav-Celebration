@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, ShoppingBag, Gift, PartyPopper, Eye } from "lucide-react";
+import { FileText, Loader2, Eye } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -63,16 +63,17 @@ function shippingLines(address: Record<string, string> | undefined) {
 }
 
 export function OrdersScreen() {
-  const [tab, setTab] = useState<"shop" | "package" | "registry">("shop");
   const { query, setQuery } = useListQuery({ sort: "placedAt", dir: "desc" });
   const listQuery = useMemo(
-    () => ({
-      ...query,
-      shopOnly: tab === "shop" ? "true" : undefined,
-      packageOnly: tab === "package" ? "true" : undefined,
-      registryOnly: tab === "registry" ? "true" : undefined,
-    }),
-    [query, tab],
+    () => {
+      const { type, ...restFilters } = query.filters || {};
+      const filters = { ...restFilters } as Record<string, string>;
+      if (type === "shop") filters.shopOnly = "true";
+      if (type === "package") filters.packageOnly = "true";
+      if (type === "registry") filters.registryOnly = "true";
+      return { ...query, filters };
+    },
+    [query],
   );
   const { items: rows, total, loading, error, reload } = useRepoList(
     (q) =>
@@ -269,29 +270,6 @@ export function OrdersScreen() {
         description="Shop products, celebration packages, and gift registry purchases."
       />
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setTab("shop")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <ShoppingBag size={14} className="inline mr-1" /> Shop orders
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("package")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "package" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <PartyPopper size={14} className="inline mr-1" /> Package orders
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("registry")}
-          className={`hidden px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "registry" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <Gift size={14} className="inline mr-1" /> Registry orders
-        </button>
-      </div>
 
       <AdminDataTable
         columns={columns}
@@ -305,6 +283,16 @@ export function OrdersScreen() {
         onRetry={reload}
         searchPlaceholder="Search order, email, Razorpay ID…"
         filters={[
+          {
+            key: "type",
+            label: "Order type",
+            type: "select",
+            options: [
+              { value: "shop", label: "Shop" },
+              { value: "package", label: "Package" },
+              { value: "registry", label: "Registry" },
+            ],
+          },
           { key: "status", label: "Order status", type: "select", options: ORDER_STATUS_OPTIONS },
           {
             key: "paymentStatus",
@@ -328,8 +316,8 @@ export function OrdersScreen() {
         rowActions={[]}
         empty={{
           icon: FileText,
-          title: tab === "shop" ? "No shop orders yet" : "No registry orders yet",
-          description: tab === "shop" ? "Product and package purchases will appear here." : "Paid gift registry checkouts will appear here.",
+          title: "No orders found",
+          description: "Try adjusting your filters or search query.",
         }}
       />
 
