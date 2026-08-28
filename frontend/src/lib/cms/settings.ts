@@ -16,3 +16,8 @@ export async function getWhatsAppNumber(): Promise<string> {
     return "";
   }
 }
+
+/** Optional pre-filled text for `wa.me` links, e.g. "Hi! I'd like to know more about your celebration packages." */
+export function getWhatsAppPrefillMessage(): string | undefined {
+  return process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
+}

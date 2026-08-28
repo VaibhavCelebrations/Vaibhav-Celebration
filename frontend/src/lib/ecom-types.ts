@@ -21,6 +21,7 @@ export interface User {
   email: string;
   phone: string | null;
   emailVerified: boolean;
+  phoneVerified: boolean;
   lastLoginAt: string | null;
   defaultAddress?: import("./shop-types").ShippingAddress | null;
 }

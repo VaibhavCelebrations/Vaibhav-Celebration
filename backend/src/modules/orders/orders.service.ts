@@ -11,7 +11,7 @@ import { generateInvoicePdf, fetchInvoicePdfBuffer } from "../../integrations/in
 import { nextInvoiceNumber } from "../../lib/sequences";
 import { orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
 import { getGstPercent } from "../../lib/settings";
-import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
+import { sendOrderConfirmationWhatsapp } from "../whatsapp/whatsapp.service";
 import { logger } from "../../lib/logger";
 import { giftRegistryStateForPackageOrder } from "../upgrades/upgrades.service";
 import { InvoiceLinkedType } from "@prisma/client";
@@ -988,6 +988,7 @@ async function sendOrderConfirmationEmailNow(
     data: {
       confirmationEmailSentAt: confirmation.sent ? new Date() : undefined,
       emailSendStatus: confirmation.status,
+      emailSendError: confirmation.error ?? null,
     },
   });
 
@@ -1140,29 +1141,15 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl);
   }
 
-  const claimedWhatsapp = await prisma.order.updateMany({
-    where: { id: order.id, whatsappSendStatus: null },
-    data: { whatsappSendStatus: "PENDING" },
+  // sendOrderConfirmationWhatsapp claims the send itself (DB-atomic, race-safe
+  // under concurrent webhook deliveries) — no claim needed at this call site.
+  await sendOrderConfirmationWhatsapp({
+    id: order.id,
+    orderCode: order.orderCode,
+    contactPhone: order.contactPhone,
+    totalInPaise: order.totalInPaise,
+    invoicePdfUrl: pdfUrl,
   });
-
-  if (claimedWhatsapp.count > 0) {
-    const amount = (order.totalInPaise / 100).toFixed(2);
-    const wa = await sendWhatsAppMessage({
-      toPhone: order.contactPhone,
-      templateName: WHATSAPP_TEMPLATES.orderConfirmation,
-      body: `Thank you for your order ${order.orderCode}. Payment of ₹${amount} is confirmed.`,
-      bodyParameters: [order.orderCode, amount],
-      mediaUrl: pdfUrl ?? undefined,
-    });
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        whatsappSentAt: wa.sent ? new Date() : undefined,
-        whatsappSendStatus: wa.status,
-        whatsappMessageId: wa.providerMessageId,
-      },
-    });
-  }
 
   if (order.giftContributions.length) {
     await prisma.$transaction((tx) => fulfillRegistryContributionsForOrder(tx, order.id));

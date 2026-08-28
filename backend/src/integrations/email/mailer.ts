@@ -55,7 +55,7 @@ export async function sendEmail(payload: MailPayload): Promise<NotificationResul
         path: a.path,
       }));
 
-      await resend.emails.send({
+      const { error } = await resend.emails.send({
         from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
         replyTo: env.EMAIL_REPLY_TO ?? env.EMAIL_FROM_ADDRESS,
         to: payload.to,
@@ -64,6 +64,16 @@ export async function sendEmail(payload: MailPayload): Promise<NotificationResul
         text: payload.text,
         attachments: resendAttachments,
       });
+      
+      if (error) {
+        logger.error({ err: error, to: payload.to }, "Resend API returned an error");
+        return {
+          channel: "email",
+          sent: false,
+          status: "FAILED",
+          error: error.message,
+        };
+      }
       return { channel: "email", sent: true, status: "SENT" };
     } else {
       // Fallback to SMTP

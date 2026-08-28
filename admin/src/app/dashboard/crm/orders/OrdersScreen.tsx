@@ -88,6 +88,7 @@ export function OrdersScreen() {
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [savingOps, setSavingOps] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
 
   const toast = useToast();
@@ -161,6 +162,22 @@ export function OrdersScreen() {
       toast({ title: "Save failed", description: err.message, tone: "error" });
     } finally {
       setSavingOps(false);
+    }
+  }
+
+  async function resendConfirmationEmail() {
+    if (!viewingOrder) return;
+    setResendingEmail(true);
+    try {
+      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/resend-confirmation`, {
+        method: "POST",
+      });
+      setViewingOrder({ ...viewingOrder, emailSendStatus: updated.emailSendStatus || "PENDING", emailSendError: updated.emailSendError ?? null });
+      toast({ title: "Email triggered successfully", tone: "success" });
+    } catch (err: any) {
+      toast({ title: "Failed to resend email", description: err.message, tone: "error" });
+    } finally {
+      setResendingEmail(false);
     }
   }
 
@@ -473,6 +490,36 @@ export function OrdersScreen() {
                   Download invoice
                 </a>
               )}
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-2">Email Notifications</h4>
+              <div className="bg-stone-50 rounded-md p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-stone-500 mb-1">Confirmation Email</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded font-medium text-xs ${viewingOrder.emailSendStatus === 'FAILED' ? 'bg-red-100 text-red-800' : viewingOrder.emailSendStatus === 'SENT' ? 'bg-green-100 text-green-800' : 'bg-stone-200 text-stone-800'}`}>
+                        {viewingOrder.emailSendStatus || "NOT SENT"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resendConfirmationEmail}
+                    disabled={resendingEmail}
+                    className="btn btn-secondary px-3 py-1.5 text-xs font-semibold"
+                  >
+                    {resendingEmail ? <Loader2 size={14} className="animate-spin inline" /> : "Resend Email"}
+                  </button>
+                </div>
+                {viewingOrder.emailSendError && (
+                  <div className="mt-3 bg-red-50 border border-red-100 rounded text-red-800 p-2 text-xs">
+                    <p className="font-semibold mb-1">Error sending email:</p>
+                    <p className="font-mono break-all">{viewingOrder.emailSendError}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : null}

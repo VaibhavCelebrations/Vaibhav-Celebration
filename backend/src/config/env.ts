@@ -3,7 +3,7 @@ import { z } from "zod";
 
 loadDotenv();
 
-const envSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.preprocess((val) => (val ? Number(val) : 4000), z.number().int().positive()),
 
@@ -58,14 +58,29 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
-  WHATSAPP_PROVIDER: z.enum(["meta", "none"]).default("none"),
+  /** "mock" simulates sends for local/dev/test — no network call, no real message. "meta" calls the real Graph API. */
+  WHATSAPP_PROVIDER: z.enum(["meta", "mock"]).default("mock"),
+  /** Business-facing contact number (display/CTA only) — NEVER used as the Graph API sending endpoint. */
   WHATSAPP_BUSINESS_NUMBER: z.string().optional(),
   WHATSAPP_META_ACCESS_TOKEN: z.string().optional(),
+  /** The Meta-issued Phone Number ID used for the Graph API `{id}/messages` endpoint — distinct from WHATSAPP_BUSINESS_NUMBER. */
   WHATSAPP_META_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_META_BUSINESS_ACCOUNT_ID: z.string().optional(),
   WHATSAPP_META_API_VERSION: z.string().default("v21.0"),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
+  /** Phone verification (WhatsApp link-based) — mirrors EMAIL_VERIFICATION_TOKEN_TTL_HOURS. */
+  PHONE_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().default(30),
+  /** Explicit opt-in gate for scripts/test-whatsapp.ts to send a REAL template message. Never enabled by default. */
+  TEST_WHATSAPP_SEND: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
+  /** Gates the best-effort WhatsApp welcome message on signup — off until the welcome_message template is Meta-approved. */
+  WHATSAPP_WELCOME_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().optional(),

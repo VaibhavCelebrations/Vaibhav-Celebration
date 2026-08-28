@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { UserStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { env } from "../../config/env";
-import { AppError, ConflictError, UnauthorizedError, ValidationError } from "../../lib/errors";
+import { AppError, ConflictError, RateLimitedError, UnauthorizedError, ValidationError } from "../../lib/errors";
 import {
   passwordChangedEmailHtml,
   passwordResetEmailHtml,
@@ -12,6 +12,7 @@ import {
   verifyEmailHtml,
   welcomeEmailHtml,
 } from "../../integrations/email/mailer";
+import { sendPhoneVerificationWhatsapp } from "../whatsapp/whatsapp.service";
 import type { CustomerJwtPayload } from "../../middleware/customer-auth";
 import { logger } from "../../lib/logger";
 
@@ -48,6 +49,7 @@ function toPublicUser(user: {
   email: string;
   phone: string | null;
   emailVerifiedAt: Date | null;
+  phoneVerifiedAt?: Date | null;
   lastLoginAt: Date | null;
   defaultAddress?: any;
 }) {
@@ -57,6 +59,7 @@ function toPublicUser(user: {
     email: user.email,
     phone: user.phone,
     emailVerified: user.emailVerifiedAt !== null,
+    phoneVerified: user.phoneVerifiedAt !== null,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     defaultAddress: user.defaultAddress ?? null,
   };
@@ -348,13 +351,95 @@ export async function issueEmailVerification(userId: string, email: string, name
 
 export async function verifyEmail(rawToken: string): Promise<void> {
   const stored = await prisma.emailVerificationToken.findUnique({ where: { tokenHash: hashToken(rawToken) } });
-  if (!stored || stored.usedAt !== null || stored.expiresAt < new Date()) {
+  
+  if (!stored || stored.expiresAt < new Date()) {
     throw new AppError("VALIDATION_ERROR", "This verification link is invalid or has expired", 400);
   }
+
+  // If already used, just return success so the user sees a confirmation instead of an error
+  if (stored.usedAt !== null) {
+    return;
+  }
+
   await prisma.$transaction([
     prisma.user.update({ where: { id: stored.userId }, data: { emailVerifiedAt: new Date() } }),
     prisma.emailVerificationToken.update({ where: { id: stored.id }, data: { usedAt: new Date() } }),
   ]);
+}
+
+// ─── Phone verification (WhatsApp link, mirrors email verification) ────────
+//
+// The verification link carries only an opaque, single-use, hashed token —
+// never the phone number, user id, or any other customer data — so it can't
+// be used as an account-takeover vector even if leaked via referrer headers,
+// browser history, or shared logs. A minimum resend interval prevents a
+// customer (or an attacker who has the account session) from flooding the
+// business's WhatsApp send quota via repeated "resend" taps.
+
+const PHONE_VERIFICATION_MIN_RESEND_SECONDS = 60;
+
+export async function requestPhoneVerification(userId: string, phone: string, requestIp?: string): Promise<void> {
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+  if (!user) throw new UnauthorizedError();
+
+  const normalizedPhone = phone.trim();
+  if (normalizedPhone.length < 6) {
+    throw new ValidationError("Enter a valid phone number");
+  }
+
+  const recent = await prisma.phoneVerificationToken.findFirst({
+    where: { userId, usedAt: null, createdAt: { gt: new Date(Date.now() - PHONE_VERIFICATION_MIN_RESEND_SECONDS * 1000) } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    throw new RateLimitedError("Please wait a minute before requesting another verification link", "PHONE_VERIFICATION_COOLDOWN");
+  }
+
+  const rawToken = generateOpaqueToken();
+  const expiresAt = new Date(Date.now() + env.PHONE_VERIFICATION_TOKEN_TTL_MINUTES * 60_000);
+
+  await prisma.phoneVerificationToken.create({
+    data: {
+      userId,
+      phoneNumber: normalizedPhone,
+      tokenHash: hashToken(rawToken),
+      expiresAt,
+      requestIp: requestIp ?? null,
+    },
+  });
+
+  // No PII in the URL — the token alone identifies the pending verification server-side.
+  const verifyUrl = `${env.FRONTEND_URL}/verify-phone?t=${rawToken}`;
+  await sendPhoneVerificationWhatsapp({ userId, phone: normalizedPhone, verifyUrl });
+}
+
+export async function confirmPhoneVerification(rawToken: string): Promise<void> {
+  const stored = await prisma.phoneVerificationToken.findUnique({ where: { tokenHash: hashToken(rawToken) } });
+
+  if (!stored || stored.expiresAt < new Date()) {
+    throw new AppError("VALIDATION_ERROR", "This verification link is invalid or has expired", 400);
+  }
+
+  // Already-used tokens are not re-processed but also do not error loudly —
+  // mirrors verifyEmail's idempotent-success behaviour for a double-tapped link.
+  if (stored.usedAt !== null) {
+    return;
+  }
+
+  const claimed = await prisma.phoneVerificationToken.updateMany({
+    where: { id: stored.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  // Lost the race to a concurrent confirm of the same token — the other
+  // request already completed the verification; treat as success (idempotent).
+  if (claimed.count === 0) {
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: stored.userId },
+    data: { phone: stored.phoneNumber, phoneVerifiedAt: new Date() },
+  });
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────

@@ -10,12 +10,14 @@ import {
 } from "../../middleware/customer-auth";
 import {
   changePassword,
+  confirmPhoneVerification,
   getCustomerById,
   loginCustomer,
   logoutAllSessions,
   logoutCustomer,
   refreshCustomerSession,
   requestPasswordReset,
+  requestPhoneVerification,
   resetPassword,
   signupCustomer,
   updateCustomerProfile,
@@ -213,6 +215,42 @@ customerAuthRouter.post(
   async (req, res, next) => {
     try {
       await verifyEmail(req.body.token);
+      return res.json({ success: true, data: { verified: true } });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ─── Phone verification (WhatsApp link) ─────────────────────────────────────
+
+customerAuthRouter.post(
+  "/phone/verify/request",
+  requireCustomer,
+  validate(z.object({ phone: z.string().min(6, "Phone number must be at least 6 characters").max(20, "Phone number cannot exceed 20 characters") })),
+  async (req, res, next) => {
+    try {
+      const customer = (req as CustomerAuthenticatedRequest).customer!;
+      await requestPhoneVerification(customer.sub, req.body.phone, req.ip);
+      // Same shape regardless of outcome — the WhatsApp send itself is
+      // best-effort/logged server-side; the client can't distinguish
+      // "sent" from "provider unavailable" and doesn't need to.
+      return res.json({
+        success: true,
+        data: { message: "If WhatsApp is available for this number, a verification link has been sent." },
+      });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+customerAuthRouter.post(
+  "/phone/verify/confirm",
+  validate(z.object({ token: z.string().min(1) })),
+  async (req, res, next) => {
+    try {
+      await confirmPhoneVerification(req.body.token);
       return res.json({ success: true, data: { verified: true } });
     } catch (err) {
       return next(err);

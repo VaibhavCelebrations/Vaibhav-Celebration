@@ -9,7 +9,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { FAQAccordion } from "@/components/shared/FAQAccordion";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listFaqs } from "@/lib/cms/content";
-import { getWhatsAppNumber } from "@/lib/cms/settings";
+import { getWhatsAppNumber, getWhatsAppPrefillMessage } from "@/lib/cms/settings";
 import { whatsappHref } from "@/lib/cms/map-media";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,6 +23,7 @@ export default async function FAQPage() {
   const faqs = await listFaqs().catch(() => []);
   const categories = Array.from(new Set(faqs.map((faq) => faq.category ?? "General")));
   const whatsappNumber = await getWhatsAppNumber().catch(() => "");
+  const whatsappPrefillMessage = getWhatsAppPrefillMessage();
 
   return (
     <>
@@ -51,7 +52,7 @@ export default async function FAQPage() {
               <p className="text-sm text-text-muted mb-6">Our team is happy to help you with any specific queries about your celebration.</p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Link href="/contact" className="btn-primary px-6 py-3">Contact Support</Link>
-                <a href={whatsappHref(whatsappNumber)} target="_blank" rel="noopener noreferrer" className="btn-outline px-6 py-3">WhatsApp Us</a>
+                <a href={whatsappHref(whatsappNumber, whatsappPrefillMessage)} target="_blank" rel="noopener noreferrer" className="btn-outline px-6 py-3">WhatsApp Us</a>
               </div>
             </div>
           </ScrollReveal>

@@ -30,6 +30,7 @@ import {
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
+import { whatsappHref } from "@/lib/cms/map-media";
 import { useCatalog } from "@/context/catalog-context";
 import { submitConsultation } from "@/lib/cms/leads";
 import { formatPaise } from "@/lib/shop-types";
@@ -267,7 +268,7 @@ function StickyPriceSummary({ selectedServices, selectedAddons, guestCount }: { 
           <p className="text-xl font-bold text-charcoal font-display">{total > 0 ? formatPaise(total) : "Price on Request"}</p>
           <p className="text-[10px] text-text-light">{count} item(s) selected</p>
         </div>
-        <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-mocha font-semibold hover:text-mocha-dark transition-colors">
+        <a href={whatsappHref(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "", process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-mocha font-semibold hover:text-mocha-dark transition-colors">
           <MessageCircle size={16} /> Need Help?
         </a>
       </div>
@@ -452,7 +453,7 @@ function CustomPlanContent() {
             <p className="text-text-muted mb-8 max-w-md mx-auto">Our team will review your selections and get back to you within 24 hours with final pricing and availability.</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/" className="btn-primary px-8 py-3 text-sm">Back to Home</Link>
-              <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="btn-outline px-8 py-3 text-sm flex items-center justify-center gap-2">
+              <a href={whatsappHref(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "", process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE)} target="_blank" rel="noopener noreferrer" className="btn-outline px-8 py-3 text-sm flex items-center justify-center gap-2">
                 <MessageCircle size={16} /> WhatsApp Us
               </a>
             </div>
