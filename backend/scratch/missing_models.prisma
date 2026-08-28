@@ -1,0 +1,112 @@
+// Additions to schema.prisma
+
+model Supplier {
+  id            String    @id @default(cuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([isActive])
+}
+
+model Warehouse {
+  id        String    @id @default(cuid())
+  name      String
+  location  String?
+  address   String?
+  isDefault Boolean   @default(false)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  stock        InventoryStock[]
+  transactions InventoryTransaction[]
+
+  @@index([isDefault])
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  poNumber    String              @unique
+  supplierId  String
+  status      PurchaseOrderStatus @default(DRAFT)
+  totalAmount Int                 @default(0)
+  expectedAt  DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+  note        String?
+
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  items    PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int
+  unitPrice       Int
+  receivedQty     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model InventoryStock {
+  id                String   @id @default(cuid())
+  productId         String
+  warehouseId       String
+  quantityAvailable Int      @default(0)
+  quantityReserved  Int      @default(0)
+  lowStockThreshold Int      @default(10)
+  updatedAt         DateTime @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+}
+
+model InventoryTransaction {
+  id              String                @id @default(cuid())
+  productId       String
+  warehouseId     String
+  quantityChange  Int
+  reason          InventoryLedgerReason
+  referenceId     String?
+  note            String?
+  adminUserId     String?
+  createdAt       DateTime              @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@index([productId, warehouseId])
+}
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
