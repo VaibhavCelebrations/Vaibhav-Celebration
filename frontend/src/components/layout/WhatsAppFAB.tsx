@@ -8,7 +8,8 @@ type WhatsAppFABProps = {
 
 export function WhatsAppFAB({ phone }: WhatsAppFABProps) {
   const envPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.trim();
-  const href = whatsappHref(phone || envPhone || "");
+  const prefillMessage = process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
+  const href = whatsappHref(phone || envPhone || "", prefillMessage);
 
   return (
     <a

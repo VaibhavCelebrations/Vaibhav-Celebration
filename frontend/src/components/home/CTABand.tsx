@@ -16,6 +16,7 @@ export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
   const phone = settings?.businessPhone || "+91 00000 00000";
   const email = settings?.businessEmail || "hello@vaibhavcelebrations.in";
   const wa = whatsappNumber || settings?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+  const waPrefillMessage = process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
 
   return (
     <section id="contact-cta" className="py-20 md:py-32 bg-charcoal text-white relative overflow-hidden">
@@ -54,7 +55,7 @@ export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
               {asText(content?.ctaLabel, "Book Your Celebration")}
             </Link>
             <a
-              href={whatsappHref(wa)}
+              href={whatsappHref(wa, waPrefillMessage)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 border-2 border-white/20 text-white hover:bg-white/10 hover:border-white/40 font-bold px-10 py-5 rounded-full transition-all duration-300 uppercase tracking-wider text-sm min-w-[240px]"

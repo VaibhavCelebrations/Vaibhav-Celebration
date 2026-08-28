@@ -4,7 +4,7 @@ import { AppError, NotFoundError } from "../../lib/errors";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyWebhookSignature } from "../../integrations/razorpay/client";
 import { invoiceEmailHtml, sendEmail } from "../../integrations/email/mailer";
 import { fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
-import { sendWhatsAppMessage, WHATSAPP_TEMPLATES } from "../../integrations/whatsapp/client";
+import { sendInvoiceDeliveryWhatsapp } from "../whatsapp/whatsapp.service";
 import {
   findOrderByRazorpayOrderId,
   markOrderPaid,
@@ -163,12 +163,15 @@ export async function deliverInvoice(invoiceId: string) {
       : undefined,
   });
 
-  const wa = await sendWhatsAppMessage({
-    toPhone: invoice.customer.phone,
-    templateName: WHATSAPP_TEMPLATES.invoiceDelivery,
-    body: invoice.invoiceNumber,
-    bodyParameters: [invoice.invoiceNumber, (invoice.totalInPaise / 100).toFixed(2)],
-    mediaUrl: invoice.pdfUrl ?? undefined,
+  const wa = await sendInvoiceDeliveryWhatsapp({
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    totalInPaise: invoice.totalInPaise,
+    pdfUrl: invoice.pdfUrl,
+    whatsappSendStatus: invoice.whatsappSendStatus,
+    whatsappMessageId: invoice.whatsappMessageId,
+    whatsappSentAt: invoice.whatsappSentAt,
+    customerPhone: invoice.customer.phone,
   });
 
   return prisma.invoice.update({

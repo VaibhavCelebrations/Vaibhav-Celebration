@@ -1,42 +1,59 @@
 import { Router, type Request } from "express";
-import { prisma } from "../../db/prisma";
 import { ok } from "../../lib/response";
-import { env } from "../../config/env";
-import { parseMetaStatusUpdates, verifyMetaWebhookSignature } from "../../integrations/whatsapp/client";
 import { logger } from "../../lib/logger";
+import { applyWebhookStatusUpdate, parseAndVerifyWebhookPost, verifyWebhookChallenge } from "./whatsapp.service";
 
 export const whatsappWebhookRouter = Router();
 
+/**
+ * Meta's webhook subscription verification handshake. Only echoes the
+ * challenge when hub.mode=subscribe AND hub.verify_token matches
+ * WHATSAPP_WEBHOOK_VERIFY_TOKEN exactly — any other combination (wrong
+ * token, wrong mode, missing params) is rejected with 403. Never logs the
+ * verify token.
+ */
 whatsappWebhookRouter.get("/", (req, res) => {
-  const mode = String(req.query["hub.mode"] ?? "");
-  const token = String(req.query["hub.verify_token"] ?? "");
-  const challenge = String(req.query["hub.challenge"] ?? "");
-  if (mode === "subscribe" && env.WHATSAPP_WEBHOOK_VERIFY_TOKEN && token === env.WHATSAPP_WEBHOOK_VERIFY_TOKEN) {
-    return res.status(200).send(challenge);
+  const result = verifyWebhookChallenge({
+    mode: typeof req.query["hub.mode"] === "string" ? req.query["hub.mode"] : undefined,
+    verifyToken: typeof req.query["hub.verify_token"] === "string" ? req.query["hub.verify_token"] : undefined,
+    challenge: typeof req.query["hub.challenge"] === "string" ? req.query["hub.challenge"] : undefined,
+  });
+  if (!result.ok) {
+    return res.status(403).send("Forbidden");
   }
-  return res.status(403).send("Forbidden");
+  return res.status(200).send(result.challenge);
 });
 
+/**
+ * Meta's delivery-status webhook. Signature verification is mandatory —
+ * invalid/missing signatures get 401. Once the signature is valid, ANY
+ * payload (even malformed JSON or an unrecognized event shape, e.g. a
+ * future incoming-message event) is answered with 200 so Meta does not
+ * retry-storm; the malformed/unknown case is only logged.
+ */
 whatsappWebhookRouter.post("/", async (req, res, next) => {
   try {
     const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body ?? {});
     const signature = req.header("x-hub-signature-256") ?? undefined;
-    if (!verifyMetaWebhookSignature(rawBody, signature)) {
+
+    const result = parseAndVerifyWebhookPost(rawBody, signature);
+    if (!result.signatureValid) {
       return res.status(401).json({ success: false, error: { code: "INVALID_SIGNATURE", message: "Invalid Meta signature" } });
     }
-    const updates = parseMetaStatusUpdates(JSON.parse(rawBody));
-    for (const update of updates) {
-      await prisma.invoice.updateMany({
-        where: { whatsappMessageId: update.providerMessageId },
-        data: { whatsappSendStatus: update.status },
-      });
-      await prisma.order.updateMany({
-        where: { whatsappMessageId: update.providerMessageId },
-        data: { whatsappSendStatus: update.status },
-      });
+
+    if (result.malformed) {
+      logger.warn("WhatsApp webhook payload could not be parsed — accepted and ignored");
+      return ok(res, { handled: false, reason: "malformed_payload" });
     }
-    if (updates.length) logger.info({ count: updates.length }, "WhatsApp status updates applied");
-    return ok(res, { handled: true, updates: updates.length });
+
+    for (const update of result.updates) {
+      await applyWebhookStatusUpdate(update);
+    }
+
+    if (result.updates.length) {
+      logger.info({ count: result.updates.length }, "WhatsApp status updates applied");
+    }
+    return ok(res, { handled: true, updates: result.updates.length });
   } catch (err) {
     return next(err);
   }

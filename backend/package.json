@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "qa:builder": "tsx scripts/qa-builder-quote.ts",
+    "test:whatsapp": "tsx scripts/test-whatsapp.ts",
     "db:sync-media": "tsx scripts/sync-site-media.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force"

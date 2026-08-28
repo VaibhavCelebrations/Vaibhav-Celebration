@@ -603,6 +603,7 @@ model Invoice {
   order              Order?            @relation(fields: [orderId], references: [id])
 
   @@index([issuedAt])
+  @@index([whatsappMessageId])
 }
 
 model User {
@@ -613,6 +614,7 @@ model User {
   passwordHash            String
   status                  UserStatus                 @default(ACTIVE)
   emailVerifiedAt         DateTime?
+  phoneVerifiedAt         DateTime?
   failedLoginCount        Int                        @default(0)
   lockedUntil             DateTime?
   lastLoginAt             DateTime?
@@ -623,6 +625,7 @@ model User {
   cart                    Cart?
   sessions                CustomerSession[]
   emailVerificationTokens EmailVerificationToken[]
+  phoneVerificationTokens PhoneVerificationToken[]
   giftRegistries          GiftRegistry[]
   giftContributions       GiftRegistryContribution[]
   orders                  Order[]
@@ -677,6 +680,26 @@ model EmailVerificationToken {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+/// WhatsApp-based phone verification (link-based, mirrors EmailVerificationToken).
+/// Raw tokens are never persisted — only the SHA-256 hash, per the same
+/// convention as PasswordResetToken/EmailVerificationToken/CustomerSession.
+model PhoneVerificationToken {
+  id          String    @id @default(cuid())
+  userId      String
+  /// Snapshot of the phone number being verified — the User.phone value can
+  /// change between request and confirm; verification always applies to
+  /// exactly the number the link was issued for.
+  phoneNumber String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  requestIp   String?
+  user        User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
@@ -887,6 +910,7 @@ model Order {
   @@index([eventDate])
   @@index([parentOrderId])
   @@index([upgradeKind])
+  @@index([whatsappMessageId])
 }
 
 /// One celebration package purchased on an Order (kind = PACKAGE).

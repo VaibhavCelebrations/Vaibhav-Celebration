@@ -53,6 +53,15 @@ export async function verifyEmail(token: string): Promise<void> {
   await apiFetch(`${BASE}/email/verify`, { method: "POST", body: { token } });
 }
 
+/** Requires an active customer session — the verification link is tied to the logged-in account. */
+export async function requestPhoneVerification(phone: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`${BASE}/phone/verify/request`, { method: "POST", body: { phone } });
+}
+
+export async function confirmPhoneVerification(token: string): Promise<void> {
+  await apiFetch(`${BASE}/phone/verify/confirm`, { method: "POST", body: { token } });
+}
+
 /** Extracts a friendly message from a zod VALIDATION_ERROR, falling back to the top-level message. */
 export function friendlyAuthError(err: unknown): string {
   if (err instanceof ApiClientError) {
