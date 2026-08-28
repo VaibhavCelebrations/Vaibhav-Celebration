@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { AppError, NotFoundError, UnauthorizedError } from "../../lib/errors";
 import { parsePagination, paginationMeta } from "../../lib/response";
 import { delPattern } from "../../lib/redis";
+import { deleteObjectByKey } from "../../integrations/media/storage";
 
 // ─── Supported entity types ──────────────────────────────────────────────────
 
@@ -547,6 +548,50 @@ export async function hardDeleteItem(opts: {
   return _hardDeleteItem({ entityType: opts.entityType, id: opts.id, adminId: opts.adminId });
 }
 
+export async function getMediaAssetsUsage(ids: string[]) {
+  const assets = await prisma.mediaAsset.findMany({
+    where: { id: { in: ids } },
+    include: {
+      _count: {
+        select: {
+          blogFeaturedImages: true,
+          eventBanners: true,
+          galleryImages: true,
+          popupImages: true,
+          productCollections: true,
+          productImages: true,
+          metadataOgImages: true,
+          themeHeroes: true,
+          themeOgImages: true,
+          sampleAssets: true,
+        },
+      },
+    },
+  });
+
+  const usageByAsset: Record<string, number> = {};
+  let totalUsage = 0;
+
+  for (const asset of assets) {
+    const usage =
+      asset._count.blogFeaturedImages +
+      asset._count.eventBanners +
+      asset._count.galleryImages +
+      asset._count.popupImages +
+      asset._count.productCollections +
+      asset._count.productImages +
+      asset._count.metadataOgImages +
+      asset._count.themeHeroes +
+      asset._count.themeOgImages +
+      asset._count.sampleAssets;
+    
+    usageByAsset[asset.id] = usage;
+    totalUsage += usage;
+  }
+
+  return { usageByAsset, totalUsage, assetsFound: assets.length };
+}
+
 export async function hardDeleteItemsBulk(opts: {
   items: { entityType: RecycleBinEntityType; id: string }[];
   adminId: string;
@@ -574,20 +619,19 @@ async function _hardDeleteItem(opts: {
   id: string;
   adminId: string;
 }): Promise<{ hardDeleted: true; entityType: RecycleBinEntityType; id: string }> {
-  // MediaAsset — refuse hard delete; too many FK references across the schema
-  if (opts.entityType === "MediaAsset") {
-    throw new AppError(
-      "MEDIA_ASSET_HARD_DELETE_BLOCKED",
-      "Media assets cannot be permanently deleted from the Recycle Bin. Remove all references to this asset (blog posts, themes, events, etc.) before deleting it from the Media Library.",
-      409,
-    );
-  }
-
   let displayName = opts.id;
 
   try {
     await prisma.$transaction(async (tx) => {
       switch (opts.entityType) {
+        case "MediaAsset": {
+          const row = await tx.mediaAsset.findFirst({ where: { id: opts.id } });
+          if (!row) throw new NotFoundError();
+          displayName = row.cdnKey;
+          await deleteObjectByKey(row.cdnKey);
+          await tx.mediaAsset.delete({ where: { id: opts.id } });
+          break;
+        }
         case "Theme": {
           const row = await tx.theme.findFirst({ where: { id: opts.id } });
           if (!row) throw new NotFoundError();

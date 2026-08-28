@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { MediaRef } from "@/types/common";
 import { MediaPicker } from "./MediaPicker";
+import type { ApiSuccess } from "@/lib/admin-api-client";
 
 type RichTextEditorProps = {
   id?: string;

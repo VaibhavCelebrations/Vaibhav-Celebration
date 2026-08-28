@@ -255,7 +255,7 @@ export function ThemesScreen() {
       setDirty(false);
       setDrawerOpen(true);
     } catch (err) {
-      toast({ tone: "critical", title: "Failed to load theme details" });
+      toast({ tone: "error", title: "Failed to load theme details" });
     }
   }
 

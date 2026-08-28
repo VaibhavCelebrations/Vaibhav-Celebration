@@ -3,11 +3,11 @@
 import { ImagePlus, Search, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AdminApiError, adminFetch } from "@/lib/admin-api-client";
+import { AdminApiError, adminFetch, type ApiSuccess } from "@/lib/admin-api-client";
 import type { MediaRef } from "@/types/common";
 import { useToast } from "./Toast";
 import { MediaCategoryBadge } from "./MediaCategoryBadge";
-import { MEDIA_CATEGORY_OPTIONS, type MediaPrefixKind } from "./UploadDialog";
+import { MEDIA_CATEGORY_OPTIONS, type MediaPrefixKind, type UploadedMediaAsset } from "./UploadDialog";
 
 type MediaPickerProps = {
   value?: MediaRef | null;
