@@ -44,8 +44,12 @@ export function useRegistryAccess() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    let active = true;
     if (isLoading) return;
-    void refresh();
+    if (active) {
+      void refresh();
+    }
+    return () => { active = false; };
   }, [isLoading, refresh, pathname]);
 
   useEffect(() => {

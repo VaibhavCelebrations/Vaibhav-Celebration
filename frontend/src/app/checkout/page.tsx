@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, Package, Truck, PartyPopper, Check, Loader2, CalendarHeart } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
@@ -24,6 +26,7 @@ import { CacheStore } from "@/lib/cache-store";
 import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { combineCartQuote } from "@/lib/cart-totals";
+import { notifyRegistryAccessChanged } from "@/hooks/useRegistryAccess";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
@@ -94,6 +97,7 @@ export default function CheckoutPage() {
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const { push } = useToast();
+  const router = useRouter();
   const deliverySettings = useDeliverySettings();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -114,6 +118,14 @@ export default function CheckoutPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed" | "cancelled" | "pending" | "success">("idle");
+  const [isCreatingRegistry, setIsCreatingRegistry] = useState(false);
+  const [registryPromptData, setRegistryPromptData] = useState<{
+    title: string;
+    date?: string;
+    orderCode?: string;
+    shippingAddress?: ShippingAddress;
+    childName?: string;
+  } | null>(null);
 
   const [confirmedOrderCode, setConfirmedOrderCode] = useState<string | null>(null);
   const [confirmedInvoiceUrl, setConfirmedInvoiceUrl] = useState<string | null>(null);
@@ -149,6 +161,23 @@ export default function CheckoutPage() {
       setContactPhone((prev) => prev || user.phone || "");
     }
   }, [user, registryCheckout]);
+
+  // Pre-fill contact details from the package builder when it's a package-only checkout.
+  // The builder already collected name, email, phone, and address — reuse them here
+  // so the user doesn't need to re-enter information into a hidden form.
+  useEffect(() => {
+    if (packages.length > 0 && packages[0]?.builderInput) {
+      const bi = packages[0].builderInput;
+      setContactEmail((prev) => prev || bi.contactEmail || "");
+      setContactPhone((prev) => prev || bi.contactPhone || "");
+      if (bi.shippingAddress) {
+        setAddress((prev) => {
+          const isEmpty = prev.fullName === "" && prev.line1 === "" && prev.city === "";
+          return isEmpty ? { ...bi.shippingAddress } : prev;
+        });
+      }
+    }
+  }, [packages]);
 
   useEffect(() => {
     if (!items.some((i) => i.registryItemId)) {
@@ -206,6 +235,11 @@ export default function CheckoutPage() {
   // its own here, so that address must exist and be sent to the backend.
   const packageOnlyCheckout = !hasItems && !isDirectCheckout && packages.length > 0;
 
+  // For package-only checkout, fall back to the builder's contact info if
+  // the checkout form fields are still empty (the address form is hidden).
+  const effectiveEmail = contactEmail.trim() || (packageOnlyCheckout ? (pkg?.builderInput?.contactEmail ?? "") : "");
+  const effectivePhone = contactPhone.trim() || (packageOnlyCheckout ? (pkg?.builderInput?.contactPhone ?? "") : "");
+
   const validateCheckout = (): boolean => {
     const errors: Record<string, string> = {};
     if (hasItems || isDirectCheckout) {
@@ -221,8 +255,8 @@ export default function CheckoutPage() {
     } else {
       if (!address.fullName.trim()) errors.fullName = "Full name is required";
     }
-    if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) errors.contactEmail = "Enter a valid email";
-    if (contactPhone.trim().length < 6) errors.contactPhone = "Enter a valid phone number";
+    if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) errors.contactEmail = "Enter a valid email";
+    if (effectivePhone.length < 6) errors.contactPhone = "Enter a valid phone number";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -240,8 +274,8 @@ export default function CheckoutPage() {
     } else {
       if (!address.fullName.trim()) return false;
     }
-    if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) return false;
-    if (contactPhone.trim().length < 6) return false;
+    if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) return false;
+    if (effectivePhone.length < 6) return false;
     return true;
   };
 
@@ -259,6 +293,16 @@ export default function CheckoutPage() {
             setConfirmedOrderCode(orderCode);
             setConfirmedInvoiceUrl(order.invoicePdfUrl);
             setHadPackagesAtCheckout(packages.length > 0);
+            if (packages.length > 0) {
+              const childName = packages[0]?.builderInput?.eventDetails?.childName;
+              setRegistryPromptData({
+                 title: childName ? `${childName}'s Celebration` : "My Celebration",
+                 date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                 orderCode: orderCode,
+                 shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                 childName: childName,
+              });
+            }
             setPaymentStatus("idle");
             setIsPlacingOrder(false);
             setPendingOrderCode(null);
@@ -322,6 +366,16 @@ export default function CheckoutPage() {
               setIsPlacingOrder(false);
               setPendingOrderCode(null);
               setHadPackagesAtCheckout(packages.length > 0);
+              if (packages.length > 0) {
+                const childName = packages[0]?.builderInput?.eventDetails?.childName;
+                setRegistryPromptData({
+                   title: childName ? `${childName}'s Celebration` : "My Celebration",
+                   date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                   orderCode: verified.orderCode,
+                   shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                   childName: childName,
+                });
+              }
               void clearCart().then(() => refreshCart());
               setCurrentStep(1);
             }, 2500);
@@ -440,8 +494,8 @@ export default function CheckoutPage() {
 
       const order = await shopApi.createShopOrder({
         shippingAddress: effectiveShippingAddress,
-        contactEmail: contactEmail.trim(),
-        contactPhone: contactPhone.trim(),
+        contactEmail: effectiveEmail || contactEmail.trim(),
+        contactPhone: effectivePhone || contactPhone.trim(),
         packageData,
       });
       await openShopRazorpay(order);
@@ -873,6 +927,61 @@ export default function CheckoutPage() {
             <p className="text-text-muted text-sm leading-relaxed">
               Please do not close this window or click back while we process your request.
             </p>
+          </div>
+        </div>
+      )}
+      
+      {/* Gift Registry Prompt Modal */}
+      {registryPromptData && (
+        <div className="fixed inset-0 z-[200] bg-charcoal/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-up text-center">
+            <div className="w-16 h-16 bg-blush text-mocha rounded-full flex items-center justify-center mx-auto mb-6">
+              <PartyPopper size={32} />
+            </div>
+            <h2 className="font-display text-2xl font-bold text-charcoal mb-4">Create a Gift Registry?</h2>
+            <p className="text-text-muted text-sm mb-8 leading-relaxed">
+              Make gifting easy for your guests. Create a free registry for <strong>{registryPromptData.title}</strong> and add the gifts your child really wants!
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                disabled={isCreatingRegistry}
+                onClick={async () => {
+                  setIsCreatingRegistry(true);
+                  try {
+                    const reg = await shopApi.createRegistry({
+                      sourceOrderCode: registryPromptData.orderCode || confirmedOrderCode || "",
+                      title: registryPromptData.title,
+                      eventDate: registryPromptData.date,
+                      childOrPersonName: registryPromptData.childName,
+                      shippingAddress: registryPromptData.shippingAddress,
+                      occasion: "Celebration",
+                      visibility: "UNLISTED",
+                    });
+                    notifyRegistryAccessChanged();
+                    router.push(`/account/registry/${reg.id}/setup`);
+                  } catch (e) {
+                    console.error("Failed to create registry from checkout prompt", e);
+                    if (confirmedOrderCode) {
+                      router.push(`/account/orders/${confirmedOrderCode}`);
+                    } else {
+                      router.push("/account/orders");
+                    }
+                  } finally {
+                    setIsCreatingRegistry(false);
+                    setRegistryPromptData(null);
+                  }
+                }}
+                className="btn-primary w-full py-3.5 text-sm"
+              >
+                {isCreatingRegistry ? <Loader2 size={18} className="animate-spin mx-auto" /> : "Yes, Create Registry"}
+              </button>
+              <button
+                onClick={() => setRegistryPromptData(null)}
+                className="btn-outline w-full py-3.5 text-sm border-transparent bg-cream hover:bg-cream-dark"
+              >
+                No, skip for now
+              </button>
+            </div>
           </div>
         </div>
       )}

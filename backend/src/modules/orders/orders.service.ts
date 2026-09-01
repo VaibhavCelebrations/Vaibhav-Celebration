@@ -600,12 +600,19 @@ export async function createPackageOrder(
 }
 
 async function saveDefaultAddressIfNeeded(userId: string, shippingAddress: ShippingAddress) {
-  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
-  if (user && !user.defaultAddress) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { defaultAddress: shippingAddress as never },
-    });
+  try {
+    const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+    if (user && !(user as any).defaultAddress) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { defaultAddress: shippingAddress } as any,
+      });
+    }
+  } catch (err) {
+    // Non-critical: if defaultAddress column/field doesn't exist yet
+    // (e.g., pending migration or prisma generate), log and continue —
+    // order creation must not fail because of this convenience feature.
+    logger.warn({ userId, err }, "Could not save default address — continuing with order");
   }
 }
 
