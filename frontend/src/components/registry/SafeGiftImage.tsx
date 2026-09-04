@@ -27,8 +27,12 @@ export function SafeGiftImage({
     : null;
 
   useEffect(() => {
-    setFailed(false);
-    setLoaded(false);
+    let active = true;
+    if (active) {
+      setFailed(false);
+      setLoaded(false);
+    }
+    return () => { active = false; };
   }, [displaySrc]);
 
   useEffect(() => {

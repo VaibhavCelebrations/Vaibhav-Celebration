@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import LogoImage from "@/assets/logo.png";
 import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart } from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
@@ -84,7 +85,7 @@ export function Navbar() {
               aria-label="Vaibhav Celebrations — home"
             >
               <Image
-                src="/logo-v2.png"
+                src={LogoImage}
                 alt="Vaibhav Celebrations"
                 width={155}
                 height={155}
