@@ -600,12 +600,19 @@ export async function createPackageOrder(
 }
 
 async function saveDefaultAddressIfNeeded(userId: string, shippingAddress: ShippingAddress) {
-  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
-  if (user && !user.defaultAddress) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { defaultAddress: shippingAddress as never },
-    });
+  try {
+    const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+    if (user && !(user as any).defaultAddress) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { defaultAddress: shippingAddress } as any,
+      });
+    }
+  } catch (err) {
+    // Non-critical: if defaultAddress column/field doesn't exist yet
+    // (e.g., pending migration or prisma generate), log and continue —
+    // order creation must not fail because of this convenience feature.
+    logger.warn({ userId, err }, "Could not save default address — continuing with order");
   }
 }
 
@@ -1018,7 +1025,7 @@ export async function resendOrderConfirmationEmail(orderId: string) {
 
 /** Called from webhook or verified checkout callback — marks paid, invoices, notifies, clears purchased cart lines. */
 export async function markOrderPaid(orderId: string, razorpayPaymentId: string | undefined) {
-  await prisma.order.updateMany({
+  const updateResult = await prisma.order.updateMany({
     where: { id: orderId, paymentStatus: { not: PaymentStatus.PAID } },
     data: {
       status: OrderStatus.PAID,
@@ -1026,6 +1033,11 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
       ...(razorpayPaymentId ? { razorpayPaymentId } : {}),
     },
   });
+
+  if (updateResult.count === 0) {
+    logger.info({ orderId }, "Skipping duplicate markOrderPaid webhook processing");
+    return;
+  }
 
   const order = await findOrderForConfirmationEmail(orderId);
   if (!order) throw new NotFoundError("Order not found");
@@ -1112,8 +1124,12 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
           pdfUrl,
         },
       });
-    } catch (err) {
-      logger.warn({ err, orderId }, "Invoice row already exists or failed");
+    } catch (err: any) {
+      if (err.code === "P2002") {
+        logger.info({ orderId }, "Invoice row already created by another process");
+      } else {
+        logger.error({ err, orderId }, "Failed to create invoice");
+      }
     }
   }
 

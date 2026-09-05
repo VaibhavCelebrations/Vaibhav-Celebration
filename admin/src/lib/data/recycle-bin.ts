@@ -142,3 +142,11 @@ export async function hardDeleteRecycleBinItemsBulk(
     body: { items, password },
   });
 }
+
+export async function fetchMediaAssetUsage(ids: string[]): Promise<{
+  usageByAsset: Record<string, number>;
+  totalUsage: number;
+  assetsFound: number;
+}> {
+  return await adminFetch(`/admin/recycle-bin/media-usage?ids=${ids.join(",")}`);
+}

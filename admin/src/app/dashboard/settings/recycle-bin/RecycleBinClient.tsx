@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Loader2,
   X,
-  Eye,
   Info,
 } from "lucide-react";
 import {
@@ -20,6 +19,7 @@ import {
   hardDeleteRecycleBinItem,
   restoreRecycleBinItemsBulk,
   hardDeleteRecycleBinItemsBulk,
+  fetchMediaAssetUsage,
   RECYCLE_BIN_ENTITY_TYPES,
   ENTITY_LABELS,
   type RecycleBinItem,
@@ -93,9 +93,37 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  const isHardDelete = action === "hardDelete" || action === "bulkHardDelete";
+  const mediaItems = items.filter(i => i.entityType === "MediaAsset");
+  const hasMediaAssets = mediaItems.length > 0;
+  const mediaItemIds = mediaItems.map(i => i.id).join(",");
+
+  const [mediaUsageState, setMediaUsageState] = useState<"idle" | "loading" | "blocked" | "clear">(
+    isHardDelete && hasMediaAssets ? "loading" : "idle"
+  );
+  const [mediaUsageDetails, setMediaUsageDetails] = useState<{ totalUsage: number, usageByAsset: Record<string, number> } | null>(null);
+
   useEffect(() => {
-    passwordRef.current?.focus();
-  }, []);
+    if (isHardDelete && hasMediaAssets) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      fetchMediaAssetUsage(mediaItemIds.split(","))
+        .then(res => {
+          setMediaUsageDetails(res);
+          if (res.totalUsage > 0) {
+            setMediaUsageState("blocked");
+          } else {
+            setMediaUsageState("clear");
+            setTimeout(() => passwordRef.current?.focus(), 100);
+          }
+        })
+        .catch(err => {
+          setMediaUsageState("blocked");
+          setError(err.message || "Failed to check media usage.");
+        });
+    } else {
+      setTimeout(() => passwordRef.current?.focus(), 100);
+    }
+  }, [action, items, isHardDelete, hasMediaAssets, mediaItemIds]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,10 +142,42 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
     }
   }
 
-  const isHardDelete = action === "hardDelete" || action === "bulkHardDelete";
   const isBulk = items.length > 1;
   const item = items[0];
   const color = item ? ENTITY_COLORS[item.entityType] : null;
+
+  const renderMediaUsageWarning = () => {
+    if (!isHardDelete || !hasMediaAssets) return null;
+    if (mediaUsageState === "loading") {
+      return (
+        <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3">
+          <Loader2 size={15} className="mt-0.5 shrink-0 text-blue-500 animate-spin" />
+          <p className="text-xs text-blue-700">Checking if selected media assets are currently in use...</p>
+        </div>
+      );
+    }
+    if (mediaUsageState === "blocked") {
+      return (
+        <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-500" />
+          <p className="text-xs text-red-700">
+            <strong>Action Blocked:</strong> One or more selected media assets are currently being used in {mediaUsageDetails?.totalUsage} places across the platform. You must remove them from products, themes, blogs, etc. before permanently deleting them.
+          </p>
+        </div>
+      );
+    }
+    if (mediaUsageState === "clear") {
+      return (
+        <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-green-200 bg-green-50 p-3">
+          <Info size={15} className="mt-0.5 shrink-0 text-green-600" />
+          <p className="text-xs text-green-700">
+            The selected media assets are not being used anywhere. You are clear to delete them permanently.
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div
@@ -207,14 +267,7 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
           </div>
         )}
 
-        {isBulk && isHardDelete && items.some(i => i.entityType === "MediaAsset") && (
-          <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <Info size={15} className="mt-0.5 shrink-0 text-amber-600" />
-            <p className="text-xs text-amber-700">
-              <strong>Note:</strong> Selected Media Assets cannot be permanently deleted from here and will be skipped.
-            </p>
-          </div>
-        )}
+        {renderMediaUsageWarning()}
 
         {(isBulk ? items.some(i => i.entityType === "MediaAsset") : item?.entityType === "MediaAsset") && !isHardDelete && (
           <div className="mx-6 mb-4 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -260,7 +313,7 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
             <button
               type="button"
               onClick={onCancel}
-              disabled={loading}
+              disabled={loading || mediaUsageState === "loading" || mediaUsageState === "blocked"}
               className="flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 cursor-pointer disabled:opacity-50"
               style={{ borderColor: "var(--color-border)", color: "var(--color-charcoal-soft)" }}
             >
@@ -268,7 +321,7 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
             </button>
             <button
               type="submit"
-              disabled={loading || !password.trim()}
+              disabled={loading || !password.trim() || mediaUsageState === "loading" || mediaUsageState === "blocked"}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer disabled:opacity-50 ${
                 isHardDelete
                   ? "bg-red-600 hover:bg-red-700"
@@ -332,6 +385,7 @@ export function RecycleBinClient() {
   }, [entityFilter, page]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
@@ -488,8 +542,6 @@ export function RecycleBinClient() {
             <button
               type="button"
               onClick={() => setModal({ action: "bulkHardDelete", items: getSelectedItems() })}
-              disabled={getSelectedItems().every(i => i.entityType === "MediaAsset")}
-              title={getSelectedItems().every(i => i.entityType === "MediaAsset") ? "Media assets cannot be hard-deleted" : undefined}
               className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 size={14} />
@@ -682,9 +734,11 @@ export function RecycleBinClient() {
 
                         {/* Hard delete — disabled + tooltip for MediaAsset */}
                         {isMediaAsset ? (
-                          <span
-                            title="Media assets cannot be hard-deleted here. Remove all references first in the Media Library."
-                            className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium opacity-40 cursor-not-allowed"
+                          <button
+                            type="button"
+                            title="Delete permanently"
+                            onClick={() => setModal({ action: "hardDelete", items: [item] })}
+                            className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-red-50 cursor-pointer"
                             style={{
                               borderColor: "var(--color-border)",
                               color: "var(--color-charcoal-soft)",
@@ -692,8 +746,7 @@ export function RecycleBinClient() {
                           >
                             <Trash2 size={12} className="text-red-500" />
                             <span className="hidden sm:inline">Delete</span>
-                            <Eye size={10} className="ml-0.5 text-(--color-text-muted)" />
-                          </span>
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -756,7 +809,7 @@ export function RecycleBinClient() {
         >
           <Info size={13} className="mt-0.5 shrink-0" />
           <span>
-            <strong className="text-(--color-charcoal)">Media Assets</strong> cannot be permanently deleted from here because they may be referenced by content across the site. To permanently delete a media asset, first remove all references to it in Blog, Events, Themes, etc., then delete it from the Media Library.
+            <strong className="text-(--color-charcoal)">Media Assets</strong> can now be permanently deleted from the Recycle Bin. We will check if the asset is currently in use across the platform (e.g. in products, themes, blogs) before allowing deletion. If it is in use, you must remove the references first.
           </span>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, ShoppingBag, Gift, PartyPopper, Eye } from "lucide-react";
+import { FileText, Loader2, Eye } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -63,16 +63,17 @@ function shippingLines(address: Record<string, string> | undefined) {
 }
 
 export function OrdersScreen() {
-  const [tab, setTab] = useState<"shop" | "package" | "registry">("shop");
   const { query, setQuery } = useListQuery({ sort: "placedAt", dir: "desc" });
   const listQuery = useMemo(
-    () => ({
-      ...query,
-      shopOnly: tab === "shop" ? "true" : undefined,
-      packageOnly: tab === "package" ? "true" : undefined,
-      registryOnly: tab === "registry" ? "true" : undefined,
-    }),
-    [query, tab],
+    () => {
+      const { type, ...restFilters } = query.filters || {};
+      const filters = { ...restFilters } as Record<string, string>;
+      if (type === "shop") filters.shopOnly = "true";
+      if (type === "package") filters.packageOnly = "true";
+      if (type === "registry") filters.registryOnly = "true";
+      return { ...query, filters };
+    },
+    [query],
   );
   const { items: rows, total, loading, error, reload } = useRepoList(
     (q) =>
@@ -286,29 +287,6 @@ export function OrdersScreen() {
         description="Shop products, celebration packages, and gift registry purchases."
       />
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setTab("shop")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "shop" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <ShoppingBag size={14} className="inline mr-1" /> Shop orders
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("package")}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "package" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <PartyPopper size={14} className="inline mr-1" /> Package orders
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("registry")}
-          className={`hidden px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "registry" ? "bg-(--color-mocha) text-white" : "bg-(--color-cream) text-stone-700 hover:bg-stone-200"}`}
-        >
-          <Gift size={14} className="inline mr-1" /> Registry orders
-        </button>
-      </div>
 
       <AdminDataTable
         columns={columns}
@@ -322,6 +300,16 @@ export function OrdersScreen() {
         onRetry={reload}
         searchPlaceholder="Search order, email, Razorpay ID…"
         filters={[
+          {
+            key: "type",
+            label: "Order type",
+            type: "select",
+            options: [
+              { value: "shop", label: "Shop" },
+              { value: "package", label: "Package" },
+              { value: "registry", label: "Registry" },
+            ],
+          },
           { key: "status", label: "Order status", type: "select", options: ORDER_STATUS_OPTIONS },
           {
             key: "paymentStatus",
@@ -345,8 +333,8 @@ export function OrdersScreen() {
         rowActions={[]}
         empty={{
           icon: FileText,
-          title: tab === "shop" ? "No shop orders yet" : "No registry orders yet",
-          description: tab === "shop" ? "Product and package purchases will appear here." : "Paid gift registry checkouts will appear here.",
+          title: "No orders found",
+          description: "Try adjusting your filters or search query.",
         }}
       />
 
@@ -380,7 +368,7 @@ export function OrdersScreen() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm bg-stone-50 rounded-md p-4">
+            <div className="grid grid-cols-3 gap-4 text-sm bg-stone-50 rounded-md p-4">
               <div>
                 <p className="text-stone-500 mb-1">Order status</p>
                 <SelectInput
@@ -399,6 +387,24 @@ export function OrdersScreen() {
                 )}
                 {viewingOrder.razorpayPaymentId && (
                   <p className="text-xs font-mono text-stone-500 break-all">Rzp payment: {viewingOrder.razorpayPaymentId}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1">Email Status</p>
+                <p className="font-medium">{viewingOrder.emailSendStatus ?? "NOT_SENT"}</p>
+                {viewingOrder.emailSendError && (
+                  <p className="text-xs text-red-600 mt-1 break-all">Error: {viewingOrder.emailSendError}</p>
+                )}
+                {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1"
+                    onClick={() => void resendConfirmationEmail()}
+                    disabled={resendingEmail}
+                  >
+                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    Resend Email
+                  </button>
                 )}
               </div>
             </div>
