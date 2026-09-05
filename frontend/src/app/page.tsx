@@ -11,6 +11,8 @@ import { WhyUsSection } from "@/components/home/WhyUsSection";
 import { GalleryPreview } from "@/components/home/GalleryPreview";
 import { ShopTeaser } from "@/components/home/ShopTeaser";
 import { TestimonialCarousel } from "@/components/home/TestimonialCarousel";
+import { FeaturedEventSection } from "@/components/home/FeaturedEventSection";
+import { FeaturedBlogSection } from "@/components/home/FeaturedBlogSection";
 import { EnquiryForm } from "@/components/home/EnquiryForm";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { getHomePageContent } from "@/lib/cms/pages";
@@ -18,6 +20,8 @@ import { listThemes } from "@/lib/cms/themes";
 import { listPackages } from "@/lib/cms/packages";
 import { listGallery } from "@/lib/cms/gallery";
 import { listTestimonials } from "@/lib/cms/content";
+import { listEvents } from "@/lib/cms/events";
+import { listBlogPosts } from "@/lib/cms/blog";
 import { getPublicSettings, getWhatsAppNumber } from "@/lib/cms/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,18 +33,31 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [pageContent, themes, packages, gallery, testimonials, settings, whatsappNumber] =
-    await Promise.all([
-      getHomePageContent().catch(() => null),
-      listThemes().catch(() => []),
-      listPackages().catch(() => []),
-      listGallery().catch(() => []),
-      listTestimonials().catch(() => []),
-      getPublicSettings().catch(() => null),
-      getWhatsAppNumber().catch(() => ""),
-    ]);
+  const [
+    pageContent,
+    themes,
+    packages,
+    gallery,
+    testimonials,
+    settings,
+    whatsappNumber,
+    events,
+    blogPosts,
+  ] = await Promise.all([
+    getHomePageContent().catch(() => null),
+    listThemes().catch(() => []),
+    listPackages().catch(() => []),
+    listGallery().catch(() => []),
+    listTestimonials().catch(() => []),
+    getPublicSettings().catch(() => null),
+    getWhatsAppNumber().catch(() => ""),
+    listEvents().catch(() => []),
+    listBlogPosts().catch(() => []),
+  ]);
 
   const sections = pageContent?.sections;
+  const featuredEvent = events[0] ?? null;
+  const featuredPost = blogPosts.find((p) => p.isFeatured) ?? blogPosts[0] ?? null;
 
   return (
     <>
@@ -54,8 +71,10 @@ export default async function HomePage() {
           <PackagePreview packages={packages} />
           <WhyUsSection />
           <GalleryPreview images={gallery} />
-          <ShopTeaser />
           <TestimonialCarousel testimonials={testimonials} />
+          <ShopTeaser />
+          <FeaturedEventSection event={featuredEvent} />
+          <FeaturedBlogSection post={featuredPost} />
           <EnquiryForm />
         </div>
       </main>
