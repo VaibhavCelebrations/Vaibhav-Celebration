@@ -65,6 +65,29 @@ function parseTier(v: string | null): Tier | null {
   return null;
 }
 
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isDateWithin7Days = (dateStr: string) => {
+  if (!dateStr) return false;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return false;
+  const [year, month, day] = parts;
+  const selectedDate = new Date(year, month - 1, day);
+  selectedDate.setHours(0, 0, 0, 0);
+
+  const minAllowed = new Date();
+  minAllowed.setDate(minAllowed.getDate() + 7);
+  minAllowed.setHours(0, 0, 0, 0);
+
+  return selectedDate < minAllowed;
+};
+
 function BuilderStepper({
   currentStep,
   onStepClick,
@@ -497,7 +520,7 @@ function BuildPackageContent() {
       if (!guestName.trim()) return false;
       if (!guestEmail.trim() || !/^\S+@\S+\.\S+$/.test(guestEmail)) return false;
       if (!guestPhone.trim() || guestPhone.trim().length < 6) return false;
-      if (!eventDate) return false;
+      if (!eventDate || isDateWithin7Days(eventDate)) return false;
       if (!guestAddress.trim()) return false;
       if (location === "outside" && !guestCity.trim()) return false;
       if (!guestPincode.trim() || !/^\d{4,10}$/.test(guestPincode.trim())) return false;
@@ -549,8 +572,12 @@ function BuildPackageContent() {
 
   const handleAddToCart = async () => {
     if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
-    if (!eventDate || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
-      setQuoteError("Please fill celebration date, contact, and address details.");
+    if (!eventDate || isDateWithin7Days(eventDate) || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
+      if (isDateWithin7Days(eventDate)) {
+        setQuoteError("Need to complete purchase order at least 7 days before celebration date.");
+      } else {
+        setQuoteError("Please fill celebration date, contact, and address details.");
+      }
       return;
     }
     if (!isAuthenticated) {
@@ -813,8 +840,14 @@ function BuildPackageContent() {
                         type="date"
                         value={eventDate}
                         onChange={(e) => setEventDate(e.target.value)}
+                        min={getTodayDateString()}
                         className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
                       />
+                      {isDateWithin7Days(eventDate) && (
+                        <p className="text-amber-700 text-xs font-medium mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                          Need to complete purchase order at least 7 days before celebration date.
+                        </p>
+                      )}
                     </label>
                     <label className="block text-sm">
                       <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1 <span className="text-red-500">*</span></span>
