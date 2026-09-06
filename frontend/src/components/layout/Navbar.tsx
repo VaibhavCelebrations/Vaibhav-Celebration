@@ -4,7 +4,16 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import LogoImage from "@/assets/logo.png";
-import { Menu, X, ChevronDown, ShoppingCart, User, LogOut, Package, Heart } from "lucide-react";
+import {
+  Menu,
+  X,
+  ChevronDown,
+  ShoppingCart,
+  User,
+  LogOut,
+  Package,
+  Heart,
+} from "lucide-react";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { MobileMenu } from "./MobileMenu";
 import { useCart } from "@/context/cart-context";
@@ -54,7 +63,10 @@ export function Navbar() {
   // Close account dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(e.target as Node)
+      ) {
         setShowAccountMenu(false);
       }
     }
@@ -83,7 +95,7 @@ export function Navbar() {
                 alt="Vaibhav Celebrations"
                 width={155}
                 height={155}
-                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[60px]"
+                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[80px]"
                 style={{ width: "auto" }}
                 priority
               />
@@ -98,7 +110,9 @@ export function Navbar() {
                 <div
                   key={link.label}
                   className="relative"
-                  onMouseEnter={() => link.submenu && setActiveSubmenu(link.label)}
+                  onMouseEnter={() =>
+                    link.submenu && setActiveSubmenu(link.label)
+                  }
                   onMouseLeave={() => setActiveSubmenu(null)}
                 >
                   <Link
@@ -106,7 +120,9 @@ export function Navbar() {
                     className="nav-link hover:text-mocha transition-colors flex items-center gap-1 py-2"
                   >
                     {link.label}
-                    {link.submenu && <ChevronDown size={14} className="opacity-50" />}
+                    {link.submenu && (
+                      <ChevronDown size={14} className="opacity-50" />
+                    )}
                   </Link>
                   {/* Dropdown */}
                   {link.submenu && activeSubmenu === link.label && (
@@ -153,20 +169,39 @@ export function Navbar() {
                 {showAccountMenu && isAuthenticated && (
                   <div className="absolute top-full right-0 mt-2 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
                     <div className="px-4 py-3 border-b border-border-light">
-                      <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
-                      <p className="text-xs text-text-muted truncate">{user?.email}</p>
+                      <p className="text-sm font-bold text-charcoal truncate">
+                        {user?.name}
+                      </p>
+                      <p className="text-xs text-text-muted truncate">
+                        {user?.email}
+                      </p>
                     </div>
-                    <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                    <Link
+                      href="/account"
+                      onClick={() => setShowAccountMenu(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+                    >
                       <User size={16} /> My Profile
                     </Link>
-                    <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                    <Link
+                      href="/account/orders"
+                      onClick={() => setShowAccountMenu(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+                    >
                       <Package size={16} /> Order History
                     </Link>
-                    <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+                    <Link
+                      href="/account/wishlist"
+                      onClick={() => setShowAccountMenu(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+                    >
                       <Heart size={16} /> Saved Products
                     </Link>
                     <button
-                      onClick={() => { logout(); setShowAccountMenu(false); }}
+                      onClick={() => {
+                        logout();
+                        setShowAccountMenu(false);
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer border-t border-border-light mt-1"
                     >
                       <LogOut size={16} /> Sign Out
@@ -184,7 +219,7 @@ export function Navbar() {
                 <ShoppingCart size={18} />
                 {itemCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-mocha text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {itemCount > 9 ? '9+' : itemCount}
+                    {itemCount > 9 ? "9+" : itemCount}
                   </span>
                 )}
               </button>
@@ -225,7 +260,7 @@ export function Navbar() {
                 <ShoppingCart size={22} />
                 {itemCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-mocha text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {itemCount > 9 ? '9+' : itemCount}
+                    {itemCount > 9 ? "9+" : itemCount}
                   </span>
                 )}
               </button>
@@ -246,20 +281,37 @@ export function Navbar() {
       {showAccountMenu && isAuthenticated && (
         <div className="lg:hidden absolute top-[80px] right-4 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
           <div className="px-4 py-3 border-b border-border-light">
-            <p className="text-sm font-bold text-charcoal truncate">{user?.name}</p>
+            <p className="text-sm font-bold text-charcoal truncate">
+              {user?.name}
+            </p>
             <p className="text-xs text-text-muted truncate">{user?.email}</p>
           </div>
-          <Link href="/account" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+          <Link
+            href="/account"
+            onClick={() => setShowAccountMenu(false)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+          >
             <User size={16} /> My Profile
           </Link>
-          <Link href="/account/orders" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+          <Link
+            href="/account/orders"
+            onClick={() => setShowAccountMenu(false)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+          >
             <Package size={16} /> Order History
           </Link>
-          <Link href="/account/wishlist" onClick={() => setShowAccountMenu(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors">
+          <Link
+            href="/account/wishlist"
+            onClick={() => setShowAccountMenu(false)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal hover:text-mocha hover:bg-cream transition-colors"
+          >
             <Heart size={16} /> Saved Products
           </Link>
           <button
-            onClick={() => { logout(); setShowAccountMenu(false); }}
+            onClick={() => {
+              logout();
+              setShowAccountMenu(false);
+            }}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-muted hover:text-red-500 hover:bg-cream transition-colors cursor-pointer border-t border-border-light mt-1"
           >
             <LogOut size={16} /> Sign Out
