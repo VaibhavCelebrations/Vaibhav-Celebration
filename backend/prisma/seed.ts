@@ -642,7 +642,7 @@ async function main() {
   await clearDevData();
 
   const adminPassword =
-    process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe_SuperAdmin_123!";
+    process.env.SEED_ADMIN_PASSWORD ?? "!ChangeMe_SuperAdmin_123";
   const adminHash = await bcrypt.hash(adminPassword, 12);
   const staffHash = await bcrypt.hash("ChangeMe_Staff_123!", 12);
 

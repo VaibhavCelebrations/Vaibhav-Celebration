@@ -54,7 +54,7 @@ export default function ConsultationPage() {
                   </div>
                   <div>
                     <label htmlFor="cons-date" className="block text-sm font-medium text-charcoal mb-1.5">Preferred Date</label>
-                    <input id="cons-date" type="date" className="w-full rounded-lg border border-border bg-cream px-4 py-3 text-sm text-text focus:outline-none focus:border-mocha focus:ring-1 focus:ring-mocha transition-colors" />
+                    <input id="cons-date" type="date" min={new Date().toISOString().split("T")[0]} className="w-full rounded-lg border border-border bg-cream px-4 py-3 text-sm text-text focus:outline-none focus:border-mocha focus:ring-1 focus:ring-mocha transition-colors" />
                   </div>
                 </div>
                 <div>

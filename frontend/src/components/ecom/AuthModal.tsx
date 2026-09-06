@@ -201,7 +201,7 @@ export function AuthModal() {
                 {errors.signupEmail && <p className={errorClass}>{errors.signupEmail}</p>}
               </div>
               <div>
-                <input type="tel" placeholder="Phone number (optional)" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="tel" />
+                <input type="tel" placeholder="Phone number (optional)" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} className={inputClass} disabled={isSubmitting} autoComplete="tel" />
                 {errors.signupPhone && <p className={errorClass}>{errors.signupPhone}</p>}
               </div>
               <div>

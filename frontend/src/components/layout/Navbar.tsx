@@ -33,12 +33,6 @@ const navLinks: NavLink[] = [
   {
     label: "Shop",
     href: "/gifts",
-    submenu: [
-      { label: "Shop Return Gifts", href: "/gifts" },
-      // { label: "Personalized Return Gifts", href: "/gifts?category=personalized" },
-      // { label: "Shop by Theme", href: "/gifts?view=themes" },
-      // { label: "Occasion & Festive Gifting", href: "/gifts?category=festive" },
-    ],
   },
   { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },

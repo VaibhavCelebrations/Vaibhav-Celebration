@@ -35,15 +35,35 @@ import { useCatalog } from "@/context/catalog-context";
 import { submitConsultation } from "@/lib/cms/leads";
 import { formatPaise } from "@/lib/shop-types";
 
+// Date utility
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isDateWithin7Days = (dateStr: string) => {
+  if (!dateStr) return false;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return false;
+  const [year, month, day] = parts;
+  const selectedDate = new Date(year, month - 1, day);
+  selectedDate.setHours(0, 0, 0, 0);
+
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() + 7);
+  minDate.setHours(0, 0, 0, 0);
+
+  return selectedDate < minDate;
+};
+
 /* ─── Constants ───────────────────────────────────────────────────── */
 
 const CELEBRATION_TYPES = [
-  "Kids' Birthday",
+  "Birthday",
   "Baby Shower",
-  "Naming Ceremony",
-  "First Birthday",
-  "Milestone Celebration",
-  "Custom Celebration",
   "Other",
 ];
 
@@ -81,10 +101,9 @@ type ServiceItem = {
   name: string;
   description: string;
   priceInPaise: number;
-  tier: "essential" | "signature" | "grand";
+  pricingLogic: "per-child" | "per-group" | "fixed" | "por";
   phase: "before" | "during" | "after";
   category: string;
-  hasQuantity?: boolean;
   hasPersonalization?: boolean;
   personalizationFields?: PersonalizationField[];
 };
@@ -109,7 +128,7 @@ type AddOnItem = {
   name: string;
   description: string;
   priceInPaise: number;
-  hasQuantity?: boolean;
+  pricingLogic: "per-child" | "per-group" | "fixed" | "por";
   hasPersonalization?: boolean;
   personalizationFields?: PersonalizationField[];
 };
@@ -130,52 +149,49 @@ type CelebrationDetails = {
 
 const SERVICE_CATALOG: ServiceItem[] = [
   // BEFORE THE CELEBRATION
-  { id: "svc-digital-invite", name: "Digital Theme Invite", description: "Beautifully designed digital invitation matching your chosen theme.", priceInPaise: 149900, tier: "essential", phase: "before", category: "Invitations" },
-  { id: "svc-animated-invite", name: "Signature Animated / Video Invite", description: "Animated or video-based theme invitation with custom details and music.", priceInPaise: 399900, tier: "signature", phase: "before", category: "Invitations" },
-  { id: "svc-countdown-cards-3", name: "Countdown Cards (3 Days)", description: "Fun daily countdown cards to build excitement before the big day.", priceInPaise: 99900, tier: "signature", phase: "before", category: "Pre-Event Excitement" },
-  { id: "svc-countdown-cards-5", name: "Countdown Cards (5 Days)", description: "Extended 5-day countdown cards with unique designs for each day.", priceInPaise: 149900, tier: "grand", phase: "before", category: "Pre-Event Excitement" },
-  { id: "svc-parent-brief", name: "Parent Party Brief PDF", description: "A comprehensive guide covering timeline, setup, and day-of coordination.", priceInPaise: 99900, tier: "signature", phase: "before", category: "Planning" },
-  { id: "svc-animated-brief", name: "Animated Parent Party Brief", description: "Animated PDF brief with interactive timeline and checklist.", priceInPaise: 199900, tier: "grand", phase: "before", category: "Planning" },
+  { id: "svc-digital-invite", name: "{Theme} Digital Invite", description: "Beautifully designed digital invitation matching your chosen theme.", priceInPaise: 149900, pricingLogic: "fixed", phase: "before", category: "Invitations" },
+  { id: "svc-animated-invite", name: "{Theme} Signature Animated Invite", description: "Animated or video-based theme invitation with custom details and music.", priceInPaise: 399900, pricingLogic: "fixed", phase: "before", category: "Invitations" },
+  { id: "svc-countdown-cards-3", name: "Countdown Cards (3 Days)", description: "Fun daily countdown cards to build excitement before the big day.", priceInPaise: 99900, pricingLogic: "fixed", phase: "before", category: "Pre-Event Excitement" },
+  { id: "svc-countdown-cards-5", name: "Countdown Cards (5 Days)", description: "Extended 5-day countdown cards with unique designs for each day.", priceInPaise: 149900, pricingLogic: "fixed", phase: "before", category: "Pre-Event Excitement" },
+  { id: "svc-parent-brief", name: "Parent Party Brief PDF", description: "A comprehensive guide covering timeline, setup, and day-of coordination.", priceInPaise: 99900, pricingLogic: "fixed", phase: "before", category: "Planning" },
+  
   // DURING THE CELEBRATION
-  { id: "svc-welcome-board", name: "Welcome Board / Standee", description: "A custom-designed welcome board or standee at the venue entrance.", priceInPaise: 249900, tier: "essential", phase: "during", category: "Venue Setup" },
-  { id: "svc-table-elements", name: "Theme Table Elements", description: "Themed centerpieces, table toppers, and coordinating elements.", priceInPaise: 199900, tier: "essential", phase: "during", category: "Venue Setup" },
-  { id: "svc-activity-1", name: "Children Activity (1 Activity)", description: "One themed craft or game activity for children at the party.", priceInPaise: 14900, tier: "essential", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-activity-2", name: "Children Activities (2 Activities)", description: "Two unique themed activities — craft + game for extra engagement.", priceInPaise: 14900, tier: "signature", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-family-activity", name: "Family Activity", description: "A group activity that involves the whole family.", priceInPaise: 19900, tier: "grand", phase: "during", category: "Activities", hasQuantity: true },
-  { id: "svc-welcome-item", name: "Welcome Item for Kids", description: "A themed welcome gift for each child at the entrance.", priceInPaise: 9900, tier: "signature", phase: "during", category: "Gifts", hasQuantity: true },
-  { id: "svc-photo-props", name: "Theme Photo Props", description: "Fun themed photo props for memorable photos.", priceInPaise: 149900, tier: "signature", phase: "during", category: "Venue Setup" },
-  { id: "svc-on-day-coordination", name: "On-Day Coordination (Jaipur)", description: "Full on-site coordination and setup management.", priceInPaise: 999900, tier: "grand", phase: "during", category: "Coordination" },
+  { id: "svc-welcome-board", name: "{Theme} Welcome Board", description: "A custom-designed welcome board or standee at the venue entrance.", priceInPaise: 249900, pricingLogic: "fixed", phase: "during", category: "Venue Setup" },
+  { id: "svc-table-elements", name: "{Theme} Table Elements", description: "Themed centerpieces, table toppers, and coordinating elements.", priceInPaise: 199900, pricingLogic: "fixed", phase: "during", category: "Venue Setup" },
+  { id: "svc-headgear", name: "{Theme} Headgear", description: "Themed headgear or hats for every participating child.", priceInPaise: 14900, pricingLogic: "per-child", phase: "during", category: "Activities & Welcome" },
+  { id: "svc-badge", name: "{Theme} Badge", description: "A themed welcome badge for each child at the entrance.", priceInPaise: 9900, pricingLogic: "per-child", phase: "during", category: "Activities & Welcome" },
+  { id: "svc-bingo", name: "{Theme} Bingo", description: "A fun themed Bingo group activity set.", priceInPaise: 19900, pricingLogic: "per-group", phase: "during", category: "Activities & Welcome" },
+  { id: "svc-puzzle", name: "{Theme} Puzzle", description: "Individual themed puzzle activity kit for kids.", priceInPaise: 14900, pricingLogic: "per-child", phase: "during", category: "Activities & Welcome" },
+  { id: "svc-photo-props", name: "{Theme} Photo Props", description: "Fun themed photo props for memorable photos.", priceInPaise: 149900, pricingLogic: "fixed", phase: "during", category: "Venue Setup" },
+  { id: "svc-on-day-coordination", name: "On-Day Coordination (Jaipur)", description: "Full on-site coordination and setup management.", priceInPaise: 999900, pricingLogic: "fixed", phase: "during", category: "Coordination" },
+
   // AFTER THE CELEBRATION
-  { id: "svc-return-gift", name: "Return Gift Sourcing", description: "Carefully sourced themed return gifts for young guests.", priceInPaise: 14900, tier: "essential", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-thank-you-tags", name: "Thank You Tags", description: "Custom themed thank you tags for return gift bags.", priceInPaise: 4900, tier: "essential", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-gift-bag", name: "Theme Gift Bag", description: "Custom printed or assembled gift bags matching the theme.", priceInPaise: 9900, tier: "signature", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-custom-gift-box", name: "Custom Gift Box", description: "Signature custom-designed gift boxes with name and theme artwork.", priceInPaise: 19900, tier: "grand", phase: "after", category: "Return Gifts", hasQuantity: true },
-  { id: "svc-edited-pictures", name: "Edited Highlight Pictures (3)", description: "3 professionally edited pictures from the celebration.", priceInPaise: 299900, tier: "signature", phase: "after", category: "Memories" },
-  { id: "svc-keepsake-box", name: "Signature Keepsake Box", description: "A beautifully crafted keepsake box with mementos.", priceInPaise: 499900, tier: "grand", phase: "after", category: "Memories" },
-  { id: "svc-gift-registry", name: "Gift Registry Access", description: "Digital gift registry — guests can contribute to specific gifts.", priceInPaise: 199900, tier: "signature", phase: "after", category: "Gifts" },
+  { id: "svc-lunchbox", name: "{Theme} Lunchbox", description: "Carefully sourced themed return gift lunchbox for young guests.", priceInPaise: 14900, pricingLogic: "per-child", phase: "after", category: "Return Gifts" },
+  { id: "svc-stationery-set", name: "{Theme} Stationery Set", description: "Themed stationery return gift set.", priceInPaise: 14900, pricingLogic: "per-child", phase: "after", category: "Return Gifts" },
+  { id: "svc-thank-you-tags", name: "{Theme} Thank You Tags", description: "Custom themed thank you tags for return gift bags.", priceInPaise: 4900, pricingLogic: "per-child", phase: "after", category: "Return Gifts" },
+  { id: "svc-gift-bag", name: "{Theme} Gift Bag", description: "Custom printed or assembled gift bags matching the theme.", priceInPaise: 9900, pricingLogic: "per-child", phase: "after", category: "Return Gifts" },
+  { id: "svc-custom-gift-box", name: "{Theme} Custom Gift Box", description: "Signature custom-designed gift boxes with name and theme artwork.", priceInPaise: 19900, pricingLogic: "per-child", phase: "after", category: "Return Gifts" },
+  { id: "svc-edited-pictures", name: "Edited Highlight Pictures (3)", description: "3 professionally edited pictures from the celebration.", priceInPaise: 299900, pricingLogic: "fixed", phase: "after", category: "Memories" },
+  { id: "svc-keepsake-box", name: "Signature Keepsake Box", description: "A beautifully crafted keepsake box with mementos.", priceInPaise: 499900, pricingLogic: "fixed", phase: "after", category: "Memories" },
+  { id: "svc-special-custom", name: "Special Personalized Item", description: "Any custom item not listed — describe your requirements. Price on Request.", priceInPaise: 0, pricingLogic: "por", phase: "after", category: "Custom", hasPersonalization: true, personalizationFields: [
+    { key: "description", label: "Describe what you need", type: "textarea", required: true, placeholder: "Describe the personalized item you'd like..." },
+  ]},
 ];
 
 const ADDON_CATALOG: AddOnItem[] = [
-  { id: "addon-birthday-tshirt", name: "Theme T-Shirt for Birthday Child", description: "Custom printed theme T-shirt for the birthday boy/girl.", priceInPaise: 59900, hasPersonalization: true, personalizationFields: [
+  { id: "addon-birthday-tshirt", name: "Theme T-Shirt for Birthday Child", description: "Custom printed theme T-shirt for the birthday boy/girl.", priceInPaise: 59900, pricingLogic: "fixed", hasPersonalization: true, personalizationFields: [
     { key: "size", label: "T-Shirt Size", type: "select", options: ["2-3Y", "3-4Y", "4-5Y", "5-6Y", "6-7Y", "7-8Y", "8-10Y"], required: true },
     { key: "name", label: "Name to Print", type: "text", required: true, placeholder: "Child's name" },
   ]},
-  { id: "addon-family-tshirts", name: "Matching Family T-Shirts", description: "Theme-coordinated T-shirts for family members.", priceInPaise: 49900, hasQuantity: true, hasPersonalization: true, personalizationFields: [
+  { id: "addon-family-tshirts", name: "Matching Family T-Shirts", description: "Theme-coordinated T-shirts for family members.", priceInPaise: 49900, pricingLogic: "per-group", hasPersonalization: true, personalizationFields: [
     { key: "sizes", label: "Sizes (comma-separated)", type: "text", required: true, placeholder: "e.g. S, M, L, XL" },
     { key: "names", label: "Names to Print", type: "text", placeholder: "e.g. Mom, Dad, Sister" },
   ]},
-  { id: "addon-disposable-plates", name: "Theme Plates, Glasses & Napkins", description: "Matching themed disposable tableware set.", priceInPaise: 14900, hasQuantity: true },
-  { id: "addon-extra-activity-kit", name: "Additional Activity Kit", description: "Extra themed activity kit — craft or game.", priceInPaise: 14900, hasQuantity: true },
-  { id: "addon-extra-return-gifts", name: "Additional Return Gifts", description: "Extra return gifts beyond the base count.", priceInPaise: 14900, hasQuantity: true },
-  { id: "addon-personalized-tags", name: "Personalized Gift Tags", description: "Custom tags with each guest child's name.", priceInPaise: 4900, hasQuantity: true, hasPersonalization: true, personalizationFields: [
+  { id: "addon-disposable-plates", name: "Theme Plates, Glasses & Napkins", description: "Matching themed disposable tableware set.", priceInPaise: 14900, pricingLogic: "per-child" },
+  { id: "addon-personalized-tags", name: "Personalized Gift Tags", description: "Custom tags with each guest child's name.", priceInPaise: 4900, pricingLogic: "per-child", hasPersonalization: true, personalizationFields: [
     { key: "names", label: "Guest Names (comma-separated)", type: "textarea", placeholder: "Enter each child's name, separated by commas" },
   ]},
-  { id: "addon-video-invite-upgrade", name: "Upgraded Video Invitation", description: "Signature animated video invitation with voiceover and music.", priceInPaise: 249900 },
-  { id: "addon-extra-signage", name: "Additional Signage & Photo Props", description: "Extra themed signage boards, photo props, and standees.", priceInPaise: 199900 },
-  { id: "addon-gift-registry", name: "Gift Registry (Custom Plan)", description: "Enable a digital gift registry for guest contributions.", priceInPaise: 199900 },
-  { id: "addon-personalized-item", name: "Special Personalized Item", description: "Any custom personalized item — describe your requirements.", priceInPaise: 0, hasPersonalization: true, personalizationFields: [
-    { key: "description", label: "Describe what you need", type: "textarea", required: true, placeholder: "Describe the personalized item you'd like..." },
-  ]},
+  { id: "addon-gift-registry", name: "Gift Registry (Custom Plan)", description: "Enable a digital gift registry for guest contributions.", priceInPaise: 199900, pricingLogic: "fixed" },
 ];
 
 const STORAGE_KEY = "vc-custom-plan-draft";
@@ -246,13 +262,14 @@ function StickyPriceSummary({ selectedServices, selectedAddons, guestCount }: { 
     for (const sel of selectedServices) {
       const svc = SERVICE_CATALOG.find((s) => s.id === sel.serviceId);
       if (!svc) continue;
-      const qty = svc.hasQuantity ? Math.max(sel.quantity, guestCount) : sel.quantity;
+      const qty = svc.pricingLogic === "per-child" ? Math.max(sel.quantity, guestCount) : sel.quantity;
       sum += svc.priceInPaise * qty;
     }
     for (const sel of selectedAddons) {
       const addon = ADDON_CATALOG.find((a) => a.id === sel.serviceId);
       if (!addon) continue;
-      sum += addon.priceInPaise * sel.quantity;
+      const qty = addon.pricingLogic === "per-child" ? Math.max(sel.quantity, guestCount) : sel.quantity;
+      sum += addon.priceInPaise * qty;
     }
     return sum;
   }, [selectedServices, selectedAddons, guestCount]);
@@ -295,8 +312,10 @@ function CustomPlanContent() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [buildTab, setBuildTab] = useState<"tier" | "phase">("phase");
   const [expandedPhase, setExpandedPhase] = useState<string | null>("before");
+
+  const selectedThemeName = themeSlug ? themes.find((t) => t.slug === themeSlug)?.title || themeSlug : customTheme || "Custom";
+
 
   // localStorage persistence
   useEffect(() => {
@@ -327,7 +346,7 @@ function CustomPlanContent() {
   const goTo = (s: number) => { setStep(s); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const canContinue = () => {
-    if (step === 0) return !!details.eventType && !!details.childName && !!details.eventDate && !!details.city && details.guestCount >= 1;
+    if (step === 0) return !!details.eventType && !!details.childName && !!details.eventDate && !isDateWithin7Days(details.eventDate) && !!details.city && details.guestCount >= 1;
     if (step === 1) return !!themeSlug || !!customTheme;
     if (step === 2) return selectedServices.length > 0;
     if (step === 3) return true;
@@ -369,12 +388,14 @@ function CustomPlanContent() {
     for (const sel of selectedServices) {
       const svc = SERVICE_CATALOG.find((s) => s.id === sel.serviceId);
       if (!svc) continue;
-      total += svc.priceInPaise * (svc.hasQuantity ? Math.max(sel.quantity, details.guestCount) : sel.quantity);
+      const qty = svc.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+      total += svc.priceInPaise * qty;
     }
     for (const sel of selectedAddons) {
       const addon = ADDON_CATALOG.find((a) => a.id === sel.serviceId);
       if (!addon) continue;
-      total += addon.priceInPaise * sel.quantity;
+      const qty = addon.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+      total += addon.priceInPaise * qty;
     }
     return total;
   }, [selectedServices, selectedAddons, details.guestCount]);
@@ -384,21 +405,20 @@ function CustomPlanContent() {
     setSubmitting(true);
     setSubmitError(null);
 
-    const selectedThemeName = themeSlug ? themes.find((t) => t.slug === themeSlug)?.title || themeSlug : customTheme || "Custom";
-
     const serviceLines = selectedServices.map((sel) => {
       const svc = SERVICE_CATALOG.find((s) => s.id === sel.serviceId);
       if (!svc) return "";
-      const qty = svc.hasQuantity ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+      const qty = svc.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
       const pNotes = sel.personalization ? Object.entries(sel.personalization).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
-      return `- ${svc.name} x ${qty} = ${formatPaise(svc.priceInPaise * qty)}${pNotes ? ` [${pNotes}]` : ""}`;
+      return `- ${svc.name} x ${qty} = ${svc.priceInPaise > 0 ? formatPaise(svc.priceInPaise * qty) : "Price on Request"}${pNotes ? ` [${pNotes}]` : ""}`;
     }).filter(Boolean).join("\n");
 
     const addonLines = selectedAddons.map((sel) => {
       const addon = ADDON_CATALOG.find((a) => a.id === sel.serviceId);
       if (!addon) return "";
+      const qty = addon.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
       const pNotes = sel.personalization ? Object.entries(sel.personalization).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
-      return `- ${addon.name} x ${sel.quantity} = ${addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise * sel.quantity) : "Price on Request"}${pNotes ? ` [${pNotes}]` : ""}`;
+      return `- ${addon.name} x ${qty} = ${addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise * qty) : "Price on Request"}${pNotes ? ` [${pNotes}]` : ""}`;
     }).filter(Boolean).join("\n");
 
     const customRequirements = [
@@ -496,12 +516,17 @@ function CustomPlanContent() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-charcoal mb-2">Child&apos;s Age</label>
-                    <input type="text" value={details.childAge} onChange={(e) => setDetails((d) => ({ ...d, childAge: e.target.value }))} placeholder="e.g. 5 years" className={inputClass} />
+                    <input type="text" value={details.childAge} onChange={(e) => setDetails((d) => ({ ...d, childAge: e.target.value.replace(/\D/g, '') }))} placeholder="e.g. 5" className={inputClass} />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-charcoal mb-2">Event Date *</label>
-                  <input type="date" value={details.eventDate} onChange={(e) => setDetails((d) => ({ ...d, eventDate: e.target.value }))} className={inputClass} min={new Date().toISOString().split("T")[0]} />
+                  <input type="date" value={details.eventDate} onChange={(e) => setDetails((d) => ({ ...d, eventDate: e.target.value }))} className={inputClass} min={getTodayDateString()} />
+                  {isDateWithin7Days(details.eventDate) && (
+                    <p className="text-amber-700 text-xs font-medium mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                      Need to complete purchase order at least 7 days before celebration date.
+                    </p>
+                  )}
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
@@ -525,7 +550,16 @@ function CustomPlanContent() {
                     <label className="block text-sm font-semibold text-charcoal mb-2">Number of Children / Guests *</label>
                     <div className="flex items-center gap-3">
                       <button type="button" onClick={() => setDetails((d) => ({ ...d, guestCount: Math.max(1, d.guestCount - 1) }))} className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-cream transition-colors"><Minus size={16} /></button>
-                      <span className="text-lg font-bold text-charcoal min-w-[3ch] text-center">{details.guestCount}</span>
+                      <input 
+                        type="number" 
+                        min="1"
+                        value={details.guestCount} 
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setDetails((d) => ({ ...d, guestCount: isNaN(val) ? 1 : Math.max(1, val) }));
+                        }} 
+                        className="w-16 text-lg font-bold text-charcoal text-center bg-transparent border-b-2 border-transparent focus:border-mocha focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                      />
                       <button type="button" onClick={() => setDetails((d) => ({ ...d, guestCount: d.guestCount + 1 }))} className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-cream transition-colors"><Plus size={16} /></button>
                     </div>
                   </div>
@@ -593,109 +627,69 @@ function CustomPlanContent() {
           {step === 2 && (
             <section>
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">Build your celebration</h1>
-              <p className="text-sm text-text-muted mb-6">Mix and match from any package tier. Select what fits your celebration best.</p>
-              <div className="flex gap-2 mb-6">
-                <button type="button" onClick={() => setBuildTab("phase")} className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${buildTab === "phase" ? "bg-mocha text-white" : "bg-white border border-border text-charcoal hover:border-mocha/40"}`}>By Journey</button>
-                <button type="button" onClick={() => setBuildTab("tier")} className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${buildTab === "tier" ? "bg-mocha text-white" : "bg-white border border-border text-charcoal hover:border-mocha/40"}`}>By Package Tier</button>
-              </div>
+              <p className="text-sm text-text-muted mb-6">Choose the details you love and build a celebration that fits your theme, guests and budget.</p>
 
-              {buildTab === "phase" ? (
-                <div className="space-y-4">
-                  {(["before", "during", "after"] as const).map((phase) => {
-                    const phaseItems = SERVICE_CATALOG.filter((s) => s.phase === phase);
-                    const labels = { before: "Before the Celebration", during: "During the Celebration", after: "After the Celebration" };
-                    const isOpen = expandedPhase === phase;
-                    return (
-                      <div key={phase} className="bg-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
-                        <button type="button" onClick={() => setExpandedPhase(isOpen ? null : phase)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-cream/50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${phase === "before" ? "bg-blue-50 text-blue-600" : phase === "during" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>
-                              {phase === "before" ? <Calendar size={16} /> : phase === "during" ? <Sparkles size={16} /> : <Gift size={16} />}
-                            </div>
-                            <span className="font-display text-lg font-semibold text-charcoal">{labels[phase]}</span>
-                            <span className="text-xs bg-cream px-2 py-0.5 rounded-full text-text-muted">{phaseItems.length} items</span>
+              <div className="space-y-4">
+                {(["before", "during", "after"] as const).map((phase) => {
+                  const phaseItems = SERVICE_CATALOG.filter((s) => s.phase === phase);
+                  const labels = { before: "Before the Celebration", during: "During the Celebration", after: "After the Celebration" };
+                  const isOpen = expandedPhase === phase;
+                  return (
+                    <div key={phase} className="bg-white rounded-2xl border border-border-light shadow-sm overflow-hidden">
+                      <button type="button" onClick={() => setExpandedPhase(isOpen ? null : phase)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-cream/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${phase === "before" ? "bg-blue-50 text-blue-600" : phase === "during" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>
+                            {phase === "before" ? <Calendar size={16} /> : phase === "during" ? <Sparkles size={16} /> : <Gift size={16} />}
                           </div>
-                          {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                        </button>
-                        {isOpen && (
-                          <div className="px-6 pb-6 grid gap-3">
-                            {phaseItems.map((svc) => {
-                              const isSelected = selectedServices.some((s) => s.serviceId === svc.id);
-                              const sel = selectedServices.find((s) => s.serviceId === svc.id);
-                              return (
-                                <div key={svc.id} className={`rounded-xl border p-4 transition-all ${isSelected ? "border-mocha bg-mocha/5" : "border-border-light hover:border-mocha/30"}`}>
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="text-sm font-semibold text-charcoal">{svc.name}</h4>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${svc.tier === "essential" ? "bg-emerald-50 text-emerald-700" : svc.tier === "signature" ? "bg-amber-50 text-amber-700" : "bg-purple-50 text-purple-700"}`}>{svc.tier}</span>
-                                      </div>
-                                      <p className="text-xs text-text-muted">{svc.description}</p>
-                                      <p className="text-sm font-bold text-mocha mt-1">{formatPaise(svc.priceInPaise)}{svc.hasQuantity && <span className="font-normal text-text-muted"> / unit</span>}</p>
-                                    </div>
-                                    <button type="button" onClick={() => toggleService(svc.id)} className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${isSelected ? "bg-mocha text-white" : "bg-cream border border-border hover:border-mocha"}`}>
-                                      {isSelected ? <Check size={18} /> : <Plus size={18} />}
-                                    </button>
-                                  </div>
-                                  {isSelected && svc.hasQuantity && (
-                                    <div className="mt-3 flex items-center gap-3 pt-3 border-t border-border-light/50">
-                                      <span className="text-xs text-text-muted">Qty:</span>
-                                      <button type="button" onClick={() => updateServiceQty(svc.id, -1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Minus size={12} /></button>
-                                      <span className="text-sm font-bold text-charcoal min-w-[2ch] text-center">{Math.max(sel?.quantity ?? 1, details.guestCount)}</span>
-                                      <button type="button" onClick={() => updateServiceQty(svc.id, 1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Plus size={12} /></button>
-                                      {(sel?.quantity ?? 1) < details.guestCount && <span className="text-[10px] text-amber-700">Min {details.guestCount} (matching guest count)</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {(["essential", "signature", "grand"] as const).map((tier) => {
-                    const tierItems = SERVICE_CATALOG.filter((s) => s.tier === tier);
-                    const labels = { essential: "Essential Package Items", signature: "Signature Package Items", grand: "Grand Package Items" };
-                    return (
-                      <div key={tier}>
-                        <h3 className={`text-base font-display font-semibold mb-3 ${tier === "essential" ? "text-emerald-700" : tier === "signature" ? "text-amber-700" : "text-purple-700"}`}>{labels[tier]}</h3>
-                        <div className="grid gap-3">
-                          {tierItems.map((svc) => {
+                          <span className="font-display text-lg font-semibold text-charcoal">{labels[phase]}</span>
+                          <span className="text-xs bg-cream px-2 py-0.5 rounded-full text-text-muted">{phaseItems.length} items</span>
+                        </div>
+                        {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                      </button>
+                      {isOpen && (
+                        <div className="px-6 pb-6 grid gap-3">
+                          {phaseItems.map((svc) => {
                             const isSelected = selectedServices.some((s) => s.serviceId === svc.id);
                             const sel = selectedServices.find((s) => s.serviceId === svc.id);
+                            
+                            const displayName = svc.name.replace("{Theme}", selectedThemeName || "Custom");
+                            const showQty = svc.pricingLogic === "per-child" || svc.pricingLogic === "per-group";
+                            const minQty = svc.pricingLogic === "per-child" ? details.guestCount : 1;
+                            const currentQty = Math.max(sel?.quantity ?? 1, minQty);
+
                             return (
-                              <div key={svc.id} className={`bg-white rounded-xl border p-4 transition-all ${isSelected ? "border-mocha bg-mocha/5" : "border-border-light hover:border-mocha/30"}`}>
+                              <div key={svc.id} className={`rounded-xl border p-4 transition-all ${isSelected ? "border-mocha bg-mocha/5" : "border-border-light hover:border-mocha/30"}`}>
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm font-semibold text-charcoal">{svc.name}</h4>
+                                    <h4 className="text-sm font-semibold text-charcoal">{displayName}</h4>
                                     <p className="text-xs text-text-muted mt-0.5">{svc.description}</p>
-                                    <p className="text-sm font-bold text-mocha mt-1">{formatPaise(svc.priceInPaise)}{svc.hasQuantity && <span className="font-normal text-text-muted"> / unit</span>}</p>
+                                    <p className="text-sm font-bold text-mocha mt-1">
+                                      {svc.priceInPaise > 0 ? formatPaise(svc.priceInPaise) : "Price on Request"}
+                                      {showQty && svc.priceInPaise > 0 && <span className="font-normal text-text-muted"> / unit</span>}
+                                    </p>
                                   </div>
                                   <button type="button" onClick={() => toggleService(svc.id)} className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${isSelected ? "bg-mocha text-white" : "bg-cream border border-border hover:border-mocha"}`}>
                                     {isSelected ? <Check size={18} /> : <Plus size={18} />}
                                   </button>
                                 </div>
-                                {isSelected && svc.hasQuantity && (
+                                {isSelected && showQty && (
                                   <div className="mt-3 flex items-center gap-3 pt-3 border-t border-border-light/50">
                                     <span className="text-xs text-text-muted">Qty:</span>
-                                    <button type="button" onClick={() => updateServiceQty(svc.id, -1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Minus size={12} /></button>
-                                    <span className="text-sm font-bold text-charcoal min-w-[2ch] text-center">{Math.max(sel?.quantity ?? 1, details.guestCount)}</span>
+                                    <button type="button" onClick={() => { if (currentQty > minQty) updateServiceQty(svc.id, -1); }} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream disabled:opacity-50" disabled={currentQty <= minQty}><Minus size={12} /></button>
+                                    <span className="text-sm font-bold text-charcoal min-w-[2ch] text-center">{currentQty}</span>
                                     <button type="button" onClick={() => updateServiceQty(svc.id, 1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Plus size={12} /></button>
+                                    {svc.pricingLogic === "per-child" && <span className="text-[10px] text-amber-700">Min {details.guestCount} (matching guest count)</span>}
                                   </div>
                                 )}
                               </div>
                             );
                           })}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
 
@@ -708,24 +702,30 @@ function CustomPlanContent() {
                 {ADDON_CATALOG.map((addon) => {
                   const isSelected = selectedAddons.some((a) => a.serviceId === addon.id);
                   const sel = selectedAddons.find((a) => a.serviceId === addon.id);
+                  
+                  const showQty = addon.pricingLogic === "per-child" || addon.pricingLogic === "per-group";
+                  const minQty = addon.pricingLogic === "per-child" ? details.guestCount : 1;
+                  const currentQty = Math.max(sel?.quantity ?? 1, minQty);
+
                   return (
                     <div key={addon.id} className={`bg-white rounded-xl border p-4 transition-all ${isSelected ? "border-mocha bg-mocha/5" : "border-border-light hover:border-mocha/30"}`}>
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-semibold text-charcoal">{addon.name}</h4>
                           <p className="text-xs text-text-muted mt-0.5">{addon.description}</p>
-                          <p className="text-sm font-bold text-mocha mt-1">{addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise) : "Price on Request"}{addon.hasQuantity && addon.priceInPaise > 0 && <span className="font-normal text-text-muted"> / unit</span>}</p>
+                          <p className="text-sm font-bold text-mocha mt-1">{addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise) : "Price on Request"}{showQty && addon.priceInPaise > 0 && <span className="font-normal text-text-muted"> / unit</span>}</p>
                         </div>
                         <button type="button" onClick={() => toggleAddon(addon.id)} className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${isSelected ? "bg-mocha text-white" : "bg-cream border border-border hover:border-mocha"}`}>
                           {isSelected ? <Check size={18} /> : <Plus size={18} />}
                         </button>
                       </div>
-                      {isSelected && addon.hasQuantity && (
+                      {isSelected && showQty && (
                         <div className="mt-3 flex items-center gap-3 pt-3 border-t border-border-light/50">
                           <span className="text-xs text-text-muted">Qty:</span>
-                          <button type="button" onClick={() => updateAddonQty(addon.id, -1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Minus size={12} /></button>
-                          <span className="text-sm font-bold text-charcoal min-w-[2ch] text-center">{sel?.quantity ?? 1}</span>
+                          <button type="button" onClick={() => { if (currentQty > minQty) updateAddonQty(addon.id, -1); }} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream disabled:opacity-50" disabled={currentQty <= minQty}><Minus size={12} /></button>
+                          <span className="text-sm font-bold text-charcoal min-w-[2ch] text-center">{currentQty}</span>
                           <button type="button" onClick={() => updateAddonQty(addon.id, 1)} className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-cream"><Plus size={12} /></button>
+                          {addon.pricingLogic === "per-child" && <span className="text-[10px] text-amber-700">Min {details.guestCount} (matching guest count)</span>}
                         </div>
                       )}
                     </div>
@@ -830,11 +830,13 @@ function CustomPlanContent() {
                       {selectedServices.map((sel) => {
                         const svc = SERVICE_CATALOG.find((s) => s.id === sel.serviceId);
                         if (!svc) return null;
-                        const qty = svc.hasQuantity ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+                        const qty = svc.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+                        const showQty = svc.pricingLogic === "per-child" || svc.pricingLogic === "per-group";
+                        const displayName = svc.name.replace("{Theme}", selectedThemeName);
                         return (
                           <div key={sel.serviceId} className="flex items-center justify-between text-sm py-2 border-b border-border-light/50 last:border-0">
-                            <div><span className="font-medium text-charcoal">{svc.name}</span>{svc.hasQuantity && <span className="text-text-muted ml-1">x {qty}</span>}</div>
-                            <span className="font-semibold text-mocha">{formatPaise(svc.priceInPaise * qty)}</span>
+                            <div><span className="font-medium text-charcoal">{displayName}</span>{showQty && <span className="text-text-muted ml-1">x {qty}</span>}</div>
+                            <span className="font-semibold text-mocha">{svc.priceInPaise > 0 ? formatPaise(svc.priceInPaise * qty) : "Price on Request"}</span>
                           </div>
                         );
                       })}
@@ -852,10 +854,12 @@ function CustomPlanContent() {
                       {selectedAddons.map((sel) => {
                         const addon = ADDON_CATALOG.find((a) => a.id === sel.serviceId);
                         if (!addon) return null;
+                        const qty = addon.pricingLogic === "per-child" ? Math.max(sel.quantity, details.guestCount) : sel.quantity;
+                        const showQty = addon.pricingLogic === "per-child" || addon.pricingLogic === "per-group";
                         return (
                           <div key={sel.serviceId} className="flex items-center justify-between text-sm py-2 border-b border-border-light/50 last:border-0">
-                            <div><span className="font-medium text-charcoal">{addon.name}</span>{addon.hasQuantity && <span className="text-text-muted ml-1">x {sel.quantity}</span>}</div>
-                            <span className="font-semibold text-mocha">{addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise * sel.quantity) : "Price on Request"}</span>
+                            <div><span className="font-medium text-charcoal">{addon.name}</span>{showQty && <span className="text-text-muted ml-1">x {qty}</span>}</div>
+                            <span className="font-semibold text-mocha">{addon.priceInPaise > 0 ? formatPaise(addon.priceInPaise * qty) : "Price on Request"}</span>
                           </div>
                         );
                       })}
