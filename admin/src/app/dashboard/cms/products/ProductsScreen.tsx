@@ -149,6 +149,7 @@ export function ProductsScreen() {
       themeIds: row.themes.map((t) => t.id),
       imageMediaIds: sortedImages.map((img) => img.media.id),
       personalizationFields: row.personalizationFields.map(({ id: _id, ...rest }) => rest),
+      lowStockThreshold: row.stock?.lowStockThreshold ?? 10,
     });
     setFormError(null);
     setDirty(false);
@@ -187,7 +188,7 @@ export function ProductsScreen() {
     setFormError(null);
     try {
       if (editing) {
-        const { initialQuantity: _iq, lowStockThreshold: _lst, ...updateBody } = form;
+        const { initialQuantity: _iq, ...updateBody } = form;
         await productsRepo.update(editing.id, updateBody);
         toast({ tone: "success", title: "Product updated" });
       } else {
@@ -384,11 +385,13 @@ export function ProductsScreen() {
             <FormField label="Initial stock quantity" htmlFor="product-initial-qty">
               <NumberInput id="product-initial-qty" value={form.initialQuantity ?? 0} onChange={(n) => patchForm({ initialQuantity: n })} min={0} />
             </FormField>
-            <FormField label="Low stock threshold" htmlFor="product-low-stock" hint="Flags as Low Stock at or below this quantity.">
-              <NumberInput id="product-low-stock" value={form.lowStockThreshold ?? 10} onChange={(n) => patchForm({ lowStockThreshold: n })} min={0} />
-            </FormField>
           </div>
         )}
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Low stock threshold" htmlFor="product-low-stock" hint="Flags as Low Stock at or below this quantity.">
+            <NumberInput id="product-low-stock" value={form.lowStockThreshold ?? 10} onChange={(n) => patchForm({ lowStockThreshold: n })} min={0} />
+          </FormField>
+        </div>
 
         <FormField label="Categories" htmlFor="product-categories" hint="Used for shop filtering and navigation.">
           <MultiSelectInput id="product-categories" value={form.categoryIds ?? []} onChange={(v) => patchForm({ categoryIds: v })} options={categoryOptions} placeholder="Select categories…" />
@@ -409,7 +412,7 @@ export function ProductsScreen() {
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <p className="text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization</p>
-              <p className="text-xs text-(--color-text-muted)">Enable paid customization. Customers opt in at checkout; our team collects details after booking.</p>
+              <p className="text-xs text-(--color-text-muted)">Enable paid customization and define fields customers fill before adding to cart.</p>
             </div>
             <ToggleSwitch
               checked={form.personalizationEnabled}
@@ -418,7 +421,6 @@ export function ProductsScreen() {
             />
           </div>
           {form.personalizationEnabled && (
-            <>
             <FormField label="Personalization cost" htmlFor="product-personalization-cost" hint="Charged per quantity when the customer chooses personalization.">
               <PriceInput
                 id="product-personalization-cost"
@@ -426,7 +428,6 @@ export function ProductsScreen() {
                 onChange={(paise) => patchForm({ personalizationCostInPaise: paise })}
               />
             </FormField>
-            </>
           )}
           <div className="flex flex-col gap-3">
             {(form.personalizationFields ?? []).map((f, i) => (
@@ -498,7 +499,7 @@ export function ProductsScreen() {
 
 // ─── Stock adjustment drawer ────────────────────────────────────────────────
 
-function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: Product | null; onClose: () => void; onAdjusted: () => void }) {
+export function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: Product | null; onClose: () => void; onAdjusted: () => void }) {
   const [delta, setDelta] = useState(0);
   const [reason, setReason] = useState<InventoryLedgerReasonType>("RESTOCK");
   const [note, setNote] = useState("");
@@ -530,8 +531,16 @@ function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: Product 
     setSubmitting(true);
     setError(null);
     try {
-      await adjustProductStock(product.id, { delta, reason, note: note.trim() || undefined });
-      toast({ tone: "success", title: "Stock adjusted" });
+      const result = await adjustProductStock(product.id, { delta, reason, note: note.trim() || undefined });
+      
+      if (result.statusFlag === "LOW_STOCK" || result.statusFlag === "OUT_OF_STOCK") {
+        const label = result.statusFlag === "OUT_OF_STOCK" ? "out of stock" : "low on stock";
+        toast({ tone: "warning", title: "Stock adjusted", description: `Warning: This product is now ${label} (${result.quantityAvailable} remaining).` });
+      } else {
+        toast({ tone: "success", title: "Stock adjusted" });
+      }
+
+      window.dispatchEvent(new Event("inventory-updated"));
       onAdjusted();
       onClose();
     } catch (err) {

@@ -22,7 +22,7 @@ export default async function EventsPage() {
   return (
     <>
       <Navbar />
-      <main className="pt-28 md:pt-36 pb-20 bg-surface min-h-screen">
+      <main className="pt-28 md:pt-36 pb-20 bg-cream min-h-screen">
         <div className="max-w-6xl mx-auto px-5 md:px-10">
           <ScrollReveal>
             <div className="text-center mb-16 md:mb-24">
@@ -38,77 +38,59 @@ export default async function EventsPage() {
             </div>
           </ScrollReveal>
 
-          <div className="grid grid-cols-1 gap-16 md:gap-32">
-            {events.map((event, i) => {
-              const isFirst = i === 0;
-              const isEven = i % 2 === 0;
-              
-              return (
-                <ScrollReveal key={event.id} delay={100}>
-                  <Link 
-                    href={`/events/${event.slug}`} 
-                    className={`group block relative w-full rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-card transition-all duration-700 hover:shadow-hover hover:-translate-y-2 bg-white ${isFirst ? '' : ''}`}
-                  >
-                    <div className={`flex flex-col ${isFirst ? 'md:flex-col' : (isEven ? 'md:flex-row' : 'md:flex-row-reverse')} h-full`}>
-                      
-                      {/* Image Section */}
-                      <div className={`relative w-full ${isFirst ? 'md:aspect-[21/9] aspect-video' : 'md:w-3/5 aspect-video md:aspect-auto md:min-h-[500px]'} overflow-hidden`}>
-                        <Image 
-                          src={event.coverImage} 
-                          alt={event.title} 
-                          fill 
-                          className="object-cover transition-transform duration-1000 group-hover:scale-105" 
-                          sizes={isFirst ? "100vw" : "(max-width: 768px) 100vw, 60vw"} 
-                          priority={i < 2} 
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/90 via-charcoal/40 to-transparent opacity-80 group-hover:opacity-60 transition-opacity duration-700" />
-                      </div>
-
-                      {/* Content Section */}
-                      <div className={`w-full ${isFirst ? 'md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-charcoal md:via-charcoal/90 md:to-transparent md:pt-32' : 'md:w-2/5'} p-8 md:p-12 lg:p-16 flex flex-col justify-center relative bg-white md:bg-transparent overflow-hidden`}>
-                        {/* Decorative Background Element (only on non-first) */}
-                        {!isFirst && (
-                          <div className={`absolute ${isEven ? '-right-20' : '-left-20'} -bottom-20 w-64 h-64 bg-cream rounded-full blur-[80px] opacity-50 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`} />
-                        )}
-                        
-                        <div className="relative z-10">
-                          <h2 
-                            className={`font-display font-bold mb-4 leading-[1.1] transition-colors duration-500 ${isFirst ? 'text-3xl md:text-5xl lg:text-6xl group-hover:text-mocha-light' : 'text-3xl md:text-4xl lg:text-5xl text-charcoal group-hover:text-mocha'}`}
-                            style={isFirst ? { color: '#F5F3E6' } : undefined}
-                          >
-                            {event.title}
-                          </h2>
-                          
-                          <div className="flex flex-wrap gap-4 mb-6">
-                            {event.date && (
-                              <div className={`flex items-center gap-2 font-medium text-sm ${isFirst ? 'text-cream/90' : 'text-text-muted'}`}>
-                                <Calendar size={16} className={isFirst ? "text-mocha-light" : "text-mocha"} />
-                                <span>{event.date}</span>
-                              </div>
-                            )}
-                            {event.location && (
-                              <div className={`flex items-center gap-2 font-medium text-sm ${isFirst ? 'text-cream/90' : 'text-text-muted'}`}>
-                                <MapPin size={16} className={isFirst ? "text-mocha-light" : "text-mocha"} />
-                                <span>{event.location}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div 
-                            className={`prose prose-p:leading-relaxed prose-p:text-base mb-8 line-clamp-3 ${isFirst ? 'prose-invert text-cream/90 prose-p:text-cream/90 md:prose-p:text-lg max-w-3xl' : 'prose-p:text-text-muted'}`}
-                            dangerouslySetInnerHTML={{ __html: event.shortDescription }}
-                          />
-
-                          <div className={`inline-flex items-center gap-2 font-bold uppercase tracking-wider text-sm group-hover:gap-4 transition-all ${isFirst ? 'text-charcoal bg-cream hover:bg-white px-6 py-3 rounded-full' : 'text-mocha'}`}>
-                            Explore Event <ArrowRight size={16} />
-                          </div>
-                        </div>
-                      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
+            {events.map((event, i) => (
+              <ScrollReveal key={event.id} delay={(i % 6) * 100}>
+                <Link 
+                  href={`/events/${event.slug}`} 
+                  className="group block relative w-full h-full bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-border-light/40 flex flex-col"
+                >
+                  {/* Image Section */}
+                  <div className="relative w-full aspect-[4/3] overflow-hidden bg-cream-dark">
+                    <Image 
+                      src={event.coverImage} 
+                      alt={event.title} 
+                      fill 
+                      className="object-cover transition-transform duration-700 group-hover:scale-105" 
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" 
+                      priority={i < 4} 
+                    />
+                    <div className="absolute inset-0 bg-mocha/20 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 flex items-center justify-center pointer-events-none">
+                      <span className="bg-white/95 text-mocha text-xs font-bold px-5 py-2.5 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 uppercase tracking-widest">
+                        View Event
+                      </span>
                     </div>
-                  </Link>
-                </ScrollReveal>
-              );
-            })}
+                  </div>
+
+                  {/* Content Section */}
+                  <div className="p-6 md:p-8 flex-1 flex flex-col relative z-20 bg-white">
+                    <h2 className="font-display font-bold text-2xl lg:text-3xl text-charcoal group-hover:text-mocha transition-colors mb-3 leading-snug line-clamp-2">
+                      {event.title}
+                    </h2>
+                    
+                    <div className="flex flex-wrap items-center gap-4 mb-4">
+                      {event.date && (
+                        <div className="flex items-center gap-1.5 font-medium text-xs text-text-muted">
+                          <Calendar size={14} className="text-mocha" />
+                          <span>{event.date}</span>
+                        </div>
+                      )}
+                      {event.location && (
+                        <div className="flex items-center gap-1.5 font-medium text-xs text-text-muted">
+                          <MapPin size={14} className="text-mocha" />
+                          <span>{event.location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div 
+                      className="prose prose-sm prose-p:leading-relaxed prose-p:text-text-muted mb-6 line-clamp-3"
+                      dangerouslySetInnerHTML={{ __html: event.shortDescription }}
+                    />
+                  </div>
+                </Link>
+              </ScrollReveal>
+            ))}
           </div>
         </div>
       </main>

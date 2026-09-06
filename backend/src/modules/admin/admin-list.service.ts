@@ -143,11 +143,11 @@ export async function adminGetTheme(id: string) {
     galleryCount: t._count.galleryImages,
     // Gallery display images managed via the gallery-images endpoint
     galleryImageAssets: t.sampleAssets
-      .filter((s) => s.title === "gallery-image")
+      .slice(0, 4)
       .map((s) => ({ id: s.id, media: toMediaRef(s.media), displayOrder: s.displayOrder })),
     // Other sample assets (digital invite, video, etc.)
     sampleAssets: t.sampleAssets
-      .filter((s) => s.title !== "gallery-image")
+      .slice(4)
       .map((s) => ({
         id: s.id,
         themeId: s.themeId,

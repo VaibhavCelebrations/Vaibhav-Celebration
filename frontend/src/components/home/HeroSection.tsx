@@ -33,7 +33,7 @@ export function HeroSection({ content }: HeroSectionProps) {
   };
   const secondaryCta = {
     label: asText(content?.secondaryCta?.label, "Build Your Celebration"),
-    href: asText(content?.secondaryCta?.href, "/build-package"),
+    href: "/packages",
   };
 
   const accentIndex = headline.includes(headlineAccent) ? headline.indexOf(headlineAccent) : -1;

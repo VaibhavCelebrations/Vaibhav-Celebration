@@ -227,31 +227,36 @@ export function ThemesScreen() {
     setDrawerOpen(true);
   }
 
-  function openEdit(row: Theme) {
-    setEditing(row);
-    setForm({
-      title: row.title,
-      slug: row.slug,
-      shortDescription: row.shortDescription,
-      storyDescription: row.storyDescription,
-      audienceNote: row.audienceNote,
-      isActive: row.isActive,
-      displayOrder: row.displayOrder,
-      seoTitle: row.seoTitle,
-      seoDescription: row.seoDescription,
-      heroImageId: row.heroImage?.id ?? null,
-      ogImageId: row.ogImage?.id ?? null,
-    });
-    setHeroImage(row.heroImage ?? null);
-    // Populate existing gallery images from sampleAssets (galleryImageAssets)
-    const existing = (row.galleryImageAssets ?? [])
-      .slice(0, MAX_GALLERY - 1)
-      .map((a) => a.media)
-      .filter((m): m is MediaRef => m !== null);
-    setGalleryImages(existing);
-    setFormError(null);
-    setDirty(false);
-    setDrawerOpen(true);
+  async function openEdit(row: Theme) {
+    try {
+      const full = await themesRepo.get(row.id);
+      setEditing(full);
+      setForm({
+        title: full.title,
+        slug: full.slug,
+        shortDescription: full.shortDescription,
+        storyDescription: full.storyDescription,
+        audienceNote: full.audienceNote,
+        isActive: full.isActive,
+        displayOrder: full.displayOrder,
+        seoTitle: full.seoTitle,
+        seoDescription: full.seoDescription,
+        heroImageId: full.heroImage?.id ?? null,
+        ogImageId: full.ogImage?.id ?? null,
+      });
+      setHeroImage(full.heroImage ?? null);
+      // Populate existing gallery images from sampleAssets (galleryImageAssets)
+      const existing = (full.galleryImageAssets ?? [])
+        .slice(0, MAX_GALLERY - 1)
+        .map((a) => a.media)
+        .filter((m): m is MediaRef => m !== null);
+      setGalleryImages(existing);
+      setFormError(null);
+      setDirty(false);
+      setDrawerOpen(true);
+    } catch (err) {
+      toast({ tone: "error", title: "Failed to load theme details" });
+    }
   }
 
   function patchForm(patch: Partial<ThemeInput>) {
@@ -278,7 +283,7 @@ export function ThemesScreen() {
       const payload: ThemeInput = {
         ...form,
         heroImageId: heroImage?.id ?? null,
-        galleryImageIds: galleryImages.map((img) => img.id),
+        galleryImageIds: galleryImages.filter((img) => img != null).map((img) => img.id),
       };
       if (editing) {
         await themesRepo.update(editing.id, payload);

@@ -13,6 +13,7 @@ import {
   restoreItemsBulk,
   hardDeleteItemsBulk,
   getRecycleBinCount,
+  getMediaAssetsUsage,
   RECYCLE_BIN_ENTITY_TYPES,
   type RecycleBinEntityType,
 } from "./recycle-bin.service";
@@ -58,6 +59,26 @@ recycleBinRouter.get("/count", async (_req, res, next) => {
     return next(err);
   }
 });
+
+// ── GET /admin/recycle-bin/media-usage — get usage counts for media assets ───
+recycleBinRouter.get(
+  "/media-usage",
+  validate(
+    z.object({
+      ids: z.string().min(1),
+    }),
+    "query",
+  ),
+  async (req, res, next) => {
+    try {
+      const ids = (req.query.ids as string).split(",").map((id) => id.trim()).filter(Boolean);
+      const result = await getMediaAssetsUsage(ids);
+      return ok(res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 // ── POST /admin/recycle-bin/:type/:id/restore ────────────────────────────────
 recycleBinRouter.post(

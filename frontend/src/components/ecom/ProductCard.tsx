@@ -10,7 +10,6 @@ import { useDeliverySettings } from "@/lib/delivery-settings";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
-import { QuickViewModal } from "./QuickViewModal";
 
 interface ProductCardProps {
   product: Product;
@@ -21,7 +20,6 @@ interface ProductCardProps {
 export function ProductCard({ product, compact = false }: ProductCardProps) {
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const [quickViewOpen, setQuickViewOpen] = useState(false);
   const router = useRouter();
   const delivery = useDeliverySettings();
   const stockStatus = getStockStatus(product);
@@ -84,7 +82,6 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
             </div>
           )}
 
-          {/* Stock Badge Overlay */}
           {stockStatus === "out_of_stock" && (
             <div className="absolute inset-0 bg-charcoal/40 flex items-center justify-center z-20">
               <span className="bg-charcoal/90 text-white text-xs font-bold px-4 py-2 rounded-full uppercase tracking-wider">
@@ -92,13 +89,6 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
               </span>
             </div>
           )}
-
-          {/* Quick View Glass Overlay (Hover) */}
-          <div className="absolute inset-0 bg-mocha/20 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 flex items-center justify-center pointer-events-none">
-            <span className="bg-white/95 text-mocha text-xs font-bold px-5 py-2.5 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 uppercase tracking-widest pointer-events-auto">
-              Quick View
-            </span>
-          </div>
         </div>
 
         {/* Info */}
@@ -168,11 +158,6 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
         </button>
       )}
 
-      <QuickViewModal
-        product={product}
-        isOpen={quickViewOpen}
-        onClose={() => setQuickViewOpen(false)}
-      />
     </div>
   );
 }

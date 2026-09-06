@@ -237,35 +237,60 @@ function GiftsPageContent() {
           <ScrollReveal>
             <SectionHeader
               eyebrow="Shop"
-              title="Return Gifts & Party Essentials"
+              title="The Celebration Shop"
               description="Thoughtfully curated gifts, activity kits, and personalized keepsakes for your little one's celebration."
             />
           </ScrollReveal>
 
           {/* Collections Banner */}
-          {!isLoading && collections.length > 0 && (
+          {!isLoading && (collections.length > 0 || categories.length > 0) && (
             <div className="mt-8 mb-4">
-              <h3 className="font-serif text-2xl text-charcoal mb-4">Festive Collections</h3>
-              <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+              <h3 className="font-serif text-2xl text-charcoal mb-4">Shop by Category</h3>
+              <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar">
+                
+                {/* Visual Category Filters */}
+                {categories.map(cat => (
+                  <button
+                    key={`cat-${cat.id}`}
+                    onClick={() => {
+                      setFilter(prev => ({ ...prev, category: prev.category === cat.slug ? null : cat.slug }));
+                      const shopEl = document.getElementById("shop-grid");
+                      if (shopEl) shopEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className={`group relative flex-none w-64 h-36 rounded-2xl overflow-hidden snap-start shrink-0 cursor-pointer border ${filter.category === cat.slug ? "border-mocha border-2" : "border-border-light"}`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-cream-dark to-mocha/10" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-5 bg-white/40 backdrop-blur-[2px] group-hover:bg-white/20 transition-all">
+                      <h4 className="text-charcoal font-display font-bold text-lg text-center drop-shadow-sm">{cat.name}</h4>
+                      {filter.category === cat.slug && (
+                        <span className="mt-2 text-xs font-bold uppercase tracking-wider text-mocha bg-white px-3 py-1 rounded-full shadow-sm">Selected</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+
+                {/* Collections */}
                 {collections.filter(c => c.isActive).map(c => (
                   <Link 
-                    key={c.id} 
+                    key={`col-${c.id}`} 
                     href={`/gifts/collection/${c.slug}`}
-                    className="group relative flex-none w-72 h-40 rounded-2xl overflow-hidden snap-start shrink-0"
+                    className="group relative flex-none w-64 h-36 rounded-2xl overflow-hidden snap-start shrink-0 bg-white border border-border-light shadow-sm hover:shadow-md transition-shadow"
                   >
                     {c.heroImage?.url ? (
-                      <Image 
-                        src={c.heroImage.url} 
-                        alt={c.title}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-110"
-                      />
+                      <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <Image 
+                          src={c.heroImage.url} 
+                          alt={c.title}
+                          fill
+                          className="object-contain transition-transform duration-700 group-hover:scale-105 p-2"
+                        />
+                      </div>
                     ) : (
-                      <div className="absolute inset-0 bg-charcoal" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-charcoal to-charcoal/80" />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-5">
-                      <h4 className="text-white font-display font-bold text-lg">{c.title}</h4>
-                      <p className="text-white/80 text-sm font-medium">{c.productCount} Products</p>
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent flex flex-col justify-end p-5">
+                      <h4 className="text-white font-display font-bold text-lg drop-shadow-md">{c.title}</h4>
+                      <p className="text-white/90 text-xs font-medium uppercase tracking-wider mt-1">{c.productCount} Products</p>
                     </div>
                   </Link>
                 ))}
@@ -273,7 +298,7 @@ function GiftsPageContent() {
             </div>
           )}
 
-          <div className="mt-12 flex flex-col lg:flex-row gap-8 lg:gap-12">
+          <div id="shop-grid" className="mt-12 flex flex-col lg:flex-row gap-8 lg:gap-12">
             
             {/* Desktop Sidebar */}
             <aside className="hidden lg:block w-72 shrink-0">

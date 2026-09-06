@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { MediaRef } from "@/types/common";
 import { MediaPicker } from "./MediaPicker";
+import type { ApiSuccess } from "@/lib/admin-api-client";
 
 type RichTextEditorProps = {
   id?: string;
@@ -432,34 +433,23 @@ function MediaPickerGrid({
     setUploading(true);
     setShowAltPrompt(false);
     try {
-      const presignRes = await fetch(`${API_BASE}/admin/media/presign`, {
+      const form = new FormData();
+      form.append("file", pendingFile);
+      form.append("kind", kind);
+      form.append("scope", "general");
+      form.append("role", "photo");
+      form.append("category", kind);
+      form.append("altText", altDraft.trim());
+
+      const res = await fetch(`${API_BASE}/admin/media/upload`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({
-          kind,
-          scope: "general",
-          role: "photo",
-          fileName: pendingFile.name,
-          contentType: pendingFile.type,
-          altText: altDraft.trim(),
-          category: kind,
-          folder: null,
-        }),
+        headers: getAuthHeaders(),
+        body: form,
       });
-      if (!presignRes.ok) throw new Error("Presign failed");
-      const presign = await presignRes.json() as { data: { uploadUrl: string; cdnKey: string; publicUrl: string; headers: Record<string, string> } };
-      const { uploadUrl, cdnKey, publicUrl, headers: putHeaders } = presign.data;
-      await fetch(uploadUrl, { method: "PUT", headers: { ...putHeaders }, body: pendingFile });
-      const completeRes = await fetch(`${API_BASE}/admin/media/complete`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ cdnKey, contentType: pendingFile.type, altText: altDraft.trim(), category: kind, folder: null, sizeBytes: pendingFile.size, url: publicUrl }),
-      });
-      if (!completeRes.ok) throw new Error("Complete failed");
-      const complete = await completeRes.json() as { data: MediaRef };
-      onChange(complete.data);
+      if (!res.ok) throw new Error("Upload failed");
+      const completeResJson = await res.json() as ApiSuccess<MediaRef>;
+      onChange(completeResJson.data);
     } catch (e) {
       console.error("Upload failed", e);
     } finally {
