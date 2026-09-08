@@ -721,8 +721,6 @@ model Product {
   supplierId                  String?
   supplier                    Supplier?                     @relation(fields: [supplierId], references: [id])
   purchaseOrderItems          PurchaseOrderItem[]
-  inventoryStock              InventoryStock[]
-  inventoryTransactions       InventoryTransaction[]
 
     id                          String                        @id @default(cuid())
   title                       String
@@ -1369,8 +1367,6 @@ model Warehouse {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  stock        InventoryStock[]
-  transactions InventoryTransaction[]
   purchaseOrders PurchaseOrder[]
 
   @@index([isDefault])
@@ -1415,37 +1411,6 @@ model PurchaseOrderItem {
   @@index([productId])
 }
 
-model InventoryStock {
-  id                String   @id @default(cuid())
-  productId         String
-  warehouseId       String
-  quantityAvailable Int      @default(0)
-  quantityReserved  Int      @default(0)
-  lowStockThreshold Int      @default(10)
-  updatedAt         DateTime @updatedAt
-
-  product   Product   @relation(fields: [productId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-
-  @@unique([productId, warehouseId])
-}
-
-model InventoryTransaction {
-  id              String                @id @default(cuid())
-  productId       String
-  warehouseId     String
-  quantityChange  Int
-  reason          InventoryLedgerReason
-  referenceId     String?
-  note            String?
-  adminUserId     String?
-  createdAt       DateTime              @default(now())
-
-  product   Product   @relation(fields: [productId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-
-  @@index([productId, warehouseId])
-}
 enum PurchaseOrderStatus {
   DRAFT
   ORDERED
