@@ -59,6 +59,12 @@ import {
   adminCacheRouter,
 } from "./modules/admin/admin-ops.routes";
 import { recycleBinRouter } from "./modules/admin/recycle-bin.routes";
+import {
+  adminSuppliersRouter,
+  adminPurchaseOrdersRouter,
+  adminWarehousesRouter,
+} from "./modules/inventory/inventory.routes";
+import { adminInventoryReportsRouter } from "./modules/inventory/reports.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
 
 export function createApp() {
@@ -381,6 +387,11 @@ export function createApp() {
   api.use("/admin/audit-log", adminLimiter, noStore, adminAuditRouter);
   api.use("/admin/cache", adminLimiter, noStore, adminCacheRouter);
   api.use("/admin/recycle-bin", adminLimiter, noStore, recycleBinRouter);
+  // Inventory management (suppliers, warehouses, purchase orders, reports).
+  api.use("/admin/suppliers", adminLimiter, noStore, adminSuppliersRouter);
+  api.use("/admin/warehouses", adminLimiter, noStore, adminWarehousesRouter);
+  api.use("/admin/purchase-orders", adminLimiter, noStore, adminPurchaseOrdersRouter);
+  api.use("/admin/inventory-reports", adminLimiter, noStore, adminInventoryReportsRouter);
 
   app.use(env.API_PREFIX, api);
 
