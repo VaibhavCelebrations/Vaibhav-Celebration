@@ -111,3 +111,35 @@ export async function getInventoryHistory(productId: string, q: { page?: number;
   ]);
   return { items, total, page, pageSize, record };
 }
+
+/** Aggregate stock counts + valuation for the inventory dashboard cards. */
+export async function getInventoryStats() {
+  const [totalProducts, grouped, valued] = await Promise.all([
+    prisma.product.count({ where: { deletedAt: null } }),
+    prisma.inventoryRecord.groupBy({
+      by: ["statusFlag"],
+      where: { product: { deletedAt: null } },
+      _count: { _all: true },
+    }),
+    prisma.product.findMany({
+      where: { deletedAt: null, inventory: { isNot: null } },
+      select: { purchasePriceInPaise: true, inventory: { select: { quantityAvailable: true } } },
+    }),
+  ]);
+
+  const countFor = (flag: StockStatusFlag) =>
+    grouped.find((g) => g.statusFlag === flag)?._count._all ?? 0;
+
+  const totalValueInPaise = valued.reduce(
+    (sum, p) => sum + (p.purchasePriceInPaise ?? 0) * (p.inventory?.quantityAvailable ?? 0),
+    0,
+  );
+
+  return {
+    totalProducts,
+    inStock: countFor(StockStatusFlag.IN_STOCK),
+    lowStock: countFor(StockStatusFlag.LOW_STOCK),
+    outOfStock: countFor(StockStatusFlag.OUT_OF_STOCK),
+    totalValueInPaise,
+  };
+}
