@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Boxes, History, Package } from "lucide-react";
-import { productsRepo, adjustProductStock } from "../../../../lib/data/products";
+import { Boxes, Package } from "lucide-react";
+import { productsRepo } from "../../../../lib/data/products";
 import { useRepoList } from "../../../../lib/use-repo-list";
 import { useListQuery } from "../../../../lib/use-list-query";
 

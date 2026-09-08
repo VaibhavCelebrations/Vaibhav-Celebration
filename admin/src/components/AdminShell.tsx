@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Palette,
   Package,
@@ -214,25 +214,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { admin } = useAdminSession();
 
-  const [openSection, setOpenSection] = useState<string | null>(null);
-
-  // Initialize the open section based on the current pathname
-  useEffect(() => {
-    if (!openSection) {
-      if (pathname === "/dashboard") {
-        setOpenSection(null);
-      } else {
-        const matchingSection = NAV.find((item) =>
-          item.href === "/dashboard/settings"
-            ? pathname === item.href
-            : pathname.startsWith(item.href),
-        )?.section;
-        if (matchingSection) {
-          setOpenSection(matchingSection);
-        }
-      }
-    }
-  }, [pathname]);
+  // Open the section matching the initial pathname; after mount the accordion
+  // follows the user's clicks, not navigation.
+  const [openSection, setOpenSection] = useState<string | null>(() => {
+    if (pathname === "/dashboard") return null;
+    return (
+      NAV.find((item) =>
+        item.href === "/dashboard/settings"
+          ? pathname === item.href
+          : pathname.startsWith(item.href),
+      )?.section ?? null
+    );
+  });
 
   async function onLogout() {
     await logout();

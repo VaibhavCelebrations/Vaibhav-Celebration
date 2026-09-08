@@ -105,7 +105,6 @@ function ConfirmModal({ action, items, onConfirm, onCancel }: ConfirmModalProps)
 
   useEffect(() => {
     if (isHardDelete && hasMediaAssets) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       fetchMediaAssetUsage(mediaItemIds.split(","))
         .then(res => {
           setMediaUsageDetails(res);
@@ -385,7 +384,6 @@ export function RecycleBinClient() {
   }, [entityFilter, page]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

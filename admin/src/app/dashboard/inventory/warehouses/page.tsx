@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { Plus, Pencil, Trash2, Warehouse } from "lucide-react";
+import { Pencil, Trash2, Warehouse } from "lucide-react";
 import { fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, type Warehouse as WarehouseType } from "../../../../lib/data/inventory";
 
 import { PageHeader } from "../../../../components/ui/PageHeader";
@@ -44,8 +44,8 @@ export default function WarehousesPage() {
       const data = await fetchWarehouses();
       setRows(data);
       setError(null);
-    } catch (err: any) {
-      setError(err);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
@@ -97,8 +97,8 @@ export default function WarehousesPage() {
       setDrawerOpen(false);
       setDirty(false);
       loadData();
-    } catch (err: any) {
-      setFormError(err.message || "Could not save warehouse.");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Could not save warehouse.");
     } finally {
       setSubmitting(false);
     }
@@ -112,8 +112,8 @@ export default function WarehousesPage() {
       toast({ tone: "success", title: "Warehouse deleted" });
       setDeleteTarget(null);
       loadData();
-    } catch (err: any) {
-      toast({ tone: "error", title: "Could not delete warehouse", description: err.message });
+    } catch (err) {
+      toast({ tone: "error", title: "Could not delete warehouse", description: err instanceof Error ? err.message : undefined });
     } finally {
       setDeleting(false);
     }

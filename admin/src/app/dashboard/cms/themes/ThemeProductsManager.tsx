@@ -92,7 +92,7 @@ export function ThemeProductsManager({
 
       toast({ tone: "success", title: "Theme products updated" });
       onClose();
-    } catch (err) {
+    } catch {
       toast({ tone: "error", title: "Error updating products" });
     } finally {
       setSubmitting(false);

@@ -38,6 +38,57 @@ const FOLLOW_UP_OPTIONS = [
   { value: "COMPLETED", label: "Completed" },
 ];
 
+type OrderItem = {
+  id: string;
+  title: string;
+  sku?: string | null;
+  quantity: number;
+  unitPriceInPaise: number;
+  lineTotalInPaise: number;
+  personalizationSelected?: boolean;
+  personalizationCostSnapshot?: number;
+  personalizationValues?: unknown;
+  fulfillmentStatus?: string | null;
+};
+
+type OrderRow = {
+  id: string;
+  orderCode: string;
+  user?: { name?: string | null; email?: string | null } | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  kind?: string | null;
+  registryCode?: string | null;
+  packageTitle?: string | null;
+  themeTitle?: string | null;
+  status: string;
+  paymentStatus?: string | null;
+  hasPersonalization?: boolean;
+  customizationFollowUpStatus?: string | null;
+  placedAt?: string | null;
+  totalInPaise: number;
+};
+
+type Order = OrderRow & {
+  contactPhone?: string | null;
+  shippingAddress?: Record<string, string>;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  emailSendStatus?: string | null;
+  emailSendError?: string | null;
+  adminNotes?: string | null;
+  items?: OrderItem[];
+  subtotalInPaise: number;
+  shippingWaived?: boolean;
+  shippingInPaise?: number | null;
+  gstInPaise: number;
+  invoicePdfUrl?: string | null;
+};
+
+function errMessage(err: unknown): string | undefined {
+  return err instanceof Error ? err.message : undefined;
+}
+
 function formatPersonalization(values: unknown): Array<{ label: string; value: string }> {
   if (!values) return [];
   if (Array.isArray(values)) {
@@ -77,7 +128,7 @@ export function OrdersScreen() {
   );
   const { items: rows, total, loading, error, reload } = useRepoList(
     (q) =>
-      adminFetchList<any>(`/admin/orders${qs(q)}`, {
+      adminFetchList<OrderRow>(`/admin/orders${qs(q)}`, {
         page: q.page,
         pageSize: q.pageSize,
       }),
@@ -85,7 +136,7 @@ export function OrdersScreen() {
   );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
+  const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [savingOps, setSavingOps] = useState(false);
@@ -94,16 +145,16 @@ export function OrdersScreen() {
 
   const toast = useToast();
 
-  async function openOrder(row: any) {
+  async function openOrder(row: OrderRow) {
     setDrawerOpen(true);
     setLoadingOrder(true);
     setViewingOrder(null);
     try {
-      const order = await adminFetch<any>(`/admin/orders/${row.id}`);
+      const order = await adminFetch<Order>(`/admin/orders/${row.id}`);
       setViewingOrder(order);
       setAdminNotes(order.adminNotes ?? "");
-    } catch (err: any) {
-      toast({ title: "Failed to load order details", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Failed to load order details", description: errMessage(err), tone: "error" });
       setDrawerOpen(false);
     } finally {
       setLoadingOrder(false);
@@ -114,14 +165,14 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setUpdatingItemId(itemId);
     try {
-      const updatedOrder = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/items/${itemId}/fulfillment`, {
+      const updatedOrder = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/items/${itemId}/fulfillment`, {
         method: "PATCH",
         body: { status: status || null },
       });
       setViewingOrder(updatedOrder);
       toast({ title: "Status updated", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Update failed", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Update failed", description: errMessage(err), tone: "error" });
     } finally {
       setUpdatingItemId(null);
     }
@@ -131,15 +182,15 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setSavingOps(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/status`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/status`, {
         method: "PATCH",
         body: { status },
       });
       setViewingOrder(updated);
       reload();
       toast({ title: "Order status updated", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Could not change status", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Could not change status", description: errMessage(err), tone: "error" });
     } finally {
       setSavingOps(false);
     }
@@ -149,7 +200,7 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setSavingOps(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/ops`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/ops`, {
         method: "PATCH",
         body: {
           customizationFollowUpStatus: viewingOrder.customizationFollowUpStatus,
@@ -159,8 +210,8 @@ export function OrdersScreen() {
       setViewingOrder(updated);
       reload();
       toast({ title: "Follow-up saved", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Save failed", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Save failed", description: errMessage(err), tone: "error" });
     } finally {
       setSavingOps(false);
     }
@@ -170,19 +221,19 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setResendingEmail(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/resend-confirmation`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/resend-confirmation`, {
         method: "POST",
       });
       setViewingOrder({ ...viewingOrder, emailSendStatus: updated.emailSendStatus || "PENDING", emailSendError: updated.emailSendError ?? null });
       toast({ title: "Email triggered successfully", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Failed to resend email", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Failed to resend email", description: errMessage(err), tone: "error" });
     } finally {
       setResendingEmail(false);
     }
   }
 
-  const columns: Column<any>[] = [
+  const columns: Column<OrderRow>[] = [
     { key: "orderCode", header: "Order Number", sortable: true, cell: (row) => row.orderCode },
     {
       key: "customer",
@@ -429,15 +480,15 @@ export function OrdersScreen() {
             <div>
               <h4 className="font-medium border-b pb-2 mb-4">Order Items</h4>
               <div className="space-y-4">
-                {viewingOrder.items?.map((item: any) => (
+                {viewingOrder.items?.map((item) => (
                   <div key={item.id} className="border rounded-md p-4 bg-white shadow-sm space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium">{item.title}</p>
                         <p className="text-xs text-stone-500">SKU: {item.sku}</p>
                         <p className="text-sm mt-1">Qty: {item.quantity} × ₹{(item.unitPriceInPaise / 100).toFixed(2)}</p>
-                        {item.personalizationSelected && item.personalizationCostSnapshot > 0 && (
-                          <p className="text-xs text-amber-800 mt-1">Personalization +₹{(item.personalizationCostSnapshot / 100).toFixed(2)} each</p>
+                        {item.personalizationSelected && (item.personalizationCostSnapshot ?? 0) > 0 && (
+                          <p className="text-xs text-amber-800 mt-1">Personalization +₹{((item.personalizationCostSnapshot ?? 0) / 100).toFixed(2)} each</p>
                         )}
                       </div>
                       <div className="text-right">

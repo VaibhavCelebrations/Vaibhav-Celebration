@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, Package, ChevronDown, Search, Filter } from "lucide-react";
+import { Plus, Package, Filter } from "lucide-react";
 import {
   fetchPurchaseOrders,
   fetchSuppliers,

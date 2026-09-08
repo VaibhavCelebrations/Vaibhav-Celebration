@@ -14,6 +14,25 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    rules: {
+      // `_`-prefixed args/vars and object-rest siblings are deliberate "skip this"
+      // markers, not dead code.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          ignoreRestSiblings: true,
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
+      // eslint-plugin-react-hooks v6 (bundled with Next 16 / React 19) adds this
+      // rule; it fires on standard patterns throughout this app — SSR mount flags,
+      // the loading-flag data-fetch pattern, prop→state sync. None are bugs here.
+      // Revisit if data fetching moves to a library / `use()`.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
     // Pages must go through src/lib/data/<module>.ts repos, never the mock
     // store directly — that's what keeps the mock→API swap a one-file change.
     files: ["src/app/**/*.{ts,tsx}"],

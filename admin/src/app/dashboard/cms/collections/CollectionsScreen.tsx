@@ -1,12 +1,11 @@
 "use client";
 
-import { Trash2 as Trash2, Layers, Loader2, Pencil, Plus } from "lucide-react";
+import { Trash2, Layers, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import { collectionsRepo, emptyCollectionInput } from "@/lib/data/collections";
 import { productsRepo } from "@/lib/data/products";
 import { DEFAULT_LIST_QUERY } from "@/lib/data/types";
-import { formatDateTime } from "@/lib/format";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
