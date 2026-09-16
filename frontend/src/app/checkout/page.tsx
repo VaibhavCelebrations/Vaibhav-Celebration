@@ -813,9 +813,31 @@ export default function CheckoutPage() {
                       </button>
                     )}
 
-                    <p className="text-[10px] text-text-light text-center mt-4 uppercase tracking-wider font-medium">
-                      By placing your order, you agree to our Terms & Conditions
-                    </p>
+                    <div className="mt-4 space-y-3">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          required
+                          className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                        />
+                        <span className="text-[11px] text-text-muted leading-relaxed">
+                          I agree to the{" "}
+                          <a href="/legal/terms-of-service" target="_blank" className="text-mocha underline hover:text-mocha-dark">Terms & Conditions</a>,{" "}
+                          <a href="/legal/privacy-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Privacy Policy</a>,{" "}
+                          <a href="/legal/refund-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Refund Policy</a>, and{" "}
+                          <a href="/legal/cancellation-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Shipping Policy</a>. <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                        />
+                        <span className="text-[11px] text-text-muted leading-relaxed">
+                          I would like to receive order updates, offers, and celebration ideas via WhatsApp/email. (Optional)
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}

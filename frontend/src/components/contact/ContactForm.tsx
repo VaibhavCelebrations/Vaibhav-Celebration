@@ -132,6 +132,39 @@ export function ContactForm({
         />
       </div>
 
+      {/* Privacy Consent */}
+      <div className="pt-2">
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            name="privacyConsent"
+            required
+            className="mt-1 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+          />
+          <span className="text-xs text-charcoal/70 leading-relaxed">
+            I agree to the processing of my personal data as described in the{" "}
+            <a href="/legal/privacy-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">
+              Privacy Policy
+            </a>
+            . <span className="text-red-400">*</span>
+          </span>
+        </label>
+      </div>
+
+      {/* Optional Marketing Consent */}
+      <div>
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            name="marketingConsent"
+            className="mt-1 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+          />
+          <span className="text-xs text-charcoal/70 leading-relaxed">
+            I would like to receive promotional offers, updates, and celebration ideas via WhatsApp/email. (Optional)
+          </span>
+        </label>
+      </div>
+
       {status === "success" && (
         <p className="text-sm text-mocha font-medium">Thank you! We&apos;ll get back to you within 24 hours.</p>
       )}
