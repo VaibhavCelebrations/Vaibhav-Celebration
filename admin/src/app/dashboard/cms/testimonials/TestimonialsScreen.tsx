@@ -8,7 +8,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -196,7 +196,7 @@ export function TestimonialsScreen() {
           description: "Add the first customer review.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Testimonial" : "New Testimonial"}
@@ -256,7 +256,7 @@ export function TestimonialsScreen() {
           <label htmlFor="testimonial-active" className="text-sm font-medium">Active</label>
           <ToggleSwitch id="testimonial-active" checked={form.isActive} onChange={(v) => patch({ isActive: v })} />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
       <AdminConfirmDialog
         open={!!archiveTarget}
         title="Archive this testimonial?"

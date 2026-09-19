@@ -6,7 +6,7 @@ import { fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse, typ
 
 import { PageHeader } from "../../../../components/ui/PageHeader";
 import { AdminDataTable, type Column } from "../../../../components/ui/AdminDataTable";
-import { AdminDrawerForm } from "../../../../components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "../../../../components/ui/FormField";
 import { TextInput, ToggleSwitch } from "../../../../components/ui/fields";
 import { useToast } from "../../../../components/ui/Toast";
@@ -180,7 +180,7 @@ export default function WarehousesPage() {
         />
       </div>
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Warehouse" : "New Warehouse"}
@@ -216,7 +216,7 @@ export default function WarehousesPage() {
           </div>
           <ToggleSwitch id="warehouse-active" checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!deleteTarget}

@@ -7,7 +7,7 @@ import { galleryRepo } from "@/lib/data/resources";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -336,7 +336,7 @@ export function GalleryScreen() {
         </>
       )}
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit gallery image" : "Upload gallery image"}
@@ -344,6 +344,7 @@ export function GalleryScreen() {
         submitting={submitting}
         error={formError}
         dirty={dirty}
+        size="lg"
       >
         <FormField label="Image" htmlFor="gallery-media" required>
           <MediaPicker
@@ -458,7 +459,7 @@ export function GalleryScreen() {
             onChange={(isActive) => patch({ isActive })}
           />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveTarget}
