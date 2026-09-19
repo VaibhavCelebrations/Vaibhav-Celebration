@@ -454,6 +454,24 @@ model PaymentEvent {
   @@index([razorpayPaymentId])
 }
 
+/// Stores and deduplicates WhatsApp webhook events for fast-acknowledgment and background processing.
+model WhatsAppWebhookEvent {
+  id                String    @id @default(cuid())
+  eventKey          String    @unique
+  eventType         String    @default("STATUS_UPDATE")
+  providerMessageId String?
+  status            String?
+  payload           Json?
+  processed         Boolean   @default(false)
+  processedAt       DateTime?
+  error             String?
+  createdAt         DateTime  @default(now())
+
+  @@index([providerMessageId])
+  @@index([processed])
+  @@index([createdAt])
+}
+
 model Event {
   id                     String              @id @default(cuid())
   title                  String
@@ -594,7 +612,10 @@ model Invoice {
   pdfUrl             String?
   emailSentAt        DateTime?
   whatsappSentAt     DateTime?
+  whatsappDeliveredAt DateTime?
+  whatsappReadAt     DateTime?
   whatsappSendStatus String?
+  whatsappError      String?
   issuedAt           DateTime          @default(now())
   deletedAt          DateTime?
   emailSendStatus    String?
@@ -885,6 +906,8 @@ model Order {
   adminNotes                  String?
   confirmationEmailSentAt     DateTime?
   whatsappSentAt              DateTime?
+  whatsappDeliveredAt         DateTime?
+  whatsappReadAt              DateTime?
   registryId                  String?
   kind                        OrderKind                   @default(SHOP)
   /// For UPGRADE orders: the paid package order this add-on belongs to.
@@ -898,6 +921,7 @@ model Order {
   emailSendStatus             String?
   emailSendError              String?
   whatsappSendStatus          String?
+  whatsappError               String?
   whatsappMessageId           String?
   giftContributions           GiftRegistryContribution[]
   invoice                     Invoice?

@@ -339,6 +339,28 @@ adminOrdersRouter.post(
   },
 );
 
+adminOrdersRouter.post(
+  "/:id/resend-whatsapp",
+  validate(z.object({ id: z.string() }), "params"),
+  async (req, res, next) => {
+    try {
+      const { resendOrderConfirmationWhatsapp } = require("../whatsapp/whatsapp.service");
+      const { writeAuditLog, clientIp } = require("../../lib/audit");
+      const result = await resendOrderConfirmationWhatsapp(param(req, "id"));
+      await writeAuditLog({
+        adminUserId: (req as import("../../middleware/auth").AuthenticatedRequest).admin!.sub,
+        action: "ORDER_WHATSAPP_RESEND",
+        entityType: "Order",
+        entityId: param(req, "id"),
+        ipAddress: clientIp(req),
+      });
+      return ok(res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
 adminOrdersRouter.patch(
   "/:id/ops",
   validate(z.object({ id: z.string() }), "params"),

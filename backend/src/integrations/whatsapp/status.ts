@@ -47,6 +47,24 @@ export function mergeStatus(
   current: string | null | undefined,
   incoming: WhatsAppStatus,
 ): WhatsAppStatus {
+  // If incoming is FAILED:
+  // FAILED can be recorded from unset, PENDING, SENDING, SENT, or SIMULATED_SENT.
+  // It must NEVER regress an already-DELIVERED or READ message (which proved physical delivery).
+  if (incoming === "FAILED") {
+    if (current === "DELIVERED" || current === "READ") {
+      return current;
+    }
+    return "FAILED";
+  }
+
+  // If current is already FAILED, do not allow late/out-of-order SENT/SENDING/PENDING to resurrect it.
+  if (current === "FAILED") {
+    if (incoming === "DELIVERED" || incoming === "READ") {
+      return incoming;
+    }
+    return "FAILED";
+  }
+
   const currentRank = current && current in STATUS_RANK ? STATUS_RANK[current as WhatsAppStatus] : -1;
   const incomingRank = STATUS_RANK[incoming];
   return incomingRank >= currentRank ? incoming : (current as WhatsAppStatus);

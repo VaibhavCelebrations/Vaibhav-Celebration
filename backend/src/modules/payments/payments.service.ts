@@ -182,6 +182,7 @@ export async function deliverInvoice(invoiceId: string) {
       whatsappSentAt: wa.sent ? new Date() : invoice.whatsappSentAt,
       whatsappSendStatus: wa.status,
       whatsappMessageId: wa.providerMessageId ?? invoice.whatsappMessageId,
+      whatsappError: wa.error ?? null,
     },
   });
 }

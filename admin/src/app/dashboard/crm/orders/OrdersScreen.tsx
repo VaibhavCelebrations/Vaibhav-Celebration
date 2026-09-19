@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, Eye, Info, Package, CreditCard, PhoneCall } from "lucide-react";
+import { FileText, Loader2, Eye, Info, Package, CreditCard, PhoneCall, Mail, MessageSquare, CheckCheck, Clock, AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -69,6 +69,13 @@ type OrderRow = {
   customizationFollowUpStatus?: string | null;
   placedAt?: string | null;
   totalInPaise: number;
+  emailSendStatus?: string | null;
+  emailSendError?: string | null;
+  whatsappSendStatus?: string | null;
+  whatsappSentAt?: string | null;
+  whatsappDeliveredAt?: string | null;
+  whatsappReadAt?: string | null;
+  whatsappError?: string | null;
 };
 
 type Order = OrderRow & {
@@ -76,8 +83,6 @@ type Order = OrderRow & {
   shippingAddress?: Record<string, string>;
   razorpayOrderId?: string | null;
   razorpayPaymentId?: string | null;
-  emailSendStatus?: string | null;
-  emailSendError?: string | null;
   adminNotes?: string | null;
   items?: OrderItem[];
   subtotalInPaise: number;
@@ -85,6 +90,7 @@ type Order = OrderRow & {
   shippingInPaise?: number | null;
   gstInPaise: number;
   invoicePdfUrl?: string | null;
+  whatsappMessageId?: string | null;
 };
 
 function errMessage(err: unknown): string | undefined {
@@ -143,6 +149,7 @@ export function OrdersScreen() {
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [savingOps, setSavingOps] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendingWhatsapp, setResendingWhatsapp] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
   const [statusToConfirm, setStatusToConfirm] = useState<string | null>(null);
 
@@ -236,6 +243,29 @@ export function OrdersScreen() {
     }
   }
 
+  async function resendConfirmationWhatsapp() {
+    if (!viewingOrder) return;
+    setResendingWhatsapp(true);
+    try {
+      const outcome = await adminFetch<{ success: boolean; status: string; error?: string }>(
+        `/admin/orders/${viewingOrder.id}/resend-whatsapp`,
+        { method: "POST" }
+      );
+      setViewingOrder({
+        ...viewingOrder,
+        whatsappSendStatus: outcome.status || "SENT",
+        whatsappError: outcome.error ?? null,
+        whatsappSentAt: outcome.status !== "FAILED" ? new Date().toISOString() : viewingOrder.whatsappSentAt,
+      });
+      reload();
+      toast({ title: "WhatsApp confirmation sent successfully", tone: "success" });
+    } catch (err) {
+      toast({ title: "Failed to send WhatsApp message", description: errMessage(err), tone: "error" });
+    } finally {
+      setResendingWhatsapp(false);
+    }
+  }
+
   const columns: Column<OrderRow>[] = [
     { key: "orderCode", header: "Order Number", sortable: true, cell: (row) => row.orderCode },
     {
@@ -289,6 +319,61 @@ export function OrdersScreen() {
       ),
     },
     {
+      key: "comms",
+      header: "Comms",
+      cell: (row) => (
+        <div className="flex items-center gap-1.5">
+          {/* Email badge */}
+          <span
+            title={row.emailSendStatus ? `Email: ${row.emailSendStatus}${row.emailSendError ? ` (${row.emailSendError})` : ""}` : "Email: Not sent"}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              row.emailSendStatus === "SENT"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : row.emailSendStatus === "PENDING"
+                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                  : row.emailSendStatus === "FAILED"
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-stone-50 text-stone-400 border border-stone-200"
+            }`}
+          >
+            <Mail size={11} />
+            <span className="hidden lg:inline">{row.emailSendStatus === "SENT" ? "Sent" : row.emailSendStatus === "FAILED" ? "Fail" : row.emailSendStatus ?? "—"}</span>
+          </span>
+
+          {/* WhatsApp badge */}
+          <span
+            title={row.whatsappSendStatus ? `WhatsApp: ${row.whatsappSendStatus}${row.whatsappError ? ` (${row.whatsappError})` : ""}` : "WhatsApp: Not sent"}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              row.whatsappSendStatus === "READ"
+                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                : row.whatsappSendStatus === "DELIVERED"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : row.whatsappSendStatus === "SENT" || row.whatsappSendStatus === "SIMULATED_SENT"
+                    ? "bg-sky-50 text-sky-700 border border-sky-200"
+                    : row.whatsappSendStatus === "PENDING" || row.whatsappSendStatus === "SENDING"
+                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : row.whatsappSendStatus === "FAILED"
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-stone-50 text-stone-400 border border-stone-200"
+            }`}
+          >
+            <MessageSquare size={11} />
+            <span className="hidden lg:inline">
+              {row.whatsappSendStatus === "READ"
+                ? "Read"
+                : row.whatsappSendStatus === "DELIVERED"
+                  ? "Delivered"
+                  : row.whatsappSendStatus === "SENT" || row.whatsappSendStatus === "SIMULATED_SENT"
+                    ? "Sent"
+                    : row.whatsappSendStatus === "FAILED"
+                      ? "Fail"
+                      : row.whatsappSendStatus ?? "—"}
+            </span>
+          </span>
+        </div>
+      ),
+    },
+    {
       key: "placedAt",
       header: "Date",
       sortable: true,
@@ -333,6 +418,8 @@ export function OrdersScreen() {
         <span className="flex items-center gap-1.5"><Package size={14} className="text-stone-500" /> Order</span>
         <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-stone-500" /> Payment</span>
         <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-stone-500" /> Follow-up</span>
+        <span className="flex items-center gap-1.5"><Mail size={14} className="text-stone-500" /> Email</span>
+        <span className="flex items-center gap-1.5"><MessageSquare size={14} className="text-stone-500" /> WhatsApp</span>
       </div>
       <AdminDataTable
         columns={columns}
@@ -415,7 +502,7 @@ export function OrdersScreen() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-sm bg-stone-50 rounded-md p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm bg-stone-50 rounded-md p-4">
               <div>
                 <p className="text-stone-500 mb-1">Order status</p>
                 <SelectInput
@@ -437,20 +524,109 @@ export function OrdersScreen() {
                 )}
               </div>
               <div>
-                <p className="text-stone-500 mb-1">Email Status</p>
-                <p className="font-medium">{viewingOrder.emailSendStatus ?? "NOT_SENT"}</p>
+                <p className="text-stone-500 mb-1 flex items-center gap-1.5">
+                  <Mail size={13} className="text-stone-400" />
+                  <span>Email Status</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                      viewingOrder.emailSendStatus === "SENT"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : viewingOrder.emailSendStatus === "PENDING"
+                          ? "bg-amber-100 text-amber-800"
+                          : viewingOrder.emailSendStatus === "FAILED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-stone-200 text-stone-600"
+                    }`}
+                  >
+                    {viewingOrder.emailSendStatus ?? "NOT_SENT"}
+                  </span>
+                </div>
                 {viewingOrder.emailSendError && (
-                  <p className="text-xs text-red-600 mt-1 break-all">Error: {viewingOrder.emailSendError}</p>
+                  <p className="text-xs text-red-600 mt-1.5 break-all flex items-start gap-1">
+                    <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                    <span>{viewingOrder.emailSendError}</span>
+                  </p>
                 )}
                 {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
                   <button
                     type="button"
-                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1 w-full"
                     onClick={() => void resendConfirmationEmail()}
                     disabled={resendingEmail}
                   >
-                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail size={12} />}
                     Resend Email
+                  </button>
+                )}
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1 flex items-center gap-1.5">
+                  <MessageSquare size={13} className="text-stone-400" />
+                  <span>WhatsApp Delivery</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                      viewingOrder.whatsappSendStatus === "READ"
+                        ? "bg-purple-100 text-purple-800"
+                        : viewingOrder.whatsappSendStatus === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : viewingOrder.whatsappSendStatus === "SENT" || viewingOrder.whatsappSendStatus === "SIMULATED_SENT"
+                            ? "bg-sky-100 text-sky-800"
+                            : viewingOrder.whatsappSendStatus === "PENDING" || viewingOrder.whatsappSendStatus === "SENDING"
+                              ? "bg-amber-100 text-amber-800"
+                              : viewingOrder.whatsappSendStatus === "FAILED"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-stone-200 text-stone-600"
+                    }`}
+                  >
+                    {viewingOrder.whatsappSendStatus === "READ" && <CheckCheck size={12} />}
+                    {viewingOrder.whatsappSendStatus ?? "NOT_SENT"}
+                  </span>
+                </div>
+
+                {/* Timestamps */}
+                <div className="text-[11px] text-stone-500 mt-1.5 space-y-0.5">
+                  {viewingOrder.whatsappSentAt && (
+                    <p className="flex items-center gap-1">
+                      <Clock size={10} className="text-stone-400" />
+                      <span>Sent: {new Date(viewingOrder.whatsappSentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                  {viewingOrder.whatsappDeliveredAt && (
+                    <p className="flex items-center gap-1 text-emerald-700">
+                      <CheckCheck size={10} />
+                      <span>Delivered: {new Date(viewingOrder.whatsappDeliveredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                  {viewingOrder.whatsappReadAt && (
+                    <p className="flex items-center gap-1 text-purple-700 font-medium">
+                      <CheckCheck size={10} />
+                      <span>Read: {new Date(viewingOrder.whatsappReadAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Error Banner */}
+                {viewingOrder.whatsappError && (
+                  <p className="text-xs text-red-600 mt-1.5 break-all flex items-start gap-1 bg-red-50 p-1.5 rounded border border-red-200">
+                    <AlertCircle size={12} className="shrink-0 mt-0.5 text-red-500" />
+                    <span>{viewingOrder.whatsappError}</span>
+                  </p>
+                )}
+
+                {/* Resend WhatsApp button */}
+                {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1 w-full text-emerald-800 hover:text-emerald-900 border-emerald-300 hover:border-emerald-400"
+                    onClick={() => void resendConfirmationWhatsapp()}
+                    disabled={resendingWhatsapp}
+                  >
+                    {resendingWhatsapp ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare size={12} />}
+                    Resend WhatsApp
                   </button>
                 )}
               </div>
