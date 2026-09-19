@@ -7,6 +7,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
 import { AdminModalForm } from "@/components/ui/AdminModalForm";
+import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { SelectInput, TextArea } from "@/components/ui/fields";
@@ -24,6 +25,7 @@ const ORDER_STATUS_OPTIONS = [
   { value: "PENDING_PAYMENT", label: "Pending payment" },
   { value: "PAID", label: "Paid / confirmed" },
   { value: "PROCESSING", label: "Processing" },
+  { value: "READY_TO_SHIP", label: "Ready to ship" },
   { value: "SHIPPED", label: "Shipped" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "CANCELLED", label: "Cancelled" },
@@ -142,6 +144,7 @@ export function OrdersScreen() {
   const [savingOps, setSavingOps] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
+  const [statusToConfirm, setStatusToConfirm] = useState<string | null>(null);
 
   const toast = useToast();
 
@@ -418,7 +421,7 @@ export function OrdersScreen() {
                 <SelectInput
                   id="order-status"
                   value={viewingOrder.status}
-                  onChange={(e) => updateOrderStatus(e.target.value)}
+                  onChange={(e) => setStatusToConfirm(e.target.value)}
                   options={ORDER_STATUS_OPTIONS}
                   disabled={savingOps}
                 />
@@ -574,6 +577,19 @@ export function OrdersScreen() {
           </div>
         ) : null}
       </AdminModalForm>
+      <AdminConfirmDialog
+        open={statusToConfirm !== null}
+        title="Change Order Status"
+        message={`Are you sure you want to change the order status to ${ORDER_STATUS_OPTIONS.find((o) => o.value === statusToConfirm)?.label}?`}
+        onConfirm={async () => {
+          if (statusToConfirm) {
+            await updateOrderStatus(statusToConfirm);
+            setStatusToConfirm(null);
+          }
+        }}
+        onCancel={() => setStatusToConfirm(null)}
+        confirmLabel="Yes, change status"
+      />
     </div>
   );
 }
