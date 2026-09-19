@@ -13,6 +13,7 @@ import {
   type Supplier,
 } from "@/lib/data/inventory";
 import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
   DRAFT: "Draft",
@@ -72,18 +73,15 @@ function PurchaseOrdersInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 style={{ fontFamily: "var(--font-serif)", color: "var(--color-charcoal)" }}>Purchase Orders</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-text-muted)" }}>
-            {total} order{total !== 1 ? "s" : ""} total
-          </p>
-        </div>
-        <Link href="/dashboard/inventory/purchases/new" className="btn btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          New Purchase Order
-        </Link>
-      </div>
+      <PageHeader
+        title="Purchase Orders"
+        description={`${total} order${total !== 1 ? "s" : ""} total`}
+        actions={
+          <Link href="/dashboard/inventory/purchases/new" className="btn btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm">
+            <Plus size={16} /> New Purchase Order
+          </Link>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
