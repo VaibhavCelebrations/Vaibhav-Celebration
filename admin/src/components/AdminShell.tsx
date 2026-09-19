@@ -33,7 +33,6 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
-  Warehouse,
   Truck,
   ShoppingCart,
   BarChart3,
@@ -207,12 +206,6 @@ const NAV: NavItem[] = [
     href: "/dashboard/inventory/suppliers",
     label: "Suppliers",
     icon: Truck,
-  },
-  {
-    section: "Inventory",
-    href: "/dashboard/inventory/warehouses",
-    label: "Warehouses",
-    icon: Warehouse,
   },
   {
     section: "Inventory",

@@ -54,7 +54,6 @@ export async function getPurchaseOrder(id: string) {
 
 export async function createPurchaseOrder(data: {
   supplierId: string;
-  warehouseId?: string;
   notes?: string;
   expectedAt?: string;
   adminUserId?: string;
@@ -82,7 +81,6 @@ export async function createPurchaseOrder(data: {
     data: {
       poNumber: generatePoNumber(),
       supplierId: data.supplierId,
-      warehouseId: data.warehouseId ?? null,
       note: data.notes ?? null,
       expectedAt: data.expectedAt ? new Date(data.expectedAt) : null,
       
@@ -110,7 +108,6 @@ export async function updatePurchaseOrder(
     notes?: string;
     expectedAt?: string | null;
     status?: PurchaseOrderStatus;
-    warehouseId?: string | null;
   },
 ) {
   const po = await prisma.purchaseOrder.findFirst({ where: { id, deletedAt: null } });
@@ -121,7 +118,8 @@ export async function updatePurchaseOrder(
   return prisma.purchaseOrder.update({
     where: { id },
     data: {
-      ...data,
+      status: data.status,
+      note: data.notes,
       expectedAt: data.expectedAt !== undefined ? (data.expectedAt ? new Date(data.expectedAt) : null) : undefined,
     },
     include: { supplier: { select: { id: true, name: true } }, items: true },

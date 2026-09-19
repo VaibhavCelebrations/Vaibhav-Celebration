@@ -23,8 +23,6 @@ import {
   receivePurchaseOrder,
   updatePurchaseOrder,
 } from "./purchase-orders.service";
-import { createWarehouse, deleteWarehouse, getWarehouse, listWarehouses, updateWarehouse } from "./warehouses.service";
-
 // ─── Role guards ──────────────────────────────────────────────────────────────
 
 const inventoryRoles = [AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.MANAGER, AdminRole.WAREHOUSE_STAFF];
@@ -161,7 +159,6 @@ const poItemSchema = z.object({
 
 const createPoSchema = z.object({
   supplierId: z.string().min(1),
-  warehouseId: z.string().optional(),
   notes: z.string().max(2000).optional(),
   expectedAt: z.string().datetime().optional(),
   items: z.array(poItemSchema).min(1),
@@ -214,7 +211,6 @@ adminPurchaseOrdersRouter.patch(
     z.object({
       notes: z.string().max(2000).optional(),
       expectedAt: z.string().datetime().nullable().optional(),
-      warehouseId: z.string().nullable().optional(),
       status: z.enum(["DRAFT", "ORDERED"]).optional(),
     }),
   ),
@@ -263,67 +259,4 @@ adminPurchaseOrdersRouter.post("/:id/cancel", validate(idSchema, "params"), asyn
   }
 });
 
-// ─── Warehouses ───────────────────────────────────────────────────────────────
 
-export const adminWarehousesRouter = Router();
-adminWarehousesRouter.use(...inventoryGuard);
-
-const warehouseSchema = z.object({
-  name: z.string().min(1).max(200),
-  location: z.string().max(200).optional(),
-  address: z.string().max(500).optional(),
-  isDefault: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-});
-
-adminWarehousesRouter.get("/", async (_req, res, next) => {
-  try {
-    return ok(res, await listWarehouses());
-  } catch (err) {
-    return next(err);
-  }
-});
-
-adminWarehousesRouter.get("/:id", validate(idSchema, "params"), async (req, res, next) => {
-  try {
-    return ok(res, await getWarehouse(param(req, "id")));
-  } catch (err) {
-    return next(err);
-  }
-});
-
-adminWarehousesRouter.post("/", validate(warehouseSchema), async (req, res, next) => {
-  try {
-    const item = await createWarehouse(req.body);
-    await audit(req as AuthenticatedRequest, "CREATE", "Warehouse", item.id);
-    return created(res, item);
-  } catch (err) {
-    return next(err);
-  }
-});
-
-adminWarehousesRouter.patch(
-  "/:id",
-  validate(idSchema, "params"),
-  validate(warehouseSchema.partial()),
-  async (req, res, next) => {
-    try {
-      const item = await updateWarehouse(param(req, "id"), req.body);
-      await audit(req as AuthenticatedRequest, "UPDATE", "Warehouse", item.id, req.body);
-      return ok(res, item);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-adminWarehousesRouter.delete("/:id", validate(idSchema, "params"), async (req, res, next) => {
-  try {
-    const id = param(req, "id");
-    await deleteWarehouse(id);
-    await audit(req as AuthenticatedRequest, "DELETE", "Warehouse", id);
-    return ok(res, { deleted: true });
-  } catch (err) {
-    return next(err);
-  }
-});

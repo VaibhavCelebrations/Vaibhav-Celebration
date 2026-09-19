@@ -18,18 +18,6 @@ export type Supplier = {
   deletedAt: string | null;
 };
 
-export type Warehouse = {
-  id: string;
-  name: string;
-  location: string | null;
-  address: string | null;
-  isDefault: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-};
-
 export type PurchaseOrderStatus = "DRAFT" | "ORDERED" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CANCELLED";
 
 export type PurchaseOrderItem = {
@@ -47,7 +35,6 @@ export type PurchaseOrder = {
   poNumber: string;
   supplierId: string;
   status: PurchaseOrderStatus;
-  warehouseId: string | null;
   notes: string | null;
   expectedAt: string | null;
   receivedAt: string | null;
@@ -128,24 +115,6 @@ export async function deleteSupplier(id: string): Promise<void> {
   return adminFetch(`/admin/suppliers/${id}`, { method: "DELETE" });
 }
 
-// ─── Warehouses ───────────────────────────────────────────────────────────────
-
-export async function fetchWarehouses(): Promise<Warehouse[]> {
-  return adminFetch<Warehouse[]>("/admin/warehouses");
-}
-
-export async function createWarehouse(data: Partial<Warehouse>): Promise<Warehouse> {
-  return adminFetch<Warehouse>("/admin/warehouses", { method: "POST", body: data });
-}
-
-export async function updateWarehouse(id: string, data: Partial<Warehouse>): Promise<Warehouse> {
-  return adminFetch<Warehouse>(`/admin/warehouses/${id}`, { method: "PATCH", body: data });
-}
-
-export async function deleteWarehouse(id: string): Promise<void> {
-  return adminFetch(`/admin/warehouses/${id}`, { method: "DELETE" });
-}
-
 // ─── Purchase Orders ──────────────────────────────────────────────────────────
 
 export async function fetchPurchaseOrders(params?: {
@@ -171,7 +140,6 @@ export async function fetchPurchaseOrder(id: string): Promise<PurchaseOrder> {
 
 export async function createPurchaseOrder(data: {
   supplierId: string;
-  warehouseId?: string;
   notes?: string;
   expectedAt?: string;
   items: Array<{ productId: string; quantity: number; unitPriceInPaise: number }>;

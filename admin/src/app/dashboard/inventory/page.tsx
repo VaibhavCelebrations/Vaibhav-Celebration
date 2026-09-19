@@ -10,7 +10,6 @@ import {
   IndianRupee,
   ShoppingCart,
   Truck,
-  Warehouse,
   ArrowRight,
   RefreshCw,
 } from "lucide-react";
@@ -267,12 +266,7 @@ export default function InventoryOverviewPage() {
             label="Suppliers"
             sublabel="Manage supplier directory"
           />
-          <QuickLink
-            href="/dashboard/inventory/warehouses"
-            icon={<Warehouse size={16} />}
-            label="Warehouses"
-            sublabel="Manage storage locations"
-          />
+
           <QuickLink
             href="/dashboard/inventory/reports"
             icon={<Package size={16} />}
