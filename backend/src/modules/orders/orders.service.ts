@@ -1540,8 +1540,9 @@ export async function adminUpdateOrderItemFulfillment(orderId: string, itemId: s
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING_PAYMENT: [OrderStatus.CANCELLED],
-  PAID: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
-  PROCESSING: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+  PAID: [OrderStatus.PROCESSING, OrderStatus.READY_TO_SHIP, OrderStatus.CANCELLED],
+  PROCESSING: [OrderStatus.READY_TO_SHIP, OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+  READY_TO_SHIP: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
   SHIPPED: [OrderStatus.DELIVERED],
   DELIVERED: [OrderStatus.REFUNDED],
   CANCELLED: [],
