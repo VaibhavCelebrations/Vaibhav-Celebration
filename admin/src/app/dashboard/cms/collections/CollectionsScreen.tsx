@@ -191,7 +191,7 @@ export function CollectionsScreen() {
         title="Collections"
         description="Create festive shop collections, pick active products, and publish them to /gifts."
         actions={
-          <button type="button" onClick={openCreate} className="btn-primary inline-flex items-center gap-2">
+          <button type="button" onClick={openCreate} className="btn btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm">
             <Plus size={16} /> New Collection
           </button>
         }
