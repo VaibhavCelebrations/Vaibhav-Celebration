@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, Eye } from "lucide-react";
+import { FileText, Loader2, Eye, Info, Package, CreditCard, PhoneCall } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -246,57 +246,44 @@ export function OrdersScreen() {
       ),
     },
     {
-      key: "type",
-      header: "Type",
-      cell: (row) =>
-        row.kind === "PACKAGE" ? (
-          <span className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded font-medium">Package</span>
-        ) : row.registryCode ? (
-          <span className="text-xs px-2 py-1 bg-rose-50 text-rose-800 rounded font-medium">Registry</span>
-        ) : (
-          <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">Shop</span>
-        ),
-    },
-    {
       key: "package",
-      header: "Package / Theme",
-      hideBelow: "md",
-      cell: (row) =>
-        row.packageTitle ? (
-          <span className="text-xs text-(--color-text-secondary)">
-            {row.themeTitle ? `${row.themeTitle} — ` : ""}
-            {row.packageTitle}
-          </span>
-        ) : (
-          <span className="text-xs text-stone-400">—</span>
-        ),
+      header: "Order Items",
+      cell: (row) => (
+        <div className="flex flex-col items-start gap-1.5">
+          {row.kind === "PACKAGE" ? (
+            <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded font-semibold uppercase tracking-wider">Package</span>
+          ) : row.registryCode ? (
+            <span className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-800 rounded font-semibold uppercase tracking-wider">Registry</span>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider">Shop</span>
+          )}
+          {row.packageTitle ? (
+            <span className="text-xs text-(--color-text-secondary)">
+              {row.themeTitle ? `${row.themeTitle} — ` : ""}
+              {row.packageTitle}
+            </span>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "status",
-      header: "Order",
+      header: "Status",
       cell: (row) => (
-        <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">{row.status}</span>
-      ),
-    },
-    {
-      key: "paymentStatus",
-      header: "Payment",
-      cell: (row) => (
-        <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">{row.paymentStatus ?? "—"}</span>
-      ),
-    },
-    {
-      key: "customizationFollowUpStatus",
-      header: "Follow-up",
-      hideBelow: "md",
-      cell: (row) =>
-        row.hasPersonalization || (row.customizationFollowUpStatus && row.customizationFollowUpStatus !== "NOT_REQUIRED") ? (
-          <span className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded font-medium">
-            {String(row.customizationFollowUpStatus ?? "REQUIRED").replaceAll("_", " ")}
+        <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider" title="Order Status">
+            <Package size={10} /> {row.status}
           </span>
-        ) : (
-          <span className="text-xs text-stone-400">—</span>
-        ),
+          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider" title="Payment Status">
+            <CreditCard size={10} /> {row.paymentStatus ?? "—"}
+          </span>
+          {(row.hasPersonalization || (row.customizationFollowUpStatus && row.customizationFollowUpStatus !== "NOT_REQUIRED")) && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded font-semibold uppercase tracking-wider" title="Follow-up Status">
+              <PhoneCall size={10} /> {String(row.customizationFollowUpStatus ?? "REQUIRED").replaceAll("_", " ")}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: "placedAt",
@@ -325,7 +312,7 @@ export function OrdersScreen() {
           onClick={() => openOrder(row)}
           className="btn btn-secondary px-3 py-1.5 text-xs font-semibold shadow-sm"
         >
-          <Eye size={14} className="inline mr-1" /> View details
+          View
         </button>
       ),
     },
@@ -338,7 +325,12 @@ export function OrdersScreen() {
         description="Shop products, celebration packages, and gift registry purchases."
       />
 
-
+      <div className="flex flex-wrap items-center gap-4 p-3 bg-stone-50 border border-stone-200 rounded-md text-xs text-stone-600">
+        <span className="font-semibold text-stone-800 uppercase tracking-wider">Status Legend:</span>
+        <span className="flex items-center gap-1.5"><Package size={14} className="text-stone-500" /> Order</span>
+        <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-stone-500" /> Payment</span>
+        <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-stone-500" /> Follow-up</span>
+      </div>
       <AdminDataTable
         columns={columns}
         rows={rows}
