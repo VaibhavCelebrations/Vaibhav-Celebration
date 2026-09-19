@@ -9,7 +9,7 @@ import { useRepoList } from "@/lib/use-repo-list";
 import { formatDate } from "@/lib/format";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -232,7 +232,7 @@ export function PopupsScreen() {
           description: "Create a popup to promote events or offers.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Popup" : "New Popup"}
@@ -240,7 +240,7 @@ export function PopupsScreen() {
         submitting={submitting}
         error={formError}
         dirty={dirty}
-        width="lg"
+        size="lg"
       >
         <FormField label="Title" htmlFor="popup-title" required>
           <TextInput id="popup-title" value={form.title} onChange={(e) => patch({ title: e.target.value })} required />
@@ -296,7 +296,7 @@ export function PopupsScreen() {
           <label htmlFor="popup-active" className="text-sm font-medium">Active</label>
           <ToggleSwitch id="popup-active" checked={form.isActive} onChange={(v) => patch({ isActive: v })} />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
       <AdminConfirmDialog
         open={!!archiveTarget}
         title="Archive this popup?"

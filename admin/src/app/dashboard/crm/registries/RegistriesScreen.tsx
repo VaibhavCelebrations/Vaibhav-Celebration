@@ -6,7 +6,7 @@ import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { qs } from "@/lib/data/types";
 import { useListQuery } from "@/lib/use-list-query";
 import { AdminDataTable, type Column, type RowAction } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { SelectInput } from "@/components/ui/fields";
@@ -155,7 +155,7 @@ export function RegistriesScreen() {
         />
       )}
 
-      <AdminDrawerForm open={drawerOpen} title={String(detail?.registryCode ?? "Registry")} onClose={() => setDrawerOpen(false)} onSubmit={(e) => e.preventDefault()} submitLabel="Close">
+      <AdminModalForm open={drawerOpen} title={String(detail?.registryCode ?? "Registry")} onClose={() => setDrawerOpen(false)} onSubmit={(e) => e.preventDefault()} submitLabel="Close" size="xl">
         {loadingDetail ? (
           <div className="flex justify-center py-10"><Loader2 className="animate-spin" /></div>
         ) : detail ? (
@@ -194,7 +194,7 @@ export function RegistriesScreen() {
         ) : (
           <p>Select a registry</p>
         )}
-      </AdminDrawerForm>
+      </AdminModalForm>
     </div>
   );
 }

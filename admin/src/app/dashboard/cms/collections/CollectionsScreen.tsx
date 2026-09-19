@@ -10,7 +10,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -226,11 +226,11 @@ export function CollectionsScreen() {
         empty={{ icon: Layers, title: "No collections yet", description: "Create a collection to bundle products." }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Collection" : "New Collection"}
-        width="lg"
+        size="lg"
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
@@ -302,7 +302,7 @@ export function CollectionsScreen() {
             <NumberInput id="collection-order" value={form.displayOrder} onChange={(v) => patchForm({ displayOrder: v || 0 })} />
           </FormField>
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveTarget}

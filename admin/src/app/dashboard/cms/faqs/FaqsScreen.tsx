@@ -9,7 +9,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -146,7 +146,7 @@ export function FaqsScreen() {
         empty={{ icon: HelpCircle, title: "No FAQs yet", description: "Add your first frequently asked question." }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit FAQ" : "New FAQ"}
@@ -173,7 +173,7 @@ export function FaqsScreen() {
           </label>
           <ToggleSwitch id="faq-active" checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveTarget}

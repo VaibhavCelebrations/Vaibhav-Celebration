@@ -6,7 +6,7 @@ import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { SelectInput, TextArea } from "@/components/ui/fields";
@@ -389,7 +389,7 @@ export function OrdersScreen() {
         }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={viewingOrder ? `Order ${viewingOrder.orderCode}` : "Loading..."}
@@ -401,6 +401,7 @@ export function OrdersScreen() {
         error={null}
         dirty={false}
         submitLabel="Close"
+        size="xl"
       >
         {loadingOrder ? (
           <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-stone-400" /></div>
@@ -580,7 +581,7 @@ export function OrdersScreen() {
             </div>
           </div>
         ) : null}
-      </AdminDrawerForm>
+      </AdminModalForm>
     </div>
   );
 }
