@@ -2,6 +2,7 @@ import { InventoryLedgerReason, Prisma, StockStatusFlag } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { parsePagination } from "../../lib/response";
+import { invalidateProductCaches } from "./catalog.service";
 
 export function computeStockStatus(quantityAvailable: number, lowStockThreshold: number): StockStatusFlag {
   if (quantityAvailable <= 0) return StockStatusFlag.OUT_OF_STOCK;
@@ -23,7 +24,14 @@ export async function adjustInventory(input: {
   adminUserId?: string;
   orderItemId?: string;
 }) {
-  return prisma.$transaction(async (tx) => {
+  if (input.reason === InventoryLedgerReason.RESTOCK && input.delta < 0) {
+    throw new ValidationError("Restock quantity cannot be negative.");
+  }
+  if (input.reason === InventoryLedgerReason.SALE && input.delta > 0) {
+    throw new ValidationError("Sale quantity cannot be positive.");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
     const record = await tx.inventoryRecord.findUnique({ where: { productId: input.productId } });
     if (!record) throw new NotFoundError("Inventory record not found for this product");
 
@@ -57,6 +65,8 @@ export async function adjustInventory(input: {
 
     return updated;
   });
+  void invalidateProductCaches();
+  return result;
 }
 
 /** Non-transactional variant for use INSIDE an already-open transaction (checkout). */
@@ -64,6 +74,13 @@ export async function adjustInventoryInTx(
   tx: Prisma.TransactionClient,
   input: { productId: string; delta: number; reason: InventoryLedgerReason; note?: string; orderItemId?: string },
 ) {
+  if (input.reason === InventoryLedgerReason.RESTOCK && input.delta < 0) {
+    throw new ValidationError("Restock quantity cannot be negative.");
+  }
+  if (input.reason === InventoryLedgerReason.SALE && input.delta > 0) {
+    throw new ValidationError("Sale quantity cannot be positive.");
+  }
+
   const record = await tx.inventoryRecord.findUnique({ where: { productId: input.productId } });
   if (!record) throw new NotFoundError("Inventory record not found for this product");
 
@@ -93,6 +110,7 @@ export async function adjustInventoryInTx(
     },
   });
 
+  void invalidateProductCaches();
   return nextQuantity;
 }
 

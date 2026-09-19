@@ -528,6 +528,14 @@ export function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: P
       setError("Enter a non-zero quantity change.");
       return;
     }
+    if (reason === "RESTOCK" && delta < 0) {
+      setError("Restock quantity cannot be negative.");
+      return;
+    }
+    if (reason === "SALE" && delta > 0) {
+      setError("Sale quantity cannot be positive.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
