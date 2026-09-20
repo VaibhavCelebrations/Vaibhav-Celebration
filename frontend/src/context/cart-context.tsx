@@ -66,6 +66,7 @@ interface CartContextType {
   clearCart: () => Promise<void>;
   getItemQuantity: (productId: string) => number;
   refreshCart: () => Promise<void>;
+  syncOfflineCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -318,12 +319,43 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [isAuthenticated, push],
   );
 
+  const syncOfflineCart = useCallback(async () => {
+    const offlineCart = loadOfflineCart();
+    if (offlineCart.items.length > 0) {
+      for (const item of offlineCart.items) {
+        try {
+          await shopApi.addCartItem(
+            item.productId,
+            item.quantity,
+            item.personalizationValues,
+            item.registryItemId ?? undefined,
+          );
+        } catch (e) {
+          console.error("Failed to sync offline cart item", e);
+        }
+      }
+      clearOfflineCart();
+    }
+    try {
+      const cart = await shopApi.getCart();
+      setItems(cart.items);
+      setQuote(normalizeQuote(cart.quote));
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
   const addPackage = useCallback((pkg: Omit<CartPackage, "id">) => {
     setPackages((prev) => {
       const existingIndex = prev.findIndex((p) => p.packageId === pkg.packageId && p.themeSlug === pkg.themeSlug);
       if (existingIndex >= 0) {
         const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], basePrice: pkg.basePrice, addons: pkg.addons };
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          basePrice: pkg.basePrice,
+          addons: pkg.addons,
+          builderInput: pkg.builderInput ?? updated[existingIndex].builderInput,
+        };
         return updated;
       }
       return [...prev, { ...pkg, id: Date.now().toString() + Math.random().toString(36).substring(2, 9) }];
@@ -394,6 +426,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clearCart,
         getItemQuantity,
         refreshCart,
+        syncOfflineCart,
       }}
     >
       {children}

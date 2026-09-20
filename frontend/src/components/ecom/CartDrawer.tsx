@@ -8,7 +8,6 @@ import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
-import { CheckoutGateModal } from "@/components/ecom/CheckoutGateModal";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { ServerCartItem } from "@/lib/shop-types";
@@ -66,23 +65,13 @@ export function CartDrawer() {
   const { themesBySlug, packagesBySlug } = useCatalog();
   const deliverySettings = useDeliverySettings();
   const router = useRouter();
-  const [gateOpen, setGateOpen] = useState(false);
-
-  const goCheckout = () => {
-    closeCart();
-    router.push("/checkout");
-  };
 
   const handleCheckout = () => {
     closeCart();
-    if (!isAuthenticated) {
-      setGateOpen(true);
-      return;
-    }
     router.push("/checkout");
   };
 
-  if (!isCartOpen && !gateOpen) return null;
+  if (!isCartOpen) return null;
 
   // One shipping/GST calculation across the shop cart AND event packages —
   // free delivery must consider both, not just the shop subtotal.
@@ -91,12 +80,6 @@ export function CartDrawer() {
 
   return (
     <>
-      <CheckoutGateModal
-        open={gateOpen}
-        onClose={() => setGateOpen(false)}
-        onContinue={goCheckout}
-        requireShippingAddress={items.length > 0 || packages.length === 0}
-      />
 
       {isCartOpen && (
     <>
