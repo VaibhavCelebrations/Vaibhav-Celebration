@@ -251,7 +251,7 @@ adminOrdersRouter.get(
   "/",
   validate(paginationQuerySchema.extend({
     search: z.string().optional(),
-    status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]).optional(),
+    status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]).optional(),
     paymentStatus: z.enum(["NOT_REQUIRED", "PENDING", "PAID", "FAILED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"]).optional(),
     followUp: z.enum(["NOT_REQUIRED", "REQUIRED", "CONTACTED", "CONFIRMED", "COMPLETED", "REQUIRED_ANY"]).optional(),
     registryId: z.string().optional(),
@@ -306,7 +306,7 @@ adminOrdersRouter.patch(
 adminOrdersRouter.patch(
   "/:id/status",
   validate(z.object({ id: z.string() }), "params"),
-  validate(z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) }), "body"),
+  validate(z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) }), "body"),
   async (req, res, next) => {
     try {
       const { adminUpdateOrderStatus } = require("./orders.service");
