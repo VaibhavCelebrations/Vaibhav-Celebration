@@ -1193,7 +1193,7 @@ export async function resendOrderConfirmationEmail(orderId: string) {
   let includeGiftRegistrySetup = false;
   if (order.upgradeKind === "GIFT_REGISTRY") {
     includeGiftRegistrySetup = true;
-  } else if (order.kind === "PACKAGE" && order.packageOrder?.builderInput?.selections?.giftRegistryCustomize) {
+  } else if (order.kind === "PACKAGE" && (order.packageOrder?.builderInput as any)?.selections?.giftRegistryCustomize) {
     includeGiftRegistrySetup = true;
   }
 
@@ -1333,7 +1333,7 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
   let includeGiftRegistrySetup = false;
   if (order.upgradeKind === "GIFT_REGISTRY") {
     includeGiftRegistrySetup = true;
-  } else if (order.kind === "PACKAGE" && order.packageOrder?.builderInput?.selections?.giftRegistryCustomize) {
+  } else if (order.kind === "PACKAGE" && (order.packageOrder?.builderInput as any)?.selections?.giftRegistryCustomize) {
     includeGiftRegistrySetup = true;
   }
 

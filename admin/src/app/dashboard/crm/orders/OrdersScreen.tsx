@@ -91,6 +91,7 @@ type Order = OrderRow & {
   gstInPaise: number;
   invoicePdfUrl?: string | null;
   whatsappMessageId?: string | null;
+  trackingUrl?: string | null;
 };
 
 function errMessage(err: unknown): string | undefined {
@@ -188,13 +189,13 @@ export function OrdersScreen() {
     }
   }
 
-  async function updateOrderStatus(status: string) {
+  async function updateOrderStatus(status: string, trackingUrl?: string) {
     if (!viewingOrder) return;
     setSavingOps(true);
     try {
       const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/status`, {
         method: "PATCH",
-        body: { status },
+        body: { status, trackingUrl },
       });
       setViewingOrder(updated);
       reload();
@@ -522,6 +523,14 @@ export function OrdersScreen() {
                 {viewingOrder.razorpayPaymentId && (
                   <p className="text-xs font-mono text-stone-500 break-all">Rzp payment: {viewingOrder.razorpayPaymentId}</p>
                 )}
+                {viewingOrder.trackingUrl && (
+                  <div className="mt-2 pt-2 border-t border-stone-200">
+                    <p className="text-stone-500 mb-1 text-xs">Tracking URL</p>
+                    <a href={viewingOrder.trackingUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline break-all">
+                      {viewingOrder.trackingUrl}
+                    </a>
+                  </div>
+                )}
               </div>
               <div>
                 <p className="text-stone-500 mb-1 flex items-center gap-1.5">
@@ -757,9 +766,11 @@ export function OrdersScreen() {
         open={statusToConfirm !== null}
         title="Change Order Status"
         message={`Are you sure you want to change the order status to ${ORDER_STATUS_OPTIONS.find((o) => o.value === statusToConfirm)?.label}?`}
-        onConfirm={async () => {
+        requireReason={statusToConfirm === "SHIPPED" && !viewingOrder?.trackingUrl}
+        reasonLabel="Tracking URL (Required for SHIPPED)"
+        onConfirm={async (reason?: string) => {
           if (statusToConfirm) {
-            await updateOrderStatus(statusToConfirm);
+            await updateOrderStatus(statusToConfirm, reason);
             setStatusToConfirm(null);
           }
         }}

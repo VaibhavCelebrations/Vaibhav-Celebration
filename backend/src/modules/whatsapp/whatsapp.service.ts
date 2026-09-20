@@ -9,6 +9,7 @@ import { WhatsAppSendError, invalidPhoneError } from "../../integrations/whatsap
 import {
   buildInvoiceDeliveryMessage,
   buildOrderConfirmationMessage,
+  buildOrderStatusUpdateMessage,
   buildPhoneVerificationMessage,
   buildWelcomeMessage,
 } from "../../integrations/whatsapp/templates";
@@ -232,6 +233,34 @@ export async function sendWelcomeWhatsapp(input: { userId: string; phone: string
   }
   const message = buildWelcomeMessage({ name: input.name });
   return dispatch({ toPhone: input.phone, entityId: input.userId, entityType: "welcome", message });
+}
+
+/**
+ * Sends the order_status_update WhatsApp template to the customer when an
+ * admin moves an order to a new status. No idempotency claim is applied here
+ * because each status change is a deliberate admin action that warrants exactly
+ * one notification. Never throws — callers fire-and-forget.
+ */
+export async function sendOrderStatusUpdateWhatsapp(input: {
+  orderId: string;
+  orderCode: string;
+  contactPhone: string;
+  customerName: string;
+  status: string;
+  trackingUrl?: string | null;
+}): Promise<WhatsAppSendOutcome> {
+  const message = buildOrderStatusUpdateMessage({
+    customerName: input.customerName,
+    orderCode: input.orderCode,
+    status: input.status,
+    trackingUrl: input.trackingUrl,
+  });
+  return dispatch({
+    toPhone: input.contactPhone,
+    entityId: input.orderId,
+    entityType: "order",
+    message,
+  });
 }
 
 // ─── Webhook: GET verification challenge ─────────────────────────────────────
