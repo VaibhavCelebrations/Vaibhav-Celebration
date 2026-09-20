@@ -9,9 +9,9 @@ import { createRazorpayOrder, getRazorpayPublicKey, verifyCheckoutPaymentSignatu
 import { claimPaymentEvent } from "../payments/payment-events";
 import { generateInvoicePdf, fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
 import { nextInvoiceNumber } from "../../lib/sequences";
-import { orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
+import { orderConfirmationHtml, orderStatusUpdateHtml, sendEmail } from "../../integrations/email/mailer";
 import { getGstPercent } from "../../lib/settings";
-import { sendOrderConfirmationWhatsapp } from "../whatsapp/whatsapp.service";
+import { sendOrderConfirmationWhatsapp, sendOrderStatusUpdateWhatsapp } from "../whatsapp/whatsapp.service";
 import { logger } from "../../lib/logger";
 import { giftRegistryStateForPackageOrder } from "../upgrades/upgrades.service";
 import { InvoiceLinkedType } from "@prisma/client";
@@ -1557,7 +1557,10 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { user: { select: { name: true } } },
+  });
   if (!order) throw new NotFoundError("Order not found");
   const allowed = ORDER_TRANSITIONS[order.status] ?? [];
   if (!allowed.includes(status)) {
@@ -1565,10 +1568,53 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
   }
   if (status === OrderStatus.CANCELLED && order.paymentStatus !== PaymentStatus.PAID) {
     await cancelOrderAndRestock(orderId, "Cancelled by admin");
+    // Fire notifications for cancellation (no invoice involved)
+    if (order.contactEmail && order.contactPhone) {
+      fireOrderStatusNotifications({ order, customerName: order.user.name, status: OrderStatus.CANCELLED });
+    }
     return adminGetOrder(orderId);
   }
   await prisma.order.update({ where: { id: orderId }, data: { status } });
+  // Skip PAID — order confirmation email/WhatsApp is already sent by the payment webhook.
+  if (status !== OrderStatus.PAID) {
+    fireOrderStatusNotifications({ order, customerName: order.user.name, status });
+  }
   return adminGetOrder(orderId);
+}
+
+/**
+ * Fire-and-forget: sends an email + WhatsApp notification to the customer
+ * whenever an admin moves an order to a new status. Failures are swallowed
+ * so that a notification outage never blocks the admin action.
+ */
+function fireOrderStatusNotifications(input: {
+  order: { id: string; orderCode: string; contactEmail: string; contactPhone: string };
+  customerName: string;
+  status: OrderStatus;
+}) {
+  const { order, customerName, status } = input;
+  const statusStr = status as string;
+
+  Promise.allSettled([
+    sendEmail({
+      to: order.contactEmail,
+      subject: `Your Order ${order.orderCode} — Status Update`,
+      html: orderStatusUpdateHtml({ name: customerName, orderCode: order.orderCode, status: statusStr }),
+    }),
+    sendOrderStatusUpdateWhatsapp({
+      orderId: order.id,
+      orderCode: order.orderCode,
+      contactPhone: order.contactPhone,
+      customerName,
+      status: statusStr,
+    }),
+  ]).then((results) => {
+    for (const result of results) {
+      if (result.status === "rejected") {
+        logger.error({ err: result.reason, orderId: order.id, newStatus: statusStr }, "Order status notification failed");
+      }
+    }
+  });
 }
 
 export async function adminUpdateOrderOps(

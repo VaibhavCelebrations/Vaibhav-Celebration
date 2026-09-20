@@ -12,6 +12,7 @@ export const WHATSAPP_TEMPLATES = {
   orderConfirmation: { name: "order_confirmation", languageCode: "en" },
   invoiceDelivery: { name: "invoice_delivery", languageCode: "en" },
   welcomeMessage: { name: "welcome_message", languageCode: "en" },
+  orderStatusUpdate: { name: "order_status_update", languageCode: "en" },
 } as const;
 
 export type WhatsAppTemplateKey = keyof typeof WHATSAPP_TEMPLATES;
@@ -62,5 +63,58 @@ export function buildWelcomeMessage(input: { name: string }): BuiltMessage {
     templateName: template.name,
     languageCode: template.languageCode,
     bodyParameters: [input.name],
+  };
+}
+
+/**
+ * Maps an OrderStatus value to a short human-readable label and a brief
+ * customer-facing sentence used in the WhatsApp body parameters.
+ * Kept in sync with ORDER_STATUS_LABELS in mailer.ts.
+ */
+const WA_STATUS_LABELS: Record<string, { label: string; message: string }> = {
+  PROCESSING: {
+    label: "Processing",
+    message: "Our team is now preparing your order for dispatch.",
+  },
+  READY_TO_SHIP: {
+    label: "Ready to Ship",
+    message: "Your order is packed and will be handed to our courier very soon.",
+  },
+  SHIPPED: {
+    label: "Shipped",
+    message: "Your order is on its way! Keep an eye out for the delivery.",
+  },
+  DELIVERED: {
+    label: "Delivered",
+    message: "Your order has been successfully delivered. Enjoy!",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    message: "Your order has been cancelled. Contact us if you need assistance.",
+  },
+  REFUNDED: {
+    label: "Refunded",
+    message: "Your refund has been initiated and may take 3-7 business days.",
+  },
+};
+
+/**
+ * Builds the order_status_update WhatsApp template message.
+ * Body parameters order: [customerName, orderCode, statusLabel, statusMessage]
+ */
+export function buildOrderStatusUpdateMessage(input: {
+  customerName: string;
+  orderCode: string;
+  status: string;
+}): BuiltMessage {
+  const template = WHATSAPP_TEMPLATES.orderStatusUpdate;
+  const statusInfo = WA_STATUS_LABELS[input.status] ?? {
+    label: input.status,
+    message: "Your order status has been updated.",
+  };
+  return {
+    templateName: template.name,
+    languageCode: template.languageCode,
+    bodyParameters: [input.customerName, input.orderCode, statusInfo.label, statusInfo.message],
   };
 }

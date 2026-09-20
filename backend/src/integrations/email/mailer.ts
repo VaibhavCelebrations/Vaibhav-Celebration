@@ -204,6 +204,56 @@ export function passwordChangedEmailHtml(name: string) {
   `);
 }
 
+const ORDER_STATUS_LABELS: Record<string, { label: string; message: string }> = {
+  PROCESSING: {
+    label: "Processing",
+    message: "We've received your order and our team is now preparing it for dispatch.",
+  },
+  READY_TO_SHIP: {
+    label: "Ready to Ship",
+    message: "Your order is packed and ready — it will be handed to our courier partner very soon.",
+  },
+  SHIPPED: {
+    label: "Shipped 🚚",
+    message: "Great news! Your order is on its way to you. Keep an eye out for the delivery.",
+  },
+  DELIVERED: {
+    label: "Delivered 🎉",
+    message: "Your order has been successfully delivered. We hope you absolutely love it!",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    message: "Your order has been cancelled. If you have any questions or need help, please reach out to us.",
+  },
+  REFUNDED: {
+    label: "Refunded",
+    message: "Your refund has been initiated. It may take 3–7 business days to reflect in your account.",
+  },
+};
+
+export function orderStatusUpdateHtml(input: {
+  name: string;
+  orderCode: string;
+  status: string;
+}) {
+  const statusInfo = ORDER_STATUS_LABELS[input.status] ?? {
+    label: input.status,
+    message: "Your order status has been updated.",
+  };
+
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Order Update: ${statusInfo.label}</h1>
+    <p>Hi ${input.name},</p>
+    <p>${statusInfo.message}</p>
+    <div style="background-color:#f4ede8;border-radius:8px;padding:20px;margin:24px 0;text-align:center;">
+      <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;">Order Reference</p>
+      <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#2c1810;font-family:monospace;">${input.orderCode}</p>
+      <p style="margin:8px 0 0;font-size:14px;color:#8B4513;font-weight:600;">${statusInfo.label}</p>
+    </div>
+    <p>You can track the full status of your order anytime from your account dashboard.</p>
+  `);
+}
+
 export function orderConfirmationHtml(input: {
   name: string;
   orderCode: string;
