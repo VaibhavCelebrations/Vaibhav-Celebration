@@ -23,7 +23,7 @@ import {
 } from "./modules/catalog/catalog.routes";
 import { productCollectionsRouter, adminProductCollectionsRouter } from "./modules/catalog/collections.routes";
 import { cartRouter, wishlistRouter, deliverySettingsRouter } from "./modules/shop/shop.routes";
-import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter } from "./modules/orders/orders.routes";
+import { shopCheckoutRouter, ordersRouter, accountOrdersRouter, adminOrdersRouter, guestCheckoutRouter } from "./modules/orders/orders.routes";
 import { registryRouter, accountRegistryRouter, adminRegistryRouter } from "./modules/registry/registry.routes";
 import { packagesRouter, adminPackagesRouter } from "./modules/packages/packages.routes";
 import { adminExtraServicesRouter } from "./modules/extra-services/extra-services.routes";
@@ -339,6 +339,10 @@ export function createApp() {
   api.use("/wishlist", publicLimiter, wishlistRouter);
   api.use("/shop/delivery-settings", publicLimiter, deliverySettingsRouter);
   api.use("/shop/checkout", publicLimiter, shopCheckoutRouter);
+  // Guest checkout: quote/shop/direct/package under publicLimiter;
+  // verify-payment is a sensitive write — apply strictLimiter in addition.
+  api.use("/shop/guest-checkout/verify-payment", strictLimiter);
+  api.use("/shop/guest-checkout", publicLimiter, guestCheckoutRouter);
   api.use("/shop/orders", strictLimiter, ordersRouter);
   api.use("/account/orders", publicLimiter, accountOrdersRouter);
   api.use("/account/registries", publicLimiter, accountRegistryRouter);

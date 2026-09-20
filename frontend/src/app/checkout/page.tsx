@@ -293,14 +293,15 @@ export default function CheckoutPage() {
             setConfirmedOrderCode(orderCode);
             setConfirmedInvoiceUrl(order.invoicePdfUrl);
             setHadPackagesAtCheckout(packages.length > 0);
-            if (packages.length > 0) {
+            // Only show registry popup for authenticated users
+            if (isAuthenticated && packages.length > 0) {
               const childName = packages[0]?.builderInput?.eventDetails?.childName;
               setRegistryPromptData({
-                 title: childName ? `${childName}'s Celebration` : "My Celebration",
-                 date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                 orderCode: orderCode,
-                 shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                 childName: childName,
+                title: childName ? `${childName}'s Celebration` : "My Celebration",
+                date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                orderCode: orderCode,
+                shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                childName: childName,
               });
             }
             setPaymentStatus("idle");
@@ -327,7 +328,7 @@ export default function CheckoutPage() {
   }
 
   async function openShopRazorpay(order: CreateOrderResult) {
-    const sdkReady = await loadRazorpayScript();
+      const sdkReady = await loadRazorpayScript();
     if (!sdkReady) {
       push("Could not load the payment gateway. Please check your connection and try again.", "error");
       setIsPlacingOrder(false);
@@ -351,12 +352,22 @@ export default function CheckoutPage() {
       handler: async (response) => {
         setPaymentStatus("confirming");
         try {
-          const verified = await shopApi.verifyShopPayment({
-            orderCode: order.orderCode,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
-          });
+          // Guests have no session cookie — use the public guest verify endpoint.
+          // Authenticated users use the session-protected endpoint.
+          const verified = isAuthenticated
+            ? await shopApi.verifyShopPayment({
+                orderCode: order.orderCode,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              })
+            : await shopApi.verifyGuestShopPayment({
+                orderCode: order.orderCode,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
           if (verified.status === "PAID" || verified.paymentStatus === "PAID") {
             setPaymentStatus("success");
             setTimeout(() => {
@@ -366,14 +377,16 @@ export default function CheckoutPage() {
               setIsPlacingOrder(false);
               setPendingOrderCode(null);
               setHadPackagesAtCheckout(packages.length > 0);
-              if (packages.length > 0) {
+              // Only show the registry popup for authenticated users.
+              // Guest users receive registry instructions in their confirmation email.
+              if (isAuthenticated && packages.length > 0) {
                 const childName = packages[0]?.builderInput?.eventDetails?.childName;
                 setRegistryPromptData({
-                   title: childName ? `${childName}'s Celebration` : "My Celebration",
-                   date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                   orderCode: verified.orderCode,
-                   shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                   childName: childName,
+                  title: childName ? `${childName}'s Celebration` : "My Celebration",
+                  date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                  orderCode: verified.orderCode,
+                  shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                  childName: childName,
                 });
               }
               void clearCart().then(() => refreshCart());
@@ -390,7 +403,10 @@ export default function CheckoutPage() {
         ondismiss: () => {
           setIsPlacingOrder(false);
           setPaymentStatus("cancelled");
-          void shopApi.markCheckoutCancelled(order.orderCode).catch(() => undefined);
+          // Only authenticated users can mark cancellation via the account endpoint
+          if (isAuthenticated) {
+            void shopApi.markCheckoutCancelled(order.orderCode).catch(() => undefined);
+          }
         },
       },
     });
@@ -401,11 +417,6 @@ export default function CheckoutPage() {
   }
 
   const handlePlaceOrder = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
-
     if (!validateCheckout()) {
       push("Please fill in all required fields.", "error");
       return;
@@ -459,27 +470,47 @@ export default function CheckoutPage() {
           : address;
 
       if (directCheckout) {
-        const order = await shopApi.createDirectShopOrder({
-          productId: directCheckout.productId,
-          quantity: directCheckout.quantity,
-          shippingAddress: address,
-          contactEmail: contactEmail.trim(),
-          contactPhone: contactPhone.trim(),
-          personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
-          personalizationSelected: directCheckout.personalizationSelected,
-          packageData,
-        });
+        let order;
+        if (!isAuthenticated) {
+          order = await shopApi.createGuestDirectShopOrder({
+            productId: directCheckout.productId,
+            quantity: directCheckout.quantity,
+            shippingAddress: address,
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
+            personalizationSelected: directCheckout.personalizationSelected,
+            packageData,
+          });
+        } else {
+          order = await shopApi.createDirectShopOrder({
+            productId: directCheckout.productId,
+            quantity: directCheckout.quantity,
+            shippingAddress: address,
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
+            personalizationSelected: directCheckout.personalizationSelected,
+            packageData,
+          });
 
-        if (saveAsDefault && isAuthenticated) {
-          try {
-            await authApi.updateProfile({ defaultAddress: address });
-          } catch (e) {
-            console.error("Failed to save default address", e);
+          if (saveAsDefault) {
+            try {
+              await authApi.updateProfile({ defaultAddress: address });
+            } catch (e) {
+              console.error("Failed to save default address", e);
+            }
           }
         }
 
         CacheStore.removeSessionItem(DIRECT_CHECKOUT_KEY);
         setDirectCheckout(null);
+        await openShopRazorpay(order);
+        return;
+      }
+
+      if (packageOnlyCheckout && !isAuthenticated) {
+        const order = await shopApi.createGuestPackageOrder(packageData);
         await openShopRazorpay(order);
         return;
       }
@@ -492,12 +523,29 @@ export default function CheckoutPage() {
         }
       }
 
-      const order = await shopApi.createShopOrder({
+      const payload = {
         shippingAddress: effectiveShippingAddress,
         contactEmail: effectiveEmail || contactEmail.trim(),
         contactPhone: effectivePhone || contactPhone.trim(),
         packageData,
-      });
+      };
+
+      let order;
+      if (!isAuthenticated) {
+        // `items` from useCart() already contains the offline cart items loaded
+        // from localStorage — no separate loadOfflineCart() call needed.
+        order = await shopApi.createGuestShopOrder({
+          ...payload,
+          cartItems: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            personalizationValues: i.personalizationValues,
+            registryItemId: i.registryItemId || undefined,
+          })),
+        });
+      } else {
+        order = await shopApi.createShopOrder(payload);
+      }
       await openShopRazorpay(order);
     } catch (err) {
       push(err instanceof ApiClientError ? err.message : "Could not place your order. Please try again.", "error");
@@ -665,10 +713,24 @@ export default function CheckoutPage() {
                               </p>
                             </div>
                           </div>
-                          {isAuthenticated && (
+                          {isAuthenticated ? (
                             <span className="text-[10px] bg-sage/20 text-sage-dark px-3 py-1.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap hidden sm:block">Profile loaded</span>
+                          ) : (
+                            <button onClick={() => openAuthModal()} className="text-[11px] font-bold text-mocha hover:text-mocha-dark underline underline-offset-2 uppercase tracking-wider hidden sm:block">
+                              Log in for faster checkout
+                            </button>
                           )}
                         </div>
+                        
+                        {!isAuthenticated && (
+                          <div className="sm:hidden mb-6 p-4 bg-cream/40 border border-mocha/10 rounded-xl text-center">
+                            <p className="text-sm text-text-muted mb-2">Already have an account?</p>
+                            <button onClick={() => openAuthModal()} className="text-sm font-bold text-mocha hover:text-mocha-dark underline underline-offset-2">
+                              Log in for faster checkout
+                            </button>
+                          </div>
+                        )}
+
                         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
                           <div className="sm:col-span-2">
                             <label className={labelClass}>Full Name <span className="text-red-500">*</span></label>
@@ -792,14 +854,6 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {!isAuthenticated ? (
-                      <div className="mt-8 space-y-4">
-                        <button onClick={() => openAuthModal()} className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all">
-                          Login to Checkout
-                        </button>
-                        <p className="text-[11px] text-text-muted text-center font-medium uppercase tracking-wider">You must be logged in to place an order</p>
-                      </div>
-                    ) : (
                       <button
                         onClick={handlePlaceOrder}
                         disabled={isPlacingOrder || paymentStatus === "confirming" || !isFormComplete()}
@@ -811,7 +865,12 @@ export default function CheckoutPage() {
                           <>Pay Securely <ArrowRight size={18} /></>
                         )}
                       </button>
-                    )}
+                      
+                      {!isAuthenticated && (
+                        <p className="mt-4 text-center text-xs text-text-muted">
+                          By placing this order, a guest account will be created for you.
+                        </p>
+                      )}
 
                     <div className="mt-4 space-y-3">
                       <label className="flex items-start gap-2 cursor-pointer">
@@ -875,6 +934,15 @@ export default function CheckoutPage() {
                   <p className="text-sm text-text-muted max-w-md mx-auto mb-6 bg-cream/60 rounded-xl px-4 py-3 border border-border-light">
                     If your package includes personalization, our team will contact you to confirm details before production.
                   </p>
+                )}
+                {!isAuthenticated && paymentStatus !== "pending" && (
+                  <div className="max-w-md mx-auto mb-6 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-left">
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Check your email</p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      Your order confirmation, invoice, and <strong>login credentials for your new account</strong> have been sent to <strong>{contactEmail}</strong>.
+                      {hadPackagesAtCheckout && " If your package includes a Gift Registry, setup instructions are in that email too."}
+                    </p>
+                  </div>
                 )}
               </ScrollReveal>
 

@@ -32,12 +32,28 @@ export function buildOrderConfirmationMessage(input: {
   orderCode: string;
   amountFormatted: string;
   document?: WhatsAppDocument;
+  includeGiftRegistrySetup?: boolean;
+  /** Present for guest checkouts — a link to the login page so the customer can access their new account. */
+  guestLoginUrl?: string;
 }): BuiltMessage {
   const template = WHATSAPP_TEMPLATES.orderConfirmation;
+  const params = [input.orderCode, input.amountFormatted];
+
+  // 3rd body parameter: gift registry instruction or guest login note (mutually exclusive priority)
+  if (input.guestLoginUrl) {
+    // Guest order: always tell them they have an account — registry info is in the email
+    const loginNote = input.includeGiftRegistrySetup
+      ? `Your account & Gift Registry setup instructions have been emailed to you. Log in: ${input.guestLoginUrl}`
+      : `Your account credentials have been emailed to you. Log in to track your order: ${input.guestLoginUrl}`;
+    params.push(loginNote);
+  } else if (input.includeGiftRegistrySetup) {
+    params.push(`Setup your Gift Registry by logging in: ${process.env.FRONTEND_URL}/account/registries`);
+  }
+
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: [input.orderCode, input.amountFormatted],
+    bodyParameters: params,
     document: input.document,
   };
 }

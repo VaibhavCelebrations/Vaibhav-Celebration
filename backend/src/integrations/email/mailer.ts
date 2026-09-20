@@ -168,6 +168,21 @@ export function welcomeEmailHtml(name: string) {
   `);
 }
 
+export function guestWelcomeEmailHtml(name: string, generatedPassword: string) {
+  const loginUrl = `${env.FRONTEND_URL}/login`;
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Welcome to Vaibhav Celebrations! 🎉</h1>
+    <p>Hi ${name},</p>
+    <p>Thank you for choosing to check out with us! We've automatically created a secure account for you so you can easily track your order and manage any personalized gift registries.</p>
+    <div style="background-color:#fff7eb;border-left:4px solid #8B4513;padding:16px;margin:24px 0;border-radius:4px;">
+      <p style="margin:0 0 12px 0;"><strong>Your Login Details:</strong></p>
+      <p style="margin:0;font-family:monospace;font-size:16px;">Password: <strong>${generatedPassword}</strong></p>
+    </div>
+    <p>You can sign in anytime at <a href="${loginUrl}" style="color:#8B4513;text-decoration:underline;">${loginUrl}</a>. We recommend changing your password after your first login.</p>
+    <p>Let's make every moment a celebration!</p>
+  `);
+}
+
 export function verifyEmailHtml(name: string, verifyUrl: string) {
   return baseEmailLayout(`
     <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Verify your email address</h1>
@@ -211,6 +226,13 @@ export function orderConfirmationHtml(input: {
   items: Array<{ title: string; quantity: number }>;
   invoiceNumber?: string | null;
   customizationFollowUp?: boolean;
+  includeGiftRegistrySetup?: boolean;
+  /** Present only for guest checkouts — the auto-generated password for the new account. */
+  guestPassword?: string;
+  /** The email address used to create the guest account (same as contactEmail). */
+  guestEmail?: string;
+  guestLoginUrl?: string;
+  guestPasswordResetUrl?: string;
 }) {
   const total = (input.totalInPaise / 100).toFixed(2);
   const itemsHtml = input.items
@@ -219,9 +241,59 @@ export function orderConfirmationHtml(input: {
         `<tr>
           <td style="padding:12px 0;border-bottom:1px solid #f4ede8;">${i.title}</td>
           <td style="padding:12px 0;border-bottom:1px solid #f4ede8;text-align:right;"><strong>× ${i.quantity}</strong></td>
-        </tr>`
+        </tr>`,
     )
     .join("");
+
+  const guestCredentialsHtml = input.guestPassword
+    ? `
+    <div style="background-color:#fef9f0;border:2px solid #8B4513;border-radius:8px;padding:20px;margin:28px 0;">
+      <h3 style="margin:0 0 12px 0;color:#8B4513;font-family:Georgia,serif;font-size:18px;">🔐 Your Account Has Been Created</h3>
+      <p style="margin:0 0 12px 0;color:#444;font-size:14px;">
+        We've automatically created a Vaibhav Celebrations account so you can track your order, manage returns, and set up your Gift Registry.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
+        <tr>
+          <td style="padding:8px 0;color:#888;font-weight:600;width:40%;">Login Email</td>
+          <td style="padding:8px 0;font-family:monospace;font-size:15px;color:#2c1810;">${input.guestEmail ?? ""}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#888;font-weight:600;">Temporary Password</td>
+          <td style="padding:8px 0;font-family:monospace;font-size:16px;font-weight:700;color:#8B4513;letter-spacing:1px;">${input.guestPassword}</td>
+        </tr>
+      </table>
+      <div style="background-color:#fff7eb;border-radius:6px;padding:12px;margin-bottom:16px;">
+        <p style="margin:0;font-size:13px;color:#92400e;">
+          <strong>Steps to secure your account:</strong><br/>
+          1. Visit <a href="${input.guestLoginUrl}" style="color:#8B4513;">${input.guestLoginUrl}</a> and sign in with the credentials above.<br/>
+          2. Go to <strong>Account → Security</strong> and change your password to something only you know.<br/>
+          3. From your dashboard you can track this order, view invoices, and manage your Gift Registry.
+        </p>
+      </div>
+      <p style="margin:0;font-size:12px;color:#aaa;">
+        Forgot your password later? Use the
+        <a href="${input.guestPasswordResetUrl}" style="color:#8B4513;text-decoration:underline;">Forgot Password</a>
+        link to reset it via email.
+      </p>
+    </div>`
+    : "";
+
+  const registrySetupHtml = input.includeGiftRegistrySetup
+    ? `
+    <div style="background-color:#eef2ff;border-left:4px solid #4f46e5;padding:16px;margin:24px 0;border-radius:4px;">
+      <h3 style="margin:0 0 10px 0;color:#3730a3;font-size:16px;">🎁 Gift Registry Included in Your Package</h3>
+      <p style="margin:0 0 8px 0;color:#312e81;font-size:14px;">
+        Your package includes a <strong>Gift Registry</strong> — a beautiful digital wishlist you can share with family and friends so they can gift exactly what your child loves.
+      </p>
+      <p style="margin:0 0 8px 0;font-size:14px;color:#312e81;">
+        <strong>To set it up:</strong><br/>
+        1. Log in to your account at <a href="${input.guestLoginUrl ?? `${env.FRONTEND_URL}/login`}" style="color:#4f46e5;">${env.FRONTEND_URL}/login</a><br/>
+        2. Go to <strong>Account → Gift Registry</strong><br/>
+        3. Complete your registry profile and share the link with guests
+      </p>
+      <p style="margin:0;font-size:12px;color:#6366f1;">There is no time pressure — your registry stays active for you to set up whenever you're ready.</p>
+    </div>`
+    : "";
 
   return baseEmailLayout(`
     <h1 style="font-size:24px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Order Confirmed! 🎊</h1>
@@ -234,6 +306,9 @@ export function orderConfirmationHtml(input: {
         ${itemsHtml}
       </table>
     </div>
+
+    ${guestCredentialsHtml}
+    ${registrySetupHtml}
 
     ${input.customizationFollowUp ? `<div style="background-color:#fff7eb;border-left:4px solid #f59e0b;padding:16px;margin:24px 0;border-radius:4px;"><p style="margin:0;color:#92400e;"><strong>Personalization Required:</strong> This order includes custom items. Our team will contact you shortly to confirm details before we start production.</p></div>` : ""}
     ${input.invoiceNumber ? `<p>Your official tax invoice (<strong>${input.invoiceNumber}</strong>) is attached to this email as a PDF.</p>` : ""}

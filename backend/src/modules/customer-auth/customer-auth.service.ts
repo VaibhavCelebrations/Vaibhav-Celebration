@@ -112,6 +112,110 @@ export async function signupCustomer(input: {
   };
 }
 
+// ─── Guest Checkout ───────────────────────────────────────────────────────────
+
+/**
+ * Creates a brand-new user account for a guest. Throws `ConflictError` if the
+ * email is already registered — the caller should ask the customer to log in
+ * instead of silently reusing an existing account (security: we cannot verify
+ * ownership without the existing password).
+ *
+ * Does NOT send any email here — the password is delivered inside the
+ * order-confirmation email that fires only after payment succeeds.
+ */
+export async function createGuestAccount(input: {
+  name: string;
+  email: string;
+  phone: string;
+}): Promise<{ userId: string; generatedPassword: string }> {
+  const email = input.email.toLowerCase().trim();
+  const existing = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+
+  if (existing) {
+    throw new ConflictError(
+      "EMAIL_EXISTS",
+      "An account with this email already exists. Please log in to continue.",
+    );
+  }
+
+  // 12-char mixed password: letters + digits, human-readable
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const generatedPassword = Array.from(crypto.randomBytes(12))
+    .map((b) => chars[b % chars.length])
+    .join("");
+
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
+
+  const user = await prisma.user.create({
+    data: {
+      name: input.name.trim() || "Guest",
+      email,
+      phone: input.phone.trim(),
+      passwordHash,
+      // Mark email + phone as verified — the guest provided them directly at
+      // checkout and they are required fields, so no separate verification step.
+      emailVerifiedAt: new Date(),
+      phoneVerifiedAt: new Date(),
+      lastLoginAt: new Date(),
+    },
+  });
+
+  await prisma.cart.create({ data: { userId: user.id } });
+
+  return { userId: user.id, generatedPassword };
+}
+
+/**
+ * Stores the guest's generated password temporarily so `markOrderPaid` can
+ * include it in the post-payment confirmation email. The token is consumed
+ * (verifiedAt set) immediately after the email is sent and expires in 24 h.
+ *
+ * The password is stored in `otpHash` as plaintext for this short-lived window.
+ * The field is named `otpHash` by convention but the GuestVerificationToken
+ * model is designed for ephemeral credential storage; the guest DB user cannot
+ * query this table directly.
+ */
+export async function storeGuestCredential(
+  userId: string,
+  orderCode: string,
+  plainPassword: string,
+): Promise<void> {
+  await prisma.guestVerificationToken.create({
+    data: {
+      referenceCode: orderCode,
+      referenceType: "GUEST_ORDER_CREDENTIAL",
+      email: "", // not used for this flow — keyed purely by orderCode
+      otpHash: plainPassword,
+      otpExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+}
+
+/**
+ * Retrieves and atomically consumes the guest credential stored for an order.
+ * Returns the plaintext password if one exists and has not been used yet,
+ * or `null` if this is not a guest order / credential already consumed.
+ */
+export async function consumeGuestCredential(orderCode: string): Promise<string | null> {
+  const token = await prisma.guestVerificationToken.findFirst({
+    where: {
+      referenceCode: orderCode,
+      referenceType: "GUEST_ORDER_CREDENTIAL",
+      verifiedAt: null,
+      otpExpiresAt: { gt: new Date() },
+    },
+  });
+  if (!token) return null;
+
+  // Mark as consumed so it can never be re-used
+  await prisma.guestVerificationToken.update({
+    where: { id: token.id },
+    data: { verifiedAt: new Date() },
+  });
+
+  return token.otpHash; // the temporarily-stored plaintext password
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 export async function loginCustomer(input: {

@@ -6,7 +6,22 @@ import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middle
 import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
 import { paginationQuerySchema } from "../../lib/validators";
-import { createOrderFromCart, createPackageOrder, createDirectOrder, getCheckoutQuote, getOrderForUser, listOrdersForUser, reorderFromOrder, retryShopPayment, verifyShopCheckoutPayment, markOrderPaymentCancelled } from "./orders.service";
+import {
+  createOrderFromCart,
+  createPackageOrder,
+  createDirectOrder,
+  getCheckoutQuote,
+  getOrderForUser,
+  listOrdersForUser,
+  reorderFromOrder,
+  retryShopPayment,
+  verifyShopCheckoutPayment,
+  markOrderPaymentCancelled,
+  createGuestShopOrder,
+  createGuestDirectShopOrder,
+  createGuestPackageOrder,
+  verifyGuestShopCheckoutPayment,
+} from "./orders.service";
 
 function customerId(req: import("express").Request): string {
   return (req as CustomerAuthenticatedRequest).customer!.sub;
@@ -66,6 +81,125 @@ shopCheckoutRouter.get("/quote", async (req, res, next) => {
     return next(err);
   }
 });
+
+export const guestCheckoutRouter = Router();
+
+// ── Quote (no account needed, just price calculation) ────────────────────────
+guestCheckoutRouter.post("/quote", async (req, res, next) => {
+  try {
+    const { getGuestCartQuote } = await import("../shop/cart.service");
+    const { cartItems } = req.body;
+    if (!Array.isArray(cartItems)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "cartItems array is required" } });
+    }
+    const quote = await getGuestCartQuote(cartItems);
+    return ok(res, quote);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// ── Shop cart checkout ────────────────────────────────────────────────────────
+guestCheckoutRouter.post(
+  "/shop",
+  idempotency,
+  validate(
+    z.object({
+      cartItems: z.array(
+        z.object({
+          productId: z.string().min(1),
+          quantity: z.number().int().positive(),
+          personalizationValues: z.unknown().optional(),
+          registryItemId: z.string().optional(),
+        }),
+      ).min(1, "Cart must have at least one item"),
+      shippingAddress: shippingAddressSchema,
+      contactEmail: z.string().email("Enter a valid email"),
+      contactPhone: z.string().min(6).max(20, "Enter a valid phone number"),
+      packageData: packageBuilderSchema.optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await createGuestShopOrder(req.body);
+      return res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ── Direct (buy-now) checkout ─────────────────────────────────────────────────
+guestCheckoutRouter.post(
+  "/direct",
+  idempotency,
+  validate(
+    z.object({
+      productId: z.string().min(1),
+      quantity: z.number().int().positive().max(999),
+      shippingAddress: shippingAddressSchema,
+      contactEmail: z.string().email("Enter a valid email"),
+      contactPhone: z.string().min(6).max(20, "Enter a valid phone number"),
+      personalizationValues: z.unknown().optional(),
+      personalizationSelected: z.boolean().optional(),
+      packageData: packageBuilderSchema.optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await createGuestDirectShopOrder(req.body);
+      return res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ── Package checkout ──────────────────────────────────────────────────────────
+guestCheckoutRouter.post(
+  "/package",
+  idempotency,
+  validate(
+    z.object({
+      eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      contactEmail: z.string().email("Enter a valid email"),
+      contactPhone: z.string().min(6).max(20, "Enter a valid phone number"),
+      shippingAddress: shippingAddressSchema.optional(),
+      eventDetails: packageBuilderSchema.shape.eventDetails,
+      builder: packageBuilderSchema.shape.builder,
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await createGuestPackageOrder(req.body);
+      return res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ── Payment verification (no session required — Razorpay signature is the proof) ──
+guestCheckoutRouter.post(
+  "/verify-payment",
+  idempotency,
+  validate(
+    z.object({
+      orderCode: z.string().min(1),
+      razorpayOrderId: z.string().min(1),
+      razorpayPaymentId: z.string().min(1),
+      razorpaySignature: z.string().min(1),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const data = await verifyGuestShopCheckoutPayment(req.body);
+      return ok(res, data);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 export const ordersRouter = Router();
 ordersRouter.use(requireCustomer);

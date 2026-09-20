@@ -196,6 +196,20 @@ export async function verifyShopPayment(input: {
   });
 }
 
+/** Guest (unauthenticated) payment verification — no session cookie required. */
+export async function verifyGuestShopPayment(input: {
+  orderCode: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}): Promise<OrderDto> {
+  return apiFetch<OrderDto>("/shop/guest-checkout/verify-payment", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
 export async function retryOrderPayment(orderCode: string): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>(`/account/orders/${encodeURIComponent(orderCode)}/retry-payment`, {
     method: "POST",
@@ -377,4 +391,71 @@ export async function uploadRegistryCoverImage(file: File): Promise<{ url: strin
   }
 
   return json.data;
+}
+
+/* -- Guest Checkout (No auth required) ------------------------------ */
+
+export async function getGuestCartQuote(cartItems: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>): Promise<ServerCart> {
+  return apiFetch<ServerCart>("/shop/guest-checkout/quote", {
+    method: "POST",
+    body: { cartItems },
+  });
+}
+
+export async function createGuestShopOrder(input: {
+  cartItems: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>;
+  shippingAddress: ShippingAddress;
+  contactEmail: string;
+  contactPhone: string;
+  packageData?: unknown;
+}): Promise<CreateOrderResult> {
+  return apiFetch<CreateOrderResult>("/shop/guest-checkout/shop", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
+export async function createGuestDirectShopOrder(input: {
+  productId: string;
+  quantity: number;
+  shippingAddress: ShippingAddress;
+  contactEmail: string;
+  contactPhone: string;
+  personalizationValues?: unknown;
+  personalizationSelected?: boolean;
+  packageData?: unknown;
+}): Promise<CreateOrderResult> {
+  return apiFetch<CreateOrderResult>("/shop/guest-checkout/direct", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
+}
+
+export async function createGuestPackageOrder(input: {
+  eventDate: string;
+  contactEmail: string;
+  contactPhone: string;
+  shippingAddress?: ShippingAddress;
+  eventDetails?: {
+    childName?: string;
+    childAge?: string;
+    venue?: string;
+    guestCount?: string | number;
+    notes?: string;
+  };
+  builder: {
+    packageSlug: string;
+    themeSlug: string;
+    guestCount: number;
+    location: "jaipur" | "outside";
+    selections: Record<string, unknown>;
+  };
+}): Promise<CreateOrderResult & { kind?: string; packageTitle?: string; themeTitle?: string; eventDate?: string }> {
+  return apiFetch("/shop/guest-checkout/package", {
+    method: "POST",
+    body: input,
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+  });
 }

@@ -130,6 +130,9 @@ export async function sendOrderConfirmationWhatsapp(order: {
   contactPhone: string;
   totalInPaise: number;
   invoicePdfUrl?: string | null;
+  includeGiftRegistrySetup?: boolean;
+  /** Guest checkout only — login URL to include in the WhatsApp message. */
+  guestLoginUrl?: string;
 }): Promise<WhatsAppSendOutcome | { skipped: true }> {
   const claimed = await claimOrderConfirmationWhatsapp(order.id);
   if (claimed.count === 0) {
@@ -140,7 +143,13 @@ export async function sendOrderConfirmationWhatsapp(order: {
   const document: WhatsAppDocument | undefined = order.invoicePdfUrl
     ? { url: order.invoicePdfUrl, filename: `Invoice-${order.orderCode}.pdf` }
     : undefined;
-  const message = buildOrderConfirmationMessage({ orderCode: order.orderCode, amountFormatted, document });
+  const message = buildOrderConfirmationMessage({
+    orderCode: order.orderCode,
+    amountFormatted,
+    document,
+    includeGiftRegistrySetup: order.includeGiftRegistrySetup,
+    guestLoginUrl: order.guestLoginUrl,
+  });
 
   const outcome = await dispatch({
     toPhone: order.contactPhone,

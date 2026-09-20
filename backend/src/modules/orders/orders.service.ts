@@ -1,14 +1,13 @@
 import { CustomizationFollowUpStatus, GiftContributionStatus, InventoryLedgerReason, OrderKind, OrderStatus, PaymentStatus } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
-import { nextOrderCode } from "../../lib/sequences";
+import { nextOrderCode, nextInvoiceNumber } from "../../lib/sequences";
 import { parsePagination } from "../../lib/response";
 import { computeQuote } from "../shop/cart-pricing.service";
 import { adjustInventoryInTx } from "../catalog/inventory.service";
 import { createRazorpayOrder, getRazorpayPublicKey, verifyCheckoutPaymentSignature } from "../../integrations/razorpay/client";
 import { claimPaymentEvent } from "../payments/payment-events";
 import { generateInvoicePdf, fetchInvoicePdfBuffer } from "../../integrations/invoice/pdf";
-import { nextInvoiceNumber } from "../../lib/sequences";
 import { orderConfirmationHtml, sendEmail } from "../../integrations/email/mailer";
 import { getGstPercent } from "../../lib/settings";
 import { sendOrderConfirmationWhatsapp } from "../whatsapp/whatsapp.service";
@@ -24,6 +23,8 @@ import {
   type BuilderSelections,
 } from "../builder/builder.service";
 import { toDateOnly } from "../../lib/validators";
+import { createGuestAccount, storeGuestCredential, consumeGuestCredential } from "../customer-auth/customer-auth.service";
+import { env } from "../../config/env";
 
 export type ShippingAddress = {
   fullName: string;
@@ -599,6 +600,174 @@ export async function createPackageOrder(
   };
 }
 
+// ─── Guest Order Helpers ──────────────────────────────────────────────────────
+//
+// These three functions are the public entry points for the guest checkout
+// routes. Each:
+//   1. Calls `createGuestAccount` — throws ConflictError if the email already
+//      belongs to an existing account (the customer must log in instead).
+//   2. Adds cart items to the newly-created user's server cart (where needed).
+//   3. Creates the order using the same authenticated code paths.
+//   4. Persists the generated password in a short-lived `GuestVerificationToken`
+//      so `markOrderPaid` can include it in the post-payment confirmation email.
+
+export async function createGuestShopOrder(input: {
+  cartItems: Array<{
+    productId: string;
+    quantity: number;
+    personalizationValues?: unknown;
+    registryItemId?: string;
+  }>;
+  shippingAddress: ShippingAddress;
+  contactEmail: string;
+  contactPhone: string;
+  packageData?: PackageDataInput;
+}) {
+  const name = input.shippingAddress.fullName || "Guest";
+  const { userId, generatedPassword } = await createGuestAccount({
+    name,
+    email: input.contactEmail,
+    phone: input.contactPhone,
+  });
+
+  // Populate the server cart so `createOrderFromCart` can read it
+  const { addCartItem } = await import("../shop/cart.service");
+  for (const item of input.cartItems) {
+    await addCartItem(userId, {
+      productId: item.productId,
+      quantity: item.quantity,
+      personalizationValues: item.personalizationValues,
+      registryItemId: item.registryItemId,
+    });
+  }
+
+  const result = await createOrderFromCart(userId, {
+    shippingAddress: input.shippingAddress,
+    contactEmail: input.contactEmail,
+    contactPhone: input.contactPhone,
+    packageData: input.packageData,
+  });
+
+  await storeGuestCredential(userId, result.orderCode, generatedPassword);
+  return result;
+}
+
+export async function createGuestDirectShopOrder(input: {
+  productId: string;
+  quantity: number;
+  shippingAddress: ShippingAddress;
+  contactEmail: string;
+  contactPhone: string;
+  personalizationValues?: unknown;
+  personalizationSelected?: boolean;
+  packageData?: PackageDataInput;
+}) {
+  const name = input.shippingAddress.fullName || "Guest";
+  const { userId, generatedPassword } = await createGuestAccount({
+    name,
+    email: input.contactEmail,
+    phone: input.contactPhone,
+  });
+
+  const result = await createDirectOrder(userId, {
+    productId: input.productId,
+    quantity: input.quantity,
+    shippingAddress: input.shippingAddress,
+    contactEmail: input.contactEmail,
+    contactPhone: input.contactPhone,
+    personalizationValues: input.personalizationValues,
+    personalizationSelected: input.personalizationSelected,
+    packageData: input.packageData,
+  });
+
+  await storeGuestCredential(userId, result.orderCode, generatedPassword);
+  return result;
+}
+
+export async function createGuestPackageOrder(input: {
+  eventDate: string;
+  contactEmail: string;
+  contactPhone: string;
+  shippingAddress?: ShippingAddress;
+  eventDetails?: {
+    childName?: string;
+    childAge?: string;
+    venue?: string;
+    guestCount?: number | string;
+    notes?: string;
+  };
+  builder: {
+    packageSlug: string;
+    themeSlug: string;
+    guestCount: number;
+    location: BuilderLocation;
+    selections: BuilderSelections;
+  };
+}) {
+  const name =
+    input.shippingAddress?.fullName ||
+    input.eventDetails?.childName ||
+    "Guest";
+
+  const { userId, generatedPassword } = await createGuestAccount({
+    name,
+    email: input.contactEmail,
+    phone: input.contactPhone,
+  });
+
+  const result = await createPackageOrder(userId, input);
+
+  await storeGuestCredential(userId, result.orderCode, generatedPassword);
+  return result;
+}
+
+/**
+ * Guest payment verification — no session cookie required. The Razorpay
+ * signature is the sole proof of legitimacy (same cryptographic guarantee as
+ * the authenticated path but without the userId ownership check).
+ */
+export async function verifyGuestShopCheckoutPayment(input: {
+  orderCode: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}) {
+  const order = await prisma.order.findFirst({ where: { orderCode: input.orderCode } });
+  if (!order) throw new NotFoundError("Order not found");
+  if (order.razorpayOrderId && order.razorpayOrderId !== input.razorpayOrderId) {
+    throw new ValidationError("Payment order does not match this order");
+  }
+  if (
+    !verifyCheckoutPaymentSignature({
+      razorpayOrderId: input.razorpayOrderId,
+      razorpayPaymentId: input.razorpayPaymentId,
+      razorpaySignature: input.razorpaySignature,
+    })
+  ) {
+    throw new ValidationError("Invalid payment signature");
+  }
+  await claimPaymentEvent({
+    eventKey: `payment.captured:${input.razorpayPaymentId}`,
+    eventType: "checkout.verify.guest",
+    razorpayOrderId: input.razorpayOrderId,
+    razorpayPaymentId: input.razorpayPaymentId,
+  });
+  await markOrderPaid(order.id, input.razorpayPaymentId);
+
+  // Return a shape compatible with the authenticated OrderDto the frontend expects
+  return prisma.order.findFirst({
+    where: { id: order.id },
+    select: {
+      id: true,
+      orderCode: true,
+      status: true,
+      paymentStatus: true,
+      totalInPaise: true,
+      invoicePdfUrl: true,
+    },
+  });
+}
+
 async function saveDefaultAddressIfNeeded(userId: string, shippingAddress: ShippingAddress) {
     const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
   if (user && !user.defaultAddress) {
@@ -927,6 +1096,8 @@ async function sendOrderConfirmationEmailNow(
   order: NonNullable<Awaited<ReturnType<typeof findOrderForConfirmationEmail>>>,
   invoiceNumber: string | null | undefined,
   pdfUrl: string | null | undefined,
+  includeGiftRegistrySetup: boolean = false,
+  guestCredentials?: { password: string; email: string } | null,
 ) {
   const packageConfirmationItems =
     order.kind === OrderKind.PACKAGE && order.packageOrder
@@ -956,6 +1127,9 @@ async function sendOrderConfirmationEmailNow(
   const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
   const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
 
+  const loginUrl = `${env.FRONTEND_URL}/login`;
+  const passwordResetUrl = `${env.FRONTEND_URL}/forgot-password`;
+
   const confirmation = await sendEmailWithRetry({
     to: order.contactEmail,
     subject: `Order Confirmed — ${order.orderCode}`,
@@ -966,6 +1140,11 @@ async function sendOrderConfirmationEmailNow(
       items: confirmationItems,
       invoiceNumber: invoiceNumber ?? null,
       customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
+      includeGiftRegistrySetup,
+      guestPassword: guestCredentials?.password ?? undefined,
+      guestEmail: guestCredentials?.email ?? undefined,
+      guestLoginUrl: guestCredentials ? loginUrl : undefined,
+      guestPasswordResetUrl: guestCredentials ? passwordResetUrl : undefined,
     }),
     attachments:
       pdfAttachmentBuffer
@@ -1012,7 +1191,15 @@ export async function resendOrderConfirmationEmail(orderId: string) {
 
   const invoiceNumber = order.invoice?.invoiceNumber ?? order.invoiceNumber;
   const pdfUrl = order.invoice?.pdfUrl ?? order.invoicePdfUrl;
-  const confirmation = await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl);
+  
+  let includeGiftRegistrySetup = false;
+  if (order.upgradeKind === "GIFT_REGISTRY") {
+    includeGiftRegistrySetup = true;
+  } else if (order.kind === "PACKAGE" && order.packageOrder?.builderInput?.selections?.giftRegistryCustomize) {
+    includeGiftRegistrySetup = true;
+  }
+
+  const confirmation = await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl, includeGiftRegistrySetup);
   return { orderId: order.id, orderCode: order.orderCode, ...confirmation };
 }
 
@@ -1145,19 +1332,36 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     }
   }
 
+  let includeGiftRegistrySetup = false;
+  if (order.upgradeKind === "GIFT_REGISTRY") {
+    includeGiftRegistrySetup = true;
+  } else if (order.kind === "PACKAGE" && order.packageOrder?.builderInput?.selections?.giftRegistryCustomize) {
+    includeGiftRegistrySetup = true;
+  }
+
+  // Retrieve guest credentials (plaintext password stored temporarily until first use).
+  // Returns null for regular authenticated checkouts.
+  const guestPassword = await consumeGuestCredential(order.orderCode);
+  const guestCredentials = guestPassword
+    ? { password: guestPassword, email: order.contactEmail }
+    : null;
+
   const claimedEmail = await claimOrderConfirmationEmail(order.id);
   if (claimedEmail.count > 0) {
-    await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl);
+    await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl, includeGiftRegistrySetup, guestCredentials);
   }
 
   // sendOrderConfirmationWhatsapp claims the send itself (DB-atomic, race-safe
   // under concurrent webhook deliveries) — no claim needed at this call site.
+  const guestLoginUrl = guestCredentials ? `${env.FRONTEND_URL}/login` : undefined;
   await sendOrderConfirmationWhatsapp({
     id: order.id,
     orderCode: order.orderCode,
     contactPhone: order.contactPhone,
     totalInPaise: order.totalInPaise,
     invoicePdfUrl: pdfUrl,
+    includeGiftRegistrySetup,
+    guestLoginUrl,
   });
 
   if (order.giftContributions.length) {

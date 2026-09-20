@@ -580,12 +580,7 @@ function BuildPackageContent() {
       }
       return;
     }
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
-
-    if (saveAsDefault) {
+    if (saveAsDefault && isAuthenticated) {
       try {
         await authApi.updateProfile({
           defaultAddress: {
@@ -1315,7 +1310,7 @@ function BuildPackageContent() {
                   className="px-5 py-2.5 rounded-lg bg-mocha text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-2"
                 >
                   <ShoppingCart size={14} />
-                  {isAuthenticated ? "Add to Cart" : "Log in & Add to Cart"}
+                  Add to Cart
                 </button>
               )}
             </div>
