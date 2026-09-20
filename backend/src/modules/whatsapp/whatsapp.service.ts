@@ -238,11 +238,13 @@ export async function sendOrderStatusUpdateWhatsapp(input: {
   contactPhone: string;
   customerName: string;
   status: string;
+  trackingUrl?: string | null;
 }): Promise<WhatsAppSendOutcome> {
   const message = buildOrderStatusUpdateMessage({
     customerName: input.customerName,
     orderCode: input.orderCode,
     status: input.status,
+    trackingUrl: input.trackingUrl,
   });
   return dispatch({
     toPhone: input.contactPhone,

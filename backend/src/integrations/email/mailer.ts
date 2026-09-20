@@ -235,16 +235,26 @@ export function orderStatusUpdateHtml(input: {
   name: string;
   orderCode: string;
   status: string;
+  trackingUrl?: string | null;
 }) {
   const statusInfo = ORDER_STATUS_LABELS[input.status] ?? {
     label: input.status,
     message: "Your order status has been updated.",
   };
 
+  const trackingHtml = input.trackingUrl && input.status === "SHIPPED"
+    ? `
+      <div style="text-align:center;margin-top:24px;">
+        <a href="${input.trackingUrl}" target="_blank" rel="noopener noreferrer" style="background-color:#8B4513;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:4px;font-weight:600;display:inline-block;">Track Your Order</a>
+      </div>
+    `
+    : "";
+
   return baseEmailLayout(`
     <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">Order Update: ${statusInfo.label}</h1>
     <p>Hi ${input.name},</p>
     <p>${statusInfo.message}</p>
+    ${trackingHtml}
     <div style="background-color:#f4ede8;border-radius:8px;padding:20px;margin:24px 0;text-align:center;">
       <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;">Order Reference</p>
       <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#2c1810;font-family:monospace;">${input.orderCode}</p>

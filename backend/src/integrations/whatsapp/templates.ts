@@ -106,15 +106,22 @@ export function buildOrderStatusUpdateMessage(input: {
   customerName: string;
   orderCode: string;
   status: string;
+  trackingUrl?: string | null;
 }): BuiltMessage {
   const template = WHATSAPP_TEMPLATES.orderStatusUpdate;
   const statusInfo = WA_STATUS_LABELS[input.status] ?? {
     label: input.status,
     message: "Your order status has been updated.",
   };
+  
+  let finalMessage = statusInfo.message;
+  if (input.trackingUrl && input.status === "SHIPPED") {
+    finalMessage += ` Track here: ${input.trackingUrl}`;
+  }
+
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: [input.customerName, input.orderCode, statusInfo.label, statusInfo.message],
+    bodyParameters: [input.customerName, input.orderCode, statusInfo.label, finalMessage],
   };
 }

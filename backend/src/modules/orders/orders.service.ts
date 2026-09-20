@@ -1556,7 +1556,7 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   REFUNDED: [],
 };
 
-export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus) {
+export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus, trackingUrl?: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { user: { select: { name: true } } },
@@ -1566,6 +1566,11 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
   if (!allowed.includes(status)) {
     throw new ValidationError(`Cannot move order from ${order.status} to ${status}`);
   }
+  
+  if (status === OrderStatus.SHIPPED && !trackingUrl && !order.trackingUrl) {
+    throw new ValidationError("A tracking URL is required to change order status to SHIPPED.");
+  }
+
   if (status === OrderStatus.CANCELLED && order.paymentStatus !== PaymentStatus.PAID) {
     await cancelOrderAndRestock(orderId, "Cancelled by admin");
     // Fire notifications for cancellation (no invoice involved)
@@ -1574,10 +1579,22 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
     }
     return adminGetOrder(orderId);
   }
-  await prisma.order.update({ where: { id: orderId }, data: { status } });
+  
+  await prisma.order.update({ 
+    where: { id: orderId }, 
+    data: { 
+      status,
+      ...(trackingUrl ? { trackingUrl } : {})
+    } 
+  });
+  
   // Skip PAID — order confirmation email/WhatsApp is already sent by the payment webhook.
   if (status !== OrderStatus.PAID) {
-    fireOrderStatusNotifications({ order, customerName: order.user.name, status });
+    fireOrderStatusNotifications({ 
+      order: { ...order, trackingUrl: trackingUrl || order.trackingUrl }, 
+      customerName: order.user.name, 
+      status 
+    });
   }
   return adminGetOrder(orderId);
 }
@@ -1588,7 +1605,7 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
  * so that a notification outage never blocks the admin action.
  */
 function fireOrderStatusNotifications(input: {
-  order: { id: string; orderCode: string; contactEmail: string; contactPhone: string };
+  order: { id: string; orderCode: string; contactEmail: string; contactPhone: string; trackingUrl?: string | null };
   customerName: string;
   status: OrderStatus;
 }) {
@@ -1599,7 +1616,7 @@ function fireOrderStatusNotifications(input: {
     sendEmail({
       to: order.contactEmail,
       subject: `Your Order ${order.orderCode} — Status Update`,
-      html: orderStatusUpdateHtml({ name: customerName, orderCode: order.orderCode, status: statusStr }),
+      html: orderStatusUpdateHtml({ name: customerName, orderCode: order.orderCode, status: statusStr, trackingUrl: order.trackingUrl }),
     }),
     sendOrderStatusUpdateWhatsapp({
       orderId: order.id,
@@ -1607,6 +1624,7 @@ function fireOrderStatusNotifications(input: {
       contactPhone: order.contactPhone,
       customerName,
       status: statusStr,
+      trackingUrl: order.trackingUrl,
     }),
   ]).then((results) => {
     for (const result of results) {

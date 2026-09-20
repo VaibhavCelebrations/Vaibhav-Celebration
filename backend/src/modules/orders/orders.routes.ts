@@ -306,11 +306,11 @@ adminOrdersRouter.patch(
 adminOrdersRouter.patch(
   "/:id/status",
   validate(z.object({ id: z.string() }), "params"),
-  validate(z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]) }), "body"),
+  validate(z.object({ status: z.enum(["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"]), trackingUrl: z.string().optional() }), "body"),
   async (req, res, next) => {
     try {
       const { adminUpdateOrderStatus } = require("./orders.service");
-      return ok(res, await adminUpdateOrderStatus(param(req, "id"), req.body.status));
+      return ok(res, await adminUpdateOrderStatus(param(req, "id"), req.body.status, req.body.trackingUrl));
     } catch (err) {
       return next(err);
     }
