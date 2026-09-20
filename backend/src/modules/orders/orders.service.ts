@@ -1550,9 +1550,9 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PAID: [OrderStatus.PROCESSING, OrderStatus.READY_TO_SHIP, OrderStatus.CANCELLED],
   PROCESSING: [OrderStatus.READY_TO_SHIP, OrderStatus.SHIPPED, OrderStatus.CANCELLED],
   READY_TO_SHIP: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
-  SHIPPED: [OrderStatus.DELIVERED],
-  DELIVERED: [OrderStatus.REFUNDED],
-  CANCELLED: [],
+  SHIPPED: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+  DELIVERED: [OrderStatus.CANCELLED],
+  CANCELLED: [OrderStatus.REFUNDED],
   REFUNDED: [],
 };
 
