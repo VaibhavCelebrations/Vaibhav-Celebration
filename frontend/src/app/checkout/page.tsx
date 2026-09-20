@@ -27,6 +27,7 @@ import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { combineCartQuote } from "@/lib/cart-totals";
 import { notifyRegistryAccessChanged } from "@/hooks/useRegistryAccess";
+import { CheckoutGateModal, GUEST_CHECKOUT_PREFILL_KEY } from "@/components/ecom/CheckoutGateModal";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
@@ -117,6 +118,8 @@ export default function CheckoutPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [agreedPolicies, setAgreedPolicies] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed" | "cancelled" | "pending" | "success">("idle");
   const [isCreatingRegistry, setIsCreatingRegistry] = useState(false);
   const [registryPromptData, setRegistryPromptData] = useState<{
@@ -139,6 +142,25 @@ export default function CheckoutPage() {
   useEffect(() => {
     const payload = CacheStore.getSessionItem<DirectCheckoutPayload | null>(DIRECT_CHECKOUT_KEY, null);
     if (payload?.productId) setDirectCheckout(payload);
+  }, []);
+
+  // Prefill from guest OTP gate
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(GUEST_CHECKOUT_PREFILL_KEY);
+      if (!raw) return;
+      const prefill = JSON.parse(raw) as {
+        contactEmail?: string;
+        contactPhone?: string;
+        shippingAddress?: ShippingAddress;
+      };
+      if (prefill.contactEmail) setContactEmail(prefill.contactEmail);
+      if (prefill.contactPhone) setContactPhone(prefill.contactPhone);
+      if (prefill.shippingAddress) setAddress(prefill.shippingAddress);
+      sessionStorage.removeItem(GUEST_CHECKOUT_PREFILL_KEY);
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
@@ -257,6 +279,7 @@ export default function CheckoutPage() {
     }
     if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) errors.contactEmail = "Enter a valid email";
     if (effectivePhone.length < 6) errors.contactPhone = "Enter a valid phone number";
+    if (!agreedPolicies) errors.policies = "You must agree to the Terms & Policies to place an order";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -276,6 +299,7 @@ export default function CheckoutPage() {
     }
     if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) return false;
     if (effectivePhone.length < 6) return false;
+    if (!agreedPolicies) return false;
     return true;
   };
 
@@ -418,7 +442,14 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     if (!validateCheckout()) {
-      push("Please fill in all required fields.", "error");
+      push("Please fill in all required fields and accept the policies.", "error");
+      return;
+    }
+
+    // Guests must verify email (OTP) and get a session before placing an order
+    // so cancelled/pending orders appear in Order History after login.
+    if (!isAuthenticated) {
+      setGateOpen(true);
       return;
     }
 
@@ -559,6 +590,16 @@ export default function CheckoutPage() {
 
   return (
     <>
+      <CheckoutGateModal
+        open={gateOpen}
+        onClose={() => setGateOpen(false)}
+        onContinue={() => {
+          setGateOpen(false);
+          setAgreedPolicies(true);
+          push("Email verified. Check your inbox for your account password, then click Pay Securely.", "default");
+        }}
+        requireShippingAddress={hasItems || Boolean(directCheckout)}
+      />
       {paymentStatus === "success" && (
         <div className="fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center animate-fade-in">
           <div className="w-32 h-32 rounded-full bg-sage/20 flex items-center justify-center animate-bounce-slow mb-6">
@@ -856,7 +897,7 @@ export default function CheckoutPage() {
 
                       <button
                         onClick={handlePlaceOrder}
-                        disabled={isPlacingOrder || paymentStatus === "confirming" || !isFormComplete()}
+                        disabled={isPlacingOrder || paymentStatus === "confirming"}
                         className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-8 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
                       >
                         {paymentStatus === "cancelled" || paymentStatus === "failed" ? (
@@ -868,7 +909,7 @@ export default function CheckoutPage() {
                       
                       {!isAuthenticated && (
                         <p className="mt-4 text-center text-xs text-text-muted">
-                          By placing this order, a guest account will be created for you.
+                          You&apos;ll verify your email with a one-time code before payment.
                         </p>
                       )}
 
@@ -876,7 +917,8 @@ export default function CheckoutPage() {
                       <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          required
+                          checked={agreedPolicies}
+                          onChange={(e) => setAgreedPolicies(e.target.checked)}
                           className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
                         />
                         <span className="text-[11px] text-text-muted leading-relaxed">
@@ -887,6 +929,7 @@ export default function CheckoutPage() {
                           <a href="/legal/cancellation-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Shipping Policy</a>. <span className="text-red-500">*</span>
                         </span>
                       </label>
+                      {formErrors.policies && <p className="text-red-500 text-[11px] font-medium">{formErrors.policies}</p>}
                       <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -939,10 +982,15 @@ export default function CheckoutPage() {
                   <div className="max-w-md mx-auto mb-6 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-left">
                     <p className="text-sm font-semibold text-amber-900 mb-1">Check your email</p>
                     <p className="text-xs text-amber-800 leading-relaxed">
-                      Your order confirmation, invoice, and <strong>login credentials for your new account</strong> have been sent to <strong>{contactEmail}</strong>.
-                      {hadPackagesAtCheckout && " If your package includes a Gift Registry, setup instructions are in that email too."}
+                      Your order confirmation and invoice have been sent to <strong>{contactEmail}</strong>.
+                      {hadPackagesAtCheckout && " If your package includes a Gift Registry, setup instructions are included."}
                     </p>
                   </div>
+                )}
+                {isAuthenticated && paymentStatus !== "pending" && confirmedOrderCode && (
+                  <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
+                    A confirmation email with your invoice has been sent. Check your inbox for account details if this was your first guest checkout.
+                  </p>
                 )}
               </ScrollReveal>
 

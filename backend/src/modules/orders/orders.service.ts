@@ -23,7 +23,11 @@ import {
   type BuilderSelections,
 } from "../builder/builder.service";
 import { toDateOnly } from "../../lib/validators";
-import { createGuestAccount, storeGuestCredential, consumeGuestCredential } from "../customer-auth/customer-auth.service";
+import {
+  createGuestAccount,
+  storeGuestCredential,
+  consumeGuestCredential,
+} from "../customer-auth/customer-auth.service";
 import { env } from "../../config/env";
 
 export type ShippingAddress = {
@@ -1097,7 +1101,7 @@ async function sendOrderConfirmationEmailNow(
   invoiceNumber: string | null | undefined,
   pdfUrl: string | null | undefined,
   includeGiftRegistrySetup: boolean = false,
-  guestCredentials?: { password: string; email: string } | null,
+  isGuestOrder: boolean = false,
 ) {
   const packageConfirmationItems =
     order.kind === OrderKind.PACKAGE && order.packageOrder
@@ -1127,9 +1131,6 @@ async function sendOrderConfirmationEmailNow(
   const pdfAttachmentBuffer = await fetchInvoicePdfBuffer(pdfUrl);
   const attachmentName = invoiceNumber ? `Invoice-${invoiceNumber}.pdf` : `Invoice-${order.orderCode}.pdf`;
 
-  const loginUrl = `${env.FRONTEND_URL}/login`;
-  const passwordResetUrl = `${env.FRONTEND_URL}/forgot-password`;
-
   const confirmation = await sendEmailWithRetry({
     to: order.contactEmail,
     subject: `Order Confirmed — ${order.orderCode}`,
@@ -1141,10 +1142,7 @@ async function sendOrderConfirmationEmailNow(
       invoiceNumber: invoiceNumber ?? null,
       customizationFollowUp: order.customizationFollowUpStatus === CustomizationFollowUpStatus.REQUIRED,
       includeGiftRegistrySetup,
-      guestPassword: guestCredentials?.password ?? undefined,
-      guestEmail: guestCredentials?.email ?? undefined,
-      guestLoginUrl: guestCredentials ? loginUrl : undefined,
-      guestPasswordResetUrl: guestCredentials ? passwordResetUrl : undefined,
+      isGuestOrder,
     }),
     attachments:
       pdfAttachmentBuffer
@@ -1339,21 +1337,17 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     includeGiftRegistrySetup = true;
   }
 
-  // Retrieve guest credentials (plaintext password stored temporarily until first use).
-  // Returns null for regular authenticated checkouts.
+  // Guest credential token (if any) — password already emailed at OTP verify.
   const guestPassword = await consumeGuestCredential(order.orderCode);
-  const guestCredentials = guestPassword
-    ? { password: guestPassword, email: order.contactEmail }
-    : null;
+  const isGuestOrder = Boolean(guestPassword);
 
   const claimedEmail = await claimOrderConfirmationEmail(order.id);
   if (claimedEmail.count > 0) {
-    await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl, includeGiftRegistrySetup, guestCredentials);
+    await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl, includeGiftRegistrySetup, isGuestOrder);
   }
 
   // sendOrderConfirmationWhatsapp claims the send itself (DB-atomic, race-safe
   // under concurrent webhook deliveries) — no claim needed at this call site.
-  const guestLoginUrl = guestCredentials ? `${env.FRONTEND_URL}/login` : undefined;
   await sendOrderConfirmationWhatsapp({
     id: order.id,
     orderCode: order.orderCode,
@@ -1361,7 +1355,6 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     totalInPaise: order.totalInPaise,
     invoicePdfUrl: pdfUrl,
     includeGiftRegistrySetup,
-    guestLoginUrl,
   });
 
   if (order.giftContributions.length) {

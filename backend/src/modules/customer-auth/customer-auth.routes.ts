@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../../config/env";
+import { ok } from "../../lib/response";
 import { validate } from "../../middleware/validate";
 import {
   CUSTOMER_ACCESS_COOKIE,
@@ -22,6 +23,8 @@ import {
   signupCustomer,
   updateCustomerProfile,
   verifyEmail,
+  requestGuestCheckoutEmailOtp,
+  verifyGuestCheckoutEmailOtp,
 } from "./customer-auth.service";
 
 /**
@@ -252,6 +255,56 @@ customerAuthRouter.post(
     try {
       await confirmPhoneVerification(req.body.token);
       return res.json({ success: true, data: { verified: true } });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ─── Guest checkout email OTP (creates account + session after verify) ───────
+
+customerAuthRouter.post(
+  "/guest-checkout/request-otp",
+  validate(z.object({ email: z.string().email() })),
+  async (req, res, next) => {
+    try {
+      return ok(res, await requestGuestCheckoutEmailOtp({ email: req.body.email }));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+customerAuthRouter.post(
+  "/guest-checkout/verify-otp",
+  validate(
+    z.object({
+      email: z.string().email(),
+      otp: z.string().length(6),
+      name: z.string().min(1).max(120),
+      phone: z.string().min(6).max(20),
+      defaultAddress: z
+        .object({
+          fullName: z.string().min(1),
+          line1: z.string().min(1),
+          line2: z.string().optional(),
+          city: z.string().min(1),
+          state: z.string().min(1),
+          pincode: z.string().min(4).max(10),
+          country: z.string().min(1).default("India"),
+        })
+        .optional(),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const result = await verifyGuestCheckoutEmailOtp({
+        ...req.body,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+      setAuthCookies(res, result);
+      return res.status(201).json({ success: true, data: { user: result.user } });
     } catch (err) {
       return next(err);
     }

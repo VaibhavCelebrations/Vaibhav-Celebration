@@ -22,12 +22,16 @@ interface AuthContextType {
   isAuthModalOpen: boolean;
   /** Opens the login/signup modal. `onSuccess` runs once the user is authenticated
    *  (e.g. to retry an "add to wishlist" action that triggered the gate). */
-  openAuthModal: (onSuccess?: () => void) => void;
+  openAuthModal: (onSuccess?: () => void, options?: { tab?: "login" | "signup" }) => void;
   closeAuthModal: () => void;
+  /** Apply an already-authenticated user (e.g. after guest OTP verify set cookies). */
+  applyAuthenticatedUser: (user: User, onSuccess?: () => void) => void;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (name: string, email: string, phone: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Preferred auth-modal tab when opened from checkout gate. */
+  authModalTab: "login" | "signup";
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -39,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<"login" | "signup">("login");
   const onSuccessRef = useRef<(() => void) | null>(null);
 
   const refreshUser = useCallback(async () => {
@@ -87,8 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const openAuthModal = useCallback((onSuccess?: () => void) => {
+  const openAuthModal = useCallback((onSuccess?: () => void, options?: { tab?: "login" | "signup" }) => {
     onSuccessRef.current = onSuccess ?? null;
+    if (options?.tab) setAuthModalTab(options.tab);
     setIsAuthModalOpen(true);
   }, []);
 
@@ -104,6 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cb = onSuccessRef.current;
     onSuccessRef.current = null;
     if (cb) setTimeout(cb, 0);
+  }, []);
+
+  const applyAuthenticatedUser = useCallback((nextUser: User, onSuccess?: () => void) => {
+    setUser(nextUser);
+    setIsAuthenticated(true);
+    setIsAuthModalOpen(false);
+    if (onSuccess) setTimeout(onSuccess, 0);
   }, []);
 
   const login = useCallback(
@@ -138,8 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         user,
         isAuthModalOpen,
+        authModalTab,
         openAuthModal,
         closeAuthModal,
+        applyAuthenticatedUser,
         login,
         signup,
         logout,

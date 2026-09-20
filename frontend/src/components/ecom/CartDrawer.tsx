@@ -8,6 +8,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { formatPaise, toRupees } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
+import { CheckoutGateModal } from "@/components/ecom/CheckoutGateModal";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { ServerCartItem } from "@/lib/shop-types";
@@ -61,21 +62,27 @@ function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQ
 
 export function CartDrawer() {
   const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const deliverySettings = useDeliverySettings();
   const router = useRouter();
+  const [gateOpen, setGateOpen] = useState(false);
+
+  const goCheckout = () => {
+    closeCart();
+    router.push("/checkout");
+  };
 
   const handleCheckout = () => {
     closeCart();
     if (!isAuthenticated) {
-      openAuthModal(() => router.push("/checkout"));
+      setGateOpen(true);
       return;
     }
     router.push("/checkout");
   };
 
-  if (!isCartOpen) return null;
+  if (!isCartOpen && !gateOpen) return null;
 
   // One shipping/GST calculation across the shop cart AND event packages —
   // free delivery must consider both, not just the shop subtotal.
@@ -83,6 +90,15 @@ export function CartDrawer() {
   const combinedTotalRupees = combinedQuote.totalInPaise / 100;
 
   return (
+    <>
+      <CheckoutGateModal
+        open={gateOpen}
+        onClose={() => setGateOpen(false)}
+        onContinue={goCheckout}
+        requireShippingAddress={items.length > 0 || packages.length === 0}
+      />
+
+      {isCartOpen && (
     <>
       {/* Backdrop */}
       <div
@@ -340,6 +356,8 @@ export function CartDrawer() {
           </>
         )}
       </div>
+    </>
+      )}
     </>
   );
 }

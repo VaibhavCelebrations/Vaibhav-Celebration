@@ -19,6 +19,7 @@ import { useAuth } from "@/context/auth-context";
 import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";
 import { useRouter } from "next/navigation";
+import { CheckoutGateModal } from "@/components/ecom/CheckoutGateModal";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
@@ -35,7 +36,7 @@ export default function ProductDetailPage({ params }: Props) {
 
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -46,6 +47,7 @@ export default function ProductDetailPage({ params }: Props) {
   const [addedToCart, setAddedToCart] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +155,7 @@ export default function ProductDetailPage({ params }: Props) {
       router.push("/checkout");
     };
     if (!isAuthenticated) {
-      openAuthModal(run);
+      setGateOpen(true);
       return;
     }
     setIsBuying(true);
@@ -161,8 +163,27 @@ export default function ProductDetailPage({ params }: Props) {
     setIsBuying(false);
   };
 
+  const continueBuyNowAfterGate = () => {
+    CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
+      productId: product.id,
+      title: product.title,
+      quantity,
+      unitPriceInPaise: product.priceInPaise,
+      personalizationSelected: personalizeSelected,
+      personalizationCostInPaise: personalizationCost,
+      personalizationValues: buildPersonalizationValues(),
+    });
+    router.push("/checkout");
+  };
+
   return (
     <>
+      <CheckoutGateModal
+        open={gateOpen}
+        onClose={() => setGateOpen(false)}
+        onContinue={continueBuyNowAfterGate}
+        requireShippingAddress
+      />
       <Navbar />
       <main className="pt-28 md:pt-36 pb-16 md:pb-24 bg-cream min-h-screen">
         <div className="max-w-7xl mx-auto px-5 md:px-10">

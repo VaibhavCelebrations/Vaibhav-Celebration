@@ -62,6 +62,38 @@ export async function confirmPhoneVerification(token: string): Promise<void> {
   await apiFetch(`${BASE}/phone/verify/confirm`, { method: "POST", body: { token } });
 }
 
+/** Guest checkout — send OTP to a new email (fails with EMAIL_EXISTS if account already exists). */
+export async function requestGuestCheckoutOtp(email: string): Promise<{
+  sent: boolean;
+  expiresInMinutes: number;
+  devOtp?: string;
+}> {
+  return apiFetch(`${BASE}/guest-checkout/request-otp`, { method: "POST", body: { email } });
+}
+
+/** Guest checkout — verify OTP, create account, set session cookies, return user. */
+export async function verifyGuestCheckoutOtp(input: {
+  email: string;
+  otp: string;
+  name: string;
+  phone: string;
+  defaultAddress?: {
+    fullName: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+  };
+}): Promise<User> {
+  const res = await apiFetch<{ user: User }>(`${BASE}/guest-checkout/verify-otp`, {
+    method: "POST",
+    body: input,
+  });
+  return res.user;
+}
+
 /** Extracts a friendly message from a zod VALIDATION_ERROR, falling back to the top-level message. */
 export function friendlyAuthError(err: unknown): string {
   if (err instanceof ApiClientError) {

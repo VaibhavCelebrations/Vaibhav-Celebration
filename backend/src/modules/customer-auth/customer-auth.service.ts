@@ -11,6 +11,8 @@ import {
   sendEmail,
   verifyEmailHtml,
   welcomeEmailHtml,
+  guestWelcomeEmailHtml,
+  guestCheckoutOtpEmailHtml,
 } from "../../integrations/email/mailer";
 import { sendPhoneVerificationWhatsapp } from "../whatsapp/whatsapp.service";
 import type { CustomerJwtPayload } from "../../middleware/customer-auth";
@@ -112,16 +114,196 @@ export async function signupCustomer(input: {
   };
 }
 
-// ─── Guest Checkout ───────────────────────────────────────────────────────────
+// ─── Guest Checkout (OTP → account → welcome password → session) ─────────────
+
+const GUEST_CHECKOUT_OTP_TYPE = "GUEST_CHECKOUT_EMAIL";
+
+function generateGuestPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.randomBytes(12))
+    .map((b) => chars[b % chars.length])
+    .join("");
+}
+
+function generateOtp(): string {
+  return String(crypto.randomInt(100000, 999999));
+}
 
 /**
- * Creates a brand-new user account for a guest. Throws `ConflictError` if the
- * email is already registered — the caller should ask the customer to log in
- * instead of silently reusing an existing account (security: we cannot verify
- * ownership without the existing password).
- *
- * Does NOT send any email here — the password is delivered inside the
- * order-confirmation email that fires only after payment succeeds.
+ * Step 1 — send a 6-digit OTP to a new email before guest checkout.
+ * Existing accounts must log in instead (no silent reuse).
+ */
+export async function requestGuestCheckoutEmailOtp(input: {
+  email: string;
+}): Promise<{ sent: boolean; expiresInMinutes: number; devOtp?: string }> {
+  const email = input.email.toLowerCase().trim();
+
+  const existing = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+  if (existing) {
+    throw new ConflictError(
+      "EMAIL_EXISTS",
+      "An account with this email already exists. Please log in to continue.",
+    );
+  }
+
+  // Anti-spam: refuse re-send within 60 seconds
+  const recent = await prisma.guestVerificationToken.findFirst({
+    where: {
+      referenceCode: email,
+      referenceType: GUEST_CHECKOUT_OTP_TYPE,
+      verifiedAt: null,
+      createdAt: { gt: new Date(Date.now() - 60_000) },
+    },
+  });
+  if (recent) {
+    throw new RateLimitedError(
+      "Please wait at least 60 seconds before requesting another code.",
+      "GUEST_OTP_COOLDOWN",
+    );
+  }
+
+  // Invalidate any prior unused OTPs for this email
+  await prisma.guestVerificationToken.updateMany({
+    where: {
+      referenceCode: email,
+      referenceType: GUEST_CHECKOUT_OTP_TYPE,
+      verifiedAt: null,
+    },
+    data: { verifiedAt: new Date() },
+  });
+
+  const otp = generateOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const otpExpiresAt = new Date(Date.now() + env.OTP_EXPIRES_MINUTES * 60_000);
+
+  await prisma.guestVerificationToken.create({
+    data: {
+      referenceCode: email,
+      referenceType: GUEST_CHECKOUT_OTP_TYPE,
+      email,
+      otpHash,
+      otpExpiresAt,
+    },
+  });
+
+  await sendEmail({
+    to: email,
+    subject: "Verify your email — Vaibhav Celebrations",
+    html: guestCheckoutOtpEmailHtml(otp),
+    text: `Your verification code is ${otp}. It expires in ${env.OTP_EXPIRES_MINUTES} minutes.`,
+  });
+
+  return {
+    sent: true,
+    expiresInMinutes: env.OTP_EXPIRES_MINUTES,
+    ...(env.NODE_ENV !== "production" ? { devOtp: otp } : {}),
+  };
+}
+
+/**
+ * Step 2 — verify OTP, create the guest account, email the generated password
+ * (welcome mail), and establish a real customer session so the user can
+ * checkout as authenticated. Cancelled/pending orders then appear in Order History.
+ */
+export async function verifyGuestCheckoutEmailOtp(input: {
+  email: string;
+  otp: string;
+  name: string;
+  phone: string;
+  defaultAddress?: {
+    fullName: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+  };
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  const email = input.email.toLowerCase().trim();
+
+  const token = await prisma.guestVerificationToken.findFirst({
+    where: {
+      referenceCode: email,
+      referenceType: GUEST_CHECKOUT_OTP_TYPE,
+      verifiedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!token) throw new UnauthorizedError("No pending verification found. Please request a new code.");
+  if (token.otpExpiresAt < new Date()) {
+    throw new AppError("OTP_INVALID_OR_EXPIRED", "This code has expired. Please request a new one.", 401);
+  }
+  if (token.attemptCount >= env.OTP_MAX_ATTEMPTS) {
+    throw new RateLimitedError("Too many failed attempts. Please request a new code.", "OTP_ATTEMPTS_EXCEEDED");
+  }
+
+  const valid = await bcrypt.compare(input.otp.trim(), token.otpHash);
+  if (!valid) {
+    await prisma.guestVerificationToken.update({
+      where: { id: token.id },
+      data: { attemptCount: { increment: 1 } },
+    });
+    throw new AppError("OTP_INVALID_OR_EXPIRED", "Invalid verification code", 401);
+  }
+
+  await prisma.guestVerificationToken.update({
+    where: { id: token.id },
+    data: { verifiedAt: new Date() },
+  });
+
+  // Race: email may have been registered between OTP request and verify
+  const existing = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+  if (existing) {
+    throw new ConflictError(
+      "EMAIL_EXISTS",
+      "An account with this email already exists. Please log in to continue.",
+    );
+  }
+
+  const generatedPassword = generateGuestPassword();
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
+  const name = input.name.trim() || "Guest";
+  const phone = input.phone.trim();
+
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      phone,
+      passwordHash,
+      emailVerifiedAt: new Date(),
+      phoneVerifiedAt: phone ? new Date() : null,
+      lastLoginAt: new Date(),
+      defaultAddress: input.defaultAddress ? (input.defaultAddress as never) : undefined,
+    },
+  });
+
+  await prisma.cart.create({ data: { userId: user.id } });
+
+  // Welcome + password FIRST (before any order confirmation)
+  void sendEmail({
+    to: user.email,
+    subject: "Welcome to Vaibhav Celebrations — your account details",
+    html: guestWelcomeEmailHtml(user.name, generatedPassword),
+  }).catch(() => undefined);
+
+  const session = await createSession(user.id, input.ipAddress, input.userAgent);
+
+  return {
+    accessToken: signCustomerAccessToken(user.id, user.email),
+    sessionToken: session.rawToken,
+    sessionExpiresAt: session.expiresAt,
+    user: toPublicUser(user),
+  };
+}
+
+/**
+ * Creates a brand-new user account for legacy guest order APIs.
+ * Prefer `verifyGuestCheckoutEmailOtp` for the production cart/checkout gate.
  */
 export async function createGuestAccount(input: {
   name: string;
@@ -138,12 +320,7 @@ export async function createGuestAccount(input: {
     );
   }
 
-  // 12-char mixed password: letters + digits, human-readable
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  const generatedPassword = Array.from(crypto.randomBytes(12))
-    .map((b) => chars[b % chars.length])
-    .join("");
-
+  const generatedPassword = generateGuestPassword();
   const passwordHash = await bcrypt.hash(generatedPassword, 12);
 
   const user = await prisma.user.create({
@@ -152,31 +329,26 @@ export async function createGuestAccount(input: {
       email,
       phone: input.phone.trim(),
       passwordHash,
-      // Mark email + phone as verified — the guest provided them directly at
-      // checkout and they are required fields, so no separate verification step.
       emailVerifiedAt: new Date(),
-      phoneVerifiedAt: new Date(),
+      phoneVerifiedAt: input.phone ? new Date() : null,
       lastLoginAt: new Date(),
     },
   });
 
   await prisma.cart.create({ data: { userId: user.id } });
 
+  void sendEmail({
+    to: user.email,
+    subject: "Welcome to Vaibhav Celebrations — your account details",
+    html: guestWelcomeEmailHtml(user.name, generatedPassword),
+  }).catch(() => undefined);
+
   return { userId: user.id, generatedPassword };
 }
 
-/**
- * Stores the guest's generated password temporarily so `markOrderPaid` can
- * include it in the post-payment confirmation email. The token is consumed
- * (verifiedAt set) immediately after the email is sent and expires in 24 h.
- *
- * The password is stored in `otpHash` as plaintext for this short-lived window.
- * The field is named `otpHash` by convention but the GuestVerificationToken
- * model is designed for ephemeral credential storage; the guest DB user cannot
- * query this table directly.
- */
+/** @deprecated Password is now emailed at account creation (welcome mail). Kept for compatibility. */
 export async function storeGuestCredential(
-  userId: string,
+  _userId: string,
   orderCode: string,
   plainPassword: string,
 ): Promise<void> {
@@ -184,18 +356,13 @@ export async function storeGuestCredential(
     data: {
       referenceCode: orderCode,
       referenceType: "GUEST_ORDER_CREDENTIAL",
-      email: "", // not used for this flow — keyed purely by orderCode
+      email: "",
       otpHash: plainPassword,
       otpExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     },
   });
 }
 
-/**
- * Retrieves and atomically consumes the guest credential stored for an order.
- * Returns the plaintext password if one exists and has not been used yet,
- * or `null` if this is not a guest order / credential already consumed.
- */
 export async function consumeGuestCredential(orderCode: string): Promise<string | null> {
   const token = await prisma.guestVerificationToken.findFirst({
     where: {
@@ -207,13 +374,12 @@ export async function consumeGuestCredential(orderCode: string): Promise<string 
   });
   if (!token) return null;
 
-  // Mark as consumed so it can never be re-used
   await prisma.guestVerificationToken.update({
     where: { id: token.id },
     data: { verifiedAt: new Date() },
   });
 
-  return token.otpHash; // the temporarily-stored plaintext password
+  return token.otpHash;
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────

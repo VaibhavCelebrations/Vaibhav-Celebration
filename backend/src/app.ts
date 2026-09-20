@@ -316,6 +316,8 @@ export function createApp() {
 
   // Auth & guest — IP-keyed, tight
   api.use("/auth", authLimiter, authRouter);
+  // Guest-checkout OTP paths get the tighter OTP limiter (applied before the auth router).
+  api.use("/customer/auth/guest-checkout", otpLimiter);
   api.use("/customer/auth", customerAuthLimiter, customerAuthRouter);
   api.use("/guest", otpLimiter, guestRouter);
 
