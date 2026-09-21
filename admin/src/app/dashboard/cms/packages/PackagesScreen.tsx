@@ -9,7 +9,7 @@ import {
   savePackageMatrix,
 } from "@/lib/data/packages";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
@@ -303,7 +303,7 @@ export function PackagesScreen() {
         />
       ) : null}
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={serviceDrawer}
         onClose={() => setServiceDrawer(false)}
         title={editingService ? "Edit extra service" : "Add extra service"}
@@ -311,7 +311,7 @@ export function PackagesScreen() {
         submitting={serviceSubmitting}
         error={serviceFormError}
         dirty
-        width="lg"
+        size="lg"
       >
         <FormField label="Label" htmlFor="svc-label" required>
           <TextInput
@@ -370,7 +370,7 @@ export function PackagesScreen() {
             onChange={(isActive) => setServiceForm({ ...serviceForm, isActive })}
           />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveService}

@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { ok } from "../../lib/response";
 import { logger } from "../../lib/logger";
-import { applyWebhookStatusUpdate, parseAndVerifyWebhookPost, verifyWebhookChallenge } from "./whatsapp.service";
+import { parseAndVerifyWebhookPost, processWhatsAppWebhookUpdates, verifyWebhookChallenge } from "./whatsapp.service";
 
 export const whatsappWebhookRouter = Router();
 
@@ -26,10 +26,12 @@ whatsappWebhookRouter.get("/", (req, res) => {
 
 /**
  * Meta's delivery-status webhook. Signature verification is mandatory —
- * invalid/missing signatures get 401. Once the signature is valid, ANY
- * payload (even malformed JSON or an unrecognized event shape, e.g. a
- * future incoming-message event) is answered with 200 so Meta does not
- * retry-storm; the malformed/unknown case is only logged.
+ * invalid/missing signatures get 401.
+ *
+ * Enterprise Fast-Ack Pattern:
+ * 1. Validate signature HMAC-SHA256 (401 on failure).
+ * 2. Return HTTP 200 immediately (< 50ms) to satisfy Meta's timeout requirement.
+ * 3. Enqueue and process event idempotently in the background via WhatsAppWebhookEvent.
  */
 whatsappWebhookRouter.post("/", async (req, res, next) => {
   try {
@@ -46,14 +48,20 @@ whatsappWebhookRouter.post("/", async (req, res, next) => {
       return ok(res, { handled: false, reason: "malformed_payload" });
     }
 
-    for (const update of result.updates) {
-      await applyWebhookStatusUpdate(update);
-    }
+    // Acknowledge Meta IMMEDIATELY before starting DB mutations
+    ok(res, { handled: true, queued: result.updates.length });
 
-    if (result.updates.length) {
-      logger.info({ count: result.updates.length }, "WhatsApp status updates applied");
+    // Background processing (asynchronous worker)
+    if (result.updates.length > 0) {
+      setImmediate(async () => {
+        try {
+          await processWhatsAppWebhookUpdates(result.updates);
+          logger.info({ count: result.updates.length }, "WhatsApp status updates processed asynchronously");
+        } catch (err) {
+          logger.error({ err: (err as Error).message }, "Background WhatsApp webhook processing failed");
+        }
+      });
     }
-    return ok(res, { handled: true, updates: result.updates.length });
   } catch (err) {
     return next(err);
   }

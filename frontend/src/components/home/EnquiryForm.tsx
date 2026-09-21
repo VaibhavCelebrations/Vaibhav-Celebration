@@ -228,6 +228,39 @@ export function EnquiryForm() {
                     </div>
                   </div>
 
+                  {/* Privacy Consent */}
+                  <div className="pt-2">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        name="privacyConsent"
+                        required
+                        className="mt-1 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                      />
+                      <span className="text-xs text-charcoal/70 leading-relaxed">
+                        I agree to the processing of my personal data as described in the{" "}
+                        <a href="/legal/privacy-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">
+                          Privacy Policy
+                        </a>
+                        . I understand that Vaibhav Celebrations will use my information to respond to my enquiry. <span className="text-red-400">*</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Optional Marketing Consent */}
+                  <div>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        name="marketingConsent"
+                        className="mt-1 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                      />
+                      <span className="text-xs text-charcoal/70 leading-relaxed">
+                        I would like to receive promotional offers, updates, and celebration ideas via WhatsApp/email. (Optional - you can unsubscribe anytime)
+                      </span>
+                    </label>
+                  </div>
+
                   {/* Submit */}
                   <div className="pt-4 md:pt-8">
                     <button

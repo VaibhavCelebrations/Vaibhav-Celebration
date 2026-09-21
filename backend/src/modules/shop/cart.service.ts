@@ -227,3 +227,64 @@ export async function clearCart(userId: string) {
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
   return getCart(userId);
 }
+
+export async function getGuestCartQuote(items: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>) {
+  const registryIds = items.map((i) => i.registryItemId).filter(Boolean) as string[];
+  const registryItems = registryIds.length
+    ? await prisma.giftRegistryItem.findMany({
+        where: { id: { in: registryIds } },
+        include: { registry: true, internalProduct: true },
+      })
+    : [];
+  const registryMap = new Map(registryItems.map((r) => [r.id, r]));
+
+  const productIds = items.map(i => i.productId);
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds }, deletedAt: null },
+    include: cartItemInclude.product.include
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  const shaped = items.map((item, index) => {
+    const product = productMap.get(item.productId);
+    if (!product) return null;
+
+    const registryItem = item.registryItemId ? registryMap.get(item.registryItemId) : undefined;
+    const wantsPersonalization = hasPersonalizationValues(item.personalizationValues);
+    const selected = Boolean(product.personalizationEnabled && wantsPersonalization);
+    const cost = selected ? product.personalizationCostInPaise : 0;
+
+    return shapeCartItem(
+      {
+        id: `guest-item-${index}`,
+        productId: item.productId,
+        registryItemId: item.registryItemId || "",
+        quantity: item.quantity,
+        personalizationValues: item.personalizationValues,
+        personalizationSelected: selected,
+        personalizationCostSnapshot: cost,
+        product,
+      },
+      registryItem
+        ? {
+            registryCode: registryItem.registry.registryCode,
+            title: registryItem.internalProduct?.title ?? registryItem.manualTitle ?? "Registry gift",
+            recipientName: registryItem.registry.ownerDisplayName ?? registryItem.registry.childOrPersonName,
+            available: availableToReserve(registryItem) + item.quantity,
+          }
+        : null,
+    );
+  }).filter(Boolean) as ReturnType<typeof shapeCartItem>[];
+
+  const quote = await computeQuote(
+    shaped
+      .filter((i) => i.isActive)
+      .map((i) => ({
+        productId: i.productId,
+        unitPriceInPaise: i.unitPriceInPaise,
+        quantity: i.quantity,
+        personalizationCostInPaise: i.personalizationCostInPaise,
+      })),
+  );
+  return { items: shaped, quote, itemCount: shaped.reduce((sum, i) => sum + i.quantity, 0) };
+}

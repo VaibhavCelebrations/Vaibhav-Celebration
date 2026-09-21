@@ -26,12 +26,20 @@ describe("mergeStatus", () => {
     expect(mergeStatus("DELIVERED", "DELIVERED")).toBe("DELIVERED");
   });
 
-  it("allows FAILED to be recorded from PENDING", () => {
+  it("allows FAILED to be recorded from PENDING and SENT", () => {
     expect(mergeStatus("PENDING", "FAILED")).toBe("FAILED");
+    expect(mergeStatus("SENT", "FAILED")).toBe("FAILED");
+    expect(mergeStatus("SIMULATED_SENT", "FAILED")).toBe("FAILED");
   });
 
-  it("does not let a stray FAILED regress an already-DELIVERED message", () => {
+  it("does not let a stray FAILED regress an already-DELIVERED or READ message", () => {
     expect(mergeStatus("DELIVERED", "FAILED")).toBe("DELIVERED");
+    expect(mergeStatus("READ", "FAILED")).toBe("READ");
+  });
+
+  it("does not let a late out-of-order SENT resurrect an already-FAILED message", () => {
+    expect(mergeStatus("FAILED", "SENT")).toBe("FAILED");
+    expect(mergeStatus("FAILED", "SENDING")).toBe("FAILED");
   });
 
   it("treats an unknown/legacy stored status string as rank -1 (incoming always wins)", () => {

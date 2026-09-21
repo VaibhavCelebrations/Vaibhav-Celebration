@@ -26,7 +26,9 @@ export function useDismissable({ open, onClose, closeOnBackdrop = true }: UseDis
   // every time the callback identity changes — which happens on every render
   // because requestClose captures mutable state like `dirty`.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;

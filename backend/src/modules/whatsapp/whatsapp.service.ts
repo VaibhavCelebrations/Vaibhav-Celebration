@@ -9,10 +9,12 @@ import { WhatsAppSendError, invalidPhoneError } from "../../integrations/whatsap
 import {
   buildInvoiceDeliveryMessage,
   buildOrderConfirmationMessage,
+  buildOrderStatusUpdateMessage,
   buildPhoneVerificationMessage,
   buildWelcomeMessage,
 } from "../../integrations/whatsapp/templates";
 import type { WhatsAppDocument } from "../../integrations/whatsapp/provider.types";
+import { NotFoundError, ValidationError } from "../../lib/errors";
 
 export type WhatsAppSendOutcome = {
   sent: boolean;
@@ -129,6 +131,9 @@ export async function sendOrderConfirmationWhatsapp(order: {
   contactPhone: string;
   totalInPaise: number;
   invoicePdfUrl?: string | null;
+  includeGiftRegistrySetup?: boolean;
+  /** Guest checkout only — login URL to include in the WhatsApp message. */
+  guestLoginUrl?: string;
 }): Promise<WhatsAppSendOutcome | { skipped: true }> {
   const claimed = await claimOrderConfirmationWhatsapp(order.id);
   if (claimed.count === 0) {
@@ -139,7 +144,13 @@ export async function sendOrderConfirmationWhatsapp(order: {
   const document: WhatsAppDocument | undefined = order.invoicePdfUrl
     ? { url: order.invoicePdfUrl, filename: `Invoice-${order.orderCode}.pdf` }
     : undefined;
-  const message = buildOrderConfirmationMessage({ orderCode: order.orderCode, amountFormatted, document });
+  const message = buildOrderConfirmationMessage({
+    orderCode: order.orderCode,
+    amountFormatted,
+    document,
+    includeGiftRegistrySetup: order.includeGiftRegistrySetup,
+    guestLoginUrl: order.guestLoginUrl,
+  });
 
   const outcome = await dispatch({
     toPhone: order.contactPhone,
@@ -154,6 +165,7 @@ export async function sendOrderConfirmationWhatsapp(order: {
       whatsappSentAt: outcome.sent ? new Date() : undefined,
       whatsappSendStatus: outcome.status,
       whatsappMessageId: outcome.providerMessageId,
+      whatsappError: outcome.error ?? null,
     },
   });
 
@@ -223,6 +235,34 @@ export async function sendWelcomeWhatsapp(input: { userId: string; phone: string
   return dispatch({ toPhone: input.phone, entityId: input.userId, entityType: "welcome", message });
 }
 
+/**
+ * Sends the order_status_update WhatsApp template to the customer when an
+ * admin moves an order to a new status. No idempotency claim is applied here
+ * because each status change is a deliberate admin action that warrants exactly
+ * one notification. Never throws — callers fire-and-forget.
+ */
+export async function sendOrderStatusUpdateWhatsapp(input: {
+  orderId: string;
+  orderCode: string;
+  contactPhone: string;
+  customerName: string;
+  status: string;
+  trackingUrl?: string | null;
+}): Promise<WhatsAppSendOutcome> {
+  const message = buildOrderStatusUpdateMessage({
+    customerName: input.customerName,
+    orderCode: input.orderCode,
+    status: input.status,
+    trackingUrl: input.trackingUrl,
+  });
+  return dispatch({
+    toPhone: input.contactPhone,
+    entityId: input.orderId,
+    entityType: "order",
+    message,
+  });
+}
+
 // ─── Webhook: GET verification challenge ─────────────────────────────────────
 
 export type WebhookChallengeResult = { ok: true; challenge: string } | { ok: false };
@@ -237,7 +277,13 @@ export function verifyWebhookChallenge(query: { mode?: string; verifyToken?: str
 
 // ─── Webhook: POST status updates ────────────────────────────────────────────
 
-export type MetaStatusUpdate = { providerMessageId: string; status: WhatsAppStatus };
+export type MetaStatusUpdate = {
+  providerMessageId: string;
+  status: WhatsAppStatus;
+  timestamp?: Date;
+  error?: string;
+  rawPayload?: unknown;
+};
 
 /**
  * Parses Meta's webhook payload into normalized status updates. Tolerant of
@@ -263,7 +309,40 @@ export function parseMetaStatusUpdates(payload: unknown): MetaStatusUpdate[] {
         const id = (status as { id?: unknown })?.id;
         const rawStatus = (status as { status?: unknown })?.status;
         if (typeof id !== "string" || typeof rawStatus !== "string") continue;
-        out.push({ providerMessageId: id, status: mapMetaWebhookStatus(rawStatus) });
+
+        // Parse timestamp if present (Unix epoch in seconds)
+        let timestamp: Date | undefined;
+        const rawTs = (status as { timestamp?: unknown })?.timestamp;
+        if (typeof rawTs === "string" || typeof rawTs === "number") {
+          const tsNum = typeof rawTs === "number" ? rawTs : parseInt(rawTs, 10);
+          if (!isNaN(tsNum) && tsNum > 0) {
+            timestamp = new Date(tsNum * 1000);
+          }
+        }
+
+        // Parse error details if status is failed
+        let error: string | undefined;
+        const errors = (status as { errors?: unknown })?.errors;
+        if (Array.isArray(errors) && errors.length > 0) {
+          error = errors
+            .map((e: any) => {
+              const code = e.code ?? "";
+              const title = e.title ?? "";
+              const msg = e.message ?? "";
+              const details = e.error_data?.details ? ` (${e.error_data.details})` : "";
+              return `[${code}] ${title ? `${title}: ` : ""}${msg}${details}`.trim();
+            })
+            .filter(Boolean)
+            .join("; ");
+        }
+
+        out.push({
+          providerMessageId: id,
+          status: mapMetaWebhookStatus(rawStatus),
+          timestamp,
+          error,
+          rawPayload: status,
+        });
       }
     }
   }
@@ -293,31 +372,197 @@ export function parseAndVerifyWebhookPost(rawBody: string, signatureHeader: stri
  * Applies a single webhook status update to whichever Order/Invoice rows
  * reference this providerMessageId, using an indexed lookup
  * (@@index([whatsappMessageId])) and mergeStatus so a late/out-of-order
- * webhook can never regress an already-more-advanced status. Duplicate
- * deliveries of the same event are naturally idempotent since re-applying
- * the same (or an equal-or-lower) status is a no-op write.
+ * webhook can never regress an already-more-advanced status.
+ *
+ * Updates granular lifecycle timestamps:
+ * - SENT: records whatsappSentAt
+ * - DELIVERED: records whatsappDeliveredAt
+ * - READ: records whatsappReadAt (and backfills whatsappDeliveredAt if unset)
+ * - FAILED: records whatsappError details
  */
 export async function applyWebhookStatusUpdate(update: MetaStatusUpdate): Promise<void> {
+  const eventDate = update.timestamp ?? new Date();
+
   const [order, invoice] = await Promise.all([
-    prisma.order.findFirst({ where: { whatsappMessageId: update.providerMessageId }, select: { id: true, whatsappSendStatus: true } }),
-    prisma.invoice.findFirst({ where: { whatsappMessageId: update.providerMessageId }, select: { id: true, whatsappSendStatus: true } }),
+    prisma.order.findFirst({
+      where: { whatsappMessageId: update.providerMessageId },
+      select: {
+        id: true,
+        whatsappSendStatus: true,
+        whatsappSentAt: true,
+        whatsappDeliveredAt: true,
+        whatsappReadAt: true,
+      },
+    }),
+    prisma.invoice.findFirst({
+      where: { whatsappMessageId: update.providerMessageId },
+      select: {
+        id: true,
+        whatsappSendStatus: true,
+        whatsappSentAt: true,
+        whatsappDeliveredAt: true,
+        whatsappReadAt: true,
+      },
+    }),
   ]);
 
   if (order) {
     const merged = mergeStatus(order.whatsappSendStatus, update.status);
-    if (merged !== order.whatsappSendStatus) {
-      await prisma.order.update({ where: { id: order.id }, data: { whatsappSendStatus: merged } });
+    const data: import("@prisma/client").Prisma.OrderUpdateInput = {
+      whatsappSendStatus: merged,
+    };
+
+    if (update.status === "SENT") {
+      data.whatsappSentAt = order.whatsappSentAt ?? eventDate;
+    } else if (update.status === "DELIVERED") {
+      data.whatsappDeliveredAt = order.whatsappDeliveredAt ?? eventDate;
+    } else if (update.status === "READ") {
+      data.whatsappReadAt = order.whatsappReadAt ?? eventDate;
+      data.whatsappDeliveredAt = order.whatsappDeliveredAt ?? eventDate;
+    } else if (update.status === "FAILED") {
+      data.whatsappError = update.error ?? "WhatsApp delivery failed";
     }
+
+    await prisma.order.update({ where: { id: order.id }, data });
   }
 
   if (invoice) {
     const merged = mergeStatus(invoice.whatsappSendStatus, update.status);
-    if (merged !== invoice.whatsappSendStatus) {
-      await prisma.invoice.update({ where: { id: invoice.id }, data: { whatsappSendStatus: merged } });
+    const data: import("@prisma/client").Prisma.InvoiceUpdateInput = {
+      whatsappSendStatus: merged,
+    };
+
+    if (update.status === "SENT") {
+      data.whatsappSentAt = invoice.whatsappSentAt ?? eventDate;
+    } else if (update.status === "DELIVERED") {
+      data.whatsappDeliveredAt = invoice.whatsappDeliveredAt ?? eventDate;
+    } else if (update.status === "READ") {
+      data.whatsappReadAt = invoice.whatsappReadAt ?? eventDate;
+      data.whatsappDeliveredAt = invoice.whatsappDeliveredAt ?? eventDate;
+    } else if (update.status === "FAILED") {
+      data.whatsappError = update.error ?? "WhatsApp delivery failed";
     }
+
+    await prisma.invoice.update({ where: { id: invoice.id }, data });
   }
 
   if (!order && !invoice) {
     logger.info({ providerMessageId: update.providerMessageId }, "WhatsApp webhook status update matched no Order/Invoice — ignored");
   }
+}
+
+/**
+ * Persists webhook status updates into WhatsAppWebhookEvent table for
+ * auditing and idempotency, then processes each update.
+ * Any duplicate delivery from Meta is identified by unique eventKey
+ * ("status:{providerMessageId}:{status}") and safely skipped.
+ */
+export async function processWhatsAppWebhookUpdates(updates: MetaStatusUpdate[]): Promise<void> {
+  for (const update of updates) {
+    const eventKey = `status:${update.providerMessageId}:${update.status}`;
+    let eventRecordId: string | null = null;
+
+    try {
+      // Try to create the event record (idempotency guard)
+      const event = await prisma.whatsAppWebhookEvent.create({
+        data: {
+          eventKey,
+          eventType: "STATUS_UPDATE",
+          providerMessageId: update.providerMessageId,
+          status: update.status,
+          payload: (update.rawPayload ?? { providerMessageId: update.providerMessageId, status: update.status }) as never,
+          processed: false,
+        },
+      });
+      eventRecordId = event.id;
+    } catch {
+      // If eventKey already exists, Meta sent a duplicate delivery.
+      logger.info({ eventKey }, "Duplicate WhatsApp webhook status event ignored");
+      continue;
+    }
+
+    try {
+      await applyWebhookStatusUpdate(update);
+      if (eventRecordId) {
+        await prisma.whatsAppWebhookEvent.update({
+          where: { id: eventRecordId },
+          data: { processed: true, processedAt: new Date() },
+        });
+      }
+    } catch (processErr) {
+      const errMsg = (processErr as Error).message;
+      logger.error({ eventKey, err: errMsg }, "Failed to apply WhatsApp status update");
+      if (eventRecordId) {
+        await prisma.whatsAppWebhookEvent.update({
+          where: { id: eventRecordId },
+          data: { error: errMsg },
+        }).catch(() => undefined);
+      }
+    }
+  }
+}
+
+/**
+ * Admin-triggered resend of order confirmation WhatsApp message.
+ * Resets status to PENDING and clears any previous error before attempting send.
+ */
+export async function resendOrderConfirmationWhatsapp(orderId: string): Promise<WhatsAppSendOutcome> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      orderCode: true,
+      contactPhone: true,
+      totalInPaise: true,
+      invoicePdfUrl: true,
+      paymentStatus: true,
+      status: true,
+    },
+  });
+
+  if (!order) {
+    throw new NotFoundError("Order not found");
+  }
+
+  if (order.paymentStatus !== "PAID" && order.status !== "PAID") {
+    throw new ValidationError("Order confirmation WhatsApp can only be sent for paid orders");
+  }
+
+  if (!order.contactPhone) {
+    throw new ValidationError("Order does not have a contact phone number");
+  }
+
+  // Clear previous error and set to PENDING
+  await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      whatsappSendStatus: "PENDING",
+      whatsappError: null,
+    },
+  });
+
+  const amountFormatted = (order.totalInPaise / 100).toFixed(2);
+  const document: WhatsAppDocument | undefined = order.invoicePdfUrl
+    ? { url: order.invoicePdfUrl, filename: `Invoice-${order.orderCode}.pdf` }
+    : undefined;
+  const message = buildOrderConfirmationMessage({ orderCode: order.orderCode, amountFormatted, document });
+
+  const outcome = await dispatch({
+    toPhone: order.contactPhone,
+    entityId: order.id,
+    entityType: "order",
+    message,
+  });
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      whatsappSentAt: outcome.sent ? new Date() : undefined,
+      whatsappSendStatus: outcome.status,
+      whatsappMessageId: outcome.providerMessageId,
+      whatsappError: outcome.error ?? null,
+    },
+  });
+
+  return outcome;
 }

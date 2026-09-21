@@ -20,6 +20,7 @@ import { formatPaise, toRupees } from "@/lib/shop-types";
 import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult, ServerCartItem } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
 import * as authApi from "@/lib/customer-auth-api";
+import { friendlyAuthError, requestGuestCheckoutOtp } from "@/lib/customer-auth-api";
 import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";
@@ -27,6 +28,7 @@ import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
 import { combineCartQuote } from "@/lib/cart-totals";
 import { notifyRegistryAccessChanged } from "@/hooks/useRegistryAccess";
+import { CheckoutGateModal, GUEST_CHECKOUT_PREFILL_KEY } from "@/components/ecom/CheckoutGateModal";
 
 const DIRECT_CHECKOUT_KEY = "vc_direct_checkout";
 
@@ -93,7 +95,7 @@ const STEPS = [
 const EMPTY_ADDRESS: ShippingAddress = { fullName: "", line1: "", line2: "", city: "", state: "", pincode: "", country: "India" };
 
 export default function CheckoutPage() {
-  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, removeItem, removePackage, refreshCart, clearCart } = useCart();
+  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, removeItem, removePackage, refreshCart, clearCart, syncOfflineCart } = useCart();
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const { push } = useToast();
@@ -117,6 +119,21 @@ export default function CheckoutPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [agreedPolicies, setAgreedPolicies] = useState(false);
+  const [gateConfig, setGateConfig] = useState<{
+    open: boolean;
+    initialMode: "otp" | "login";
+    email: string;
+    devOtp?: string | null;
+    infoMessage?: string | null;
+  }>({
+    open: false,
+    initialMode: "otp",
+    email: "",
+    devOtp: null,
+    infoMessage: null,
+  });
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "confirming" | "failed" | "cancelled" | "pending" | "success">("idle");
   const [isCreatingRegistry, setIsCreatingRegistry] = useState(false);
   const [registryPromptData, setRegistryPromptData] = useState<{
@@ -141,16 +158,95 @@ export default function CheckoutPage() {
     if (payload?.productId) setDirectCheckout(payload);
   }, []);
 
+  // Prefill from guest OTP gate
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(GUEST_CHECKOUT_PREFILL_KEY);
+      if (!raw) return;
+      const prefill = JSON.parse(raw) as {
+        contactEmail?: string;
+        contactPhone?: string;
+        shippingAddress?: ShippingAddress;
+      };
+      if (prefill.contactEmail) setContactEmail(prefill.contactEmail);
+      if (prefill.contactPhone) setContactPhone(prefill.contactPhone);
+      if (prefill.shippingAddress) setAddress(prefill.shippingAddress);
+      sessionStorage.removeItem(GUEST_CHECKOUT_PREFILL_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     if (currentStep === 1) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [currentStep]);
 
+  // 1. If packages are in cart, use the package details (email, phone, address) as authoritative default
   useEffect(() => {
-    if (user && !registryCheckout) {
+    if (packages.length > 0 && packages[0]?.builderInput) {
+      const bi = packages[0].builderInput;
+      if (bi.contactEmail) {
+        setContactEmail(bi.contactEmail);
+      }
+      if (bi.contactPhone) {
+        setContactPhone(bi.contactPhone);
+      }
+      if (bi.shippingAddress) {
+        setAddress((prev) => {
+          const isEmpty = !prev.fullName && !prev.line1 && !prev.city;
+          if (isEmpty || !prev.line1) {
+            return {
+              fullName: bi.shippingAddress?.fullName || prev.fullName || "",
+              line1: bi.shippingAddress?.line1 || "",
+              line2: bi.shippingAddress?.line2 || "",
+              city: bi.shippingAddress?.city || "",
+              state: bi.shippingAddress?.state || "Rajasthan",
+              pincode: bi.shippingAddress?.pincode || "",
+              country: bi.shippingAddress?.country || "India",
+            };
+          }
+          return prev;
+        });
+      }
+    }
+  }, [packages]);
+
+  // Also check sessionStorage on initial mount for package builder details
+  useEffect(() => {
+    try {
+      const pkgs = CacheStore.getSessionItem<any[]>("vc_cart_packages", []);
+      if (pkgs.length > 0 && pkgs[0]?.builderInput) {
+        const bi = pkgs[0].builderInput;
+        if (bi.contactEmail) setContactEmail((prev) => prev || bi.contactEmail);
+        if (bi.contactPhone) setContactPhone((prev) => prev || bi.contactPhone);
+        if (bi.shippingAddress) {
+          setAddress((prev) => {
+            if (!prev.line1 && bi.shippingAddress?.line1) {
+              return {
+                fullName: bi.shippingAddress.fullName || prev.fullName || "",
+                line1: bi.shippingAddress.line1 || "",
+                line2: bi.shippingAddress.line2 || "",
+                city: bi.shippingAddress.city || "",
+                state: bi.shippingAddress.state || "Rajasthan",
+                pincode: bi.shippingAddress.pincode || "",
+                country: bi.shippingAddress.country || "India",
+              };
+            }
+            return prev;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 2. If logged in and no packages in cart, prefill from authenticated user profile
+  useEffect(() => {
+    if (user && !registryCheckout && packages.length === 0) {
       setAddress((prev) => {
-        // If the form is essentially empty/default, pre-fill with defaultAddress
         const isEmpty = prev.fullName === "" && prev.line1 === "" && prev.city === "";
         if (isEmpty && user.defaultAddress) {
           return { ...user.defaultAddress };
@@ -160,24 +256,7 @@ export default function CheckoutPage() {
       setContactEmail((prev) => prev || user.email);
       setContactPhone((prev) => prev || user.phone || "");
     }
-  }, [user, registryCheckout]);
-
-  // Pre-fill contact details from the package builder when it's a package-only checkout.
-  // The builder already collected name, email, phone, and address — reuse them here
-  // so the user doesn't need to re-enter information into a hidden form.
-  useEffect(() => {
-    if (packages.length > 0 && packages[0]?.builderInput) {
-      const bi = packages[0].builderInput;
-      setContactEmail((prev) => prev || bi.contactEmail || "");
-      setContactPhone((prev) => prev || bi.contactPhone || "");
-      if (bi.shippingAddress) {
-        setAddress((prev) => {
-          const isEmpty = prev.fullName === "" && prev.line1 === "" && prev.city === "";
-          return isEmpty ? { ...bi.shippingAddress } : prev;
-        });
-      }
-    }
-  }, [packages]);
+  }, [user, registryCheckout, packages.length]);
 
   useEffect(() => {
     if (!items.some((i) => i.registryItemId)) {
@@ -242,21 +321,14 @@ export default function CheckoutPage() {
 
   const validateCheckout = (): boolean => {
     const errors: Record<string, string> = {};
-    if (hasItems || isDirectCheckout) {
-      if (!address.fullName.trim()) errors.fullName = "Full name is required";
-      if (!address.line1.trim()) errors.line1 = "Address is required";
-      if (!address.city.trim()) errors.city = "City is required";
-      if (!address.state.trim()) errors.state = "State is required";
-      if (!/^\d{4,10}$/.test(address.pincode.trim())) errors.pincode = "Enter a valid PIN code";
-    } else if (packageOnlyCheckout) {
-      if (!pkg?.builderInput?.shippingAddress?.line1) {
-        errors.fullName = "Please complete the delivery address in the package builder";
-      }
-    } else {
-      if (!address.fullName.trim()) errors.fullName = "Full name is required";
-    }
-    if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) errors.contactEmail = "Enter a valid email";
-    if (effectivePhone.length < 6) errors.contactPhone = "Enter a valid phone number";
+    if (!address.fullName.trim()) errors.fullName = "Full name is required";
+    if (!address.line1.trim()) errors.line1 = "Address is required";
+    if (!address.city.trim()) errors.city = "City is required";
+    if (!address.state.trim()) errors.state = "State is required";
+    if (!/^\d{4,10}$/.test(address.pincode.trim())) errors.pincode = "Enter a valid PIN code (4-10 digits)";
+    if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) errors.contactEmail = "Enter a valid email address";
+    if (contactPhone.trim().length < 6) errors.contactPhone = "Enter a valid phone number (min 6 digits)";
+    if (!agreedPolicies) errors.policies = "You must agree to the Terms & Policies to place an order";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -276,6 +348,7 @@ export default function CheckoutPage() {
     }
     if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) return false;
     if (effectivePhone.length < 6) return false;
+    if (!agreedPolicies) return false;
     return true;
   };
 
@@ -293,14 +366,15 @@ export default function CheckoutPage() {
             setConfirmedOrderCode(orderCode);
             setConfirmedInvoiceUrl(order.invoicePdfUrl);
             setHadPackagesAtCheckout(packages.length > 0);
-            if (packages.length > 0) {
+            // Only show registry popup for authenticated users
+            if (isAuthenticated && packages.length > 0) {
               const childName = packages[0]?.builderInput?.eventDetails?.childName;
               setRegistryPromptData({
-                 title: childName ? `${childName}'s Celebration` : "My Celebration",
-                 date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                 orderCode: orderCode,
-                 shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                 childName: childName,
+                title: childName ? `${childName}'s Celebration` : "My Celebration",
+                date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                orderCode: orderCode,
+                shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                childName: childName,
               });
             }
             setPaymentStatus("idle");
@@ -327,7 +401,7 @@ export default function CheckoutPage() {
   }
 
   async function openShopRazorpay(order: CreateOrderResult) {
-    const sdkReady = await loadRazorpayScript();
+      const sdkReady = await loadRazorpayScript();
     if (!sdkReady) {
       push("Could not load the payment gateway. Please check your connection and try again.", "error");
       setIsPlacingOrder(false);
@@ -351,12 +425,22 @@ export default function CheckoutPage() {
       handler: async (response) => {
         setPaymentStatus("confirming");
         try {
-          const verified = await shopApi.verifyShopPayment({
-            orderCode: order.orderCode,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
-          });
+          // Guests have no session cookie — use the public guest verify endpoint.
+          // Authenticated users use the session-protected endpoint.
+          const verified = isAuthenticated
+            ? await shopApi.verifyShopPayment({
+                orderCode: order.orderCode,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              })
+            : await shopApi.verifyGuestShopPayment({
+                orderCode: order.orderCode,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              });
+
           if (verified.status === "PAID" || verified.paymentStatus === "PAID") {
             setPaymentStatus("success");
             setTimeout(() => {
@@ -366,14 +450,16 @@ export default function CheckoutPage() {
               setIsPlacingOrder(false);
               setPendingOrderCode(null);
               setHadPackagesAtCheckout(packages.length > 0);
-              if (packages.length > 0) {
+              // Only show the registry popup for authenticated users.
+              // Guest users receive registry instructions in their confirmation email.
+              if (isAuthenticated && packages.length > 0) {
                 const childName = packages[0]?.builderInput?.eventDetails?.childName;
                 setRegistryPromptData({
-                   title: childName ? `${childName}'s Celebration` : "My Celebration",
-                   date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                   orderCode: verified.orderCode,
-                   shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                   childName: childName,
+                  title: childName ? `${childName}'s Celebration` : "My Celebration",
+                  date: packages[0]?.builderInput?.eventDetails?.eventDate,
+                  orderCode: verified.orderCode,
+                  shippingAddress: packages[0]?.builderInput?.shippingAddress,
+                  childName: childName,
                 });
               }
               void clearCart().then(() => refreshCart());
@@ -390,7 +476,10 @@ export default function CheckoutPage() {
         ondismiss: () => {
           setIsPlacingOrder(false);
           setPaymentStatus("cancelled");
-          void shopApi.markCheckoutCancelled(order.orderCode).catch(() => undefined);
+          // Only authenticated users can mark cancellation via the account endpoint
+          if (isAuthenticated) {
+            void shopApi.markCheckoutCancelled(order.orderCode).catch(() => undefined);
+          }
         },
       },
     });
@@ -400,22 +489,7 @@ export default function CheckoutPage() {
     }
   }
 
-  const handlePlaceOrder = async () => {
-    if (!isAuthenticated) {
-      openAuthModal();
-      return;
-    }
-
-    if (!validateCheckout()) {
-      push("Please fill in all required fields.", "error");
-      return;
-    }
-
-    if (!hasItems && packages.length === 0 && !directCheckout) {
-      push("Your cart is empty.", "error");
-      return;
-    }
-
+  const executeOrderPlacement = async () => {
     setIsPlacingOrder(true);
     try {
       let packageData: any = undefined;
@@ -427,36 +501,31 @@ export default function CheckoutPage() {
             : Number(pkg.builderInput.guestCount) || 10;
         packageData = {
           eventDate: pkg.builderInput.eventDetails?.eventDate || eventDetails.eventDate,
-          contactEmail: pkg.builderInput.contactEmail || contactEmail.trim(),
-          contactPhone: pkg.builderInput.contactPhone || contactPhone.trim(),
-          shippingAddress: pkg.builderInput.shippingAddress || {
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim(),
+          shippingAddress: {
             fullName: address.fullName.trim() || eventDetails.childName.trim() || "Celebration guest",
-            line1: eventDetails.venue.trim() || "Venue to be confirmed",
-            city: eventDetails.venue.toLowerCase().includes("jaipur") ? "Jaipur" : "Outside Jaipur",
-            state: "Rajasthan",
-            pincode: "000000",
-            country: "India",
+            line1: address.line1.trim() || eventDetails.venue.trim() || "Venue to be confirmed",
+            line2: address.line2?.trim() || undefined,
+            city: address.city.trim() || (eventDetails.venue.toLowerCase().includes("jaipur") ? "Jaipur" : "Outside Jaipur"),
+            state: address.state.trim() || "Rajasthan",
+            pincode: address.pincode.trim() || "000000",
+            country: address.country.trim() || "India",
           },
           eventDetails: {
             childName: eventDetails.childName || pkg.builderInput.eventDetails?.childName,
             childAge: eventDetails.childAge,
-            venue: eventDetails.venue || pkg.builderInput.eventDetails?.venue,
+            venue: address.line1.trim() || eventDetails.venue || pkg.builderInput.eventDetails?.venue,
             guestCount: eventDetails.guestCount || pkg.builderInput.guestCount,
             notes: eventDetails.notes,
           },
           builder: {
             ...pkg.builderInput,
             guestCount: builderGuestCount,
-            location: pkg.builderInput.location || (eventDetails.venue.toLowerCase().includes("jaipur") ? "jaipur" : "outside"),
+            location: pkg.builderInput.location || (address.city.toLowerCase().includes("jaipur") ? "jaipur" : "outside"),
           },
         };
       }
-
-      // If a package is in the cart, use its address for the entire order
-      // to avoid asking the user twice for address details.
-      const effectiveShippingAddress = packages.length > 0
-          ? (packageData?.shippingAddress ?? address)
-          : address;
 
       if (directCheckout) {
         const order = await shopApi.createDirectShopOrder({
@@ -492,13 +561,82 @@ export default function CheckoutPage() {
         }
       }
 
-      const order = await shopApi.createShopOrder({
-        shippingAddress: effectiveShippingAddress,
-        contactEmail: effectiveEmail || contactEmail.trim(),
-        contactPhone: effectivePhone || contactPhone.trim(),
+      const payload = {
+        shippingAddress: address,
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim(),
         packageData,
-      });
+      };
+
+      const order = await shopApi.createShopOrder(payload);
       await openShopRazorpay(order);
+    } catch (err) {
+      push(err instanceof ApiClientError ? err.message : "Could not place your order. Please try again.", "error");
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!validateCheckout()) {
+      push("Please fill in all required fields and accept the policies.", "error");
+      return;
+    }
+
+    if (items.length === 0 && packages.length === 0 && !directCheckout) {
+      push("Your cart is empty.", "error");
+      return;
+    }
+
+    if (isAuthenticated) {
+      await executeOrderPlacement();
+      return;
+    }
+
+    // Guest checkout: check if the email is new or old
+    const emailToVerify = contactEmail.trim();
+    setIsCheckingAuth(true);
+    try {
+      const result = await requestGuestCheckoutOtp(emailToVerify);
+      // Success means it's a NEW email and OTP was dispatched!
+      setGateConfig({
+        open: true,
+        initialMode: "otp",
+        email: emailToVerify,
+        devOtp: result.devOtp ?? null,
+        infoMessage: null,
+      });
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === "EMAIL_EXISTS") {
+        setGateConfig({
+          open: true,
+          initialMode: "login",
+          email: emailToVerify,
+          devOtp: null,
+          infoMessage: null,
+        });
+      } else if (err instanceof ApiClientError && err.code === "GUEST_OTP_COOLDOWN") {
+        setGateConfig({
+          open: true,
+          initialMode: "otp",
+          email: emailToVerify,
+          devOtp: null,
+          infoMessage: "A verification code was recently sent to your email.",
+        });
+      } else {
+        push(friendlyAuthError(err), "error");
+      }
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  const handleAuthSuccess = async () => {
+    setGateConfig((prev) => ({ ...prev, open: false }));
+    setIsPlacingOrder(true);
+    try {
+      await syncOfflineCart();
+      await refreshCart();
+      await executeOrderPlacement();
     } catch (err) {
       push(err instanceof ApiClientError ? err.message : "Could not place your order. Please try again.", "error");
       setIsPlacingOrder(false);
@@ -511,6 +649,22 @@ export default function CheckoutPage() {
 
   return (
     <>
+      <CheckoutGateModal
+        open={gateConfig.open}
+        initialMode={gateConfig.initialMode}
+        email={gateConfig.email || contactEmail}
+        name={address.fullName}
+        phone={contactPhone}
+        shippingAddress={address}
+        devOtp={gateConfig.devOtp}
+        infoMessage={gateConfig.infoMessage}
+        onClose={() => setGateConfig((prev) => ({ ...prev, open: false }))}
+        onSuccess={handleAuthSuccess}
+        onEmailChanged={(newEmail) => {
+          setContactEmail(newEmail);
+          setGateConfig((prev) => ({ ...prev, email: newEmail }));
+        }}
+      />
       {paymentStatus === "success" && (
         <div className="fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center animate-fade-in">
           <div className="w-32 h-32 rounded-full bg-sage/20 flex items-center justify-center animate-bounce-slow mb-6">
@@ -647,7 +801,6 @@ export default function CheckoutPage() {
 
 
                     {/* Shipping Address Form */}
-                    {(packages.length === 0) && (
                     <ScrollReveal>
                       <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blush/20 rounded-bl-full -z-10" />
@@ -661,14 +814,29 @@ export default function CheckoutPage() {
                               <p className="text-sm text-text-muted mt-1">
                                 {registryCheckout
                                   ? `This order will be delivered to the registry owner (${registryCheckout.recipientName}).`
+                                  : packages.length > 0
+                                  ? "Delivery & contact details for your celebration package and order."
                                   : "Where should we deliver?"}
                               </p>
                             </div>
                           </div>
-                          {isAuthenticated && (
-                            <span className="text-[10px] bg-sage/20 text-sage-dark px-3 py-1.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap hidden sm:block">Profile loaded</span>
-                          )}
+                          <div>
+                            {packages.length > 0 ? (
+                              <span className="text-[10px] bg-mocha/10 text-mocha px-3 py-1.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">
+                                Package details applied
+                              </span>
+                            ) : isAuthenticated ? (
+                              <span className="text-[10px] bg-sage/20 text-sage-dark px-3 py-1.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap hidden sm:block">
+                                Profile loaded
+                              </span>
+                            ) : (
+                              <button type="button" onClick={() => openAuthModal()} className="text-[11px] font-bold text-mocha hover:text-mocha-dark underline underline-offset-2 uppercase tracking-wider hidden sm:block">
+                                Log in for faster checkout
+                              </button>
+                            )}
+                          </div>
                         </div>
+
                         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
                           <div className="sm:col-span-2">
                             <label className={labelClass}>Full Name <span className="text-red-500">*</span></label>
@@ -731,7 +899,6 @@ export default function CheckoutPage() {
                         )}
                       </div>
                     </ScrollReveal>
-                    )}
                   </div>
 
                   {/* Payment Summary */}
@@ -792,30 +959,60 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {!isAuthenticated ? (
-                      <div className="mt-8 space-y-4">
-                        <button onClick={() => openAuthModal()} className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all">
-                          Login to Checkout
-                        </button>
-                        <p className="text-[11px] text-text-muted text-center font-medium uppercase tracking-wider">You must be logged in to place an order</p>
-                      </div>
-                    ) : (
                       <button
                         onClick={handlePlaceOrder}
-                        disabled={isPlacingOrder || paymentStatus === "confirming" || !isFormComplete()}
-                        className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-8 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
+                        disabled={isPlacingOrder || isCheckingAuth || paymentStatus === "confirming"}
+                        className="btn-primary w-full py-4 text-sm font-bold uppercase tracking-wider gap-2 mt-8 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center"
                       >
-                        {paymentStatus === "cancelled" || paymentStatus === "failed" ? (
-                          <>Retry Payment <ArrowRight size={18} /></>
+                        {isPlacingOrder || isCheckingAuth ? (
+                          <>
+                            <Loader2 size={18} className="animate-spin" />
+                            <span>{isCheckingAuth ? "Verifying account..." : "Preparing payment..."}</span>
+                          </>
+                        ) : paymentStatus === "cancelled" || paymentStatus === "failed" ? (
+                          <>
+                            Retry Payment <ArrowRight size={18} />
+                          </>
                         ) : (
-                          <>Pay Securely <ArrowRight size={18} /></>
+                          <>
+                            Pay Securely <ArrowRight size={18} />
+                          </>
                         )}
                       </button>
-                    )}
+                      
+                      {!isAuthenticated && (
+                        <p className="mt-4 text-center text-xs text-text-muted">
+                          New customers will verify with a one-time code before payment.
+                        </p>
+                      )}
 
-                    <p className="text-[10px] text-text-light text-center mt-4 uppercase tracking-wider font-medium">
-                      By placing your order, you agree to our Terms & Conditions
-                    </p>
+                    <div className="mt-4 space-y-3">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreedPolicies}
+                          onChange={(e) => setAgreedPolicies(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                        />
+                        <span className="text-[11px] text-text-muted leading-relaxed">
+                          I agree to the{" "}
+                          <a href="/legal/terms-of-service" target="_blank" className="text-mocha underline hover:text-mocha-dark">Terms & Conditions</a>,{" "}
+                          <a href="/legal/privacy-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Privacy Policy</a>,{" "}
+                          <a href="/legal/refund-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Refund Policy</a>, and{" "}
+                          <a href="/legal/cancellation-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">Shipping Policy</a>. <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      {formErrors.policies && <p className="text-red-500 text-[11px] font-medium">{formErrors.policies}</p>}
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+                        />
+                        <span className="text-[11px] text-text-muted leading-relaxed">
+                          I would like to receive order updates, offers, and celebration ideas via WhatsApp/email. (Optional)
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -852,6 +1049,20 @@ export default function CheckoutPage() {
                 {hadPackagesAtCheckout && paymentStatus !== "pending" && (
                   <p className="text-sm text-text-muted max-w-md mx-auto mb-6 bg-cream/60 rounded-xl px-4 py-3 border border-border-light">
                     If your package includes personalization, our team will contact you to confirm details before production.
+                  </p>
+                )}
+                {!isAuthenticated && paymentStatus !== "pending" && (
+                  <div className="max-w-md mx-auto mb-6 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-left">
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Check your email</p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      Your order confirmation and invoice have been sent to <strong>{contactEmail}</strong>.
+                      {hadPackagesAtCheckout && " If your package includes a Gift Registry, setup instructions are included."}
+                    </p>
+                  </div>
+                )}
+                {isAuthenticated && paymentStatus !== "pending" && confirmedOrderCode && (
+                  <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
+                    A confirmation email with your invoice has been sent. Check your inbox for account details if this was your first guest checkout.
                   </p>
                 )}
               </ScrollReveal>

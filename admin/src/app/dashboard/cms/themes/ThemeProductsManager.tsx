@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { useToast } from "@/components/ui/Toast";
 import { productsRepo } from "@/lib/data/products";
 import type { Product, Theme } from "@/types/cms";
@@ -92,7 +92,7 @@ export function ThemeProductsManager({
 
       toast({ tone: "success", title: "Theme products updated" });
       onClose();
-    } catch (err) {
+    } catch {
       toast({ tone: "error", title: "Error updating products" });
     } finally {
       setSubmitting(false);
@@ -105,7 +105,7 @@ export function ThemeProductsManager({
   );
 
   return (
-    <AdminDrawerForm
+    <AdminModalForm
       open={open}
       onClose={onClose}
       title={`Manage Products — ${theme?.title}`}
@@ -113,6 +113,7 @@ export function ThemeProductsManager({
       onSubmit={onSave}
       submitting={submitting}
       submitLabel="Save Assignments"
+      size="lg"
     >
       <div className="flex flex-col gap-4">
         <div className="relative">
@@ -167,6 +168,6 @@ export function ThemeProductsManager({
           {selectedIds.size} product{selectedIds.size === 1 ? '' : 's'} assigned to this theme.
         </div>
       </div>
-    </AdminDrawerForm>
+    </AdminModalForm>
   );
 }

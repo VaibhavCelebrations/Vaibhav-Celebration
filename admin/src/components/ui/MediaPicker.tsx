@@ -169,7 +169,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
                   <div className="card w-full max-w-sm p-6 shadow-2xl">
                     <h3 className="mb-1 font-serif text-lg">Add ALT Text</h3>
                     <p className="mb-3 text-xs text-[var(--color-text-muted)]">
-                      Required for SEO and accessibility. Describe what's in <strong>{pendingFile.name}</strong>.
+                      Required for SEO and accessibility. Describe what&apos;s in <strong>{pendingFile.name}</strong>.
                     </p>
                     <textarea
                       className="input w-full resize-none text-sm"

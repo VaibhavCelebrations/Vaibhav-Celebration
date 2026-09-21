@@ -20,7 +20,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -335,11 +335,11 @@ export function ProductsScreen() {
         empty={{ icon: ShoppingBag, title: "No products yet", description: "Add your first gift shop product." }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Product" : "New Product"}
-        width="lg"
+        size="xl"
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
@@ -467,7 +467,7 @@ export function ProductsScreen() {
           </label>
           <ToggleSwitch id="product-active" checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveTarget}
@@ -528,6 +528,14 @@ export function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: P
       setError("Enter a non-zero quantity change.");
       return;
     }
+    if (reason === "RESTOCK" && delta < 0) {
+      setError("Restock quantity cannot be negative.");
+      return;
+    }
+    if (reason === "SALE" && delta > 0) {
+      setError("Sale quantity cannot be positive.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -551,7 +559,7 @@ export function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: P
   }
 
   return (
-    <AdminDrawerForm
+    <AdminModalForm
       open={!!product}
       onClose={onClose}
       title={product ? `Adjust Stock — ${product.title}` : "Adjust Stock"}
@@ -595,7 +603,7 @@ export function StockAdjustDrawer({ product, onClose, onAdjusted }: { product: P
           </ul>
         )}
       </div>
-    </AdminDrawerForm>
+    </AdminModalForm>
   );
 }
 
@@ -662,7 +670,7 @@ function CategoriesManagerDrawer({
   }
 
   return (
-    <AdminDrawerForm open={open} onClose={onClose} title="Manage Categories" description="Categories group products for shop filtering and navigation." onSubmit={onSubmit} submitting={submitting} submitLabel="Add category" error={error}>
+    <AdminModalForm open={open} onClose={onClose} title="Manage Categories" description="Categories group products for shop filtering and navigation." onSubmit={onSubmit} submitting={submitting} submitLabel="Add category" error={error}>
       <div className="flex flex-col gap-2">
         {categories.length === 0 && <p className="text-sm text-(--color-text-muted)">No categories yet — add the first one below.</p>}
         {categories.map((c) => (
@@ -686,6 +694,6 @@ function CategoriesManagerDrawer({
       <FormField label="New category name" htmlFor="new-category-name">
         <TextInput id="new-category-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Return Gifts" />
       </FormField>
-    </AdminDrawerForm>
+    </AdminModalForm>
   );
 }

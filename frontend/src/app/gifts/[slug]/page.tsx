@@ -35,7 +35,7 @@ export default function ProductDetailPage({ params }: Props) {
 
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -140,25 +140,16 @@ export default function ProductDetailPage({ params }: Props) {
       : [];
 
   const handleBuyNow = () => {
-    const run = () => {
-      CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
-        productId: product.id,
-        title: product.title,
-        quantity,
-        unitPriceInPaise: product.priceInPaise,
-        personalizationSelected: personalizeSelected,
-        personalizationCostInPaise: personalizationCost,
-        personalizationValues: buildPersonalizationValues(),
-      });
-      router.push("/checkout");
-    };
-    if (!isAuthenticated) {
-      openAuthModal(run);
-      return;
-    }
-    setIsBuying(true);
-    run();
-    setIsBuying(false);
+    CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
+      productId: product.id,
+      title: product.title,
+      quantity,
+      unitPriceInPaise: product.priceInPaise,
+      personalizationSelected: personalizeSelected,
+      personalizationCostInPaise: personalizationCost,
+      personalizationValues: buildPersonalizationValues(),
+    });
+    router.push("/checkout");
   };
 
   return (

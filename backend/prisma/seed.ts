@@ -628,6 +628,10 @@ async function clearDevData() {
     "MediaAsset",
     "OperationalSetting",
     "SequenceCounter",
+    "WhatsAppWebhookEvent",
+    "PurchaseOrderItem",
+    "PurchaseOrder",
+    "Supplier",
     "AdminRefreshToken",
     "AdminUser",
   ] as const;

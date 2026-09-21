@@ -1,12 +1,13 @@
 "use client";
 
-import { FileText, Loader2, Eye } from "lucide-react";
+import { FileText, Loader2, Eye, Info, Package, CreditCard, PhoneCall, Mail, MessageSquare, CheckCheck, Clock, AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
+import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { SelectInput, TextArea } from "@/components/ui/fields";
@@ -24,6 +25,7 @@ const ORDER_STATUS_OPTIONS = [
   { value: "PENDING_PAYMENT", label: "Pending payment" },
   { value: "PAID", label: "Paid / confirmed" },
   { value: "PROCESSING", label: "Processing" },
+  { value: "READY_TO_SHIP", label: "Ready to ship" },
   { value: "SHIPPED", label: "Shipped" },
   { value: "DELIVERED", label: "Delivered" },
   { value: "CANCELLED", label: "Cancelled" },
@@ -37,6 +39,64 @@ const FOLLOW_UP_OPTIONS = [
   { value: "CONFIRMED", label: "Customization confirmed" },
   { value: "COMPLETED", label: "Completed" },
 ];
+
+type OrderItem = {
+  id: string;
+  title: string;
+  sku?: string | null;
+  quantity: number;
+  unitPriceInPaise: number;
+  lineTotalInPaise: number;
+  personalizationSelected?: boolean;
+  personalizationCostSnapshot?: number;
+  personalizationValues?: unknown;
+  fulfillmentStatus?: string | null;
+};
+
+type OrderRow = {
+  id: string;
+  orderCode: string;
+  user?: { name?: string | null; email?: string | null } | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  kind?: string | null;
+  registryCode?: string | null;
+  packageTitle?: string | null;
+  themeTitle?: string | null;
+  status: string;
+  paymentStatus?: string | null;
+  hasPersonalization?: boolean;
+  customizationFollowUpStatus?: string | null;
+  placedAt?: string | null;
+  totalInPaise: number;
+  emailSendStatus?: string | null;
+  emailSendError?: string | null;
+  whatsappSendStatus?: string | null;
+  whatsappSentAt?: string | null;
+  whatsappDeliveredAt?: string | null;
+  whatsappReadAt?: string | null;
+  whatsappError?: string | null;
+};
+
+type Order = OrderRow & {
+  contactPhone?: string | null;
+  shippingAddress?: Record<string, string>;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  adminNotes?: string | null;
+  items?: OrderItem[];
+  subtotalInPaise: number;
+  shippingWaived?: boolean;
+  shippingInPaise?: number | null;
+  gstInPaise: number;
+  invoicePdfUrl?: string | null;
+  whatsappMessageId?: string | null;
+  trackingUrl?: string | null;
+};
+
+function errMessage(err: unknown): string | undefined {
+  return err instanceof Error ? err.message : undefined;
+}
 
 function formatPersonalization(values: unknown): Array<{ label: string; value: string }> {
   if (!values) return [];
@@ -77,7 +137,7 @@ export function OrdersScreen() {
   );
   const { items: rows, total, loading, error, reload } = useRepoList(
     (q) =>
-      adminFetchList<any>(`/admin/orders${qs(q)}`, {
+      adminFetchList<OrderRow>(`/admin/orders${qs(q)}`, {
         page: q.page,
         pageSize: q.pageSize,
       }),
@@ -85,25 +145,27 @@ export function OrdersScreen() {
   );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
+  const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [savingOps, setSavingOps] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendingWhatsapp, setResendingWhatsapp] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
+  const [statusToConfirm, setStatusToConfirm] = useState<string | null>(null);
 
   const toast = useToast();
 
-  async function openOrder(row: any) {
+  async function openOrder(row: OrderRow) {
     setDrawerOpen(true);
     setLoadingOrder(true);
     setViewingOrder(null);
     try {
-      const order = await adminFetch<any>(`/admin/orders/${row.id}`);
+      const order = await adminFetch<Order>(`/admin/orders/${row.id}`);
       setViewingOrder(order);
       setAdminNotes(order.adminNotes ?? "");
-    } catch (err: any) {
-      toast({ title: "Failed to load order details", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Failed to load order details", description: errMessage(err), tone: "error" });
       setDrawerOpen(false);
     } finally {
       setLoadingOrder(false);
@@ -114,32 +176,32 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setUpdatingItemId(itemId);
     try {
-      const updatedOrder = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/items/${itemId}/fulfillment`, {
+      const updatedOrder = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/items/${itemId}/fulfillment`, {
         method: "PATCH",
         body: { status: status || null },
       });
       setViewingOrder(updatedOrder);
       toast({ title: "Status updated", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Update failed", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Update failed", description: errMessage(err), tone: "error" });
     } finally {
       setUpdatingItemId(null);
     }
   }
 
-  async function updateOrderStatus(status: string) {
+  async function updateOrderStatus(status: string, trackingUrl?: string) {
     if (!viewingOrder) return;
     setSavingOps(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/status`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/status`, {
         method: "PATCH",
-        body: { status },
+        body: { status, trackingUrl },
       });
       setViewingOrder(updated);
       reload();
       toast({ title: "Order status updated", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Could not change status", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Could not change status", description: errMessage(err), tone: "error" });
     } finally {
       setSavingOps(false);
     }
@@ -149,7 +211,7 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setSavingOps(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/ops`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/ops`, {
         method: "PATCH",
         body: {
           customizationFollowUpStatus: viewingOrder.customizationFollowUpStatus,
@@ -159,8 +221,8 @@ export function OrdersScreen() {
       setViewingOrder(updated);
       reload();
       toast({ title: "Follow-up saved", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Save failed", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Save failed", description: errMessage(err), tone: "error" });
     } finally {
       setSavingOps(false);
     }
@@ -170,19 +232,42 @@ export function OrdersScreen() {
     if (!viewingOrder) return;
     setResendingEmail(true);
     try {
-      const updated = await adminFetch<any>(`/admin/orders/${viewingOrder.id}/resend-confirmation`, {
+      const updated = await adminFetch<Order>(`/admin/orders/${viewingOrder.id}/resend-confirmation`, {
         method: "POST",
       });
       setViewingOrder({ ...viewingOrder, emailSendStatus: updated.emailSendStatus || "PENDING", emailSendError: updated.emailSendError ?? null });
       toast({ title: "Email triggered successfully", tone: "success" });
-    } catch (err: any) {
-      toast({ title: "Failed to resend email", description: err.message, tone: "error" });
+    } catch (err) {
+      toast({ title: "Failed to resend email", description: errMessage(err), tone: "error" });
     } finally {
       setResendingEmail(false);
     }
   }
 
-  const columns: Column<any>[] = [
+  async function resendConfirmationWhatsapp() {
+    if (!viewingOrder) return;
+    setResendingWhatsapp(true);
+    try {
+      const outcome = await adminFetch<{ success: boolean; status: string; error?: string }>(
+        `/admin/orders/${viewingOrder.id}/resend-whatsapp`,
+        { method: "POST" }
+      );
+      setViewingOrder({
+        ...viewingOrder,
+        whatsappSendStatus: outcome.status || "SENT",
+        whatsappError: outcome.error ?? null,
+        whatsappSentAt: outcome.status !== "FAILED" ? new Date().toISOString() : viewingOrder.whatsappSentAt,
+      });
+      reload();
+      toast({ title: "WhatsApp confirmation sent successfully", tone: "success" });
+    } catch (err) {
+      toast({ title: "Failed to send WhatsApp message", description: errMessage(err), tone: "error" });
+    } finally {
+      setResendingWhatsapp(false);
+    }
+  }
+
+  const columns: Column<OrderRow>[] = [
     { key: "orderCode", header: "Order Number", sortable: true, cell: (row) => row.orderCode },
     {
       key: "customer",
@@ -195,57 +280,99 @@ export function OrdersScreen() {
       ),
     },
     {
-      key: "type",
-      header: "Type",
-      cell: (row) =>
-        row.kind === "PACKAGE" ? (
-          <span className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded font-medium">Package</span>
-        ) : row.registryCode ? (
-          <span className="text-xs px-2 py-1 bg-rose-50 text-rose-800 rounded font-medium">Registry</span>
-        ) : (
-          <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">Shop</span>
-        ),
-    },
-    {
       key: "package",
-      header: "Package / Theme",
-      hideBelow: "md",
-      cell: (row) =>
-        row.packageTitle ? (
-          <span className="text-xs text-(--color-text-secondary)">
-            {row.themeTitle ? `${row.themeTitle} — ` : ""}
-            {row.packageTitle}
-          </span>
-        ) : (
-          <span className="text-xs text-stone-400">—</span>
-        ),
+      header: "Order Items",
+      cell: (row) => (
+        <div className="flex flex-col items-start gap-1.5">
+          {row.kind === "PACKAGE" ? (
+            <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded font-semibold uppercase tracking-wider">Package</span>
+          ) : row.registryCode ? (
+            <span className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-800 rounded font-semibold uppercase tracking-wider">Registry</span>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider">Shop</span>
+          )}
+          {row.packageTitle ? (
+            <span className="text-xs text-(--color-text-secondary)">
+              {row.themeTitle ? `${row.themeTitle} — ` : ""}
+              {row.packageTitle}
+            </span>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "status",
-      header: "Order",
+      header: "Status",
       cell: (row) => (
-        <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">{row.status}</span>
-      ),
-    },
-    {
-      key: "paymentStatus",
-      header: "Payment",
-      cell: (row) => (
-        <span className="text-xs px-2 py-1 bg-stone-100 rounded font-medium">{row.paymentStatus ?? "—"}</span>
-      ),
-    },
-    {
-      key: "customizationFollowUpStatus",
-      header: "Follow-up",
-      hideBelow: "md",
-      cell: (row) =>
-        row.hasPersonalization || (row.customizationFollowUpStatus && row.customizationFollowUpStatus !== "NOT_REQUIRED") ? (
-          <span className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded font-medium">
-            {String(row.customizationFollowUpStatus ?? "REQUIRED").replaceAll("_", " ")}
+        <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider" title="Order Status">
+            <Package size={10} /> {row.status}
           </span>
-        ) : (
-          <span className="text-xs text-stone-400">—</span>
-        ),
+          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-stone-100 rounded font-semibold uppercase tracking-wider" title="Payment Status">
+            <CreditCard size={10} /> {row.paymentStatus ?? "—"}
+          </span>
+          {(row.hasPersonalization || (row.customizationFollowUpStatus && row.customizationFollowUpStatus !== "NOT_REQUIRED")) && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded font-semibold uppercase tracking-wider" title="Follow-up Status">
+              <PhoneCall size={10} /> {String(row.customizationFollowUpStatus ?? "REQUIRED").replaceAll("_", " ")}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "comms",
+      header: "Comms",
+      cell: (row) => (
+        <div className="flex items-center gap-1.5">
+          {/* Email badge */}
+          <span
+            title={row.emailSendStatus ? `Email: ${row.emailSendStatus}${row.emailSendError ? ` (${row.emailSendError})` : ""}` : "Email: Not sent"}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              row.emailSendStatus === "SENT"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : row.emailSendStatus === "PENDING"
+                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                  : row.emailSendStatus === "FAILED"
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-stone-50 text-stone-400 border border-stone-200"
+            }`}
+          >
+            <Mail size={11} />
+            <span className="hidden lg:inline">{row.emailSendStatus === "SENT" ? "Sent" : row.emailSendStatus === "FAILED" ? "Fail" : row.emailSendStatus ?? "—"}</span>
+          </span>
+
+          {/* WhatsApp badge */}
+          <span
+            title={row.whatsappSendStatus ? `WhatsApp: ${row.whatsappSendStatus}${row.whatsappError ? ` (${row.whatsappError})` : ""}` : "WhatsApp: Not sent"}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              row.whatsappSendStatus === "READ"
+                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                : row.whatsappSendStatus === "DELIVERED"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : row.whatsappSendStatus === "SENT" || row.whatsappSendStatus === "SIMULATED_SENT"
+                    ? "bg-sky-50 text-sky-700 border border-sky-200"
+                    : row.whatsappSendStatus === "PENDING" || row.whatsappSendStatus === "SENDING"
+                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : row.whatsappSendStatus === "FAILED"
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-stone-50 text-stone-400 border border-stone-200"
+            }`}
+          >
+            <MessageSquare size={11} />
+            <span className="hidden lg:inline">
+              {row.whatsappSendStatus === "READ"
+                ? "Read"
+                : row.whatsappSendStatus === "DELIVERED"
+                  ? "Delivered"
+                  : row.whatsappSendStatus === "SENT" || row.whatsappSendStatus === "SIMULATED_SENT"
+                    ? "Sent"
+                    : row.whatsappSendStatus === "FAILED"
+                      ? "Fail"
+                      : row.whatsappSendStatus ?? "—"}
+            </span>
+          </span>
+        </div>
+      ),
     },
     {
       key: "placedAt",
@@ -274,7 +401,7 @@ export function OrdersScreen() {
           onClick={() => openOrder(row)}
           className="btn btn-secondary px-3 py-1.5 text-xs font-semibold shadow-sm"
         >
-          <Eye size={14} className="inline mr-1" /> View details
+          View
         </button>
       ),
     },
@@ -287,7 +414,14 @@ export function OrdersScreen() {
         description="Shop products, celebration packages, and gift registry purchases."
       />
 
-
+      <div className="flex flex-wrap items-center gap-4 p-3 bg-stone-50 border border-stone-200 rounded-md text-xs text-stone-600">
+        <span className="font-semibold text-stone-800 uppercase tracking-wider">Status Legend:</span>
+        <span className="flex items-center gap-1.5"><Package size={14} className="text-stone-500" /> Order</span>
+        <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-stone-500" /> Payment</span>
+        <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-stone-500" /> Follow-up</span>
+        <span className="flex items-center gap-1.5"><Mail size={14} className="text-stone-500" /> Email</span>
+        <span className="flex items-center gap-1.5"><MessageSquare size={14} className="text-stone-500" /> WhatsApp</span>
+      </div>
       <AdminDataTable
         columns={columns}
         rows={rows}
@@ -338,7 +472,7 @@ export function OrdersScreen() {
         }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={viewingOrder ? `Order ${viewingOrder.orderCode}` : "Loading..."}
@@ -350,6 +484,7 @@ export function OrdersScreen() {
         error={null}
         dirty={false}
         submitLabel="Close"
+        size="xl"
       >
         {loadingOrder ? (
           <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-stone-400" /></div>
@@ -368,13 +503,13 @@ export function OrdersScreen() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-sm bg-stone-50 rounded-md p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm bg-stone-50 rounded-md p-4">
               <div>
                 <p className="text-stone-500 mb-1">Order status</p>
                 <SelectInput
                   id="order-status"
                   value={viewingOrder.status}
-                  onChange={(e) => updateOrderStatus(e.target.value)}
+                  onChange={(e) => setStatusToConfirm(e.target.value)}
                   options={ORDER_STATUS_OPTIONS}
                   disabled={savingOps}
                 />
@@ -388,22 +523,119 @@ export function OrdersScreen() {
                 {viewingOrder.razorpayPaymentId && (
                   <p className="text-xs font-mono text-stone-500 break-all">Rzp payment: {viewingOrder.razorpayPaymentId}</p>
                 )}
+                {viewingOrder.trackingUrl && (
+                  <div className="mt-2 pt-2 border-t border-stone-200">
+                    <p className="text-stone-500 mb-1 text-xs">Tracking URL</p>
+                    <a href={viewingOrder.trackingUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand hover:underline break-all">
+                      {viewingOrder.trackingUrl}
+                    </a>
+                  </div>
+                )}
               </div>
               <div>
-                <p className="text-stone-500 mb-1">Email Status</p>
-                <p className="font-medium">{viewingOrder.emailSendStatus ?? "NOT_SENT"}</p>
+                <p className="text-stone-500 mb-1 flex items-center gap-1.5">
+                  <Mail size={13} className="text-stone-400" />
+                  <span>Email Status</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                      viewingOrder.emailSendStatus === "SENT"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : viewingOrder.emailSendStatus === "PENDING"
+                          ? "bg-amber-100 text-amber-800"
+                          : viewingOrder.emailSendStatus === "FAILED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-stone-200 text-stone-600"
+                    }`}
+                  >
+                    {viewingOrder.emailSendStatus ?? "NOT_SENT"}
+                  </span>
+                </div>
                 {viewingOrder.emailSendError && (
-                  <p className="text-xs text-red-600 mt-1 break-all">Error: {viewingOrder.emailSendError}</p>
+                  <p className="text-xs text-red-600 mt-1.5 break-all flex items-start gap-1">
+                    <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                    <span>{viewingOrder.emailSendError}</span>
+                  </p>
                 )}
                 {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
                   <button
                     type="button"
-                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1 w-full"
                     onClick={() => void resendConfirmationEmail()}
                     disabled={resendingEmail}
                   >
-                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    {resendingEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail size={12} />}
                     Resend Email
+                  </button>
+                )}
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1 flex items-center gap-1.5">
+                  <MessageSquare size={13} className="text-stone-400" />
+                  <span>WhatsApp Delivery</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                      viewingOrder.whatsappSendStatus === "READ"
+                        ? "bg-purple-100 text-purple-800"
+                        : viewingOrder.whatsappSendStatus === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : viewingOrder.whatsappSendStatus === "SENT" || viewingOrder.whatsappSendStatus === "SIMULATED_SENT"
+                            ? "bg-sky-100 text-sky-800"
+                            : viewingOrder.whatsappSendStatus === "PENDING" || viewingOrder.whatsappSendStatus === "SENDING"
+                              ? "bg-amber-100 text-amber-800"
+                              : viewingOrder.whatsappSendStatus === "FAILED"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-stone-200 text-stone-600"
+                    }`}
+                  >
+                    {viewingOrder.whatsappSendStatus === "READ" && <CheckCheck size={12} />}
+                    {viewingOrder.whatsappSendStatus ?? "NOT_SENT"}
+                  </span>
+                </div>
+
+                {/* Timestamps */}
+                <div className="text-[11px] text-stone-500 mt-1.5 space-y-0.5">
+                  {viewingOrder.whatsappSentAt && (
+                    <p className="flex items-center gap-1">
+                      <Clock size={10} className="text-stone-400" />
+                      <span>Sent: {new Date(viewingOrder.whatsappSentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                  {viewingOrder.whatsappDeliveredAt && (
+                    <p className="flex items-center gap-1 text-emerald-700">
+                      <CheckCheck size={10} />
+                      <span>Delivered: {new Date(viewingOrder.whatsappDeliveredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                  {viewingOrder.whatsappReadAt && (
+                    <p className="flex items-center gap-1 text-purple-700 font-medium">
+                      <CheckCheck size={10} />
+                      <span>Read: {new Date(viewingOrder.whatsappReadAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Error Banner */}
+                {viewingOrder.whatsappError && (
+                  <p className="text-xs text-red-600 mt-1.5 break-all flex items-start gap-1 bg-red-50 p-1.5 rounded border border-red-200">
+                    <AlertCircle size={12} className="shrink-0 mt-0.5 text-red-500" />
+                    <span>{viewingOrder.whatsappError}</span>
+                  </p>
+                )}
+
+                {/* Resend WhatsApp button */}
+                {(viewingOrder.paymentStatus === "PAID" || viewingOrder.status === "PAID") && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary mt-2 px-2 py-1 text-xs flex items-center justify-center gap-1 w-full text-emerald-800 hover:text-emerald-900 border-emerald-300 hover:border-emerald-400"
+                    onClick={() => void resendConfirmationWhatsapp()}
+                    disabled={resendingWhatsapp}
+                  >
+                    {resendingWhatsapp ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare size={12} />}
+                    Resend WhatsApp
                   </button>
                 )}
               </div>
@@ -429,15 +661,15 @@ export function OrdersScreen() {
             <div>
               <h4 className="font-medium border-b pb-2 mb-4">Order Items</h4>
               <div className="space-y-4">
-                {viewingOrder.items?.map((item: any) => (
+                {viewingOrder.items?.map((item) => (
                   <div key={item.id} className="border rounded-md p-4 bg-white shadow-sm space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium">{item.title}</p>
                         <p className="text-xs text-stone-500">SKU: {item.sku}</p>
                         <p className="text-sm mt-1">Qty: {item.quantity} × ₹{(item.unitPriceInPaise / 100).toFixed(2)}</p>
-                        {item.personalizationSelected && item.personalizationCostSnapshot > 0 && (
-                          <p className="text-xs text-amber-800 mt-1">Personalization +₹{(item.personalizationCostSnapshot / 100).toFixed(2)} each</p>
+                        {item.personalizationSelected && (item.personalizationCostSnapshot ?? 0) > 0 && (
+                          <p className="text-xs text-amber-800 mt-1">Personalization +₹{((item.personalizationCostSnapshot ?? 0) / 100).toFixed(2)} each</p>
                         )}
                       </div>
                       <div className="text-right">
@@ -529,7 +761,22 @@ export function OrdersScreen() {
             </div>
           </div>
         ) : null}
-      </AdminDrawerForm>
+      </AdminModalForm>
+      <AdminConfirmDialog
+        open={statusToConfirm !== null}
+        title="Change Order Status"
+        message={`Are you sure you want to change the order status to ${ORDER_STATUS_OPTIONS.find((o) => o.value === statusToConfirm)?.label}?`}
+        requireReason={statusToConfirm === "SHIPPED" && !viewingOrder?.trackingUrl}
+        reasonLabel="Tracking URL (Required for SHIPPED)"
+        onConfirm={async (reason?: string) => {
+          if (statusToConfirm) {
+            await updateOrderStatus(statusToConfirm, reason);
+            setStatusToConfirm(null);
+          }
+        }}
+        onCancel={() => setStatusToConfirm(null)}
+        confirmLabel="Yes, change status"
+      />
     </div>
   );
 }

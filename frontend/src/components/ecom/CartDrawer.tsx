@@ -61,17 +61,13 @@ function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQ
 
 export function CartDrawer() {
   const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const deliverySettings = useDeliverySettings();
   const router = useRouter();
 
   const handleCheckout = () => {
     closeCart();
-    if (!isAuthenticated) {
-      openAuthModal(() => router.push("/checkout"));
-      return;
-    }
     router.push("/checkout");
   };
 
@@ -83,6 +79,9 @@ export function CartDrawer() {
   const combinedTotalRupees = combinedQuote.totalInPaise / 100;
 
   return (
+    <>
+
+      {isCartOpen && (
     <>
       {/* Backdrop */}
       <div
@@ -340,6 +339,8 @@ export function CartDrawer() {
           </>
         )}
       </div>
+    </>
+      )}
     </>
   );
 }

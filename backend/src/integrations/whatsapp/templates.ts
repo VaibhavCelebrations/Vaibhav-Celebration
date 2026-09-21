@@ -12,6 +12,7 @@ export const WHATSAPP_TEMPLATES = {
   orderConfirmation: { name: "order_confirmation", languageCode: "en" },
   invoiceDelivery: { name: "invoice_delivery", languageCode: "en" },
   welcomeMessage: { name: "welcome_message", languageCode: "en" },
+  orderStatusUpdate: { name: "order_status_update", languageCode: "en" },
 } as const;
 
 export type WhatsAppTemplateKey = keyof typeof WHATSAPP_TEMPLATES;
@@ -32,12 +33,28 @@ export function buildOrderConfirmationMessage(input: {
   orderCode: string;
   amountFormatted: string;
   document?: WhatsAppDocument;
+  includeGiftRegistrySetup?: boolean;
+  /** Present for guest checkouts — a link to the login page so the customer can access their new account. */
+  guestLoginUrl?: string;
 }): BuiltMessage {
   const template = WHATSAPP_TEMPLATES.orderConfirmation;
+  const params = [input.orderCode, input.amountFormatted];
+
+  // 3rd body parameter: gift registry instruction or guest login note (mutually exclusive priority)
+  if (input.guestLoginUrl) {
+    // Guest order: always tell them they have an account — registry info is in the email
+    const loginNote = input.includeGiftRegistrySetup
+      ? `Your account & Gift Registry setup instructions have been emailed to you. Log in: ${input.guestLoginUrl}`
+      : `Your account credentials have been emailed to you. Log in to track your order: ${input.guestLoginUrl}`;
+    params.push(loginNote);
+  } else if (input.includeGiftRegistrySetup) {
+    params.push(`Setup your Gift Registry by logging in: ${process.env.FRONTEND_URL}/account/registries`);
+  }
+
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: [input.orderCode, input.amountFormatted],
+    bodyParameters: params,
     document: input.document,
   };
 }
@@ -62,5 +79,65 @@ export function buildWelcomeMessage(input: { name: string }): BuiltMessage {
     templateName: template.name,
     languageCode: template.languageCode,
     bodyParameters: [input.name],
+  };
+}
+
+/**
+ * Maps an OrderStatus value to a short human-readable label and a brief
+ * customer-facing sentence used in the WhatsApp body parameters.
+ * Kept in sync with ORDER_STATUS_LABELS in mailer.ts.
+ */
+const WA_STATUS_LABELS: Record<string, { label: string; message: string }> = {
+  PROCESSING: {
+    label: "Processing",
+    message: "Our team is now preparing your order for dispatch.",
+  },
+  READY_TO_SHIP: {
+    label: "Ready to Ship",
+    message: "Your order is packed and will be handed to our courier very soon.",
+  },
+  SHIPPED: {
+    label: "Shipped",
+    message: "Your order is on its way! Keep an eye out for the delivery.",
+  },
+  DELIVERED: {
+    label: "Delivered",
+    message: "Your order has been successfully delivered. Enjoy!",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    message: "Your order has been cancelled. Contact us if you need assistance.",
+  },
+  REFUNDED: {
+    label: "Refunded",
+    message: "Your refund has been initiated and may take 3-7 business days.",
+  },
+};
+
+/**
+ * Builds the order_status_update WhatsApp template message.
+ * Body parameters order: [customerName, orderCode, statusLabel, statusMessage]
+ */
+export function buildOrderStatusUpdateMessage(input: {
+  customerName: string;
+  orderCode: string;
+  status: string;
+  trackingUrl?: string | null;
+}): BuiltMessage {
+  const template = WHATSAPP_TEMPLATES.orderStatusUpdate;
+  const statusInfo = WA_STATUS_LABELS[input.status] ?? {
+    label: input.status,
+    message: "Your order status has been updated.",
+  };
+  
+  let finalMessage = statusInfo.message;
+  if (input.trackingUrl && input.status === "SHIPPED") {
+    finalMessage += ` Track here: ${input.trackingUrl}`;
+  }
+
+  return {
+    templateName: template.name,
+    languageCode: template.languageCode,
+    bodyParameters: [input.customerName, input.orderCode, statusInfo.label, finalMessage],
   };
 }

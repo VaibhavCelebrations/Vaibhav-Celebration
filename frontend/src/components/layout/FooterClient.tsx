@@ -17,6 +17,7 @@ const supportLinks = [
   { label: "FAQs", href: "/faq" },
   { label: "Privacy Policy", href: "/legal/privacy-policy" },
   { label: "Refund & Cancellation", href: "/legal/refund-policy" },
+  { label: "Shipping & Delivery", href: "/legal/cancellation-policy" },
   { label: "Terms & Conditions", href: "/legal/terms-of-service" },
 ];
 

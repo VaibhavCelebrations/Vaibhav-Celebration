@@ -337,7 +337,7 @@ export async function deleteProduct(id: string) {
   await invalidateProductCaches();
 }
 
-async function invalidateProductCaches() {
+export async function invalidateProductCaches() {
   void delPattern("pub:products:*");
   void delPattern("adm:products:*");
 }

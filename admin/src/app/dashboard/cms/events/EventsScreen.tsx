@@ -9,7 +9,7 @@ import { useRepoList } from "@/lib/use-repo-list";
 import { formatDateTime, formatPaise } from "@/lib/format";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { AdminSubTable } from "@/components/ui/AdminSubTable";
 import { FormField } from "@/components/ui/FormField";
 import { HtmlEditor } from "@/components/ui/HtmlEditor";
@@ -316,7 +316,7 @@ export function EventsScreen() {
           description: "Create the first event to get started.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Event" : "New Event"}
@@ -324,7 +324,7 @@ export function EventsScreen() {
         submitting={submitting}
         error={formError}
         dirty={dirty}
-        width="lg"
+        size="xl"
         submitLabel={drawerTab === "registrants" ? "Save" : "Save"}
         footerExtra={
           editing ? (
@@ -518,7 +518,7 @@ export function EventsScreen() {
             </div>
           </>
         )}
-      </AdminDrawerForm>
+      </AdminModalForm>
       <AdminConfirmDialog
         open={!!archiveTarget}
         title="Archive this event?"

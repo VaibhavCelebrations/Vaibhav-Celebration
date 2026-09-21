@@ -39,6 +39,8 @@ Every functional or technical decision in Documents 01–11 is traceable to one 
 | [12](./12-Twilio-WhatsApp-Integration-Guide.md)          | Twilio WhatsApp Integration Guide                             | How to set up Twilio for sending WhatsApp messages and what details we need for the backend?                |
 | [13](./13-Project-Tracker.md)                            | Centralized Project Tracker & Milestones                      | Live task statuses across all phases                                                                        |
 | [14](./14-Secrets-Rotation-Policy.md)                    | Secrets Rotation Policy                                       | How to rotate JWT/Razorpay/WhatsApp/SMTP/Cloudflare secrets safely                                          |
+| [15](./15-Inventory-Wiring-and-Migration-Fixes.md)       | Inventory Wiring & Migration Fixes                            | Inventory API and database migration patches                                                                |
+| [16](./16-Master-Website-Revision-QA-Matrix-and-Audit-Document.md) | **Master Website Revision QA Matrix & Audit Document**         | Comprehensive 23-section audit table for CR-01 to CR-26, rules, flows, and acceptance checks                |
 
 ---
 

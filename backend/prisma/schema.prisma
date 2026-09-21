@@ -454,6 +454,24 @@ model PaymentEvent {
   @@index([razorpayPaymentId])
 }
 
+/// Stores and deduplicates WhatsApp webhook events for fast-acknowledgment and background processing.
+model WhatsAppWebhookEvent {
+  id                String    @id @default(cuid())
+  eventKey          String    @unique
+  eventType         String    @default("STATUS_UPDATE")
+  providerMessageId String?
+  status            String?
+  payload           Json?
+  processed         Boolean   @default(false)
+  processedAt       DateTime?
+  error             String?
+  createdAt         DateTime  @default(now())
+
+  @@index([providerMessageId])
+  @@index([processed])
+  @@index([createdAt])
+}
+
 model Event {
   id                     String              @id @default(cuid())
   title                  String
@@ -594,7 +612,10 @@ model Invoice {
   pdfUrl             String?
   emailSentAt        DateTime?
   whatsappSentAt     DateTime?
+  whatsappDeliveredAt DateTime?
+  whatsappReadAt     DateTime?
   whatsappSendStatus String?
+  whatsappError      String?
   issuedAt           DateTime          @default(now())
   deletedAt          DateTime?
   emailSendStatus    String?
@@ -721,8 +742,6 @@ model Product {
   supplierId                  String?
   supplier                    Supplier?                     @relation(fields: [supplierId], references: [id])
   purchaseOrderItems          PurchaseOrderItem[]
-  inventoryStock              InventoryStock[]
-  inventoryTransactions       InventoryTransaction[]
 
     id                          String                        @id @default(cuid())
   title                       String
@@ -879,6 +898,7 @@ model Order {
   razorpayPaymentId           String?
   invoiceNumber               String?                     @unique
   invoicePdfUrl               String?
+  trackingUrl                 String?
   placedAt                    DateTime                    @default(now())
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime                    @updatedAt
@@ -887,6 +907,8 @@ model Order {
   adminNotes                  String?
   confirmationEmailSentAt     DateTime?
   whatsappSentAt              DateTime?
+  whatsappDeliveredAt         DateTime?
+  whatsappReadAt              DateTime?
   registryId                  String?
   kind                        OrderKind                   @default(SHOP)
   /// For UPGRADE orders: the paid package order this add-on belongs to.
@@ -900,6 +922,7 @@ model Order {
   emailSendStatus             String?
   emailSendError              String?
   whatsappSendStatus          String?
+  whatsappError               String?
   whatsappMessageId           String?
   giftContributions           GiftRegistryContribution[]
   invoice                     Invoice?
@@ -1281,6 +1304,7 @@ enum OrderStatus {
   PENDING_PAYMENT
   PAID
   PROCESSING
+  READY_TO_SHIP
   SHIPPED
   DELIVERED
   CANCELLED
@@ -1358,23 +1382,6 @@ model Supplier {
   @@index([isActive])
 }
 
-model Warehouse {
-  id        String    @id @default(cuid())
-  name      String
-  location  String?
-  address   String?
-  isDefault Boolean   @default(false)
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  stock        InventoryStock[]
-  transactions InventoryTransaction[]
-  purchaseOrders PurchaseOrder[]
-
-  @@index([isDefault])
-}
 
 model PurchaseOrder {
   id          String              @id @default(cuid())
@@ -1382,7 +1389,6 @@ model PurchaseOrder {
   supplierId  String
   status      PurchaseOrderStatus @default(DRAFT)
   totalAmount Int                 @default(0)
-  warehouseId String?
   expectedAt  DateTime?
   receivedAt  DateTime?
   createdAt   DateTime            @default(now())
@@ -1391,7 +1397,6 @@ model PurchaseOrder {
   note        String?
 
   supplier Supplier            @relation(fields: [supplierId], references: [id])
-  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
   items    PurchaseOrderItem[]
 
   @@index([supplierId])
@@ -1415,37 +1420,6 @@ model PurchaseOrderItem {
   @@index([productId])
 }
 
-model InventoryStock {
-  id                String   @id @default(cuid())
-  productId         String
-  warehouseId       String
-  quantityAvailable Int      @default(0)
-  quantityReserved  Int      @default(0)
-  lowStockThreshold Int      @default(10)
-  updatedAt         DateTime @updatedAt
-
-  product   Product   @relation(fields: [productId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-
-  @@unique([productId, warehouseId])
-}
-
-model InventoryTransaction {
-  id              String                @id @default(cuid())
-  productId       String
-  warehouseId     String
-  quantityChange  Int
-  reason          InventoryLedgerReason
-  referenceId     String?
-  note            String?
-  adminUserId     String?
-  createdAt       DateTime              @default(now())
-
-  product   Product   @relation(fields: [productId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-
-  @@index([productId, warehouseId])
-}
 enum PurchaseOrderStatus {
   DRAFT
   ORDERED

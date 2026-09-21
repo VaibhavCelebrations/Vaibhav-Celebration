@@ -66,6 +66,7 @@ interface CartContextType {
   clearCart: () => Promise<void>;
   getItemQuantity: (productId: string) => number;
   refreshCart: () => Promise<void>;
+  syncOfflineCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -82,15 +83,42 @@ function savePackages(packages: CartPackage[]) {
   CacheStore.setSessionItem(PACKAGES_KEY, packages);
 }
 
-const CART_ITEMS_KEY = "vc_cart_items";
+// ── Offline cart (localStorage) ───────────────────────────────────────────────
+// Used only when the user is not authenticated. localStorage is synchronous,
+// simple, and more than sufficient for small cart payloads. We no longer use
+// IndexedDB here because async IDB makes the checkout page needlessly complex.
 
-async function loadOfflineCart(): Promise<{ items: ServerCartItem[], quote: CartQuote }> {
-  const data = await CacheStore.getIDBItem(CART_ITEMS_KEY, { items: [], quote: EMPTY_QUOTE });
-  return data;
+const OFFLINE_CART_KEY = "vc_offline_cart";
+
+type OfflineCart = { items: ServerCartItem[]; quote: CartQuote };
+
+function loadOfflineCart(): OfflineCart {
+  if (typeof window === "undefined") return { items: [], quote: EMPTY_QUOTE };
+  try {
+    const raw = window.localStorage.getItem(OFFLINE_CART_KEY);
+    if (!raw) return { items: [], quote: EMPTY_QUOTE };
+    return JSON.parse(raw) as OfflineCart;
+  } catch {
+    return { items: [], quote: EMPTY_QUOTE };
+  }
 }
 
-async function saveOfflineCart(items: ServerCartItem[], quote: CartQuote) {
-  await CacheStore.setIDBItem(CART_ITEMS_KEY, { items, quote });
+function saveOfflineCart(items: ServerCartItem[], quote: CartQuote): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(OFFLINE_CART_KEY, JSON.stringify({ items, quote }));
+  } catch {
+    // localStorage full / private-mode — silently ignore; cart state stays in memory
+  }
+}
+
+function clearOfflineCart(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(OFFLINE_CART_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 /* ── Provider ──────────────────────────────────────────────────────── */
@@ -123,13 +151,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const refreshCart = useCallback(async () => {
     setIsLoading(true);
     if (!isAuthenticated) {
-      const offlineCart = await loadOfflineCart();
+      const offlineCart = loadOfflineCart();
       setItems(offlineCart.items);
-      setQuote(offlineCart.quote);
+      setQuote(normalizeQuote(offlineCart.quote));
       setIsLoading(false);
       return;
     }
     try {
+      // Merge any offline cart items built while the user was a guest into
+      // their server cart, then wipe the local copy.
+      const offlineCart = loadOfflineCart();
+      if (offlineCart.items.length > 0) {
+        for (const item of offlineCart.items) {
+          try {
+            await shopApi.addCartItem(
+              item.productId,
+              item.quantity,
+              item.personalizationValues,
+              item.registryItemId ?? undefined,
+            );
+          } catch (e) {
+            console.error("Failed to sync offline cart item on login", e);
+          }
+        }
+        clearOfflineCart();
+      }
+
       const cart = await shopApi.getCart();
       setItems(cart.items);
       setQuote(normalizeQuote(cart.quote));
@@ -150,10 +197,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback(
     async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[], registryItemId?: string) => {
-      if (!isAuthenticated) {
-        openAuthModal(() => void addItemRef.current?.(productId, quantity, personalizationValues, registryItemId));
-        return;
-      }
       setOptimisticCartQuantities((prev) => ({
         ...prev,
         [productId]: (prev[productId] ?? 0) + quantity,
@@ -161,9 +204,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setIsCartOpen(true);
 
       try {
-        const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
-        setItems(cart.items);
-        setQuote(normalizeQuote(cart.quote));
+        if (!isAuthenticated) {
+          const offlineCart = loadOfflineCart();
+          const existingIdx = offlineCart.items.findIndex(
+            (i) => i.productId === productId && (i.registryItemId || "") === (registryItemId || ""),
+          );
+          const currentItems = offlineCart.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            personalizationValues: i.personalizationValues,
+            registryItemId: i.registryItemId || undefined,
+          }));
+
+          if (existingIdx >= 0) {
+            currentItems[existingIdx].quantity += quantity;
+            currentItems[existingIdx].personalizationValues =
+              personalizationValues ?? currentItems[existingIdx].personalizationValues;
+          } else {
+            currentItems.push({ productId, quantity, personalizationValues: personalizationValues ?? null, registryItemId });
+          }
+
+          const guestCart = await shopApi.getGuestCartQuote(currentItems);
+          setItems(guestCart.items);
+          setQuote(normalizeQuote(guestCart.quote));
+          saveOfflineCart(guestCart.items, normalizeQuote(guestCart.quote));
+        } else {
+          const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
+          setItems(cart.items);
+          setQuote(normalizeQuote(cart.quote));
+        }
       } catch (err) {
         const message =
           err instanceof ApiClientError && typeof err.message === "string"
@@ -178,7 +247,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [isAuthenticated, openAuthModal, push],
+    [isAuthenticated, push],
   );
   useEffect(() => {
     addItemRef.current = addItem;
@@ -187,35 +256,106 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = useCallback(
     async (lineKey: string, quantity: number) => {
       try {
-        const cart = await shopApi.updateCartItemQuantity(lineKey, quantity);
-        setItems(cart.items);
-        setQuote(normalizeQuote(cart.quote));
+        if (!isAuthenticated) {
+          const offlineCart = loadOfflineCart();
+          let currentItems = offlineCart.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            personalizationValues: i.personalizationValues,
+            registryItemId: i.registryItemId || undefined,
+            id: i.id,
+          }));
+
+          if (quantity <= 0) {
+            currentItems = currentItems.filter((i) => i.id !== lineKey && i.productId !== lineKey);
+          } else {
+            const existing = currentItems.find((i) => i.id === lineKey || i.productId === lineKey);
+            if (existing) existing.quantity = quantity;
+          }
+
+          const guestCart = await shopApi.getGuestCartQuote(currentItems);
+          setItems(guestCart.items);
+          setQuote(normalizeQuote(guestCart.quote));
+          saveOfflineCart(guestCart.items, normalizeQuote(guestCart.quote));
+        } else {
+          const cart = await shopApi.updateCartItemQuantity(lineKey, quantity);
+          setItems(cart.items);
+          setQuote(normalizeQuote(cart.quote));
+        }
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not update quantity", "error");
       }
     },
-    [push],
+    [isAuthenticated, push],
   );
 
   const removeItem = useCallback(
     async (lineKey: string) => {
       try {
-        const cart = await shopApi.removeCartItem(lineKey);
-        setItems(cart.items);
-        setQuote(normalizeQuote(cart.quote));
+        if (!isAuthenticated) {
+          const offlineCart = loadOfflineCart();
+          const currentItems = offlineCart.items
+            .filter((i) => i.id !== lineKey && i.productId !== lineKey)
+            .map((i) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              personalizationValues: i.personalizationValues,
+              registryItemId: i.registryItemId || undefined,
+            }));
+
+          const guestCart = await shopApi.getGuestCartQuote(currentItems);
+          setItems(guestCart.items);
+          setQuote(normalizeQuote(guestCart.quote));
+          saveOfflineCart(guestCart.items, normalizeQuote(guestCart.quote));
+        } else {
+          const cart = await shopApi.removeCartItem(lineKey);
+          setItems(cart.items);
+          setQuote(normalizeQuote(cart.quote));
+        }
       } catch (err) {
         push(err instanceof ApiClientError ? err.message : "Could not remove item", "error");
       }
     },
-    [push],
+    [isAuthenticated, push],
   );
+
+  const syncOfflineCart = useCallback(async () => {
+    const offlineCart = loadOfflineCart();
+    if (offlineCart.items.length > 0) {
+      for (const item of offlineCart.items) {
+        try {
+          await shopApi.addCartItem(
+            item.productId,
+            item.quantity,
+            item.personalizationValues,
+            item.registryItemId ?? undefined,
+          );
+        } catch (e) {
+          console.error("Failed to sync offline cart item", e);
+        }
+      }
+      clearOfflineCart();
+    }
+    try {
+      const cart = await shopApi.getCart();
+      setItems(cart.items);
+      setQuote(normalizeQuote(cart.quote));
+    } catch {
+      // non-fatal
+    }
+  }, []);
 
   const addPackage = useCallback((pkg: Omit<CartPackage, "id">) => {
     setPackages((prev) => {
       const existingIndex = prev.findIndex((p) => p.packageId === pkg.packageId && p.themeSlug === pkg.themeSlug);
       if (existingIndex >= 0) {
         const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], basePrice: pkg.basePrice, addons: pkg.addons };
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          basePrice: pkg.basePrice,
+          addons: pkg.addons,
+          builderInput: pkg.builderInput ?? updated[existingIndex].builderInput,
+        };
         return updated;
       }
       return [...prev, { ...pkg, id: Date.now().toString() + Math.random().toString(36).substring(2, 9) }];
@@ -234,6 +374,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       } catch {
         // ignore — order was already placed/confirmed by the time this is called
       }
+    } else {
+      clearOfflineCart();
     }
     setItems([]);
     setQuote(EMPTY_QUOTE);
@@ -284,6 +426,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clearCart,
         getItemQuantity,
         refreshCart,
+        syncOfflineCart,
       }}
     >
       {children}

@@ -6,10 +6,8 @@ import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 import {
   fetchSuppliers,
-  fetchWarehouses,
   createPurchaseOrder,
   type Supplier,
-  type Warehouse,
 } from "@/lib/data/inventory";
 import { productsRepo } from "@/lib/data/products";
 import type { Product } from "@/types/cms";
@@ -18,7 +16,6 @@ export default function NewPurchaseOrderPage() {
   const router = useRouter();
   
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -26,7 +23,6 @@ export default function NewPurchaseOrderPage() {
   const [error, setError] = useState("");
 
   const [supplierId, setSupplierId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
   const [notes, setNotes] = useState("");
   const [expectedAt, setExpectedAt] = useState("");
   
@@ -37,11 +33,9 @@ export default function NewPurchaseOrderPage() {
   useEffect(() => {
     Promise.all([
       fetchSuppliers({ pageSize: 100 }),
-      fetchWarehouses(),
       productsRepo.list({ page: 1, pageSize: 100 }) // Fetching all products for simplicity in dropdown
-    ]).then(([sRes, wRes, pRes]) => {
+    ]).then(([sRes, pRes]) => {
       setSuppliers(sRes.items);
-      setWarehouses(wRes);
       setProducts(pRes.items);
       setLoading(false);
     }).catch(err => {
@@ -93,7 +87,6 @@ export default function NewPurchaseOrderPage() {
     try {
       await createPurchaseOrder({
         supplierId,
-        warehouseId: warehouseId || undefined,
         notes: notes || undefined,
         expectedAt: expectedAt ? new Date(expectedAt).toISOString() : undefined,
         items: validItems,
@@ -150,19 +143,7 @@ export default function NewPurchaseOrderPage() {
               </select>
             </div>
             
-            <div className="space-y-1">
-              <label className="text-sm font-medium" style={{ color: "var(--color-charcoal)" }}>Destination Warehouse</label>
-              <select 
-                className="input" 
-                value={warehouseId} 
-                onChange={e => setWarehouseId(e.target.value)}
-              >
-                <option value="">Select a warehouse (optional)...</option>
-                {warehouses.map(w => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-            </div>
+
             
             <div className="space-y-1">
               <label className="text-sm font-medium" style={{ color: "var(--color-charcoal)" }}>Expected Delivery Date</label>

@@ -254,7 +254,7 @@ export function ThemesScreen() {
       setFormError(null);
       setDirty(false);
       setDrawerOpen(true);
-    } catch (err) {
+    } catch {
       toast({ tone: "error", title: "Failed to load theme details" });
     }
   }

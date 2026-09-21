@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AdminApiError, adminFetch } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -168,7 +168,7 @@ export function MetadataScreen() {
           description: "Page metadata will appear here once seeded in the database.",
         }}
       />
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={`Edit SEO — ${editing?.pageKey ?? ""}`}
@@ -176,7 +176,7 @@ export function MetadataScreen() {
         submitting={submitting}
         error={formError}
         dirty={dirty}
-        width="lg"
+        size="lg"
       >
         <FormField label="Meta title" htmlFor="meta-title">
           <TextInput
@@ -210,7 +210,7 @@ export function MetadataScreen() {
             }}
           />
         </FormField>
-      </AdminDrawerForm>
+      </AdminModalForm>
     </div>
   );
 }

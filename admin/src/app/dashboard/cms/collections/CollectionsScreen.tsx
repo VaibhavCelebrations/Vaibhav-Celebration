@@ -1,17 +1,16 @@
 "use client";
 
-import { Trash2 as Trash2, Layers, Loader2, Pencil, Plus } from "lucide-react";
+import { Trash2, Layers, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import { collectionsRepo, emptyCollectionInput } from "@/lib/data/collections";
 import { productsRepo } from "@/lib/data/products";
 import { DEFAULT_LIST_QUERY } from "@/lib/data/types";
-import { formatDateTime } from "@/lib/format";
 import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { MediaPicker } from "@/components/ui/MediaPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -192,7 +191,7 @@ export function CollectionsScreen() {
         title="Collections"
         description="Create festive shop collections, pick active products, and publish them to /gifts."
         actions={
-          <button type="button" onClick={openCreate} className="btn-primary inline-flex items-center gap-2">
+          <button type="button" onClick={openCreate} className="btn btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm">
             <Plus size={16} /> New Collection
           </button>
         }
@@ -227,11 +226,11 @@ export function CollectionsScreen() {
         empty={{ icon: Layers, title: "No collections yet", description: "Create a collection to bundle products." }}
       />
 
-      <AdminDrawerForm
+      <AdminModalForm
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? "Edit Collection" : "New Collection"}
-        width="lg"
+        size="lg"
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
@@ -303,7 +302,7 @@ export function CollectionsScreen() {
             <NumberInput id="collection-order" value={form.displayOrder} onChange={(v) => patchForm({ displayOrder: v || 0 })} />
           </FormField>
         </div>
-      </AdminDrawerForm>
+      </AdminModalForm>
 
       <AdminConfirmDialog
         open={!!archiveTarget}

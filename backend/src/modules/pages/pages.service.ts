@@ -137,7 +137,7 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
     hero: {
       title: "About Vaibhav Celebrations",
       subtitle:
-        "Creating magical moments for families across Delhi NCR since day one.",
+        "Creating magical moments for families across Jaipur since day one.",
     },
     story: {
       title: "Our Journey",

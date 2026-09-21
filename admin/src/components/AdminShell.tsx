@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Palette,
   Package,
@@ -33,6 +33,9 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Truck,
+  ShoppingCart,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import type { AdminUser } from "@/lib/admin-api-client";
@@ -42,7 +45,7 @@ import { logout } from "@/lib/data/session";
 type NavItem = {
   href: string;
   label: string;
-  section: "CMS" | "CRM" | "Settings";
+  section: "CMS" | "CRM" | "Inventory" | "Settings";
   icon: LucideIcon;
   roles?: AdminUser["role"][];
 };
@@ -181,6 +184,36 @@ const NAV: NavItem[] = [
     icon: MessagesSquare,
   },
   {
+    section: "Inventory",
+    href: "/dashboard/inventory",
+    label: "Overview",
+    icon: LayoutDashboard,
+  },
+  {
+    section: "Inventory",
+    href: "/dashboard/inventory/stock",
+    label: "Stock Ledger",
+    icon: Package,
+  },
+  {
+    section: "Inventory",
+    href: "/dashboard/inventory/purchases",
+    label: "Purchase Orders",
+    icon: ShoppingCart,
+  },
+  {
+    section: "Inventory",
+    href: "/dashboard/inventory/suppliers",
+    label: "Suppliers",
+    icon: Truck,
+  },
+  {
+    section: "Inventory",
+    href: "/dashboard/inventory/reports",
+    label: "Reports",
+    icon: BarChart3,
+  },
+  {
     section: "Settings",
     href: "/dashboard/settings",
     label: "Operational Settings",
@@ -205,7 +238,7 @@ const NAV: NavItem[] = [
 function canSeeSection(role: AdminUser["role"], section: NavItem["section"]) {
   if (role === "SUPER_ADMIN") return true;
   if (role === "CONTENT_EDITOR") return section === "CMS";
-  if (role === "OPERATIONS") return section === "CRM" || section === "Settings";
+  if (role === "OPERATIONS") return section === "CRM" || section === "Inventory" || section === "Settings";
   return false;
 }
 
@@ -214,32 +247,25 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { admin } = useAdminSession();
 
-  const [openSection, setOpenSection] = useState<string | null>(null);
-
-  // Initialize the open section based on the current pathname
-  useEffect(() => {
-    if (!openSection) {
-      if (pathname === "/dashboard") {
-        setOpenSection(null);
-      } else {
-        const matchingSection = NAV.find((item) =>
-          item.href === "/dashboard/settings"
-            ? pathname === item.href
-            : pathname.startsWith(item.href),
-        )?.section;
-        if (matchingSection) {
-          setOpenSection(matchingSection);
-        }
-      }
-    }
-  }, [pathname]);
+  // Open the section matching the initial pathname; after mount the accordion
+  // follows the user's clicks, not navigation.
+  const [openSection, setOpenSection] = useState<string | null>(() => {
+    if (pathname === "/dashboard") return null;
+    return (
+      NAV.find((item) =>
+        item.href === "/dashboard/settings"
+          ? pathname === item.href
+          : pathname.startsWith(item.href),
+      )?.section ?? null
+    );
+  });
 
   async function onLogout() {
     await logout();
     router.replace("/login");
   }
 
-  const sections = ["CMS", "CRM", "Settings"] as const;
+  const sections = ["CMS", "CRM", "Inventory", "Settings"] as const;
   const initials = admin.name
     .split(" ")
     .map((p) => p[0])
@@ -341,11 +367,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 {isOpen && (
                   <ul className="mt-1 space-y-0.5">
                     {items.map((item) => {
-                      // Fix for operational settings highlighting incorrectly when on sub-settings
-                      const active =
-                        item.href === "/dashboard/settings"
-                          ? pathname === item.href
-                          : pathname === item.href ||
+                      // Exact-match for "index" routes that would otherwise match all children
+                      const isExactMatchOnly =
+                        item.href === "/dashboard/settings" ||
+                        item.href === "/dashboard/inventory";
+                      const active = isExactMatchOnly
+                        ? pathname === item.href
+                        : pathname === item.href ||
                           pathname.startsWith(item.href + "/");
 
                       const ItemIcon = item.icon;

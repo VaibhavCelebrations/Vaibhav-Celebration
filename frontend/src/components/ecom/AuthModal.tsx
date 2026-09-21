@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { X, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
@@ -15,7 +15,7 @@ function isStrongPassword(pw: string): boolean {
 }
 
 export function AuthModal() {
-  const { isAuthModalOpen, closeAuthModal, login, signup } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, login, signup, authModalTab } = useAuth();
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,6 +35,15 @@ export function AuthModal() {
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Sync preferred tab when modal opens
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      setActiveTab(authModalTab);
+      setErrors({});
+      setFormError("");
+    }
+  }, [isAuthModalOpen, authModalTab]);
 
   if (!isAuthModalOpen) return null;
 

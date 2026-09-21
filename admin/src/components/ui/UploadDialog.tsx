@@ -67,12 +67,6 @@ const API_BASE =
     ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1")
     : "http://localhost:4000/api/v1";
 
-function getAuthHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = window.localStorage.getItem("vbc_admin_access");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function uploadViaBackend(entry: FileEntry, onProgress: (p: number) => void): Promise<UploadedMediaAsset> {
   onProgress(5);
   const token = typeof window !== "undefined" ? window.localStorage.getItem("vbc_admin_access") : null;

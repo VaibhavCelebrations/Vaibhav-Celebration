@@ -23,7 +23,7 @@ import {
   updateCategory,
   updateProduct,
 } from "./catalog.service";
-import { adjustInventory, getInventoryHistory } from "./inventory.service";
+import { adjustInventory, getInventoryHistory, getInventoryStats } from "./inventory.service";
 
 const roleGuard = [
   requireAdmin,
@@ -136,6 +136,14 @@ adminProductsRouter.get(
     }
   },
 );
+
+adminProductsRouter.get("/inventory/stats", async (_req, res, next) => {
+  try {
+    return ok(res, await getInventoryStats());
+  } catch (err) {
+    return next(err);
+  }
+});
 
 adminProductsRouter.get("/:id", validate(idSchema, "params"), async (req, res, next) => {
   try {

@@ -8,7 +8,7 @@ import { useListQuery } from "@/lib/use-list-query";
 import { useRepoList } from "@/lib/use-repo-list";
 import { AdminConfirmDialog } from "@/components/ui/AdminConfirmDialog";
 import { AdminDataTable, type Column, type RowAction } from "@/components/ui/AdminDataTable";
-import { AdminDrawerForm } from "@/components/ui/AdminDrawerForm";
+import { AdminModalForm } from "@/components/ui/AdminModalForm";
 import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -176,7 +176,7 @@ export function ResourceScreen({
       }}
     />
     {(allowCreate || allowEdit) && (
-      <AdminDrawerForm open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editing ? `Edit ${noun}` : `New ${noun}`} onSubmit={onSubmit} submitting={submitting} error={formError} dirty={dirty}>
+      <AdminModalForm open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editing ? `Edit ${noun}` : `New ${noun}`} onSubmit={onSubmit} submitting={submitting} error={formError} dirty={dirty}>
         {visibleFields.includes("title") && <FormField label="Title" htmlFor="resource-title" required><TextInput id="resource-title" value={String(form.title ?? "")} onChange={(event) => patch({ title: event.target.value })} required /></FormField>}
         {visibleFields.includes("name") && <FormField label="Name" htmlFor="resource-name" required><TextInput id="resource-name" value={String(form.name ?? "")} onChange={(event) => patch({ name: event.target.value })} required /></FormField>}
         {visibleFields.includes("slug") && <FormField label="Slug" htmlFor="resource-slug"><TextInput id="resource-slug" value={String(form.slug ?? "")} onChange={(event) => patch({ slug: event.target.value })} /></FormField>}
@@ -184,7 +184,7 @@ export function ResourceScreen({
         {visibleFields.includes("content") && <FormField label="Content" htmlFor="resource-content"><TextArea id="resource-content" value={String(form.contentHtml ?? form.content ?? "")} onChange={(event) => patch({ contentHtml: event.target.value })} /></FormField>}
         {visibleFields.includes("status") && <FormField label={statusKey === "pageTemplate" ? "Page template" : "Status"} htmlFor="resource-status" hint={statusOptions?.find((option) => option.value === form[statusKey])?.description}><SelectInput id="resource-status" value={String(form[statusKey] ?? statusOptions?.[0]?.value ?? "")} onChange={(event) => patch({ [statusKey]: event.target.value })} options={statusOptions ?? []} /></FormField>}
         {visibleFields.includes("isActive") && <div className="flex items-center justify-between"><label htmlFor="resource-active" className="text-sm font-medium text-(--color-charcoal)">Active</label><ToggleSwitch id="resource-active" checked={Boolean(form.isActive)} onChange={(isActive) => patch({ isActive })} /></div>}
-      </AdminDrawerForm>
+      </AdminModalForm>
     )}
     {allowArchive && (
       <AdminConfirmDialog open={!!archiveTarget} title={`Archive this ${noun.toLowerCase()}?`} message={<>Archive <strong>{archiveTarget ? getText(archiveTarget, ["title", "name", "customerName", "fullName"]) : ""}</strong>? This is reversible by an administrator.</>} submitting={archiving} onConfirm={archive} onCancel={() => setArchiveTarget(null)} />
