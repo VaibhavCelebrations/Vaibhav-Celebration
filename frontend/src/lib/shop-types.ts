@@ -201,7 +201,7 @@ export interface ShippingAddress {
   country: string;
 }
 
-export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "REFUNDED";
+export type OrderStatus = "PENDING_PAYMENT" | "PAID" | "PROCESSING" | "READY_TO_SHIP" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "REFUNDED";
 export type PaymentStatus = "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "REFUNDED" | "PARTIALLY_REFUNDED";
 
 export interface OrderItemDto {
@@ -285,6 +285,7 @@ export interface OrderDto {
   eventDetails?: Record<string, unknown> | null;
   invoiceNumber?: string | null;
   invoicePdfUrl: string | null;
+  trackingUrl?: string | null;
   canRetryPayment?: boolean;
   canReorder?: boolean;
   placedAt: string;

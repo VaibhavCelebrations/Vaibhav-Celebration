@@ -16,36 +16,35 @@ All WhatsApp templates in this application are strictly governed by the centrali
 
 | Template Name | File | Function | Trigger / Event | Variables Count | Header Type | Meta Category |
 |---|---|---|---|---|---|---|
-| `phone_verification` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L23) / [customer-auth.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/customer-auth/customer-auth.service.ts#L683) | `buildPhoneVerificationMessage` / `sendPhoneVerificationWhatsapp` | Customer requests phone verification link (`POST /customer/auth/phone/verify/request`) | 1 variable | `NONE` | `UTILITY` |
-| `order_confirmation` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L32) / [orders.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/orders/orders.service.ts#L1351) | `buildOrderConfirmationMessage` / `sendOrderConfirmationWhatsapp` / `resendOrderConfirmationWhatsapp` | Order marked `PAID` via Razorpay payment webhook OR Admin triggers resend (`POST /admin/orders/:id/resend-whatsapp`) | 2 or 3 variables *(See Conflict 1)* | `DOCUMENT` (conditional: attached if invoice PDF exists) *(See Conflict 2)* | `UTILITY` |
-| `invoice_delivery` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L62) / [payments.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/payments/payments.service.ts#L166) | `buildInvoiceDeliveryMessage` / `sendInvoiceDeliveryWhatsapp` | Admin triggers invoice delivery / resend (`POST /admin/payments/invoices/:id/deliver`) | 2 variables | `DOCUMENT` (attached if invoice PDF exists) | `UTILITY` |
-| `welcome_message` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L76) / [whatsapp.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/whatsapp/whatsapp.service.ts#L230) | `buildWelcomeMessage` / `sendWelcomeWhatsapp` | New user onboarding (gated by `WHATSAPP_WELCOME_ENABLED=true`) | 1 variable | `NONE` | `MARKETING` |
-| `order_status_update` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L121) / [whatsapp.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/whatsapp/whatsapp.service.ts#L244) | `buildOrderStatusUpdateMessage` / `sendOrderStatusUpdateWhatsapp` | Admin updates order status (Processing, Ready to Ship, Shipped, Delivered, Cancelled, Refunded) | 4 variables | `NONE` | `UTILITY` |
+| `phone_otp_verification` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L12) / [customer-auth.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/customer-auth/customer-auth.service.ts) | `buildPhoneOtpMessage` / `sendPhoneOtpWhatsapp` | Customer requests phone verification OTP (`POST /customer/auth/phone/otp/request`) | 1 variable | `NONE` | `AUTHENTICATION` |
+| `order_confirmation` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L18) / [orders.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/orders/orders.service.ts#L1351) | `buildOrderConfirmationMessage` / `sendOrderConfirmationWhatsapp` / `resendOrderConfirmationWhatsapp` | Order marked `PAID` via Razorpay payment webhook OR Admin triggers resend (`POST /admin/orders/:id/resend-whatsapp`) | 2 or 3 variables *(See Conflict 1)* | `DOCUMENT` (conditional: attached if invoice PDF exists) *(See Conflict 2)* | `UTILITY` |
+| `invoice_delivery` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L19) / [payments.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/payments/payments.service.ts#L166) | `buildInvoiceDeliveryMessage` / `sendInvoiceDeliveryWhatsapp` | Admin triggers invoice delivery / resend (`POST /admin/payments/invoices/:id/deliver`) | 2 variables | `DOCUMENT` (attached if invoice PDF exists) | `UTILITY` |
+| `welcome_message` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L20) / [whatsapp.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/whatsapp/whatsapp.service.ts#L230) | `buildWelcomeMessage` / `sendWelcomeWhatsapp` | New user onboarding (gated by `WHATSAPP_WELCOME_ENABLED=true`) | 1 variable | `NONE` | `MARKETING` |
+| `order_status_update` | [templates.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/templates.ts#L21) / [whatsapp.service.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/modules/whatsapp/whatsapp.service.ts#L244) | `buildOrderStatusUpdateMessage` / `sendOrderStatusUpdateWhatsapp` | Admin updates order status (Processing, Ready to Ship, Shipped, Delivered, Cancelled, Refunded) | 4 variables | `NONE` | `UTILITY` |
 
 ---
 
 ## A & B. Detailed WhatsApp Message Template Specifications (Exact Code Alignment)
 
-### 1. Template: `phone_verification`
+### 1. Template: `phone_otp_verification`
 
-- **Exact Template Name expected by code:** `phone_verification`
-- **Category in Meta:** `UTILITY` (Meta allows verification links under `UTILITY`; `AUTHENTICATION` in Meta is reserved for one-time passcodes with copy-code / autofill buttons).
+- **Exact Template Name expected by code:** `phone_otp_verification` (or overridable via `WHATSAPP_PHONE_OTP_TEMPLATE`)
+- **Category in Meta:** `AUTHENTICATION`
 - **Language expected by code:** `en` (English)
-- **Message Purpose:** Customer identity / phone number verification without disclosing PII or credentials.
-- **Header:** `NONE`
-- **Footer:** None in code.
-- **Buttons:** None in code (`components` sent by [meta.provider.ts](file:///e:/Affor%20Technologies/Projects/Vaibhav%20Celebrations/Vaibhav%20Celebrations%20Website/backend/src/integrations/whatsapp/providers/meta.provider.ts#L41) contains only `body`).
+- **Message Purpose:** One-time passcode (OTP) verification for customer phone verification.
+- **Header:** `NONE` (Meta Authentication templates do not support media headers)
+- **Footer:** Preset by Meta (e.g. security warning or expiration notice)
+- **Buttons:** 
+  - Option A: None
+  - Option B: `Copy code` button (configured via `WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON=true`)
 - **Exact Number of Variables:** 1
 - **Variable Mapping & Meaning:**
-  - `{{1}}`: Verification URL with opaque one-time token (`verifyUrl`).
-  - *Code expression:* `${env.FRONTEND_URL}/verify-phone?t=${rawToken}`
-  - *Example value:* `https://vaibhavcelebrations.in/verify-phone?t=8b9c0d1e2f3a4b5c`
-- **Intended Flow:** Customer notification / phone verification.
-- **Exact Body Text to create in Meta:**
+  - `{{1}}`: 6-digit numeric verification OTP code (`otp`).
+  - *Example value:* `482910`
+- **Expiry in Meta:** 10 minutes (matches backend `PHONE_VERIFICATION_TOKEN_TTL_MINUTES=10`)
+- **Meta Authentication Preset Body Text:**
 ```text
-Hello, please use the following link to verify your WhatsApp number with Vaibhav Celebrations: {{1}}
-
-This link will expire in 30 minutes. If you did not request this, please ignore this message.
+{{1}} is your verification code for Vaibhav Celebrations. For your security, do not share this code.
 ```
 
 ---

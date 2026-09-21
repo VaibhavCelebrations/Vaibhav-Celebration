@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Package, ChevronRight, FileText } from "lucide-react";
+import { Loader2, Package, ChevronRight, FileText, Truck } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import * as shopApi from "@/lib/shop-api";
 import { formatPaise } from "@/lib/shop-types";
@@ -13,6 +13,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "bg-amber-50 text-amber-700",
   PAID: "bg-green-50 text-green-700",
   PROCESSING: "bg-blue-50 text-blue-700",
+  READY_TO_SHIP: "bg-indigo-50 text-indigo-700",
   SHIPPED: "bg-purple-50 text-purple-700",
   DELIVERED: "bg-sage/20 text-sage-dark",
   CANCELLED: "bg-red-50 text-red-600",
@@ -23,6 +24,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "Payment Pending",
   PAID: "Confirmed",
   PROCESSING: "Processing",
+  READY_TO_SHIP: "Ready to Ship",
   SHIPPED: "Shipped",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
@@ -105,6 +107,11 @@ export default function OrderHistoryPage() {
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${STATUS_STYLES[order.status]}`}>
                     {STATUS_LABELS[order.status]}
                   </span>
+                  {order.status === "SHIPPED" && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 border border-purple-200 inline-flex items-center gap-1">
+                      <Truck size={11} /> Track Shipment
+                    </span>
+                  )}
                   {order.canRetryPayment && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
                       Complete payment

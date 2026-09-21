@@ -262,7 +262,7 @@ export function passwordChangedEmailHtml(name: string) {
   `);
 }
 
-const ORDER_STATUS_LABELS: Record<string, { label: string; message: string }> = {
+export const ORDER_STATUS_LABELS: Record<string, { label: string; message: string }> = {
   PROCESSING: {
     label: "Processing",
     message: "We've received your order and our team is now preparing it for dispatch.",
