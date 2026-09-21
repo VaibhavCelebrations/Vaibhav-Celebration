@@ -45,6 +45,9 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
         parameters: [{ type: "document", document: { link: input.document.url, filename: input.document.filename } }],
       });
     }
+    if (input.buttons && Array.isArray(input.buttons) && input.buttons.length > 0) {
+      components.push(...input.buttons);
+    }
 
     const body = {
       messaging_product: "whatsapp",

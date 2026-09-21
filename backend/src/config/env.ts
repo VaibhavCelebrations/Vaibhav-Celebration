@@ -69,8 +69,15 @@ export const envSchema = z.object({
   WHATSAPP_META_API_VERSION: z.string().default("v21.0"),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
-  /** Phone verification (WhatsApp link-based) — mirrors EMAIL_VERIFICATION_TOKEN_TTL_HOURS. */
-  PHONE_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().default(30),
+  /** Phone verification (WhatsApp OTP-based). */
+  PHONE_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().default(10),
+  /** Template name used for Meta WhatsApp Authentication OTP. Defaults to phone_otp_verification. */
+  WHATSAPP_PHONE_OTP_TEMPLATE: z.string().default("phone_otp_verification"),
+  /** Whether the Meta Authentication template includes a copy-code button component. */
+  WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
   /** Explicit opt-in gate for scripts/test-whatsapp.ts to send a REAL template message. Never enabled by default. */
   TEST_WHATSAPP_SEND: z
     .string()

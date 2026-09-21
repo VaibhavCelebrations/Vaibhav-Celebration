@@ -53,13 +53,46 @@ export async function verifyEmail(token: string): Promise<void> {
   await apiFetch(`${BASE}/email/verify`, { method: "POST", body: { token } });
 }
 
-/** Requires an active customer session — the verification link is tied to the logged-in account. */
-export async function requestPhoneVerification(phone: string): Promise<{ message: string }> {
-  return apiFetch<{ message: string }>(`${BASE}/phone/verify/request`, { method: "POST", body: { phone } });
+export type OtpRequestResponse = {
+  success: boolean;
+  message: string;
+  devOtp?: string;
+};
+
+export type OtpVerifyResponse = {
+  success: boolean;
+  message: string;
+  user: User;
+};
+
+/** Request WhatsApp OTP code for customer phone verification. */
+export async function requestPhoneOtp(phone: string): Promise<OtpRequestResponse> {
+  return apiFetch<OtpRequestResponse>(`${BASE}/phone/otp/request`, { method: "POST", body: { phone } });
 }
 
-export async function confirmPhoneVerification(token: string): Promise<void> {
-  await apiFetch(`${BASE}/phone/verify/confirm`, { method: "POST", body: { token } });
+/** Verify WhatsApp 6-digit OTP code for customer phone number. */
+export async function verifyPhoneOtp(phone: string, otp: string): Promise<OtpVerifyResponse> {
+  return apiFetch<OtpVerifyResponse>(`${BASE}/phone/otp/verify`, { method: "POST", body: { phone, otp } });
+}
+
+/** Request email OTP code for unverified customer email. */
+export async function requestEmailOtp(): Promise<OtpRequestResponse> {
+  return apiFetch<OtpRequestResponse>(`${BASE}/email/otp/request`, { method: "POST" });
+}
+
+/** Verify email 6-digit OTP code for customer email. */
+export async function verifyEmailOtp(otp: string): Promise<OtpVerifyResponse> {
+  return apiFetch<OtpVerifyResponse>(`${BASE}/email/otp/verify`, { method: "POST", body: { otp } });
+}
+
+/** Request email change OTP code sent to the new email address. */
+export async function requestEmailChangeOtp(newEmail: string): Promise<OtpRequestResponse> {
+  return apiFetch<OtpRequestResponse>(`${BASE}/email/change/request`, { method: "POST", body: { newEmail } });
+}
+
+/** Verify email change 6-digit OTP code and update user email. */
+export async function verifyEmailChangeOtp(newEmail: string, otp: string): Promise<OtpVerifyResponse> {
+  return apiFetch<OtpVerifyResponse>(`${BASE}/email/change/verify`, { method: "POST", body: { newEmail, otp } });
 }
 
 /** Guest checkout — send OTP to a new email (fails with EMAIL_EXISTS if account already exists). */

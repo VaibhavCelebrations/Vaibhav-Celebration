@@ -52,10 +52,22 @@ describe("env WhatsApp configuration", () => {
     if (result.success) expect(result.data.WHATSAPP_META_API_VERSION).toBe("v21.0");
   });
 
-  it("defaults PHONE_VERIFICATION_TOKEN_TTL_MINUTES to 30", () => {
+  it("defaults PHONE_VERIFICATION_TOKEN_TTL_MINUTES to 10", () => {
     const result = envSchema.safeParse(REQUIRED_BASE);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.PHONE_VERIFICATION_TOKEN_TTL_MINUTES).toBe(30);
+    if (result.success) expect(result.data.PHONE_VERIFICATION_TOKEN_TTL_MINUTES).toBe(10);
+  });
+
+  it("defaults WHATSAPP_PHONE_OTP_TEMPLATE to phone_otp_verification", () => {
+    const result = envSchema.safeParse(REQUIRED_BASE);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.WHATSAPP_PHONE_OTP_TEMPLATE).toBe("phone_otp_verification");
+  });
+
+  it("defaults WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON to false", () => {
+    const result = envSchema.safeParse(REQUIRED_BASE);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON).toBe(false);
   });
 
   it("defaults TEST_WHATSAPP_SEND to false, never true unless explicitly set", () => {

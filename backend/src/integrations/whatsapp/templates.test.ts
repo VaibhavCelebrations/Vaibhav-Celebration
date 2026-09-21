@@ -2,16 +2,28 @@ import { describe, expect, it } from "vitest";
 import {
   buildInvoiceDeliveryMessage,
   buildOrderConfirmationMessage,
-  buildPhoneVerificationMessage,
+  buildPhoneOtpMessage,
   buildWelcomeMessage,
   WHATSAPP_TEMPLATES,
 } from "./templates";
 
 describe("template builders", () => {
-  it("phone verification message contains only the opaque link, no PII", () => {
-    const msg = buildPhoneVerificationMessage("https://vaibhavcelebrations.in/verify-phone?t=abc123");
-    expect(msg.templateName).toBe(WHATSAPP_TEMPLATES.phoneVerification.name);
-    expect(msg.bodyParameters).toEqual(["https://vaibhavcelebrations.in/verify-phone?t=abc123"]);
+  it("phone OTP verification message contains 6-digit OTP code as body parameter", () => {
+    const msg = buildPhoneOtpMessage("123456");
+    expect(msg.templateName).toBe(WHATSAPP_TEMPLATES.phoneOtpVerification.name);
+    expect(msg.bodyParameters).toEqual(["123456"]);
+  });
+
+  it("phone OTP verification message includes copy-code button when enabled", () => {
+    const msg = buildPhoneOtpMessage("654321", { hasCopyCodeButton: true });
+    expect(msg.buttons).toEqual([
+      {
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: [{ type: "text", text: "654321" }],
+      },
+    ]);
   });
 
   it("order confirmation message includes orderCode + amount, and an optional document", () => {

@@ -1,3 +1,4 @@
+import { env } from "../../config/env";
 import type { SendTemplateMessageInput, WhatsAppDocument } from "./provider.types";
 
 /**
@@ -8,7 +9,12 @@ import type { SendTemplateMessageInput, WhatsAppDocument } from "./provider.type
  * Meta-approved message template before WHATSAPP_PROVIDER=meta is used.
  */
 export const WHATSAPP_TEMPLATES = {
-  phoneVerification: { name: "phone_verification", languageCode: "en" },
+  phoneOtpVerification: {
+    get name() {
+      return env.WHATSAPP_PHONE_OTP_TEMPLATE || "phone_otp_verification";
+    },
+    languageCode: "en",
+  },
   orderConfirmation: { name: "order_confirmation", languageCode: "en" },
   invoiceDelivery: { name: "invoice_delivery", languageCode: "en" },
   welcomeMessage: { name: "welcome_message", languageCode: "en" },
@@ -19,13 +25,31 @@ export type WhatsAppTemplateKey = keyof typeof WHATSAPP_TEMPLATES;
 
 type BuiltMessage = Omit<SendTemplateMessageInput, "toPhoneE164">;
 
-/** Verification link intentionally carries only an opaque token — no name/phone/order data in the URL (see customer-auth phone verification flow). */
-export function buildPhoneVerificationMessage(verifyUrl: string): BuiltMessage {
-  const template = WHATSAPP_TEMPLATES.phoneVerification;
+/**
+ * Meta Authentication template OTP for customer phone verification.
+ * Passes the 6-digit OTP as body parameter {{1}}.
+ * Supports optional copy-code button component when WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON=true.
+ */
+export function buildPhoneOtpMessage(otp: string, options?: { hasCopyCodeButton?: boolean }): BuiltMessage {
+  const template = WHATSAPP_TEMPLATES.phoneOtpVerification;
+  const hasButton = options?.hasCopyCodeButton ?? env.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON ?? false;
+
+  const buttons = hasButton
+    ? [
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: otp }],
+        },
+      ]
+    : undefined;
+
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: [verifyUrl],
+    bodyParameters: [otp],
+    buttons,
   };
 }
 

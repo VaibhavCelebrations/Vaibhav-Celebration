@@ -11,20 +11,24 @@ import {
 } from "../../middleware/customer-auth";
 import {
   changePassword,
-  confirmPhoneVerification,
   getCustomerById,
   loginCustomer,
   logoutAllSessions,
   logoutCustomer,
   refreshCustomerSession,
   requestPasswordReset,
-  requestPhoneVerification,
   resetPassword,
   signupCustomer,
   updateCustomerProfile,
   verifyEmail,
   requestGuestCheckoutEmailOtp,
   verifyGuestCheckoutEmailOtp,
+  requestPhoneVerificationOtp,
+  verifyPhoneOtp,
+  requestEmailVerificationOtp,
+  verifyEmailOtp,
+  requestEmailChangeOtp,
+  verifyEmailChangeOtp,
 } from "./customer-auth.service";
 
 /**
@@ -225,23 +229,17 @@ customerAuthRouter.post(
   },
 );
 
-// ─── Phone verification (WhatsApp link) ─────────────────────────────────────
+// ─── Phone OTP Verification (WhatsApp) ────────────────────────────────────────
 
 customerAuthRouter.post(
-  "/phone/verify/request",
+  "/phone/otp/request",
   requireCustomer,
   validate(z.object({ phone: z.string().min(6, "Phone number must be at least 6 characters").max(20, "Phone number cannot exceed 20 characters") })),
   async (req, res, next) => {
     try {
       const customer = (req as CustomerAuthenticatedRequest).customer!;
-      await requestPhoneVerification(customer.sub, req.body.phone, req.ip);
-      // Same shape regardless of outcome — the WhatsApp send itself is
-      // best-effort/logged server-side; the client can't distinguish
-      // "sent" from "provider unavailable" and doesn't need to.
-      return res.json({
-        success: true,
-        data: { message: "If WhatsApp is available for this number, a verification link has been sent." },
-      });
+      const result = await requestPhoneVerificationOtp(customer.sub, req.body.phone, req.ip);
+      return res.json({ success: true, data: result });
     } catch (err) {
       return next(err);
     }
@@ -249,12 +247,83 @@ customerAuthRouter.post(
 );
 
 customerAuthRouter.post(
-  "/phone/verify/confirm",
-  validate(z.object({ token: z.string().min(1) })),
+  "/phone/otp/verify",
+  requireCustomer,
+  validate(
+    z.object({
+      phone: z.string().min(6, "Phone number must be at least 6 characters").max(20, "Phone number cannot exceed 20 characters"),
+      otp: z.string().length(6, "Verification code must be 6 digits"),
+    }),
+  ),
   async (req, res, next) => {
     try {
-      await confirmPhoneVerification(req.body.token);
-      return res.json({ success: true, data: { verified: true } });
+      const customer = (req as CustomerAuthenticatedRequest).customer!;
+      const result = await verifyPhoneOtp(customer.sub, req.body.phone, req.body.otp);
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ─── Email OTP Verification ───────────────────────────────────────────────────
+
+customerAuthRouter.post("/email/otp/request", requireCustomer, async (req, res, next) => {
+  try {
+    const customer = (req as CustomerAuthenticatedRequest).customer!;
+    const result = await requestEmailVerificationOtp(customer.sub, req.ip);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+customerAuthRouter.post(
+  "/email/otp/verify",
+  requireCustomer,
+  validate(z.object({ otp: z.string().length(6, "Verification code must be 6 digits") })),
+  async (req, res, next) => {
+    try {
+      const customer = (req as CustomerAuthenticatedRequest).customer!;
+      const result = await verifyEmailOtp(customer.sub, req.body.otp);
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// ─── Email Change OTP Flow ───────────────────────────────────────────────────
+
+customerAuthRouter.post(
+  "/email/change/request",
+  requireCustomer,
+  validate(z.object({ newEmail: z.string().email("Please enter a valid email address") })),
+  async (req, res, next) => {
+    try {
+      const customer = (req as CustomerAuthenticatedRequest).customer!;
+      const result = await requestEmailChangeOtp(customer.sub, req.body.newEmail, req.ip);
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+customerAuthRouter.post(
+  "/email/change/verify",
+  requireCustomer,
+  validate(
+    z.object({
+      newEmail: z.string().email("Please enter a valid email address"),
+      otp: z.string().length(6, "Verification code must be 6 digits"),
+    }),
+  ),
+  async (req, res, next) => {
+    try {
+      const customer = (req as CustomerAuthenticatedRequest).customer!;
+      const result = await verifyEmailChangeOtp(customer.sub, req.body.newEmail, req.body.otp);
+      return res.json({ success: true, data: result });
     } catch (err) {
       return next(err);
     }

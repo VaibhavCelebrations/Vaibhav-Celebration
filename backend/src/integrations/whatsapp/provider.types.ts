@@ -14,6 +14,8 @@ export type SendTemplateMessageInput = {
   bodyParameters: string[];
   /** Optional document header (invoice PDF, etc.) — when present, providers must use the document-template path. */
   document?: WhatsAppDocument;
+  /** Optional button components (e.g. for Meta Authentication template OTP copy-code buttons). */
+  buttons?: unknown[];
 };
 
 export type WhatsAppSendOutcome = {

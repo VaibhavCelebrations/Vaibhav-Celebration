@@ -694,35 +694,36 @@ model PasswordResetToken {
 }
 
 model EmailVerificationToken {
-  id        String    @id @default(cuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id])
+  id           String    @id @default(cuid())
+  userId       String
+  email        String?
+  tokenHash    String?   @unique
+  otpHash      String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
 
-/// WhatsApp-based phone verification (link-based, mirrors EmailVerificationToken).
-/// Raw tokens are never persisted — only the SHA-256 hash, per the same
-/// convention as PasswordResetToken/EmailVerificationToken/CustomerSession.
+/// WhatsApp-based phone verification (OTP-based via Meta Authentication template).
 model PhoneVerificationToken {
-  id          String    @id @default(cuid())
-  userId      String
-  /// Snapshot of the phone number being verified — the User.phone value can
-  /// change between request and confirm; verification always applies to
-  /// exactly the number the link was issued for.
-  phoneNumber String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  usedAt      DateTime?
-  createdAt   DateTime  @default(now())
-  requestIp   String?
-  user        User      @relation(fields: [userId], references: [id])
+  id           String    @id @default(cuid())
+  userId       String
+  phoneNumber  String
+  tokenHash    String?   @unique
+  otpHash      String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  requestIp    String?
+  user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([phoneNumber])
 }
 
 model ProductCategory {

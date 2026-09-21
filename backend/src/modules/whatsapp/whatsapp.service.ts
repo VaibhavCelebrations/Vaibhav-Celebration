@@ -10,7 +10,7 @@ import {
   buildInvoiceDeliveryMessage,
   buildOrderConfirmationMessage,
   buildOrderStatusUpdateMessage,
-  buildPhoneVerificationMessage,
+  buildPhoneOtpMessage,
   buildWelcomeMessage,
 } from "../../integrations/whatsapp/templates";
 import type { WhatsAppDocument } from "../../integrations/whatsapp/provider.types";
@@ -36,7 +36,13 @@ async function dispatch(input: {
   toPhone: string;
   entityId: string;
   entityType: "order" | "invoice" | "phone_verification" | "welcome";
-  message: { templateName: string; languageCode: string; bodyParameters: string[]; document?: WhatsAppDocument };
+  message: {
+    templateName: string;
+    languageCode: string;
+    bodyParameters: string[];
+    document?: WhatsAppDocument;
+    buttons?: unknown[];
+  };
 }): Promise<WhatsAppSendOutcome> {
   if (!env.WHATSAPP_ENABLED) {
     logger.info({ entityType: input.entityType, entityId: input.entityId, template: input.message.templateName }, "WhatsApp skipped — disabled");
@@ -59,12 +65,14 @@ async function dispatch(input: {
           languageCode: input.message.languageCode,
           bodyParameters: input.message.bodyParameters,
           document: input.message.document,
+          buttons: input.message.buttons,
         })
       : provider.sendTemplateMessage({
           toPhoneE164,
           templateName: input.message.templateName,
           languageCode: input.message.languageCode,
           bodyParameters: input.message.bodyParameters,
+          buttons: input.message.buttons,
         });
 
   const logContext = { entityType: input.entityType, entityId: input.entityId, template: input.message.templateName, provider: provider.name };
@@ -210,12 +218,11 @@ export async function sendInvoiceDeliveryWhatsapp(invoice: {
 // ─── Phone verification ───────────────────────────────────────────────────────
 
 /**
- * Sends the phone_verification WhatsApp template containing only the
- * verification link (no name/order/sensitive data in the message body
- * beyond the opaque token already embedded in verifyUrl by the caller).
+ * Sends the phone_otp_verification WhatsApp authentication template containing
+ * the 6-digit OTP code to the customer.
  */
-export async function sendPhoneVerificationWhatsapp(input: { userId: string; phone: string; verifyUrl: string }): Promise<WhatsAppSendOutcome> {
-  const message = buildPhoneVerificationMessage(input.verifyUrl);
+export async function sendPhoneOtpWhatsapp(input: { userId: string; phone: string; otp: string }): Promise<WhatsAppSendOutcome> {
+  const message = buildPhoneOtpMessage(input.otp);
   return dispatch({ toPhone: input.phone, entityId: input.userId, entityType: "phone_verification", message });
 }
 

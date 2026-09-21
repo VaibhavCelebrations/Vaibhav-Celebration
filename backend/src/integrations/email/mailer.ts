@@ -221,6 +221,24 @@ export function verifyEmailHtml(name: string, verifyUrl: string) {
   `);
 }
 
+export function accountVerificationOtpEmailHtml(otp: string, isEmailChange?: boolean) {
+  const heading = isEmailChange ? "Confirm Your New Email Address" : "Verify Your Account Email";
+  const message = isEmailChange
+    ? "You requested to update your email address for your Vaibhav Celebrations account. Enter this code to verify and confirm your new email:"
+    : "Enter this verification code in your Vaibhav Celebrations account settings to verify your email address:";
+
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">${heading}</h1>
+    <p>${message}</p>
+    <div style="background:#f4ede8;padding:20px;text-align:center;border-radius:12px;margin:28px 0;border:2px solid #c4844a;">
+      <p style="margin:0 0 8px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#8B4513;">Your Verification Code</p>
+      <span style="font-size:40px;letter-spacing:10px;font-weight:700;color:#2c1810;font-family:monospace;">${otp}</span>
+    </div>
+    <p style="font-size:13px;color:#666;">This code expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p>
+    <p style="font-size:13px;color:#999;">If you did not request this verification, you can safely ignore this email. Your account remains secure.</p>
+  `);
+}
+
 /** Reset link validity is enforced server-side by PASSWORD_RESET_TOKEN_TTL_MINUTES (default 10 min). */
 export function passwordResetEmailHtml(name: string, resetUrl: string, ttlMinutes: number) {
   return baseEmailLayout(`
