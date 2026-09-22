@@ -33,6 +33,16 @@ export default function LeadsPage() {
           ),
         },
         {
+          key: "phone",
+          header: "Phone",
+          hideBelow: "md",
+          cell: (row) => (
+            <span className="text-sm font-mono text-(--color-text-secondary)">
+              {String(row.phone ?? "—")}
+            </span>
+          ),
+        },
+        {
           key: "message",
           header: "Message",
           hideBelow: "lg",
