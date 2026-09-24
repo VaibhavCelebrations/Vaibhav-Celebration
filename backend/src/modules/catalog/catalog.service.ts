@@ -6,6 +6,7 @@ import { cached, cacheKey, delPattern } from "../../lib/redis";
 import { parsePagination } from "../../lib/response";
 import { slugify } from "../../lib/validators";
 import { computeStockStatus } from "./inventory.service";
+import { invalidateBuilderCaches } from "../builder/builder.service";
 
 const PUB_TTL = 60; // 1 minute — products change more often than themes
 const ADM_TTL = 15;
@@ -304,6 +305,8 @@ export async function updateProduct(id: string, input: Partial<AdminProductInput
     }
     if (input.themeIds) {
       await tx.productThemeTag.deleteMany({ where: { productId: id } });
+      // A product moved to another theme can no longer be offered under its old theme in package services
+      await tx.serviceProduct.deleteMany({ where: { productId: id, themeId: { notIn: input.themeIds } } });
       if (input.themeIds.length) {
         await tx.productThemeTag.createMany({ data: input.themeIds.map((themeId) => ({ productId: id, themeId })) });
       }
@@ -338,6 +341,7 @@ export async function deleteProduct(id: string) {
 }
 
 export async function invalidateProductCaches() {
+  invalidateBuilderCaches();
   void delPattern("pub:products:*");
   void delPattern("adm:products:*");
 }

@@ -9,7 +9,6 @@ export type BuilderProduct = {
   priceInPaise: number;
   minOrderQuantity: number;
   pricingMode: "PER_CHILD" | "PER_GROUP";
-  categories: Array<{ slug: string; name: string }>;
   imageUrl: string | null;
   personalizationEnabled: boolean;
   personalizationCostInPaise: number;
@@ -21,10 +20,23 @@ export type BuilderProduct = {
     isRequired: boolean;
     maxLength: number | null;
   }>;
-  stockAvailable: number;
+};
+
+/** A product-choice service from the admin package matrix, with the products allowed for the theme. */
+export type BuilderChoiceService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  /** How many products the customer must pick. */
+  selectionCount: number;
+  isPerGroup: boolean;
+  products: BuilderProduct[];
 };
 
 export type BuilderSelections = {
+  /** ExtraService id → picked product SKUs. */
+  choices?: Record<string, string[]>;
+  /** @deprecated legacy slots, still accepted by the API for old carts. */
   welcomeItem?: string | null;
   activity1?: string | null;
   activity2?: string | null;
@@ -36,7 +48,7 @@ export type BuilderSelections = {
 };
 
 export type BuilderQuoteInput = {
-  packageSlug: "essential" | "signature" | "grand";
+  packageSlug: string;
   themeSlug: string;
   guestCount: number;
   location: "jaipur" | "outside";
@@ -83,13 +95,9 @@ export type BuilderQuote = {
   giftRegistryCustomizePriceInPaise?: number;
 };
 
-export async function listBuilderProducts(params: {
-  theme: string;
-  category: string;
-  tier: string;
-}) {
+export async function getBuilderOptions(params: { theme: string; package: string }) {
   const qs = new URLSearchParams(params).toString();
-  return apiFetch<BuilderProduct[]>(`/builder/products?${qs}`, { cache: "no-store" });
+  return apiFetch<BuilderChoiceService[]>(`/builder/options?${qs}`);
 }
 
 export async function getBuilderQuote(input: BuilderQuoteInput) {

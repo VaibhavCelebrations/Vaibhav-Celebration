@@ -581,6 +581,7 @@ async function clearDevData() {
     "OrderPackage",
     "OrderItem",
     "Order",
+    "ServiceProduct",
     "WishlistItem",
     "CartItem",
     "Cart",
@@ -896,15 +897,20 @@ async function main() {
   // ── Extra Services & Matrix ──────────────────────────────────────────────────
   const extraServicesBySlug: Record<string, string> = {};
   for (const svc of SERVICES) {
+    const isProductChoice = svc.pricingMode === "PER_CHILD_CHOOSABLE";
     const row = await prisma.extraService.create({
       data: {
         slug: svc.slug,
-        label: svc.label,
+        // "Welcome Item (choose 1)" → "Welcome Item": the builder generates "choose N" from selectionCount
+        label: isProductChoice ? svc.label.replace(/\s*\(choose\s*\d+\)/i, "") : svc.label,
         description: svc.description,
         category: svc.category,
         pricingMode: svc.pricingMode,
         locationScope: svc.locationScope,
         choiceCount: svc.choiceCount,
+        isProductChoice,
+        selectionCount: isProductChoice ? Math.min(Math.max(svc.choiceCount ?? 1, 1), 3) : 1,
+        isPerGroup: svc.category === "FAMILY_ACTIVITY",
         customizationPriceInPaise: svc.customizationPriceInPaise,
         displayOrder: svc.displayOrder,
         isActive: true,
@@ -1982,6 +1988,39 @@ async function main() {
       },
     ],
   });
+
+  // ── Product-choice services: which products each theme offers per service ───
+  const choiceCategorySlug: Partial<Record<ExtraServiceCategory, string>> = {
+    WELCOME_ITEM: "welcome-items",
+    CHILDREN_ACTIVITY: "children-activities",
+    FAMILY_ACTIVITY: "family-activities",
+    RETURN_GIFT: "return-gifts",
+  };
+  const themeTags = await prisma.productThemeTag.findMany();
+  const productsBySku = new Map(
+    (await prisma.product.findMany({ select: { id: true, sku: true } })).map((p) => [p.sku, p.id]),
+  );
+  const serviceProductRows: Array<{ extraServiceId: string; themeId: string; productId: string; displayOrder: number }> = [];
+  for (const svc of SERVICES) {
+    const categorySlug = choiceCategorySlug[svc.category];
+    if (svc.pricingMode !== "PER_CHILD_CHOOSABLE" || !categorySlug) continue;
+    const eligible = SPACE_PRODUCTS.filter(
+      (p) => p.categorySlug === categorySlug && p.tiers.some((t) => svc.tiers.includes(t)),
+    );
+    eligible.forEach((p, displayOrder) => {
+      const productId = productsBySku.get(p.sku);
+      if (!productId) return;
+      for (const tag of themeTags.filter((t) => t.productId === productId)) {
+        serviceProductRows.push({
+          extraServiceId: extraServicesBySlug[svc.slug]!,
+          themeId: tag.themeId,
+          productId,
+          displayOrder,
+        });
+      }
+    });
+  }
+  if (serviceProductRows.length) await prisma.serviceProduct.createMany({ data: serviceProductRows });
 
   console.log("\n✅ Seed completed successfully!");
   console.log("─────────────────────────────────────────");

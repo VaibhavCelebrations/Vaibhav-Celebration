@@ -13,8 +13,9 @@ import {
   welcomeEmailHtml,
   guestWelcomeEmailHtml,
   guestCheckoutOtpEmailHtml,
+  accountVerificationOtpEmailHtml,
 } from "../../integrations/email/mailer";
-import { sendPhoneVerificationWhatsapp } from "../whatsapp/whatsapp.service";
+import { sendPhoneOtpWhatsapp } from "../whatsapp/whatsapp.service";
 import type { CustomerJwtPayload } from "../../middleware/customer-auth";
 import { logger } from "../../lib/logger";
 
@@ -60,8 +61,8 @@ function toPublicUser(user: {
     name: user.name,
     email: user.email,
     phone: user.phone,
-    emailVerified: user.emailVerifiedAt !== null,
-    phoneVerified: user.phoneVerifiedAt !== null,
+    emailVerified: Boolean(user.emailVerifiedAt),
+    phoneVerified: Boolean(user.phoneVerifiedAt),
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     defaultAddress: user.defaultAddress ?? null,
   };
@@ -637,18 +638,27 @@ export async function verifyEmail(rawToken: string): Promise<void> {
   ]);
 }
 
-// ─── Phone verification (WhatsApp link, mirrors email verification) ────────
+// ─── OTP Verification System ──────────────────────────────────────────────────
 //
-// The verification link carries only an opaque, single-use, hashed token —
-// never the phone number, user id, or any other customer data — so it can't
-// be used as an account-takeover vector even if leaked via referrer headers,
-// browser history, or shared logs. A minimum resend interval prevents a
-// customer (or an attacker who has the account session) from flooding the
-// business's WhatsApp send quota via repeated "resend" taps.
+// Meta WhatsApp Cloud API Authentication template OTP for phone numbers and
+// transactional email OTP for unverified emails and email changes.
+// Protected by:
+// - 60s cooldown between requests per user
+// - 10-minute time-to-live
+// - Max 5 verification attempts per token
+// - Bcrypt hashing of OTP codes in the database
 
-const PHONE_VERIFICATION_MIN_RESEND_SECONDS = 60;
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+const OTP_TTL_MINUTES = 10;
+const MAX_OTP_ATTEMPTS = 5;
 
-export async function requestPhoneVerification(userId: string, phone: string, requestIp?: string): Promise<void> {
+// ─── Phone OTP Verification (WhatsApp) ────────────────────────────────────────
+
+export async function requestPhoneVerificationOtp(
+  userId: string,
+  phone: string,
+  requestIp?: string
+): Promise<{ success: boolean; message: string; devOtp?: string }> {
   const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
   if (!user) throw new UnauthorizedError();
 
@@ -658,58 +668,381 @@ export async function requestPhoneVerification(userId: string, phone: string, re
   }
 
   const recent = await prisma.phoneVerificationToken.findFirst({
-    where: { userId, usedAt: null, createdAt: { gt: new Date(Date.now() - PHONE_VERIFICATION_MIN_RESEND_SECONDS * 1000) } },
+    where: {
+      userId,
+      createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) },
+    },
     orderBy: { createdAt: "desc" },
   });
   if (recent) {
-    throw new RateLimitedError("Please wait a minute before requesting another verification link", "PHONE_VERIFICATION_COOLDOWN");
+    throw new RateLimitedError("Please wait 60 seconds before requesting another code", "OTP_COOLDOWN");
   }
 
-  const rawToken = generateOpaqueToken();
-  const expiresAt = new Date(Date.now() + env.PHONE_VERIFICATION_TOKEN_TTL_MINUTES * 60_000);
+  // Invalidate any existing unused tokens for this user
+  await prisma.phoneVerificationToken.updateMany({
+    where: { userId, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const otp = generateOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60_000);
 
   await prisma.phoneVerificationToken.create({
     data: {
       userId,
       phoneNumber: normalizedPhone,
-      tokenHash: hashToken(rawToken),
+      otpHash,
+      attemptCount: 0,
       expiresAt,
       requestIp: requestIp ?? null,
     },
   });
 
-  // No PII in the URL — the token alone identifies the pending verification server-side.
-  const verifyUrl = `${env.FRONTEND_URL}/verify-phone?t=${rawToken}`;
-  await sendPhoneVerificationWhatsapp({ userId, phone: normalizedPhone, verifyUrl });
+  const outcome = await sendPhoneOtpWhatsapp({ userId, phone: normalizedPhone, otp });
+  if (!outcome.sent && outcome.status === "FAILED") {
+    logger.error({ userId, phone: normalizedPhone, error: outcome.error }, "Failed to send WhatsApp verification OTP");
+  }
+
+  const isDev = env.NODE_ENV !== "production";
+  return {
+    success: true,
+    message: "Verification code sent to your WhatsApp number",
+    ...(isDev ? { devOtp: otp } : {}),
+  };
 }
 
-export async function confirmPhoneVerification(rawToken: string): Promise<void> {
-  const stored = await prisma.phoneVerificationToken.findUnique({ where: { tokenHash: hashToken(rawToken) } });
-
-  if (!stored || stored.expiresAt < new Date()) {
-    throw new AppError("VALIDATION_ERROR", "This verification link is invalid or has expired", 400);
+export async function verifyPhoneOtp(
+  userId: string,
+  phone: string,
+  otp: string
+): Promise<{ success: boolean; message: string; user: ReturnType<typeof toPublicUser> }> {
+  const trimmedOtp = otp.trim();
+  if (!/^\d{6}$/.test(trimmedOtp)) {
+    throw new ValidationError("Verification code must be 6 digits");
   }
 
-  // Already-used tokens are not re-processed but also do not error loudly —
-  // mirrors verifyEmail's idempotent-success behaviour for a double-tapped link.
-  if (stored.usedAt !== null) {
-    return;
+  const normalizedPhone = phone.trim();
+  const stored = await prisma.phoneVerificationToken.findFirst({
+    where: {
+      userId,
+      phoneNumber: normalizedPhone,
+      usedAt: null,
+      otpHash: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!stored) {
+    throw new ValidationError("No pending verification found. Please request a new code.");
   }
 
-  const claimed = await prisma.phoneVerificationToken.updateMany({
-    where: { id: stored.id, usedAt: null },
+  if (stored.expiresAt < new Date()) {
+    throw new ValidationError("Verification code has expired. Please request a new one.");
+  }
+
+  if (stored.attemptCount >= MAX_OTP_ATTEMPTS) {
+    throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+  }
+
+  const isValid = await bcrypt.compare(trimmedOtp, stored.otpHash!);
+  if (!isValid) {
+    const updated = await prisma.phoneVerificationToken.update({
+      where: { id: stored.id },
+      data: { attemptCount: { increment: 1 } },
+    });
+    const remaining = MAX_OTP_ATTEMPTS - updated.attemptCount;
+    if (remaining <= 0) {
+      throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+    }
+    throw new ValidationError(`Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
+  }
+
+  const [updatedUser] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        phone: normalizedPhone,
+        phoneVerifiedAt: new Date(),
+      },
+    }),
+    prisma.phoneVerificationToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return {
+    success: true,
+    message: "Phone number verified successfully",
+    user: toPublicUser(updatedUser),
+  };
+}
+
+// ─── Email OTP Verification ───────────────────────────────────────────────────
+
+export async function requestEmailVerificationOtp(
+  userId: string,
+  requestIp?: string
+): Promise<{ success: boolean; message: string; devOtp?: string }> {
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+  if (!user) throw new UnauthorizedError();
+
+  if (user.emailVerifiedAt) {
+    throw new ValidationError("Your email is already verified");
+  }
+
+  const recent = await prisma.emailVerificationToken.findFirst({
+    where: {
+      userId,
+      createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    throw new RateLimitedError("Please wait 60 seconds before requesting another code", "OTP_COOLDOWN");
+  }
+
+  // Invalidate any existing unused tokens for this user (for current email verification)
+  await prisma.emailVerificationToken.updateMany({
+    where: { userId, usedAt: null, email: null },
     data: { usedAt: new Date() },
   });
-  // Lost the race to a concurrent confirm of the same token — the other
-  // request already completed the verification; treat as success (idempotent).
-  if (claimed.count === 0) {
-    return;
+
+  const otp = generateOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60_000);
+
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      otpHash,
+      attemptCount: 0,
+      expiresAt,
+    },
+  });
+
+  await sendEmail({
+    to: user.email,
+    subject: "Your Email Verification Code - Vaibhav Celebrations",
+    html: accountVerificationOtpEmailHtml(otp, false),
+  });
+
+  const isDev = env.NODE_ENV !== "production";
+  return {
+    success: true,
+    message: `Verification code sent to ${user.email}`,
+    ...(isDev ? { devOtp: otp } : {}),
+  };
+}
+
+export async function verifyEmailOtp(
+  userId: string,
+  otp: string
+): Promise<{ success: boolean; message: string; user: ReturnType<typeof toPublicUser> }> {
+  const trimmedOtp = otp.trim();
+  if (!/^\d{6}$/.test(trimmedOtp)) {
+    throw new ValidationError("Verification code must be 6 digits");
   }
 
-  await prisma.user.update({
-    where: { id: stored.userId },
-    data: { phone: stored.phoneNumber, phoneVerifiedAt: new Date() },
+  const stored = await prisma.emailVerificationToken.findFirst({
+    where: {
+      userId,
+      email: null,
+      usedAt: null,
+      otpHash: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
   });
+
+  if (!stored) {
+    throw new ValidationError("No pending verification found. Please request a new code.");
+  }
+
+  if (stored.expiresAt < new Date()) {
+    throw new ValidationError("Verification code has expired. Please request a new one.");
+  }
+
+  if (stored.attemptCount >= MAX_OTP_ATTEMPTS) {
+    throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+  }
+
+  const isValid = await bcrypt.compare(trimmedOtp, stored.otpHash!);
+  if (!isValid) {
+    const updated = await prisma.emailVerificationToken.update({
+      where: { id: stored.id },
+      data: { attemptCount: { increment: 1 } },
+    });
+    const remaining = MAX_OTP_ATTEMPTS - updated.attemptCount;
+    if (remaining <= 0) {
+      throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+    }
+    throw new ValidationError(`Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
+  }
+
+  const [updatedUser] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: new Date() },
+    }),
+    prisma.emailVerificationToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return {
+    success: true,
+    message: "Email verified successfully",
+    user: toPublicUser(updatedUser),
+  };
+}
+
+// ─── Email Change OTP Flow ───────────────────────────────────────────────────
+
+export async function requestEmailChangeOtp(
+  userId: string,
+  newEmail: string,
+  requestIp?: string
+): Promise<{ success: boolean; message: string; devOtp?: string }> {
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+  if (!user) throw new UnauthorizedError();
+
+  const normalizedEmail = newEmail.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new ValidationError("Please enter a valid email address");
+  }
+
+  if (normalizedEmail === user.email.toLowerCase()) {
+    throw new ValidationError("The new email must be different from your current email");
+  }
+
+  const existing = await prisma.user.findFirst({
+    where: { email: normalizedEmail, id: { not: userId }, deletedAt: null },
+  });
+  if (existing) {
+    throw new ConflictError("EMAIL_EXISTS", "An account with this email address already exists");
+  }
+
+  const recent = await prisma.emailVerificationToken.findFirst({
+    where: {
+      userId,
+      createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    throw new RateLimitedError("Please wait 60 seconds before requesting another code", "OTP_COOLDOWN");
+  }
+
+  // Invalidate any previous email-change tokens for this user
+  await prisma.emailVerificationToken.updateMany({
+    where: { userId, usedAt: null, email: { not: null } },
+    data: { usedAt: new Date() },
+  });
+
+  const otp = generateOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60_000);
+
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      email: normalizedEmail,
+      otpHash,
+      attemptCount: 0,
+      expiresAt,
+    },
+  });
+
+  await sendEmail({
+    to: normalizedEmail,
+    subject: "Verify Your New Email Address - Vaibhav Celebrations",
+    html: accountVerificationOtpEmailHtml(otp, true),
+  });
+
+  const isDev = env.NODE_ENV !== "production";
+  return {
+    success: true,
+    message: `Verification code sent to ${normalizedEmail}`,
+    ...(isDev ? { devOtp: otp } : {}),
+  };
+}
+
+export async function verifyEmailChangeOtp(
+  userId: string,
+  newEmail: string,
+  otp: string
+): Promise<{ success: boolean; message: string; user: ReturnType<typeof toPublicUser> }> {
+  const trimmedOtp = otp.trim();
+  if (!/^\d{6}$/.test(trimmedOtp)) {
+    throw new ValidationError("Verification code must be 6 digits");
+  }
+
+  const normalizedEmail = newEmail.trim().toLowerCase();
+
+  const stored = await prisma.emailVerificationToken.findFirst({
+    where: {
+      userId,
+      email: normalizedEmail,
+      usedAt: null,
+      otpHash: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!stored) {
+    throw new ValidationError("No pending verification found for this email. Please request a new code.");
+  }
+
+  if (stored.expiresAt < new Date()) {
+    throw new ValidationError("Verification code has expired. Please request a new one.");
+  }
+
+  if (stored.attemptCount >= MAX_OTP_ATTEMPTS) {
+    throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+  }
+
+  const isValid = await bcrypt.compare(trimmedOtp, stored.otpHash!);
+  if (!isValid) {
+    const updated = await prisma.emailVerificationToken.update({
+      where: { id: stored.id },
+      data: { attemptCount: { increment: 1 } },
+    });
+    const remaining = MAX_OTP_ATTEMPTS - updated.attemptCount;
+    if (remaining <= 0) {
+      throw new RateLimitedError("Too many failed attempts. Please request a new code.", "MAX_OTP_ATTEMPTS_EXCEEDED");
+    }
+    throw new ValidationError(`Incorrect verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
+  }
+
+  // Pre-update race check: ensure no other user registered this email in the interim
+  const existing = await prisma.user.findFirst({
+    where: { email: normalizedEmail, id: { not: userId }, deletedAt: null },
+  });
+  if (existing) {
+    throw new ConflictError("EMAIL_EXISTS", "An account with this email address already exists");
+  }
+
+  const [updatedUser] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: normalizedEmail,
+        emailVerifiedAt: new Date(),
+      },
+    }),
+    prisma.emailVerificationToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return {
+    success: true,
+    message: "Email updated and verified successfully",
+    user: toPublicUser(updatedUser),
+  };
 }
 
 // ─── Profile ──────────────────────────────────────────────────────────────────

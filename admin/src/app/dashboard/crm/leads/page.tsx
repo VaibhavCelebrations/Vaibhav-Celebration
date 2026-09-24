@@ -33,6 +33,35 @@ export default function LeadsPage() {
           ),
         },
         {
+          key: "phone",
+          header: "Phone",
+          hideBelow: "md",
+          cell: (row) => (
+            <span className="text-sm font-mono text-(--color-text-secondary)">
+              {String(row.phone ?? "—")}
+            </span>
+          ),
+        },
+        {
+          key: "createdAt",
+          header: "Date",
+          hideBelow: "md",
+          cell: (row) => {
+            const date = row.createdAt ? new Date(row.createdAt as string) : null;
+            return (
+              <span className="text-xs text-(--color-text-secondary)">
+                {date ? date.toLocaleString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }) : "—"}
+              </span>
+            );
+          },
+        },
+        {
           key: "message",
           header: "Message",
           hideBelow: "lg",

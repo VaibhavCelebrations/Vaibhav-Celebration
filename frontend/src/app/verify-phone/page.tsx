@@ -1,66 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, MessageSquareCheck, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { confirmPhoneVerification, friendlyAuthError } from "@/lib/customer-auth-api";
-import { useAuth } from "@/context/auth-context";
-
-function VerifyPhoneContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("t") ?? "";
-  const { refreshUser } = useAuth();
-  const [status, setStatus] = useState<"loading" | "success" | "error">(token ? "loading" : "error");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!token) return;
-    (async () => {
-      try {
-        await confirmPhoneVerification(token);
-        await refreshUser();
-        setStatus("success");
-      } catch (err) {
-        setError(friendlyAuthError(err));
-        setStatus("error");
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  if (status === "loading") {
-    return (
-      <div className="text-center py-8">
-        <Loader2 size={32} className="mx-auto text-mocha animate-spin mb-4" />
-        <p className="text-sm text-text-muted">Verifying your WhatsApp number…</p>
-      </div>
-    );
-  }
-
-  if (status === "success") {
-    return (
-      <div className="text-center py-4">
-        <CheckCircle2 size={40} className="mx-auto text-green-600 mb-4" />
-        <h3 className="font-display text-xl font-bold text-charcoal mb-2">Phone Verified</h3>
-        <p className="text-sm text-text-muted">Thank you — your WhatsApp number has been confirmed.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="text-center py-4">
-      <XCircle size={40} className="mx-auto text-red-500 mb-4" />
-      <h3 className="font-display text-xl font-bold text-charcoal mb-2">Verification Failed</h3>
-      <p className="text-sm text-text-muted">{error || "This verification link is invalid, expired, or missing."}</p>
-    </div>
-  );
-}
 
 export default function VerifyPhonePage() {
   return (
@@ -69,14 +15,25 @@ export default function VerifyPhonePage() {
       <main className="pt-28 md:pt-36 pb-16 md:pb-24 bg-cream min-h-screen">
         <div className="max-w-4xl mx-auto px-5 md:px-10">
           <ScrollReveal>
-            <SectionHeader eyebrow="Account" title="WhatsApp Number Verification" description="" />
+            <SectionHeader eyebrow="Account" title="WhatsApp Phone Verification" description="" />
           </ScrollReveal>
           <div className="mt-14 max-w-lg mx-auto">
             <ScrollReveal delay={100}>
-              <div className="bg-surface rounded-2xl shadow-card border border-border-light p-8 md:p-10">
-                <Suspense fallback={<div className="skeleton h-32 w-full rounded-xl" />}>
-                  <VerifyPhoneContent />
-                </Suspense>
+              <div className="bg-surface rounded-2xl shadow-card border border-border-light p-8 md:p-10 text-center">
+                <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                  <MessageSquareCheck size={28} />
+                </div>
+                <h3 className="font-display text-xl font-bold text-charcoal mb-2">Instant OTP Verification</h3>
+                <p className="text-sm text-text-muted mb-6">
+                  Phone verification is now handled via instant one-time password (OTP) sent directly to your WhatsApp.
+                  You can verify your phone number anytime from your Account profile.
+                </p>
+                <Link
+                  href="/account"
+                  className="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl bg-mocha text-white font-medium hover:bg-mocha-dark transition shadow-sm"
+                >
+                  Go to My Account <ArrowRight size={16} />
+                </Link>
               </div>
             </ScrollReveal>
             <div className="mt-8 text-center">

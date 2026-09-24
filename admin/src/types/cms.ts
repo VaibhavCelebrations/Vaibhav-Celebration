@@ -110,12 +110,31 @@ export type ExtraService = SoftDeletable &
     customizationPriceInPaise: Paise;
     displayOrder: number;
     isActive: boolean;
+    /** "Customize": the customer picks products for this service in the builder. */
+    isProductChoice: boolean;
+    /** How many products the customer picks (1–3). */
+    selectionCount: number;
+    /** Charge each pick once per group instead of once per child. */
+    isPerGroup: boolean;
   };
+
+export type ThemeProductAssignment = { themeId: string; productIds: string[] };
 
 export type ExtraServiceInput = Pick<
   ExtraService,
-  "label" | "description" | "requirements" | "customizationPriceInPaise" | "displayOrder" | "isActive"
->;
+  | "label"
+  | "description"
+  | "requirements"
+  | "customizationPriceInPaise"
+  | "displayOrder"
+  | "isActive"
+  | "isProductChoice"
+  | "selectionCount"
+  | "isPerGroup"
+> & {
+  /** Full per-theme product lists; only sent when isProductChoice. */
+  themeProducts?: ThemeProductAssignment[];
+};
 
 export type PackageServiceItem = {
   id?: string;

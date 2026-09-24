@@ -10,6 +10,7 @@ import {
   createExtraService,
   deleteExtraService,
   getExtraService,
+  getExtraServiceProducts,
   listExtraServices,
   updateExtraService,
 } from "./extra-services.service";
@@ -50,6 +51,15 @@ const schema = z.object({
     .nullable(),
   locationScope: z.enum(["ALL", "JAIPUR_ONLY", "OUTSIDE_JAIPUR"]).optional(),
   choiceCount: z.number().int().min(1).optional().nullable(),
+  /** "Customize" checkbox: customer picks products for this service in the builder. */
+  isProductChoice: z.boolean().optional(),
+  selectionCount: z.number().int().min(1).max(3).optional(),
+  isPerGroup: z.boolean().optional(),
+  /** Per-theme product lists; replaces the service's full assignment when present. */
+  themeProducts: z
+    .array(z.object({ themeId: z.string().min(1), productIds: z.array(z.string().min(1)).max(500) }))
+    .max(200)
+    .optional(),
 });
 
 async function audit(req: AuthenticatedRequest, action: string, entityId: string) {
@@ -77,6 +87,14 @@ adminExtraServicesRouter.get("/", async (req, res, next) => {
 adminExtraServicesRouter.get("/:id", validate(id, "params"), async (req, res, next) => {
   try {
     return ok(res, await getExtraService(param(req, "id")));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+adminExtraServicesRouter.get("/:id/products", validate(id, "params"), async (req, res, next) => {
+  try {
+    return ok(res, await getExtraServiceProducts(param(req, "id")));
   } catch (err) {
     return next(err);
   }

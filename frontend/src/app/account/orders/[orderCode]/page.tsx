@@ -3,16 +3,18 @@
 import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Package, Download, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Download, MapPin, Truck } from "lucide-react";
 import * as shopApi from "@/lib/shop-api";
 import { formatPaise } from "@/lib/shop-types";
 import type { OrderDto, OrderStatus } from "@/lib/shop-types";
 import { GiftRegistryOrderCard } from "@/components/account/GiftRegistryOrderCard";
+import { OrderTrackingCard } from "@/components/account/OrderTrackingCard";
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "bg-amber-50 text-amber-700",
   PAID: "bg-green-50 text-green-700",
   PROCESSING: "bg-blue-50 text-blue-700",
+  READY_TO_SHIP: "bg-indigo-50 text-indigo-700",
   SHIPPED: "bg-purple-50 text-purple-700",
   DELIVERED: "bg-sage/20 text-sage-dark",
   CANCELLED: "bg-red-50 text-red-600",
@@ -82,6 +84,7 @@ export default function OrderDetailPage({ params }: Props) {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          <OrderTrackingCard order={order} />
           <GiftRegistryOrderCard order={order} />
 
           <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft">
@@ -166,8 +169,25 @@ export default function OrderDetailPage({ params }: Props) {
             <hr className="border-border-light" />
             <div className="flex justify-between text-lg font-bold text-charcoal"><span>Total</span><span className="font-display">{formatPaise(order.totalInPaise)}</span></div>
           </div>
+          {order.trackingUrl && (
+            <a
+              href={order.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary w-full mt-6 py-3 text-sm font-bold gap-2 flex items-center justify-center shadow-md hover:shadow-lg transition-all"
+            >
+              <Truck size={16} /> Track Order
+            </a>
+          )}
           {order.invoicePdfUrl && (
-            <a href={order.invoicePdfUrl} target="_blank" rel="noreferrer" className="btn-outline w-full mt-6 py-3 text-sm font-semibold gap-2 flex items-center justify-center">
+            <a
+              href={order.invoicePdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={`btn-outline w-full py-3 text-sm font-semibold gap-2 flex items-center justify-center ${
+                order.trackingUrl ? "mt-3" : "mt-6"
+              }`}
+            >
               <Download size={16} /> Download Invoice
             </a>
           )}

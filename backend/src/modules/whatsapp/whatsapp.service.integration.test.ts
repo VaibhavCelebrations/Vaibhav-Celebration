@@ -20,7 +20,7 @@ const envMock = vi.hoisted(() => ({
   WHATSAPP_META_API_VERSION: "v21.0",
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: "test_verify_token",
   WHATSAPP_APP_SECRET: "test_app_secret",
-  WHATSAPP_WELCOME_ENABLED: false,
+  WHATSAPP_WELCOME_ENABLED: true,
   NODE_ENV: "test" as const,
 }));
 

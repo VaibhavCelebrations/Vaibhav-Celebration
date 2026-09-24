@@ -14,9 +14,18 @@ import { FormField } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { NumberInput, PriceInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
-import type { ExtraService, ExtraServiceInput, PackageMatrixRow } from "@/types/cms";
+import { productsRepo } from "@/lib/data/products";
+import { themesRepo } from "@/lib/data/themes";
+import type { ExtraService, ExtraServiceInput, PackageMatrixRow, Product, Theme } from "@/types/cms";
+import {
+  ServiceProductAssignments,
+  themesMissingProducts,
+  type ThemeProductMap,
+} from "./ServiceProductAssignments";
 
 type Tab = "matrix" | "services";
+
+const SELECTION_COUNTS = [1, 2, 3] as const;
 
 type MatrixState = {
   packages: PackageMatrixRow[];
@@ -30,6 +39,9 @@ const EMPTY_SERVICE: ExtraServiceInput = {
   customizationPriceInPaise: 0,
   displayOrder: 0,
   isActive: true,
+  isProductChoice: false,
+  selectionCount: 1,
+  isPerGroup: false,
 };
 
 export function PackagesScreen() {
@@ -47,6 +59,13 @@ export function PackagesScreen() {
   const [serviceFormError, setServiceFormError] = useState<string | null>(null);
   const [archiveService, setArchiveService] = useState<ExtraService | null>(null);
   const [archiving, setArchiving] = useState(false);
+
+  // Product-choice ("Customize") setup — loaded lazily the first time it's needed, then reused.
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [themeProducts, setThemeProducts] = useState<ThemeProductMap>({});
 
   const toast = useToast();
 
@@ -158,12 +177,38 @@ export function PackagesScreen() {
     }
   }
 
+  /** Themes + products are only needed once a service is a product-choice one; fetch once. */
+  const ensureCatalog = useCallback(async () => {
+    if (catalogLoaded) return;
+    const [themeRes, productRes] = await Promise.all([
+      themesRepo.list({ page: 1, pageSize: 100, sort: "displayOrder", dir: "asc" }),
+      productsRepo.list({ page: 1, pageSize: 500, filters: { isActive: "true" } }),
+    ]);
+    setThemes(themeRes.items);
+    setProducts(productRes.items);
+    setCatalogLoaded(true);
+  }, [catalogLoaded]);
+
+  async function loadAssignments(serviceId: string | null) {
+    setAssignmentsLoading(true);
+    try {
+      await ensureCatalog();
+      const rows = serviceId ? await extraServicesRepo.products(serviceId) : [];
+      setThemeProducts(Object.fromEntries(rows.map((r) => [r.themeId, r.productIds])));
+    } catch (err) {
+      setServiceFormError(err instanceof AdminApiError ? err.message : "Could not load themes and products.");
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  }
+
   function openCreateService() {
     setEditingService(null);
     setServiceForm({
       ...EMPTY_SERVICE,
       displayOrder: (matrix?.extraServices.length ?? 0) + 1,
     });
+    setThemeProducts({});
     setServiceFormError(null);
     setServiceDrawer(true);
   }
@@ -177,20 +222,46 @@ export function PackagesScreen() {
       customizationPriceInPaise: svc.customizationPriceInPaise,
       displayOrder: svc.displayOrder,
       isActive: svc.isActive,
+      isProductChoice: svc.isProductChoice ?? false,
+      selectionCount: svc.selectionCount ?? 1,
+      isPerGroup: svc.isPerGroup ?? false,
     });
+    setThemeProducts({});
     setServiceFormError(null);
     setServiceDrawer(true);
+    if (svc.isProductChoice) void loadAssignments(svc.id);
+  }
+
+  function onToggleProductChoice(enabled: boolean) {
+    setServiceForm((f) => ({ ...f, isProductChoice: enabled }));
+    if (enabled && Object.keys(themeProducts).length === 0) void loadAssignments(editingService?.id ?? null);
   }
 
   async function onServiceSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setServiceSubmitting(true);
     setServiceFormError(null);
+    if (serviceForm.isProductChoice) {
+      const missing = themesMissingProducts(themes, themeProducts, serviceForm.selectionCount);
+      if (missing.length) {
+        setServiceFormError(
+          `Select at least ${serviceForm.selectionCount} product${serviceForm.selectionCount === 1 ? "" : "s"} for every theme. Missing: ${missing
+            .map((t) => t.title)
+            .join(", ")}.`,
+        );
+        return;
+      }
+    }
+    setServiceSubmitting(true);
     try {
-      const body = {
+      const body: ExtraServiceInput = {
         ...serviceForm,
         description: serviceForm.description || null,
         requirements: serviceForm.requirements || null,
+        ...(serviceForm.isProductChoice
+          ? {
+              themeProducts: themes.map((t) => ({ themeId: t.id, productIds: themeProducts[t.id] ?? [] })),
+            }
+          : {}),
       };
       if (editingService) {
         await extraServicesRepo.update(editingService.id, body);
@@ -370,6 +441,92 @@ export function PackagesScreen() {
             onChange={(isActive) => setServiceForm({ ...serviceForm, isActive })}
           />
         </div>
+
+        <div className="mt-4 rounded-lg border border-(--color-border-soft) p-4">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              id="svc-choice"
+              className="mt-0.5 h-4 w-4 cursor-pointer accent-(--color-mocha)"
+              checked={serviceForm.isProductChoice}
+              onChange={(e) => onToggleProductChoice(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-(--color-charcoal)">
+                Customize — customer picks products for this service
+              </span>
+              <span className="block text-xs text-(--color-text-muted)">
+                Shown in the &ldquo;Customize&rdquo; step for every package that includes this service in the matrix.
+              </span>
+            </span>
+          </label>
+
+          {serviceForm.isProductChoice && (
+            <div className="mt-4 space-y-4 border-t border-(--color-border-soft) pt-4">
+              <FormField
+                label="How many products can the customer select?"
+                htmlFor="svc-count"
+                hint={`Shown to customers as “${serviceForm.label || "Service"} — choose ${serviceForm.selectionCount}”.`}
+              >
+                <div id="svc-count" className="flex gap-2" role="radiogroup">
+                  {SELECTION_COUNTS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      role="radio"
+                      aria-checked={serviceForm.selectionCount === n}
+                      onClick={() => setServiceForm({ ...serviceForm, selectionCount: n })}
+                      className={`h-10 w-14 cursor-pointer rounded-md border text-sm font-semibold transition-colors ${
+                        serviceForm.selectionCount === n
+                          ? "border-(--color-mocha) bg-(--color-mocha) text-white"
+                          : "border-(--color-border) hover:border-(--color-mocha)"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </FormField>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <label htmlFor="svc-group" className="text-sm font-medium text-(--color-charcoal)">
+                    Charge per group
+                  </label>
+                  <p className="text-xs text-(--color-text-muted)">
+                    Off: price × number of children. On: price charged once per group (e.g. family activity).
+                  </p>
+                </div>
+                <ToggleSwitch
+                  id="svc-group"
+                  checked={serviceForm.isPerGroup}
+                  onChange={(isPerGroup) => setServiceForm({ ...serviceForm, isPerGroup })}
+                />
+              </div>
+
+              <div>
+                <p className="mb-1 text-sm font-medium text-(--color-charcoal)">Products per theme</p>
+                <p className="mb-2 text-xs text-(--color-text-muted)">
+                  Choose which products customers can pick under each theme. Every active theme needs at least{" "}
+                  {serviceForm.selectionCount}.
+                </p>
+                {assignmentsLoading || !catalogLoaded ? (
+                  <p className="flex items-center gap-2 text-sm text-(--color-text-muted)">
+                    <Loader2 size={14} className="animate-spin" /> Loading themes and products…
+                  </p>
+                ) : (
+                  <ServiceProductAssignments
+                    themes={themes}
+                    products={products}
+                    value={themeProducts}
+                    selectionCount={serviceForm.selectionCount}
+                    onChange={setThemeProducts}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </AdminModalForm>
 
       <AdminConfirmDialog
@@ -503,6 +660,7 @@ function PackageMatrixEditor({
             <tr key={svc.id} className="border-b border-(--color-border-soft) hover:bg-(--color-surface)/40">
               <td className="sticky left-0 z-10 bg-white px-4 py-3 align-top">
                 <p className="font-medium text-(--color-charcoal)">{svc.label}</p>
+                {svc.isProductChoice && <ChoiceBadge svc={svc} />}
                 {svc.description && (
                   <p className="mt-0.5 text-xs text-(--color-text-muted) line-clamp-2">{svc.description}</p>
                 )}
@@ -552,6 +710,15 @@ function PackageMatrixEditor({
   );
 }
 
+function ChoiceBadge({ svc }: { svc: ExtraService }) {
+  return (
+    <span className="mt-1 inline-block rounded bg-(--color-mocha)/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-(--color-mocha)">
+      Customer picks {svc.selectionCount}
+      {svc.isPerGroup ? " · per group" : ""}
+    </span>
+  );
+}
+
 function ExtraServicesList({
   services,
   onEdit,
@@ -581,6 +748,7 @@ function ExtraServicesList({
                   Inactive
                 </span>
               )}
+              {svc.isProductChoice && <ChoiceBadge svc={svc} />}
             </div>
             {svc.description && (
               <p className="mt-1 text-sm text-(--color-text-muted)">{svc.description}</p>

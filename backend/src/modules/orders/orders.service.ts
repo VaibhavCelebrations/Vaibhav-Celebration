@@ -1464,6 +1464,7 @@ async function shapeOrder(order: {
   eventDetails?: unknown;
   invoicePdfUrl: string | null;
   invoiceNumber?: string | null;
+  trackingUrl?: string | null;
   razorpayOrderId?: string | null;
   placedAt: Date;
   createdAt: Date;
@@ -1533,6 +1534,7 @@ async function shapeOrder(order: {
     eventDetails: order.eventDetails ?? null,
     invoiceNumber: order.invoiceNumber ?? null,
     invoicePdfUrl: order.invoicePdfUrl,
+    trackingUrl: order.trackingUrl ?? null,
     razorpayOrderId: order.razorpayOrderId ?? null,
     canRetryPayment:
       order.status === OrderStatus.PENDING_PAYMENT &&
@@ -1753,8 +1755,11 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   REFUNDED: [],
 };
 
-export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus, trackingUrl?: string | null) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { user: { select: { name: true, email: true, phone: true } } },
+  });
   if (!order) throw new NotFoundError("Order not found");
   const allowed = ORDER_TRANSITIONS[order.status] ?? [];
   if (!allowed.includes(status)) {
@@ -1764,7 +1769,61 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
     await cancelOrderAndRestock(orderId, "Cancelled by admin");
     return adminGetOrder(orderId);
   }
-  await prisma.order.update({ where: { id: orderId }, data: { status } });
+
+  const cleanedTrackingUrl = trackingUrl !== undefined ? (trackingUrl?.trim() || null) : undefined;
+  const effectiveTrackingUrl = cleanedTrackingUrl !== undefined ? cleanedTrackingUrl : order.trackingUrl;
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status,
+      ...(cleanedTrackingUrl !== undefined ? { trackingUrl: cleanedTrackingUrl } : {}),
+    },
+  });
+
+  if (order.status !== status) {
+    // 1. Dispatch WhatsApp notification asynchronously
+    (async () => {
+      try {
+        const { sendOrderStatusUpdateWhatsapp } = await import("../whatsapp/whatsapp.service");
+        const customerName = (order.shippingAddress as any)?.fullName || order.user?.name || "Valued Customer";
+        await sendOrderStatusUpdateWhatsapp({
+          orderId: order.id,
+          orderCode: order.orderCode,
+          contactPhone: order.contactPhone,
+          customerName,
+          status,
+          trackingUrl: effectiveTrackingUrl,
+        });
+      } catch (err) {
+        logger.warn({ err, orderId }, "Failed to send WhatsApp order status update");
+      }
+    })();
+
+    // 2. Dispatch Email notification asynchronously
+    (async () => {
+      try {
+        const { isEmailConfigured, sendEmail, orderStatusUpdateHtml, ORDER_STATUS_LABELS } = await import("../../integrations/email/mailer");
+        if (isEmailConfigured() && order.contactEmail) {
+          const customerName = (order.shippingAddress as any)?.fullName || order.user?.name || "Valued Customer";
+          const statusLabel = ORDER_STATUS_LABELS[status]?.label ?? status;
+          await sendEmail({
+            to: order.contactEmail,
+            subject: `Order Update: ${order.orderCode} - ${statusLabel}`,
+            html: orderStatusUpdateHtml({
+              name: customerName,
+              orderCode: order.orderCode,
+              status,
+              trackingUrl: effectiveTrackingUrl,
+            }),
+          });
+        }
+      } catch (err) {
+        logger.warn({ err, orderId }, "Failed to send email order status update");
+      }
+    })();
+  }
+
   return adminGetOrder(orderId);
 }
 

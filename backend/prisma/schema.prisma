@@ -137,6 +137,7 @@ model Theme {
   galleryImages    GalleryImage[]     @relation("ThemeGallery")
   orderPackages    OrderPackage[]
   productTags      ProductThemeTag[]
+  serviceProducts  ServiceProduct[]
   testimonials     Testimonial[]
   heroImage        MediaAsset?        @relation("ThemeHero", fields: [heroImageId], references: [id])
   ogImage          MediaAsset?        @relation("ThemeOgImage", fields: [ogImageId], references: [id])
@@ -225,7 +226,14 @@ model ExtraService {
   locationScope             LocationScope         @default(ALL)
   /// For choosable services: how many products the user must pick (e.g. 1 or 2)
   choiceCount               Int?
+  /// When true the customer picks products for this service in the builder (admin "Customize" checkbox)
+  isProductChoice           Boolean               @default(false)
+  /// How many products the customer must pick (1–3) when isProductChoice
+  selectionCount            Int                   @default(1)
+  /// Charge each picked product once per group instead of once per child
+  isPerGroup                Boolean               @default(false)
   packageItems              PackageServiceItem[]
+  serviceProducts           ServiceProduct[]
 
   @@index([label(ops: raw("gin_trgm_ops"))], type: Gin)
 }
@@ -242,6 +250,22 @@ model PackageServiceItem {
   package           Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@unique([packageId, extraServiceId])
+}
+
+/// Products the customer may pick for a product-choice service, per theme.
+model ServiceProduct {
+  id             String       @id @default(cuid())
+  extraServiceId String
+  themeId        String
+  productId      String
+  displayOrder   Int          @default(0)
+  extraService   ExtraService @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
+  theme          Theme        @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([extraServiceId, themeId, productId])
+  @@index([extraServiceId, themeId])
+  @@index([productId])
 }
 
 enum PackageUpgradeKind {
@@ -694,35 +718,36 @@ model PasswordResetToken {
 }
 
 model EmailVerificationToken {
-  id        String    @id @default(cuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id])
+  id           String    @id @default(cuid())
+  userId       String
+  email        String?
+  tokenHash    String?   @unique
+  otpHash      String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
 
-/// WhatsApp-based phone verification (link-based, mirrors EmailVerificationToken).
-/// Raw tokens are never persisted — only the SHA-256 hash, per the same
-/// convention as PasswordResetToken/EmailVerificationToken/CustomerSession.
+/// WhatsApp-based phone verification (OTP-based via Meta Authentication template).
 model PhoneVerificationToken {
-  id          String    @id @default(cuid())
-  userId      String
-  /// Snapshot of the phone number being verified — the User.phone value can
-  /// change between request and confirm; verification always applies to
-  /// exactly the number the link was issued for.
-  phoneNumber String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  usedAt      DateTime?
-  createdAt   DateTime  @default(now())
-  requestIp   String?
-  user        User      @relation(fields: [userId], references: [id])
+  id           String    @id @default(cuid())
+  userId       String
+  phoneNumber  String
+  tokenHash    String?   @unique
+  otpHash      String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  requestIp    String?
+  user         User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([phoneNumber])
 }
 
 model ProductCategory {
@@ -771,6 +796,7 @@ model Product {
   images                      ProductImage[]
   personalizationFields       ProductPersonalizationField[]
   themeTags                   ProductThemeTag[]
+  serviceProducts             ServiceProduct[]
   wishlistItems               WishlistItem[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin)

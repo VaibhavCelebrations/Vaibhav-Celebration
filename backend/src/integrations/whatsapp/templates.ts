@@ -1,3 +1,4 @@
+import { env } from "../../config/env";
 import type { SendTemplateMessageInput, WhatsAppDocument } from "./provider.types";
 
 /**
@@ -8,7 +9,12 @@ import type { SendTemplateMessageInput, WhatsAppDocument } from "./provider.type
  * Meta-approved message template before WHATSAPP_PROVIDER=meta is used.
  */
 export const WHATSAPP_TEMPLATES = {
-  phoneVerification: { name: "phone_verification", languageCode: "en" },
+  phoneOtpVerification: {
+    get name() {
+      return env.WHATSAPP_PHONE_OTP_TEMPLATE || "phone_otp_verification";
+    },
+    languageCode: "en",
+  },
   orderConfirmation: { name: "order_confirmation", languageCode: "en" },
   invoiceDelivery: { name: "invoice_delivery", languageCode: "en" },
   welcomeMessage: { name: "welcome_message", languageCode: "en" },
@@ -19,13 +25,31 @@ export type WhatsAppTemplateKey = keyof typeof WHATSAPP_TEMPLATES;
 
 type BuiltMessage = Omit<SendTemplateMessageInput, "toPhoneE164">;
 
-/** Verification link intentionally carries only an opaque token — no name/phone/order data in the URL (see customer-auth phone verification flow). */
-export function buildPhoneVerificationMessage(verifyUrl: string): BuiltMessage {
-  const template = WHATSAPP_TEMPLATES.phoneVerification;
+/**
+ * Meta Authentication template OTP for customer phone verification.
+ * Passes the 6-digit OTP as body parameter {{1}}.
+ * Supports optional copy-code button component when WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON=true.
+ */
+export function buildPhoneOtpMessage(otp: string, options?: { hasCopyCodeButton?: boolean }): BuiltMessage {
+  const template = WHATSAPP_TEMPLATES.phoneOtpVerification;
+  const hasButton = options?.hasCopyCodeButton ?? env.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON ?? false;
+
+  const buttons = hasButton
+    ? [
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: otp }],
+        },
+      ]
+    : undefined;
+
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: [verifyUrl],
+    bodyParameters: [otp],
+    buttons,
   };
 }
 
@@ -34,27 +58,15 @@ export function buildOrderConfirmationMessage(input: {
   amountFormatted: string;
   document?: WhatsAppDocument;
   includeGiftRegistrySetup?: boolean;
-  /** Present for guest checkouts — a link to the login page so the customer can access their new account. */
   guestLoginUrl?: string;
 }): BuiltMessage {
   const template = WHATSAPP_TEMPLATES.orderConfirmation;
-  const params = [input.orderCode, input.amountFormatted];
-
-  // 3rd body parameter: gift registry instruction or guest login note (mutually exclusive priority)
-  if (input.guestLoginUrl) {
-    // Guest order: always tell them they have an account — registry info is in the email
-    const loginNote = input.includeGiftRegistrySetup
-      ? `Your account & Gift Registry setup instructions have been emailed to you. Log in: ${input.guestLoginUrl}`
-      : `Your account credentials have been emailed to you. Log in to track your order: ${input.guestLoginUrl}`;
-    params.push(loginNote);
-  } else if (input.includeGiftRegistrySetup) {
-    params.push(`Setup your Gift Registry by logging in: ${process.env.FRONTEND_URL}/account/registries`);
-  }
-
+  // Meta-approved template order_confirmation has exactly 2 body parameters:
+  // {{1}} = orderCode, {{2}} = amountFormatted
   return {
     templateName: template.name,
     languageCode: template.languageCode,
-    bodyParameters: params,
+    bodyParameters: [input.orderCode, input.amountFormatted],
     document: input.document,
   };
 }

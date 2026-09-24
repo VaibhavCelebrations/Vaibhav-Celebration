@@ -216,8 +216,26 @@ export function verifyEmailHtml(name: string, verifyUrl: string) {
     <div style="text-align:center;margin:32px 0;">
       <a href="${verifyUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Verify Email Address</a>
     </div>
-    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste this link into your browser:<br/>
-    <a href="${verifyUrl}" style="color:#8B4513;word-break:break-all;">${verifyUrl}</a></p>
+    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste the link below into your browser:</p>
+    <p style="font-size:12px;color:#8B4513;word-break:break-all;background:#f9f5f2;padding:10px 14px;border-radius:6px;font-family:monospace;">${verifyUrl}</p>
+  `);
+}
+
+export function accountVerificationOtpEmailHtml(otp: string, isEmailChange?: boolean) {
+  const heading = isEmailChange ? "Confirm Your New Email Address" : "Verify Your Account Email";
+  const message = isEmailChange
+    ? "You requested to update your email address for your Vaibhav Celebrations account. Enter this code to verify and confirm your new email:"
+    : "Enter this verification code in your Vaibhav Celebrations account settings to verify your email address:";
+
+  return baseEmailLayout(`
+    <h1 style="font-size:22px;color:#8B4513;margin-top:0;font-family:Georgia,serif;">${heading}</h1>
+    <p>${message}</p>
+    <div style="background:#f4ede8;padding:20px;text-align:center;border-radius:12px;margin:28px 0;border:2px solid #c4844a;">
+      <p style="margin:0 0 8px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:#8B4513;">Your Verification Code</p>
+      <span style="font-size:40px;letter-spacing:10px;font-weight:700;color:#2c1810;font-family:monospace;">${otp}</span>
+    </div>
+    <p style="font-size:13px;color:#666;">This code expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p>
+    <p style="font-size:13px;color:#999;">If you did not request this verification, you can safely ignore this email. Your account remains secure.</p>
   `);
 }
 
@@ -230,6 +248,8 @@ export function passwordResetEmailHtml(name: string, resetUrl: string, ttlMinute
     <div style="text-align:center;margin:32px 0;">
       <a href="${resetUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Reset Password</a>
     </div>
+    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste the link below into your browser:</p>
+    <p style="font-size:12px;color:#8B4513;word-break:break-all;background:#f9f5f2;padding:10px 14px;border-radius:6px;font-family:monospace;">${resetUrl}</p>
     <p style="font-size:13px;color:#888;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
   `);
 }
@@ -244,7 +264,7 @@ export function passwordChangedEmailHtml(name: string) {
   `);
 }
 
-const ORDER_STATUS_LABELS: Record<string, { label: string; message: string }> = {
+export const ORDER_STATUS_LABELS: Record<string, { label: string; message: string }> = {
   PROCESSING: {
     label: "Processing",
     message: "We've received your order and our team is now preparing it for dispatch.",
