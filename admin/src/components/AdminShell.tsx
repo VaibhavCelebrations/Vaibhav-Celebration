@@ -19,6 +19,7 @@ import {
   CalendarRange,
   Receipt,
   CreditCard,
+  MessageCircle,
   MessagesSquare,
   Settings as SettingsIcon,
   Images,
@@ -134,6 +135,12 @@ const NAV: NavItem[] = [
     href: "/dashboard/cms/metadata",
     label: "Site Metadata (SEO)",
     icon: SearchCheck,
+  },
+  {
+    section: "CMS",
+    href: "/dashboard/cms/chatbot",
+    label: "Chatbot Settings",
+    icon: MessageCircle,
   },
   {
     section: "CRM",
