@@ -216,8 +216,8 @@ export function verifyEmailHtml(name: string, verifyUrl: string) {
     <div style="text-align:center;margin:32px 0;">
       <a href="${verifyUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Verify Email Address</a>
     </div>
-    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste this link into your browser:<br/>
-    <a href="${verifyUrl}" style="color:#8B4513;word-break:break-all;">${verifyUrl}</a></p>
+    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste the link below into your browser:</p>
+    <p style="font-size:12px;color:#8B4513;word-break:break-all;background:#f9f5f2;padding:10px 14px;border-radius:6px;font-family:monospace;">${verifyUrl}</p>
   `);
 }
 
@@ -248,6 +248,8 @@ export function passwordResetEmailHtml(name: string, resetUrl: string, ttlMinute
     <div style="text-align:center;margin:32px 0;">
       <a href="${resetUrl}" style="display:inline-block;background-color:#8B4513;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Reset Password</a>
     </div>
+    <p style="font-size:13px;color:#888;">If the button doesn't work, copy and paste the link below into your browser:</p>
+    <p style="font-size:12px;color:#8B4513;word-break:break-all;background:#f9f5f2;padding:10px 14px;border-radius:6px;font-family:monospace;">${resetUrl}</p>
     <p style="font-size:13px;color:#888;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
   `);
 }
