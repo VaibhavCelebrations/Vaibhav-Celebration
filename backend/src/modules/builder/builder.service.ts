@@ -3,32 +3,23 @@
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { toMediaRef } from "../../lib/media-ref";
+import { cached, delPattern } from "../../lib/redis";
 import { getGstPercent, gstOn, computeShippingForSubtotal } from "../../lib/settings";
 import { isGiftRegistryMatrixService } from "../upgrades/upgrades.service";
 
-/** Category slug on ProductCategory → ExtraServiceCategory for filtering */
-const CATEGORY_SLUG_BY_SLOT: Record<string, string> = {
-  "welcome-items": "welcome-items",
-  "children-activities": "children-activities",
-  "family-activities": "family-activities",
-  "return-gifts": "return-gifts",
-  packaging: "packaging",
-  "thank-you-tags": "thank-you-tags",
-};
+/** Options responses are cached; also busted by any admin change (see invalidateBuilderCaches). */
+const OPTIONS_TTL = 5 * 60;
 
-/** SKU → package tiers that may select this product (mirrors seed) */
+/** Call after any admin change that affects what the builder offers (services, matrix, products). */
+export function invalidateBuilderCaches() {
+  void delPattern("pub:builder:*");
+}
+
+/**
+ * SKU → package tiers for the auto-assigned packaging / thank-you products only.
+ * Customer-chosen products are managed per service in the admin panel (ServiceProduct).
+ */
 export const PRODUCT_TIER_MAP: Record<string, Array<"essential" | "signature" | "grand">> = {
-  "SP-WEL-BDG": ["signature", "grand"],
-  "SP-WEL-HDB": ["signature", "grand"],
-  "SP-WEL-ID": ["signature", "grand"],
-  "SP-WEL-QR": ["grand"],
-  "SP-ACT-HDG": ["essential", "signature", "grand"],
-  "SP-ACT-PUZ": ["essential", "signature", "grand"],
-  "SP-ACT-BNG": ["essential", "signature", "grand"],
-  "SP-FAM-BNG": ["grand"],
-  "SP-RG-STAT": ["essential", "signature", "grand"],
-  "SP-RG-LBOX": ["essential", "signature", "grand"],
-  "SP-RG-BAG": ["signature", "grand"],
   "SP-PACK-BAS": ["essential"],
   "SP-PACK-THM": ["signature"],
   "SP-PACK-CUS": ["grand"],
@@ -47,12 +38,15 @@ export const AUTO_THANKYOU_SKU: Record<string, string | null> = {
   grand: "SP-TAG-THANK",
 };
 
-/** Group / per-group SKUs — charged ×1 (or MOQ units as group fee) */
+/** Legacy group-priced SKUs (bingo). New services set `isPerGroup` instead. */
 const PER_GROUP_SKUS = new Set(["SP-ACT-BNG", "SP-FAM-BNG"]);
 
 export type BuilderLocation = "jaipur" | "outside";
 
 export type BuilderSelections = {
+  /** ExtraService id → SKUs picked by the customer (admin-defined product-choice services). */
+  choices?: Record<string, string[]>;
+  /** @deprecated legacy slots — mapped onto `choices` by service category for old carts / links. */
   welcomeItem?: string | null;
   activity1?: string | null;
   activity2?: string | null;
@@ -114,6 +108,38 @@ export type BuilderQuoteResult = {
   giftRegistryCustomizePriceInPaise: number;
 };
 
+export type BuilderProductOption = {
+  id: string;
+  title: string;
+  slug: string;
+  sku: string;
+  description: string;
+  priceInPaise: number;
+  minOrderQuantity: number;
+  pricingMode: "PER_CHILD" | "PER_GROUP";
+  imageUrl: string | null;
+  personalizationEnabled: boolean;
+  personalizationCostInPaise: number;
+  personalizationFields: Array<{
+    id: string;
+    fieldKey: string;
+    label: string;
+    fieldType: string;
+    isRequired: boolean;
+    maxLength: number | null;
+  }>;
+};
+
+export type BuilderChoiceService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  /** How many products the customer must pick (admin value, capped by what the theme offers). */
+  selectionCount: number;
+  isPerGroup: boolean;
+  products: BuilderProductOption[];
+};
+
 function perChildQty(guestCount: number, moq: number): { qty: number; moqApplied: boolean } {
   const qty = Math.max(guestCount, moq);
   return { qty, moqApplied: guestCount < moq };
@@ -125,68 +151,167 @@ function perGroupQty(guestCount: number, moq: number): { qty: number; moqApplied
   return { qty: 1, moqApplied: false };
 }
 
-export async function listBuilderProducts(q: {
-  theme: string;
-  category: string;
-  tier: string;
-}) {
-  const tier = q.tier as "essential" | "signature" | "grand";
-  if (!["essential", "signature", "grand"].includes(tier)) {
-    throw new ValidationError("tier must be standard, premium, or luxe");
-  }
-  const categorySlug = CATEGORY_SLUG_BY_SLOT[q.category] ?? q.category;
+function isGroupPriced(svc: { isPerGroup: boolean }, sku: string) {
+  return svc.isPerGroup || PER_GROUP_SKUS.has(sku);
+}
 
-  const rows = await prisma.product.findMany({
+type ChoiceProductRow = {
+  id: string;
+  title: string;
+  slug: string;
+  sku: string;
+  description: string;
+  priceInPaise: number;
+  minOrderQuantity: number;
+  personalizationEnabled: boolean;
+  personalizationCostInPaise: number;
+};
+
+type ChoiceProductRowWithMedia = ChoiceProductRow & {
+  images: Array<{ media: Parameters<typeof toMediaRef>[0] }>;
+  personalizationFields: BuilderProductOption["personalizationFields"];
+};
+
+/** One indexed query for every product offered by the given services under a theme. */
+async function loadServiceProducts(serviceIds: string[], themeId: string, withMedia: boolean) {
+  const bySvc = new Map<string, ChoiceProductRow[]>();
+  if (!serviceIds.length) return bySvc;
+  const rows = await prisma.serviceProduct.findMany({
     where: {
-      deletedAt: null,
-      isActive: true,
-      categoryTags: { some: { category: { slug: categorySlug } } },
-      themeTags: { some: { theme: { slug: q.theme, deletedAt: null, isActive: true } } },
+      extraServiceId: { in: serviceIds },
+      themeId,
+      product: { deletedAt: null, isActive: true },
     },
-    include: {
-      images: { include: { media: true }, orderBy: { displayOrder: "asc" } },
-      categoryTags: { include: { category: true } },
-      inventory: true,
-      personalizationFields: { orderBy: { fieldKey: "asc" } },
+    orderBy: [{ displayOrder: "asc" }, { product: { title: "asc" } }],
+    select: {
+      extraServiceId: true,
+      product: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          sku: true,
+          description: true,
+          priceInPaise: true,
+          minOrderQuantity: true,
+          personalizationEnabled: true,
+          personalizationCostInPaise: true,
+          ...(withMedia
+            ? {
+                images: {
+                  take: 1,
+                  orderBy: { displayOrder: "asc" as const },
+                  select: { media: true },
+                },
+                personalizationFields: { orderBy: { fieldKey: "asc" as const } },
+              }
+            : {}),
+        },
+      },
     },
-    orderBy: { title: "asc" },
   });
+  for (const r of rows) {
+    const list = bySvc.get(r.extraServiceId) ?? [];
+    list.push(r.product as ChoiceProductRow);
+    bySvc.set(r.extraServiceId, list);
+  }
+  return bySvc;
+}
 
-  const allowed = rows.filter((p) => {
-    const tiers = PRODUCT_TIER_MAP[p.sku];
-    if (tiers) {
-      return tiers.includes(tier) && !p.sku.startsWith("SP-PACK-") && p.sku !== "SP-TAG-THANK";
+/** Map legacy slot fields (welcomeItem, activity1, …) onto per-service `choices` for old carts / links. */
+function resolveChoices(
+  sel: BuilderSelections,
+  services: Array<{ id: string; category: string | null }>,
+): Record<string, string[]> {
+  const legacyByCategory: Record<string, Array<string | null | undefined>> = {
+    WELCOME_ITEM: [sel.welcomeItem],
+    CHILDREN_ACTIVITY: [sel.activity1, sel.activity2],
+    RETURN_GIFT: [sel.returnGift],
+    FAMILY_ACTIVITY: [sel.familyActivity],
+  };
+  const out: Record<string, string[]> = {};
+  for (const svc of services) {
+    const explicit = sel.choices?.[svc.id];
+    if (explicit) {
+      out[svc.id] = explicit;
+      continue;
     }
-    // Allow dynamically added products from Admin panel to appear in all tiers
-    return true;
-  });
+    const legacy = svc.category ? legacyByCategory[svc.category] : undefined;
+    out[svc.id] = (legacy ?? []).filter((v): v is string => Boolean(v));
+  }
+  return out;
+}
 
-  return allowed.map((p) => {
-    const firstImage = p.images[0];
-    const media = firstImage?.media ?? null;
-    return {
-      id: p.id,
-      title: p.title,
-      slug: p.slug,
-      sku: p.sku,
-      description: p.description,
-      priceInPaise: p.priceInPaise,
-      minOrderQuantity: p.minOrderQuantity,
-      pricingMode: PER_GROUP_SKUS.has(p.sku) ? ("PER_GROUP" as const) : ("PER_CHILD" as const),
-      categories: p.categoryTags.map((t) => ({ slug: t.category.slug, name: t.category.name })),
-      imageUrl: media ? toMediaRef(media)?.url ?? null : null,
-      personalizationEnabled: p.personalizationEnabled,
-      personalizationCostInPaise: p.personalizationCostInPaise,
-      personalizationFields: p.personalizationFields.map((f) => ({
-        id: f.id,
-        fieldKey: f.fieldKey,
-        label: f.label,
-        fieldType: f.fieldType,
-        isRequired: f.isRequired,
-        maxLength: f.maxLength,
-      })),
-      stockAvailable: p.inventory?.quantityAvailable ?? 0,
-    };
+/**
+ * Everything the "Customize" step needs in a single request: the package's product-choice
+ * services (as configured in the admin package matrix) and, for the chosen theme, the
+ * products the admin allowed for each. Cached; busted by any admin change.
+ */
+export async function getBuilderOptions(q: { theme: string; package: string }) {
+  return cached(`pub:builder:options:${q.package}:${q.theme}`, OPTIONS_TTL, async () => {
+    const [pkg, theme] = await Promise.all([
+      prisma.package.findFirst({
+        where: { slug: q.package, deletedAt: null, isActive: true },
+        select: {
+          serviceItems: {
+            where: {
+              isIncluded: true,
+              extraService: { deletedAt: null, isActive: true, isProductChoice: true },
+            },
+            orderBy: { displayOrder: "asc" },
+            select: { extraService: true },
+          },
+        },
+      }),
+      prisma.theme.findFirst({
+        where: { slug: q.theme, deletedAt: null, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+    if (!pkg) throw new NotFoundError("Package not found");
+    if (!theme) throw new NotFoundError("Theme not found");
+
+    const services = pkg.serviceItems.map((i) => i.extraService);
+    const productsBySvc = await loadServiceProducts(
+      services.map((s) => s.id),
+      theme.id,
+      true,
+    );
+
+    const result: BuilderChoiceService[] = [];
+    for (const svc of services) {
+      const rows = (productsBySvc.get(svc.id) ?? []) as ChoiceProductRowWithMedia[];
+      if (!rows.length) continue; // nothing configured for this theme → not required
+      result.push({
+        serviceId: svc.id,
+        label: svc.label,
+        description: svc.description,
+        selectionCount: Math.min(svc.selectionCount, rows.length),
+        isPerGroup: svc.isPerGroup,
+        products: rows.map((p) => ({
+          id: p.id,
+          title: p.title,
+          slug: p.slug,
+          sku: p.sku,
+          description: p.description,
+          priceInPaise: p.priceInPaise,
+          minOrderQuantity: p.minOrderQuantity,
+          pricingMode: isGroupPriced(svc, p.sku) ? ("PER_GROUP" as const) : ("PER_CHILD" as const),
+          imageUrl: p.images[0]?.media ? (toMediaRef(p.images[0].media)?.url ?? null) : null,
+          personalizationEnabled: p.personalizationEnabled,
+          personalizationCostInPaise: p.personalizationCostInPaise,
+          personalizationFields: p.personalizationFields.map((f) => ({
+            id: f.id,
+            fieldKey: f.fieldKey,
+            label: f.label,
+            fieldType: f.fieldType,
+            isRequired: f.isRequired,
+            maxLength: f.maxLength,
+          })),
+        })),
+      });
+    }
+    return result;
   });
 }
 
@@ -242,7 +367,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   );
 
   const includedLabels = included
-    .filter((s) => s.extraService.pricingMode !== "PER_CHILD_CHOOSABLE")
+    .filter((s) => !s.extraService.isProductChoice && s.extraService.pricingMode !== "PER_CHILD_CHOOSABLE")
     .map((s) => s.extraService.label);
 
   // Helper: find PSI by ExtraService slug
@@ -266,24 +391,17 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     });
   }
 
-  async function addProductLine(opts: {
+  type LineProduct = ChoiceProductRow;
+
+  function addProductLine(opts: {
     key: string;
-    sku: string;
+    product: LineProduct;
     labelPrefix: string;
     section: BuilderLineItem["section"];
+    isGroup: boolean;
     packageServiceItemId?: string;
   }) {
-    const product = await prisma.product.findFirst({
-      where: { sku: opts.sku, deletedAt: null, isActive: true },
-    });
-    if (!product) throw new ValidationError(`Product not found: ${opts.sku}`);
-
-    const tiers = PRODUCT_TIER_MAP[product.sku] ?? [];
-    if (!tiers.includes(input.packageSlug as "essential" | "signature" | "grand")) {
-      throw new ValidationError(`Product ${opts.sku} is not available for ${input.packageSlug}`);
-    }
-
-    const isGroup = PER_GROUP_SKUS.has(product.sku);
+    const { product, isGroup } = opts;
     const { qty, moqApplied } = isGroup
       ? perGroupQty(input.guestCount, product.minOrderQuantity)
       : perChildQty(input.guestCount, product.minOrderQuantity);
@@ -316,91 +434,96 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     });
   }
 
-  const sel = input.selections;
-  const tier = input.packageSlug as "essential" | "signature" | "grand";
-
-  // Validate choosable requirements
-  const activitySvc = included.find((s) => s.extraService.category === "CHILDREN_ACTIVITY");
-  const welcomeSvc = included.find((s) => s.extraService.category === "WELCOME_ITEM");
-  const giftSvc = included.find((s) => s.extraService.category === "RETURN_GIFT");
-  const familySvc = included.find((s) => s.extraService.category === "FAMILY_ACTIVITY");
-
-  if (welcomeSvc) {
-    if (!sel.welcomeItem) throw new ValidationError("Please choose a welcome item");
-    await addProductLine({
-      key: "welcome",
-      sku: sel.welcomeItem,
-      labelPrefix: "Welcome item",
-      section: "per-child",
-      packageServiceItemId: welcomeSvc.id,
+  /** Auto-assigned (not customer-chosen) products: packaging, thank-you tag. */
+  async function addAutoProductLine(opts: {
+    key: string;
+    sku: string;
+    labelPrefix: string;
+    packageServiceItemId?: string;
+  }) {
+    const product = await prisma.product.findFirst({
+      where: { sku: opts.sku, deletedAt: null, isActive: true },
     });
-  }
+    if (!product) throw new ValidationError(`Product not found: ${opts.sku}`);
 
-  if (activitySvc) {
-    const need = activitySvc.extraService.choiceCount ?? 1;
-    if (!sel.activity1) throw new ValidationError("Please choose activity 1");
-    await addProductLine({
-      key: "activity1",
-      sku: sel.activity1,
-      labelPrefix: "Activity",
-      section: PER_GROUP_SKUS.has(sel.activity1) ? "per-group" : "per-child",
-      packageServiceItemId: activitySvc.id,
-    });
-    if (need >= 2) {
-      if (!sel.activity2) throw new ValidationError("Please choose activity 2");
-      if (sel.activity1 === sel.activity2) throw new ValidationError("Please choose two different activities");
-      await addProductLine({
-        key: "activity2",
-        sku: sel.activity2,
-        labelPrefix: "Activity",
-        section: PER_GROUP_SKUS.has(sel.activity2) ? "per-group" : "per-child",
-        packageServiceItemId: activitySvc.id,
-      });
+    const tiers = PRODUCT_TIER_MAP[product.sku] ?? [];
+    if (!tiers.includes(input.packageSlug as "essential" | "signature" | "grand")) {
+      throw new ValidationError(`Product ${opts.sku} is not available for ${input.packageSlug}`);
     }
-  }
-
-  if (giftSvc) {
-    if (!sel.returnGift) throw new ValidationError("Please choose a return gift");
-    await addProductLine({
-      key: "returnGift",
-      sku: sel.returnGift,
-      labelPrefix: "Return gift",
-      section: "per-child",
-      packageServiceItemId: giftSvc.id,
+    addProductLine({
+      key: opts.key,
+      product,
+      labelPrefix: opts.labelPrefix,
+      section: "auto",
+      isGroup: PER_GROUP_SKUS.has(product.sku),
+      packageServiceItemId: opts.packageServiceItemId,
     });
   }
 
-  if (familySvc) {
-    if (!sel.familyActivity) throw new ValidationError("Please choose a family activity");
-    await addProductLine({
-      key: "family",
-      sku: sel.familyActivity,
-      labelPrefix: "Family activity",
-      section: "per-group",
-      packageServiceItemId: familySvc.id,
-    });
+  const sel = input.selections;
+  const tier = input.packageSlug;
+
+  // Admin-defined product-choice services (package matrix + per-theme product lists)
+  const choicePsis = included.filter((s) => s.extraService.isProductChoice);
+  if (choicePsis.length) {
+    const productsBySvc = await loadServiceProducts(
+      choicePsis.map((s) => s.extraService.id),
+      theme.id,
+      false,
+    );
+    const choices = resolveChoices(
+      sel,
+      choicePsis.map((s) => s.extraService),
+    );
+
+    for (const psi of choicePsis) {
+      const svc = psi.extraService;
+      const available = productsBySvc.get(svc.id) ?? [];
+      const need = Math.min(svc.selectionCount, available.length);
+      if (need === 0) continue; // nothing offered for this theme → nothing to pick
+
+      const picked = choices[svc.id] ?? [];
+      if (new Set(picked).size !== picked.length) {
+        throw new ValidationError(`Please choose different options for ${svc.label}`);
+      }
+      if (picked.length !== need) {
+        throw new ValidationError(
+          need === 1 ? `Please choose 1 option for ${svc.label}` : `Please choose ${need} options for ${svc.label}`,
+        );
+      }
+
+      for (const [i, sku] of picked.entries()) {
+        const product = available.find((p) => p.sku === sku);
+        if (!product) {
+          throw new ValidationError(`"${sku}" is not available for ${svc.label} in this theme`);
+        }
+        const isGroup = isGroupPriced(svc, product.sku);
+        addProductLine({
+          key: `choice-${svc.id}-${i}`,
+          product,
+          labelPrefix: svc.label,
+          section: isGroup ? "per-group" : "per-child",
+          isGroup,
+          packageServiceItemId: psi.id,
+        });
+      }
+    }
   }
 
   // Auto packaging
   const packSku = AUTO_PACKAGING_SKU[tier];
   if (packSku) {
-    await addProductLine({
-      key: "packaging",
-      sku: packSku,
-      labelPrefix: "Packaging",
-      section: "auto",
-    });
+    await addAutoProductLine({ key: "packaging", sku: packSku, labelPrefix: "Packaging" });
   }
 
   // Auto thank-you tag
   const thankSku = AUTO_THANKYOU_SKU[tier];
   if (thankSku) {
     const thankPsi = psiBySlug("thankyou-tag");
-    await addProductLine({
+    await addAutoProductLine({
       key: "thankyou",
       sku: thankSku,
       labelPrefix: "Thank-you tag",
-      section: "auto",
       packageServiceItemId: thankPsi?.id,
     });
   }
@@ -441,10 +564,10 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
       !s.extraService.deletedAt &&
       isGiftRegistryMatrixService(s.extraService),
   );
-  
+
   const giftRegistryIncluded = giftRegistryPsi?.isIncluded ?? false;
   const giftRegistryCustomizePriceInPaise = giftRegistryPsi?.extraService.customizationPriceInPaise ?? 0;
-  
+
   if (giftRegistryPsi) {
     if (giftRegistryIncluded) {
       // Included by default, no customization charge

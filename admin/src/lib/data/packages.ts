@@ -1,6 +1,13 @@
 import { adminFetch, adminFetchList } from "@/lib/admin-api-client";
 import { createMockCollection } from "@/lib/mock/store";
-import type { ExtraService, ExtraServiceInput, Package, PackageInput, PackageMatrixSavePayload } from "@/types/cms";
+import type {
+  ExtraService,
+  ExtraServiceInput,
+  Package,
+  PackageInput,
+  PackageMatrixSavePayload,
+  ThemeProductAssignment,
+} from "@/types/cms";
 import { USE_MOCK_DATA } from "./config";
 import { qs, type Repository } from "./types";
 
@@ -129,4 +136,6 @@ export const extraServicesRepo = {
   update: (id: string, body: Partial<ExtraServiceInput>) =>
     adminFetch<ExtraService>(`${EXTRA_ENDPOINT}/${id}`, { method: "PATCH", body }),
   archive: (id: string) => adminFetch<void>(`${EXTRA_ENDPOINT}/${id}`, { method: "DELETE" }),
+  /** Theme → product ids the customer may pick for this service. */
+  products: (id: string) => adminFetch<ThemeProductAssignment[]>(`${EXTRA_ENDPOINT}/${id}/products`),
 };

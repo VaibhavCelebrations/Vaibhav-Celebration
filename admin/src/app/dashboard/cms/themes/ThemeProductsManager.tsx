@@ -76,8 +76,8 @@ export function ThemeProductsManager({
       for (const id of toAdd) {
         const prod = products.find(p => p.id === id);
         if (prod) {
-          const newThemeIds = [...prod.themes.map(t => t.id), theme.id];
-          await productsRepo.update(id, { themeIds: newThemeIds });
+          // A product belongs to exactly one theme — assigning it here moves it from any other theme
+          await productsRepo.update(id, { themeIds: [theme.id] });
         }
       }
 
@@ -85,8 +85,7 @@ export function ThemeProductsManager({
       for (const id of toRemove) {
         const prod = products.find(p => p.id === id);
         if (prod) {
-          const newThemeIds = prod.themes.map(t => t.id).filter(tId => tId !== theme.id);
-          await productsRepo.update(id, { themeIds: newThemeIds });
+          await productsRepo.update(id, { themeIds: [] });
         }
       }
 
@@ -109,7 +108,7 @@ export function ThemeProductsManager({
       open={open}
       onClose={onClose}
       title={`Manage Products — ${theme?.title}`}
-      description="Select the products that belong to this theme."
+      description="Each product belongs to one theme. Selecting a product that is in another theme moves it here."
       onSubmit={onSave}
       submitting={submitting}
       submitLabel="Save Assignments"
@@ -155,7 +154,12 @@ export function ThemeProductsManager({
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-(--color-charcoal)">{p.title}</p>
-                        <p className="truncate font-mono text-[10px] text-(--color-text-muted)">{p.sku}</p>
+                        <p className="truncate font-mono text-[10px] text-(--color-text-muted)">
+                          {p.sku}
+                          {p.themes.length > 0 && !p.themes.some((t) => t.id === theme?.id) && (
+                            <span className="ml-2 font-sans text-amber-700">currently in {p.themes[0].title}</span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </li>

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
 import { cached, delPattern } from "../../lib/redis";
+import { invalidateBuilderCaches } from "../builder/builder.service";
 
 const PUB_TTL = 5 * 60;
 
@@ -176,13 +177,15 @@ export async function replacePackageServiceItems(
   });
   if (!pkg) throw new NotFoundError("Package not found");
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     await syncPackageServiceItems(tx, packageId, items);
     return tx.package.findUniqueOrThrow({
       where: { id: packageId },
       include: detailInclude,
     });
   });
+  invalidateBuilderCaches();
+  return updated;
 }
 
 export type PackageMatrixSaveInput = {
@@ -243,6 +246,7 @@ export async function savePackageMatrix({ packages, extraServices }: PackageMatr
   );
   await delPattern("pub:packages:*");
   await delPattern("adm:packages:*");
+  invalidateBuilderCaches();
   return result;
 }
 

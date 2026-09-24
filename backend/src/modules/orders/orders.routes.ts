@@ -5,6 +5,7 @@ import { ok, paginationMeta } from "../../lib/response";
 import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middleware/customer-auth";
 import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
+import { builderSelectionsSchema } from "../builder/builder.routes";
 import { paginationQuerySchema } from "../../lib/validators";
 import {
   createOrderFromCart,
@@ -56,18 +57,7 @@ const packageBuilderSchema = z.object({
     themeSlug: z.string().min(1),
     guestCount: z.number().int().min(5).max(200),
     location: z.enum(["jaipur", "outside"]),
-    selections: z
-      .object({
-        welcomeItem: z.string().min(1).optional().nullable(),
-        activity1: z.string().min(1).optional().nullable(),
-        activity2: z.string().min(1).optional().nullable(),
-        returnGift: z.string().min(1).optional().nullable(),
-        familyActivity: z.string().min(1).optional().nullable(),
-        decor: z.boolean().optional(),
-        personalization: z.record(z.string(), z.boolean()).optional(),
-        giftRegistryCustomize: z.boolean().optional(),
-      })
-      .default({}),
+    selections: builderSelectionsSchema.default({}),
   }),
 });
 

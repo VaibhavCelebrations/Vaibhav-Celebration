@@ -53,8 +53,8 @@ const productSchema = z.object({
   maxOrderQuantity: z.number().int().positive().optional().nullable(),
   initialQuantity: z.number().int().nonnegative().optional(),
   lowStockThreshold: z.number().int().nonnegative().optional(),
-  categoryIds: z.array(z.string().min(1)).optional(),
-  themeIds: z.array(z.string().min(1)).optional(),
+  categoryIds: z.array(z.string().min(1)).max(1, "A product can belong to only one category").optional(),
+  themeIds: z.array(z.string().min(1)).max(1, "A product can belong to only one theme").optional(),
   imageMediaIds: z.array(z.string().min(1)).optional(),
   personalizationFields: z.array(personalizationFieldSchema).optional(),
 });

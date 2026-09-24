@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,7 +29,8 @@ import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import {
   getBuilderQuote,
-  listBuilderProducts,
+  getBuilderOptions,
+  type BuilderChoiceService,
   type BuilderProduct,
   type BuilderQuote,
   type BuilderSelections,
@@ -145,38 +146,45 @@ function BuilderStepper({
 
 function ProductPicker({
   title,
+  description,
   products,
-  selectedSku,
-  guestCount,
-  multi,
   selectedSkus,
+  required,
+  guestCount,
   personalization,
   onPersonalizationChange,
-  onSelect,
   onToggle,
 }: {
   title: string;
+  description?: string | null;
   products: BuilderProduct[];
-  selectedSku?: string | null;
+  selectedSkus: string[];
+  /** How many products the customer must pick. */
+  required: number;
   guestCount: number;
-  multi?: boolean;
-  selectedSkus?: string[];
   personalization?: Record<string, boolean>;
   onPersonalizationChange?: (sku: string, enabled: boolean) => void;
-  onSelect?: (sku: string) => void;
-  onToggle?: (sku: string) => void;
+  onToggle: (sku: string) => void;
 }) {
   return (
     <div className="mb-8">
-      <h3 className="text-base font-semibold text-charcoal mb-3">{title}</h3>
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <h3 className="text-base font-semibold text-charcoal">{title}</h3>
+        <span
+          className={`text-xs font-semibold shrink-0 ${
+            selectedSkus.length === required ? "text-emerald-700" : "text-text-muted"
+          }`}
+        >
+          {selectedSkus.length} of {required} selected
+        </span>
+      </div>
+      {description && <p className="text-sm text-text-muted -mt-1 mb-3">{description}</p>}
       {products.length === 0 ? (
         <p className="text-sm text-text-muted">No products available for this theme yet.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {products.map((p) => {
-            const selected = multi
-              ? (selectedSkus ?? []).includes(p.sku)
-              : selectedSku === p.sku;
+            const selected = selectedSkus.includes(p.sku);
             const qty = Math.max(guestCount, p.minOrderQuantity);
             const moqNote = guestCount < p.minOrderQuantity;
             const personalizeOn = Boolean(personalization?.[p.sku]);
@@ -208,7 +216,7 @@ function ProductPicker({
                 <button
                   type="button"
                   disabled={isOutOfStock}
-                  onClick={() => (multi ? onToggle?.(p.sku) : onSelect?.(p.sku))}
+                  onClick={() => onToggle(p.sku)}
                   className={`text-left flex flex-col flex-1 ${isOutOfStock ? "cursor-not-allowed" : "cursor-pointer"}`}
                 >
                 <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
@@ -291,20 +299,20 @@ function BuildPackageContent() {
   const [guestCount, setGuestCount] = useState(initialGuests);
   const [location, setLocation] = useState<Location>(initialLoc);
   const [selections, setSelections] = useState<BuilderSelections>({
-    welcomeItem: searchParams.get("welcome"),
-    activity1: searchParams.get("act1"),
-    activity2: searchParams.get("act2"),
-    returnGift: searchParams.get("gift"),
-    familyActivity: searchParams.get("family"),
+    choices: Object.fromEntries(
+      [...searchParams.entries()]
+        .filter(([k, v]) => k.startsWith("pick.") && v)
+        .map(([k, v]) => [k.slice(5), v.split(",").filter(Boolean)]),
+    ),
     decor: searchParams.get("decor") === "1",
     giftRegistryCustomize: searchParams.get("grc") === "1",
     personalization: {},
   });
 
-  const [welcomeProducts, setWelcomeProducts] = useState<BuilderProduct[]>([]);
-  const [activityProducts, setActivityProducts] = useState<BuilderProduct[]>([]);
-  const [giftProducts, setGiftProducts] = useState<BuilderProduct[]>([]);
-  const [familyProducts, setFamilyProducts] = useState<BuilderProduct[]>([]);
+  // Admin-defined product-choice services for the current package + theme (one request, cached per combo)
+  const optionsCache = useRef(new Map<string, BuilderChoiceService[]>());
+  const [choiceServices, setChoiceServices] = useState<BuilderChoiceService[]>([]);
+  const [optionsKey, setOptionsKey] = useState<string | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [quote, setQuote] = useState<BuilderQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -413,11 +421,9 @@ function BuildPackageContent() {
       if (pk) params.set("pkg", pk);
       if (g) params.set("guests", String(g));
       params.set("loc", loc);
-      if (sel.welcomeItem) params.set("welcome", sel.welcomeItem);
-      if (sel.activity1) params.set("act1", sel.activity1);
-      if (sel.activity2) params.set("act2", sel.activity2);
-      if (sel.returnGift) params.set("gift", sel.returnGift);
-      if (sel.familyActivity) params.set("family", sel.familyActivity);
+      for (const [serviceId, skus] of Object.entries(sel.choices ?? {})) {
+        if (skus.length) params.set(`pick.${serviceId}`, skus.join(","));
+      }
       if (sel.decor) params.set("decor", "1");
       if (sel.giftRegistryCustomize) params.set("grc", "1");
       window.history.replaceState(null, "", `/build-package?${params.toString()}`);
@@ -430,45 +436,60 @@ function BuildPackageContent() {
     syncUrl({ step: nextStep });
   };
 
+  const currentOptionsKey = themeSlug && pkgSlug ? `${pkgSlug}:${themeSlug}` : null;
+  const wantOptions = step >= 1;
+
+  // Prefetch the theme's choices as soon as theme + package are known (cached per combination),
+  // so the Customize step opens instantly.
   useEffect(() => {
-    if (step !== 2 || !themeSlug || !pkgSlug) return;
+    if (!wantOptions || !themeSlug || !pkgSlug || !currentOptionsKey) return;
     let cancelled = false;
-    (async () => {
-      setLoadingProducts(true);
-      try {
-        const [welcome, activities, gifts, family] = await Promise.all([
-          listBuilderProducts({ theme: themeSlug, category: "welcome-items", tier: pkgSlug }),
-          listBuilderProducts({ theme: themeSlug, category: "children-activities", tier: pkgSlug }),
-          listBuilderProducts({ theme: themeSlug, category: "return-gifts", tier: pkgSlug }),
-          pkgSlug === "grand"
-            ? listBuilderProducts({ theme: themeSlug, category: "family-activities", tier: pkgSlug })
-            : Promise.resolve([]),
-        ]);
-        if (cancelled) return;
-        setWelcomeProducts(welcome);
-        setActivityProducts(activities);
-        setGiftProducts(gifts);
-        setFamilyProducts(family);
-      } catch {
+
+    const apply = (list: BuilderChoiceService[]) => {
+      setChoiceServices(list);
+      setOptionsKey(currentOptionsKey);
+      // Drop picks that are not offered for this theme (theme/package changed, admin edited products)
+      setSelections((prev) => {
+        if (!prev.choices) return prev;
+        const next: Record<string, string[]> = {};
+        for (const svc of list) {
+          const valid = new Set(svc.products.map((p) => p.sku));
+          next[svc.serviceId] = (prev.choices[svc.serviceId] ?? []).filter((sku) => valid.has(sku));
+        }
+        return { ...prev, choices: next };
+      });
+    };
+
+    const hit = optionsCache.current.get(currentOptionsKey);
+    if (hit) {
+      apply(hit);
+      return;
+    }
+    setLoadingProducts(true);
+    getBuilderOptions({ theme: themeSlug, package: pkgSlug })
+      .then((list) => {
+        optionsCache.current.set(currentOptionsKey, list);
+        if (!cancelled) apply(list);
+      })
+      .catch(() => {
         if (!cancelled) setQuoteError("Could not load products for this theme.");
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoadingProducts(false);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, [step, themeSlug, pkgSlug]);
+  }, [wantOptions, themeSlug, pkgSlug, currentOptionsKey]);
 
-  const canQuote =
-    !!themeSlug &&
-    !!pkgSlug &&
-    guestCount >= 5 &&
-    !!selections.activity1 &&
-    !!selections.returnGift &&
-    (pkgSlug === "essential" || !!selections.welcomeItem) &&
-    (pkgSlug === "essential" || !!selections.activity2) &&
-    (pkgSlug !== "grand" || !!selections.familyActivity);
+  const optionsReady = optionsKey !== null && optionsKey === currentOptionsKey;
+  const choicesComplete =
+    optionsReady &&
+    choiceServices.every(
+      (svc) => (selections.choices?.[svc.serviceId]?.length ?? 0) === svc.selectionCount,
+    );
+
+  const canQuote = !!themeSlug && !!pkgSlug && guestCount >= 5 && choicesComplete;
 
   useEffect(() => {
     if (step === 4) {
@@ -509,10 +530,6 @@ function BuildPackageContent() {
     }
   }, [user]);
 
-  const needsWelcome = pkgSlug === "signature" || pkgSlug === "grand";
-  const needsTwoActivities = pkgSlug === "signature" || pkgSlug === "grand";
-  const needsFamily = pkgSlug === "grand";
-
   const canContinue = () => {
     if (step === 0) return !!themeSlug;
     if (step === 1) {
@@ -526,13 +543,7 @@ function BuildPackageContent() {
       if (!guestPincode.trim() || !/^\d{4,10}$/.test(guestPincode.trim())) return false;
       return true;
     }
-    if (step === 2) {
-      if (!selections.activity1 || !selections.returnGift) return false;
-      if (needsWelcome && !selections.welcomeItem) return false;
-      if (needsTwoActivities && !selections.activity2) return false;
-      if (needsFamily && !selections.familyActivity) return false;
-      return true;
-    }
+    if (step === 2) return choicesComplete;
     return true;
   };
 
@@ -541,22 +552,14 @@ function BuildPackageContent() {
     goTo(Math.min(4, step + 1));
   };
 
-  const toggleActivity = (sku: string) => {
-    const current = [selections.activity1, selections.activity2].filter(Boolean) as string[];
+  const toggleChoice = (svc: BuilderChoiceService, sku: string) => {
+    const current = selections.choices?.[svc.serviceId] ?? [];
     let next: string[];
-    if (current.includes(sku)) {
-      next = current.filter((s) => s !== sku);
-    } else if (needsTwoActivities) {
-      if (current.length >= 2) next = [current[1]!, sku];
-      else next = [...current, sku];
-    } else {
-      next = [sku];
-    }
-    const updated = {
-      ...selections,
-      activity1: next[0] ?? null,
-      activity2: next[1] ?? null,
-    };
+    if (svc.selectionCount === 1) next = [sku];
+    else if (current.includes(sku)) next = current.filter((s) => s !== sku);
+    else if (current.length >= svc.selectionCount) next = [...current.slice(1), sku];
+    else next = [...current, sku];
+    const updated = { ...selections, choices: { ...(selections.choices ?? {}), [svc.serviceId]: next } };
     setSelections(updated);
     syncUrl({ selections: updated });
   };
@@ -956,71 +959,26 @@ function BuildPackageContent() {
                 {activeThemes.find((t) => t.slug === themeSlug)?.title} ·{" "}
                 {guestCount} children · {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
               </p>
-              {loadingProducts ? (
+              {loadingProducts || !optionsReady ? (
                 <div className="flex items-center gap-2 text-text-muted py-12 justify-center">
                   <Loader2 className="animate-spin" size={18} /> Loading options…
                 </div>
               ) : (
                 <>
-                  {needsWelcome && (
+                  {choiceServices.map((svc) => (
                     <ProductPicker
-                      title="Welcome item — choose 1 per child"
-                      products={welcomeProducts}
-                      selectedSku={selections.welcomeItem}
+                      key={svc.serviceId}
+                      title={`${svc.label} — choose ${svc.selectionCount}${svc.isPerGroup ? " (per group)" : ""}`}
+                      description={svc.description}
+                      products={svc.products}
+                      required={svc.selectionCount}
+                      selectedSkus={selections.choices?.[svc.serviceId] ?? []}
                       guestCount={guestCount}
                       personalization={selections.personalization}
                       onPersonalizationChange={togglePersonalization}
-                      onSelect={(sku) => {
-                        const updated = { ...selections, welcomeItem: sku };
-                        setSelections(updated);
-                        syncUrl({ selections: updated });
-                      }}
+                      onToggle={(sku) => toggleChoice(svc, sku)}
                     />
-                  )}
-                  <ProductPicker
-                    title={needsTwoActivities ? "Activities — choose 2" : "Activity — choose 1"}
-                    products={activityProducts}
-                    guestCount={guestCount}
-                    multi={needsTwoActivities}
-                    selectedSku={selections.activity1}
-                    selectedSkus={[selections.activity1, selections.activity2].filter(Boolean) as string[]}
-                    personalization={selections.personalization}
-                    onPersonalizationChange={togglePersonalization}
-                    onSelect={(sku) => {
-                      const updated = { ...selections, activity1: sku, activity2: null };
-                      setSelections(updated);
-                      syncUrl({ selections: updated });
-                    }}
-                    onToggle={toggleActivity}
-                  />
-                  {needsFamily && (
-                    <ProductPicker
-                      title="Family activity — choose 1 (per group)"
-                      products={familyProducts}
-                      selectedSku={selections.familyActivity}
-                      guestCount={guestCount}
-                      personalization={selections.personalization}
-                      onPersonalizationChange={togglePersonalization}
-                      onSelect={(sku) => {
-                        const updated = { ...selections, familyActivity: sku };
-                        setSelections(updated);
-                        syncUrl({ selections: updated });
-                      }}
-                    />
-                  )}
-                  <ProductPicker
-                    title="Return gift — choose 1"
-                    products={giftProducts}
-                    selectedSku={selections.returnGift}
-                    guestCount={guestCount}
-                    personalization={selections.personalization}
-                    onPersonalizationChange={togglePersonalization}
-                    onSelect={(sku) => {
-                      const updated = { ...selections, returnGift: sku };
-                      setSelections(updated);
-                      syncUrl({ selections: updated });
-                    }}
-                  />
+                  ))}
                   {pkgSlug === "signature" || pkgSlug === "grand" ? (
                     <div className="rounded-2xl border-2 border-mocha/30 bg-mocha/5 p-4 flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-mocha/15 flex items-center justify-center shrink-0">

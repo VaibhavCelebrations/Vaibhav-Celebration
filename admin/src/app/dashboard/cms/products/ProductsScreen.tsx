@@ -27,7 +27,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
 import {
-  MultiSelectInput,
   NumberInput,
   PriceInput,
   SelectInput,
@@ -145,8 +144,8 @@ export function ProductsScreen() {
       isActive: row.isActive,
       minOrderQuantity: row.minOrderQuantity,
       maxOrderQuantity: row.maxOrderQuantity,
-      categoryIds: row.categories.map((c) => c.id),
-      themeIds: row.themes.map((t) => t.id),
+      categoryIds: row.categories.slice(0, 1).map((c) => c.id),
+      themeIds: row.themes.slice(0, 1).map((t) => t.id),
       imageMediaIds: sortedImages.map((img) => img.media.id),
       personalizationFields: row.personalizationFields.map(({ id: _id, ...rest }) => rest),
       lowStockThreshold: row.stock?.lowStockThreshold ?? 10,
@@ -393,11 +392,11 @@ export function ProductsScreen() {
           </FormField>
         </div>
 
-        <FormField label="Categories" htmlFor="product-categories" hint="Used for shop filtering and navigation.">
-          <MultiSelectInput id="product-categories" value={form.categoryIds ?? []} onChange={(v) => patchForm({ categoryIds: v })} options={categoryOptions} placeholder="Select categories…" />
+        <FormField label="Category" htmlFor="product-categories" hint="Each product belongs to one category. Used for shop filtering and navigation.">
+          <SelectInput id="product-categories" value={form.categoryIds?.[0] ?? ""} onChange={(e) => patchForm({ categoryIds: e.target.value ? [e.target.value] : [] })} options={categoryOptions} placeholder="Select a category…" />
         </FormField>
-        <FormField label="Themes" htmlFor="product-themes" hint="Tag this product under one or more party themes.">
-          <MultiSelectInput id="product-themes" value={form.themeIds ?? []} onChange={(v) => patchForm({ themeIds: v })} options={themeOptions} placeholder="Select themes…" />
+        <FormField label="Theme" htmlFor="product-themes" hint="Each product belongs to one theme. It is offered under this theme in package services.">
+          <SelectInput id="product-themes" value={form.themeIds?.[0] ?? ""} onChange={(e) => patchForm({ themeIds: e.target.value ? [e.target.value] : [] })} options={themeOptions} placeholder="Select a theme…" />
         </FormField>
 
         <FormField label="Images" htmlFor="product-image-0" hint="First image is used as the primary thumbnail.">
