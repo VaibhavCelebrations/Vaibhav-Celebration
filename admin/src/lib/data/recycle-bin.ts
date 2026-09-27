@@ -79,7 +79,7 @@ export async function fetchRecycleBinItems(params: {
 
   // Use rawAdminFetch so we can access meta.pagination
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1"}${path}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1"}${path}`,
     {
       headers: {
         Authorization: `Bearer ${typeof window !== "undefined" ? window.localStorage.getItem("vbc_admin_access") ?? "" : ""}`,

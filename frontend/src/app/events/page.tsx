@@ -1,3 +1,4 @@
+import { sanitizeInlineHtml } from "@/lib/cms/sanitize-html";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
@@ -117,7 +118,7 @@ export default async function EventsPage() {
 
                         <div 
                           className="prose prose-sm prose-p:leading-relaxed prose-p:text-text-muted mb-6 line-clamp-3"
-                          dangerouslySetInnerHTML={{ __html: event.shortDescription }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
                         />
                       </div>
                     </Link>

@@ -1,0 +1,205 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Vaibhav Celebrations — production stack (single Docker host: VM, EC2, GCE, bare metal)
+#
+#   internet ──► nginx (80/443, rate limits, TLS) ──► frontend  (Next.js, :3000)
+#                                                 ├─► backend   (Express API, :4000) ──► redis / postgres
+#                                                 └─► admin     (Next.js, :3001)
+#
+# Usage (details in Docs/Deployment_and_audit/02-Deployment-Guide.md):
+#   cp deploy/.env.example .env                       # compose-level settings (hosts, build args)
+#   cp deploy/env/backend.env.example deploy/env/backend.env   # API secrets (never commit)
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   # managed DB (Neon/RDS/Cloud SQL): nothing else needed.  Local DB:  add  --profile local-db
+#   # first run / after a release:  RUN_MIGRATIONS=true docker compose -f docker-compose.prod.yml up -d backend
+# ─────────────────────────────────────────────────────────────────────────────
+name: vaibhav-celebrations
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  init: true
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  # ── Reverse proxy ──────────────────────────────────────────────────────────
+  nginx:
+    <<: *hardening
+    image: nginx:1.27-alpine
+    # nginx needs to bind 80/443 and drop privileges to the nginx user on start
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE", "CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE"]
+    depends_on:
+      frontend: { condition: service_healthy }
+      backend: { condition: service_healthy }
+      admin: { condition: service_healthy }
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      SITE_HOST: ${SITE_HOST:?set SITE_HOST in .env}
+      API_HOST: ${API_HOST:?set API_HOST in .env}
+      ADMIN_HOST: ${ADMIN_HOST:?set ADMIN_HOST in .env}
+      CERT_NAME: ${CERT_NAME:-${SITE_HOST}}
+      # only these variables are substituted into the templates (nginx's own $vars are left alone)
+      NGINX_ENVSUBST_FILTER: "^(SITE_HOST|API_HOST|ADMIN_HOST|CERT_NAME)$"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/snippets:/etc/nginx/snippets:ro
+      - ./deploy/nginx/admin-access.conf:/etc/nginx/admin-access.conf:ro
+      # templates-https (self-managed TLS, default)  |  templates-http (TLS terminated by an upstream LB)
+      - ${NGINX_TEMPLATES:-./deploy/nginx/templates-https}:/etc/nginx/templates:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [edge]
+
+  # ── API ────────────────────────────────────────────────────────────────────
+  backend:
+    <<: *hardening
+    build:
+      context: ./backend
+    image: vaibhav-celebrations/backend:${IMAGE_TAG:-latest}
+    env_file: ./deploy/env/backend.env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # refuse to boot with placeholder secrets / localhost CORS / test payment keys
+      ENFORCE_PRODUCTION_CHECKS: "true"
+      # exactly one proxy hop (nginx) sits in front of the API
+      TRUST_PROXY: "1"
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      # only used when Cloudflare R2 is not configured; prefer R2 in production
+      - uploads:/app/uploads
+    depends_on:
+      redis: { condition: service_healthy }
+    expose: ["4000"]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    networks: [edge, data]
+
+  # ── Public website ─────────────────────────────────────────────────────────
+  frontend:
+    <<: *hardening
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${SITE_HOST}
+        # browser calls the API on its own host; SSR uses INTERNAL_API_URL below
+        NEXT_PUBLIC_API_BASE_URL: https://${API_HOST}/api/v1
+        NEXT_PUBLIC_CDN_HOST: ${CDN_HOST:-cdn.vaibhavcelebrations.in}
+        NEXT_PUBLIC_WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-}
+        NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE: ${WHATSAPP_PREFILL_MESSAGE:-Hi Vaibhav Celebrations!}
+        NEXT_PUBLIC_GA4_MEASUREMENT_ID: ${GA4_ID:-}
+        NEXT_PUBLIC_GTM_ID: ${GTM_ID:-}
+        NEXT_PUBLIC_META_PIXEL_ID: ${META_PIXEL_ID:-}
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+        BACKEND_ORIGIN: http://backend:4000
+    image: vaibhav-celebrations/frontend:${IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      INTERNAL_API_URL: http://backend:4000/api/v1
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET in .env}
+    read_only: true
+    tmpfs: ["/tmp", "/app/.next/cache"]
+    depends_on:
+      backend: { condition: service_healthy }
+    expose: ["3000"]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    networks: [edge]
+
+  # ── Admin panel ────────────────────────────────────────────────────────────
+  admin:
+    <<: *hardening
+    build:
+      context: ./admin
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://${API_HOST}/api/v1
+        NEXT_PUBLIC_ADMIN_URL: https://${ADMIN_HOST}
+        NEXT_PUBLIC_SITE_URL: https://${SITE_HOST}
+        NEXT_PUBLIC_USE_MOCK_DATA: "false"
+    image: vaibhav-celebrations/admin:${IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: production
+    read_only: true
+    tmpfs: ["/tmp", "/app/.next/cache"]
+    expose: ["3001"]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 384M }
+    networks: [edge]
+
+  # ── Redis: response cache + shared rate-limit counters ─────────────────────
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    # run as the unprivileged redis user from the start (no capabilities needed)
+    user: "999:999"
+    command: >
+      redis-server --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb --maxmemory-policy allkeys-lru
+      --save "" --appendonly no
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [data]
+
+  # ── Optional: local Postgres (skip when using Neon / RDS / Cloud SQL) ──────
+  postgres:
+    <<: *hardening
+    profiles: ["local-db"]
+    image: postgres:16-alpine
+    # the entrypoint chowns the data dir and drops to the postgres user
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vbc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD when using the local-db profile}
+      POSTGRES_DB: ${POSTGRES_DB:-vaibhav_celebrations}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vbc} -d ${POSTGRES_DB:-vaibhav_celebrations}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [data]
+
+  # ── Optional: automatic Let's Encrypt renewal (self-managed TLS only) ──────
+  certbot:
+    profiles: ["tls"]
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    networks: [edge]
+
+networks:
+  edge: {}
+  # apps <-> redis/postgres only; `internal: true` means nothing on this network can reach the internet
+  data:
+    internal: true
+
+volumes:
+  uploads:
+  pg_data:
+  letsencrypt:
+  certbot_www:

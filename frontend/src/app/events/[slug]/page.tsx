@@ -1,3 +1,4 @@
+import { sanitizeInlineHtml } from "@/lib/cms/sanitize-html";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
@@ -102,7 +103,7 @@ export default async function EventDetailPage({ params }: Props) {
         <ScrollReveal>
           <div 
             className="prose prose-lg md:prose-2xl prose-headings:font-display prose-headings:text-charcoal prose-p:text-text-muted prose-p:leading-relaxed prose-a:text-mocha mx-auto"
-            dangerouslySetInnerHTML={{ __html: event.shortDescription }}
+            dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
           />
         </ScrollReveal>
       </section>

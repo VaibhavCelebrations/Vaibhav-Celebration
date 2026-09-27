@@ -16,8 +16,11 @@ setInterval(() => {
 }, 60_000).unref?.();
 
 export function idempotency(req: Request, res: Response, next: NextFunction) {
-  const key = req.header("Idempotency-Key");
-  if (!key) return next();
+  const clientKey = req.header("Idempotency-Key");
+  if (!clientKey) return next();
+  // Scope the key to this exact operation: a key reused (or guessed) on a different endpoint
+  // can never replay another request's cached response.
+  const key = `${req.method}:${req.originalUrl.split("?")[0]}:${clientKey}`;
 
   const redis = getRedisClient();
 

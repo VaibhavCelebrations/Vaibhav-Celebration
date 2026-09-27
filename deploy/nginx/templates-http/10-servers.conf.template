@@ -1,0 +1,33 @@
+# TLS terminated UPSTREAM of this nginx (AWS ALB / GCP HTTPS LB / Cloudflare / Render / Caddy).
+# nginx only speaks plain HTTP on port 80 and trusts X-Forwarded-Proto from the private network.
+#   SITE_HOST  www.example.com     ADMIN_HOST admin.example.com     API_HOST api.example.com
+
+# Unknown hostnames get no answer. Health checks from the LB use /nginx-health (any Host header).
+server {
+    listen 80 default_server;
+    server_name _;
+    location = /nginx-health { access_log off; default_type text/plain; return 200 "ok\n"; }
+    location / { return 444; }
+}
+
+server {
+    listen 80;
+    server_name ${SITE_HOST};
+    # If the LB forwarded a plain-HTTP request, send the client to HTTPS.
+    if ($forwarded_proto = "http") { return 301 https://$host$request_uri; }
+    include /etc/nginx/snippets/frontend-locations.conf;
+}
+
+server {
+    listen 80;
+    server_name ${API_HOST};
+    if ($forwarded_proto = "http") { return 301 https://$host$request_uri; }
+    include /etc/nginx/snippets/api-locations.conf;
+}
+
+server {
+    listen 80;
+    server_name ${ADMIN_HOST};
+    if ($forwarded_proto = "http") { return 301 https://$host$request_uri; }
+    include /etc/nginx/snippets/admin-locations.conf;
+}

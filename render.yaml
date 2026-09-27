@@ -1,0 +1,110 @@
+# Render Blueprint — API + website + admin + Redis, all built from the Dockerfiles in this repo.
+# Render terminates TLS and load-balances, so nginx is NOT used on Render (see the deployment guide).
+#
+#   1. Render dashboard -> New -> Blueprint -> pick this repo
+#   2. Fill every `sync: false` secret when prompted (see Docs/Deployment_and_audit/02-Deployment-Guide.md §5)
+#   3. Add custom domains: SITE_HOST -> vc-website, API_HOST -> vc-api, ADMIN_HOST -> vc-admin
+#
+# Replace example.com with your real domain before the first deploy — NEXT_PUBLIC_* values are
+# compiled into the website bundle at build time.
+services:
+  # ── API ───────────────────────────────────────────────────────────────────
+  - type: web
+    name: vc-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - { key: NODE_ENV, value: production }
+      - { key: ENFORCE_PRODUCTION_CHECKS, value: "true" }
+      - { key: TRUST_PROXY, value: "1" } # verify: log req.ip on a request; use 2 if Cloudflare also proxies
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: RUN_MIGRATIONS, value: "true" } # `prisma migrate deploy` on boot — safe to repeat
+      - { key: API_PREFIX, value: /api/v1 }
+      - { key: CORS_ORIGINS, value: "https://www.example.com,https://admin.example.com" }
+      - { key: FRONTEND_URL, value: "https://www.example.com" }
+      - { key: FRONTEND_REVALIDATE_URL, value: "https://www.example.com/api/revalidate" }
+      - { key: RAZORPAY_MODE, value: live }
+      - { key: WHATSAPP_PROVIDER, value: meta }
+      - { key: WHATSAPP_ENABLED, value: "true" }
+      - { key: LOG_LEVEL, value: info }
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: vc-redis, property: connectionString }
+      - { key: DATABASE_URL, sync: false } # Neon / Render Postgres connection string (use the pooled URL)
+      - { key: JWT_ACCESS_SECRET, generateValue: true }
+      - { key: JWT_REFRESH_SECRET, generateValue: true }
+      - { key: JWT_CUSTOMER_ACCESS_SECRET, generateValue: true }
+      - { key: REVALIDATE_SECRET, sync: false } # must equal the website's REVALIDATE_SECRET
+      - { key: RAZORPAY_KEY_ID, sync: false }
+      - { key: RAZORPAY_KEY_SECRET, sync: false }
+      - { key: RAZORPAY_WEBHOOK_SECRET, sync: false }
+      - { key: SMTP_HOST, sync: false }
+      - { key: SMTP_PORT, value: "465" }
+      - { key: SMTP_SECURE, value: "true" }
+      - { key: SMTP_USER, sync: false }
+      - { key: SMTP_PASS, sync: false }
+      - { key: EMAIL_FROM_ADDRESS, sync: false }
+      - { key: WHATSAPP_META_ACCESS_TOKEN, sync: false }
+      - { key: WHATSAPP_META_PHONE_NUMBER_ID, sync: false }
+      - { key: WHATSAPP_APP_SECRET, sync: false }
+      - { key: WHATSAPP_WEBHOOK_VERIFY_TOKEN, sync: false }
+      - { key: CLOUDFLARE_ACCOUNT_ID, sync: false }
+      - { key: CLOUDFLARE_R2_ACCESS_KEY_ID, sync: false }
+      - { key: CLOUDFLARE_R2_SECRET_ACCESS_KEY, sync: false }
+      - { key: CLOUDFLARE_R2_BUCKET, sync: false }
+      - { key: CLOUDFLARE_R2_PUBLIC_BASE_URL, sync: false }
+
+  # ── Public website ────────────────────────────────────────────────────────
+  - type: web
+    name: vc-website
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: starter
+    region: singapore
+    healthCheckPath: /robots.txt
+    autoDeploy: true
+    envVars:
+      - { key: NODE_ENV, value: production }
+      # build-time (compiled into the bundle) ↓
+      - { key: NEXT_PUBLIC_SITE_URL, value: "https://www.example.com" }
+      - { key: NEXT_PUBLIC_API_BASE_URL, value: "https://api.example.com/api/v1" }
+      - { key: BACKEND_ORIGIN, value: "https://api.example.com" }
+      - { key: NEXT_PUBLIC_CDN_HOST, value: cdn.example.com }
+      - { key: NEXT_PUBLIC_WHATSAPP_NUMBER, sync: false }
+      - { key: NEXT_PUBLIC_RAZORPAY_KEY_ID, sync: false }
+      - { key: NEXT_PUBLIC_GA4_MEASUREMENT_ID, sync: false }
+      - { key: NEXT_PUBLIC_GTM_ID, sync: false }
+      - { key: NEXT_PUBLIC_META_PIXEL_ID, sync: false }
+      # runtime ↓
+      - { key: INTERNAL_API_URL, value: "https://api.example.com/api/v1" }
+      - { key: REVALIDATE_SECRET, sync: false }
+
+  # ── Admin panel ───────────────────────────────────────────────────────────
+  - type: web
+    name: vc-admin
+    runtime: docker
+    dockerfilePath: ./admin/Dockerfile
+    dockerContext: ./admin
+    plan: starter
+    region: singapore
+    healthCheckPath: /robots.txt
+    autoDeploy: true
+    envVars:
+      - { key: NODE_ENV, value: production }
+      - { key: NEXT_PUBLIC_API_BASE_URL, value: "https://api.example.com/api/v1" }
+      - { key: NEXT_PUBLIC_ADMIN_URL, value: "https://admin.example.com" }
+      - { key: NEXT_PUBLIC_SITE_URL, value: "https://www.example.com" }
+      - { key: NEXT_PUBLIC_USE_MOCK_DATA, value: "false" }
+
+  # ── Redis (cache + shared rate-limit counters) ────────────────────────────
+  - type: keyvalue
+    name: vc-redis
+    plan: starter
+    region: singapore
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # private network only

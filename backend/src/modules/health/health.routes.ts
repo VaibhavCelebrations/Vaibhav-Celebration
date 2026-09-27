@@ -16,13 +16,10 @@ healthRouter.get("/health", async (_req, res) => {
 
   // ── Redis ───────────────────────────────────────────────────────────────────
   let redisStatus: "ok" | "degraded" = "degraded";
-  let redisLatencyMs: number | null = null;
   const redis = getRedisClient();
   if (redis && isRedisReady()) {
     try {
-      const t0 = Date.now();
       await redis.ping();
-      redisLatencyMs = Date.now() - t0;
       redisStatus = "ok";
     } catch {
       // ignore
@@ -37,7 +34,7 @@ healthRouter.get("/health", async (_req, res) => {
       status: healthy ? "ok" : "degraded",
       service: "vaibhav-celebrations-api",
       database: dbStatus,
-      redis: { status: redisStatus, latency_ms: redisLatencyMs },
+      redis: { status: redisStatus },
       timestamp: new Date().toISOString(),
     },
   });

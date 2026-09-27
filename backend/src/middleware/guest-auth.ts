@@ -22,7 +22,7 @@ export function requireGuest(req: GuestAuthenticatedRequest, _res: Response, nex
   }
 
   try {
-    const payload = jwt.verify(header.slice(7), env.JWT_ACCESS_SECRET) as GuestJwtPayload;
+    const payload = jwt.verify(header.slice(7), env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }) as GuestJwtPayload;
     if (payload.type !== "guest") {
       return next(new UnauthorizedError("Invalid token type"));
     }

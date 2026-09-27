@@ -28,7 +28,7 @@ export function requireCustomer(req: CustomerAuthenticatedRequest, _res: Respons
     return next(new UnauthorizedError("Please sign in to continue"));
   }
   try {
-    const payload = jwt.verify(token, env.JWT_CUSTOMER_ACCESS_SECRET) as CustomerJwtPayload;
+    const payload = jwt.verify(token, env.JWT_CUSTOMER_ACCESS_SECRET, { algorithms: ["HS256"] }) as CustomerJwtPayload;
     if (payload.type !== "customer_access") {
       return next(new UnauthorizedError("Invalid token type"));
     }
@@ -44,7 +44,7 @@ export function optionalCustomer(req: CustomerAuthenticatedRequest, _res: Respon
   const token = req.cookies?.[CUSTOMER_ACCESS_COOKIE] as string | undefined;
   if (!token) return next();
   try {
-    const payload = jwt.verify(token, env.JWT_CUSTOMER_ACCESS_SECRET) as CustomerJwtPayload;
+    const payload = jwt.verify(token, env.JWT_CUSTOMER_ACCESS_SECRET, { algorithms: ["HS256"] }) as CustomerJwtPayload;
     if (payload.type === "customer_access") {
       req.customer = payload;
     }

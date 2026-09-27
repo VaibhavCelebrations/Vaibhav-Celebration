@@ -2,16 +2,21 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middleware/validate";
 import { ok } from "../../lib/response";
-import { computeBuilderQuote, getBuilderOptions } from "./builder.service";
+import { computeBuilderQuote, getBuilderOptions, getCustomPlanOptions } from "./builder.service";
 
 const optionsQuerySchema = z.object({
   theme: z.string().min(1),
   package: z.string().min(1),
 });
 
+const customOptionsQuerySchema = z.object({
+  theme: z.string().min(1),
+});
+
 /** Shared with checkout so the cart re-validates exactly what the builder produced. */
 export const builderSelectionsSchema = z.object({
-  choices: z.record(z.string(), z.array(z.string().min(1)).max(3)).optional(),
+  // Package builds pick at most 3 per service (enforced exactly by the quote); custom plans may pick any number.
+  choices: z.record(z.string(), z.array(z.string().min(1)).max(50)).optional(),
   welcomeItem: z.string().min(1).optional().nullable(),
   activity1: z.string().min(1).optional().nullable(),
   activity2: z.string().min(1).optional().nullable(),
@@ -38,6 +43,17 @@ builderRouter.get("/options", validate(optionsQuerySchema, "query"), async (req,
     const q = req.query as unknown as z.infer<typeof optionsQuerySchema>;
     res.setHeader("Cache-Control", "public, max-age=15");
     return ok(res, await getBuilderOptions(q));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Custom plan: every product-choice service across all packages, with the theme's products, plus the gift-registry add-on. */
+builderRouter.get("/custom-options", validate(customOptionsQuerySchema, "query"), async (req, res, next) => {
+  try {
+    const q = req.query as unknown as z.infer<typeof customOptionsQuerySchema>;
+    res.setHeader("Cache-Control", "public, max-age=15");
+    return ok(res, await getCustomPlanOptions(q));
   } catch (err) {
     return next(err);
   }

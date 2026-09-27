@@ -19,6 +19,14 @@ function snapshotOf(pkg: CartPackage): QuoteSnapshot | undefined {
   return raw as QuoteSnapshot;
 }
 
+/** True when the package in the cart carries a Gift Registry (included with the tier, or bought as an add-on). */
+export function cartPackageHasGiftRegistry(pkg: CartPackage): boolean {
+  const bi = pkg.builderInput as
+    | { quoteSnapshot?: { giftRegistryIncluded?: boolean }; selections?: { giftRegistryCustomize?: boolean } }
+    | undefined;
+  return Boolean(bi?.quoteSnapshot?.giftRegistryIncluded || bi?.selections?.giftRegistryCustomize);
+}
+
 function addonMerchandiseInPaise(pkg: CartPackage): number {
   return (pkg.addons ?? []).reduce((sum, addon) => sum + addon.product.priceInPaise * addon.quantity, 0);
 }

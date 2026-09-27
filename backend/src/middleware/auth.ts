@@ -23,7 +23,7 @@ export function requireAdmin(req: AuthenticatedRequest, _res: Response, next: Ne
 
   const token = header.slice("Bearer ".length);
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as AdminJwtPayload;
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }) as AdminJwtPayload;
     if (payload.type !== "access") {
       return next(new UnauthorizedError("Invalid token type"));
     }

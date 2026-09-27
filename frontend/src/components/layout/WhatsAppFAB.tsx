@@ -13,8 +13,9 @@ export function WhatsAppFAB({ phone }: WhatsAppFABProps) {
   const prefillMessage = process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
   const href = whatsappHref(phone || envPhone || "", prefillMessage);
 
-  // Push the FAB up on checkout and build-package pages to avoid overlapping the mobile sticky footer
-  const isCheckoutFlow = pathname?.startsWith("/checkout") || pathname?.startsWith("/build-package");
+  // Push the FAB up on checkout and builder pages to avoid overlapping the mobile sticky footer
+  const isCheckoutFlow =
+    pathname?.startsWith("/checkout") || pathname?.startsWith("/build-package") || pathname?.startsWith("/custom-plan");
   const bottomClass = isCheckoutFlow ? "bottom-[100px] md:bottom-6" : "bottom-6";
 
   return (

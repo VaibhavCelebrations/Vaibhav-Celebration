@@ -1,9 +1,18 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
+
+/** Constant-time comparison so the secret cannot be recovered byte-by-byte from response timing. */
+function secretMatches(provided: string | null): boolean {
+  const expected = process.env.REVALIDATE_SECRET;
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function POST(request: Request) {
-  const secret = request.headers.get("x-revalidate-secret");
-  if (!secret || secret !== process.env.REVALIDATE_SECRET) {
+  if (!secretMatches(request.headers.get("x-revalidate-secret"))) {
     return NextResponse.json(
       { success: false, error: { code: "UNAUTHORIZED", message: "Invalid revalidate secret" } },
       { status: 401 },

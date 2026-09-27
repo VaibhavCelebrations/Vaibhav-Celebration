@@ -1,3 +1,4 @@
+import { sanitizeInlineHtml } from "@/lib/cms/sanitize-html";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Calendar, MapPin, Sparkles } from "lucide-react";
@@ -83,7 +84,7 @@ export function FeaturedEventCard({ event, priority = true }: FeaturedEventCardP
 
           <div
             className="prose prose-sm text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4 mb-6"
-            dangerouslySetInnerHTML={{ __html: event.shortDescription }}
+            dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
           />
         </div>
 

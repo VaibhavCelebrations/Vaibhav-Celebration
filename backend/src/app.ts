@@ -1,10 +1,13 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import helmet from "helmet";
+import jwt from "jsonwebtoken";
 import pinoHttp from "pino-http";
-import { corsOrigins, env } from "./config/env";
+import { env } from "./config/env";
+import { isAllowedOrigin } from "./config/origins";
+import { createLimiter, ipKey } from "./lib/rate-limit";
+import { originGuard } from "./middleware/origin-guard";
 import { logger } from "./lib/logger";
 import { errorHandler } from "./middleware/error-handler";
 import { noStore } from "./middleware/no-store";
@@ -69,42 +72,42 @@ import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
 export function createApp() {
   const app = express();
 
-  app.set("trust proxy", 1);
+  // Number of reverse-proxy hops in front of the app (nginx = 1; nginx behind a cloud LB = 2).
+  // It must match reality: too low and every client shares the proxy's IP (one shared rate-limit
+  // bucket); too high and clients can spoof X-Forwarded-For to dodge rate limits.
+  app.set("trust proxy", env.TRUST_PROXY);
+  app.disable("x-powered-by");
 
   app.use(
     helmet({
-      contentSecurityPolicy: env.NODE_ENV === "production" ? undefined : false,
-      // P4 — Changed from cross-origin (permissive) to same-site.
-      // Prevents cross-origin embedded resources (iframes, img) from reading
-      // admin API responses. Same-site is appropriate for a first-party admin SPA.
+      // This is a JSON API — nothing it returns should ever render or be framed.
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"], formAction: ["'none'"] },
+      },
+      strictTransportSecurity: { maxAge: 63_072_000, includeSubDomains: true },
+      referrerPolicy: { policy: "no-referrer" },
+      // P4 — same-site (not cross-origin): other origins can't embed/read API responses.
       crossOriginResourcePolicy: { policy: "same-site" },
     }),
   );
 
-  // Vercel preview deployments get a unique subdomain per branch/PR
-  // (`vaibhav-celebration-<hash>-<team>.vercel.app`), so an exact-match
-  // allowlist would break auth on every preview. Match only this project's
-  // preview naming pattern — the production allowlist (`corsOrigins`) stays
-  // exact-match for everything else.
-  const vercelPreviewOriginPattern = /^https:\/\/vaibhav-celebration[a-z0-9-]*\.vercel\.app$/;
-
+  // Allowlist shared with the CSRF origin guard — see config/origins.ts.
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || corsOrigins.includes(origin) || vercelPreviewOriginPattern.test(origin)) {
-          callback(null, true);
-          return;
-        }
-        callback(null, false);
+        callback(null, !origin || isAllowedOrigin(origin));
       },
       credentials: true,
+      methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      maxAge: 600,
     }),
   );
 
   // Razorpay webhook needs raw body for signature verification
   app.use(
     `${env.API_PREFIX}/payments/webhook`,
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "application/json", limit: "1mb" }),
     (req, _res, next) => {
       if (Buffer.isBuffer(req.body)) {
         (req as express.Request & { rawBody?: string }).rawBody = req.body.toString("utf8");
@@ -121,7 +124,7 @@ export function createApp() {
   // Meta WhatsApp webhook needs raw body for X-Hub-Signature-256 verification
   app.use(
     `${env.API_PREFIX}/whatsapp/webhook`,
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "application/json", limit: "1mb" }),
     (req, _res, next) => {
       if (Buffer.isBuffer(req.body)) {
         (req as express.Request & { rawBody?: string }).rawBody = req.body.toString("utf8");
@@ -135,9 +138,11 @@ export function createApp() {
     },
   );
 
-  app.use(express.json({ limit: "2mb" }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "100kb" }));
   app.use(cookieParser());
+  // CSRF: refuse state-changing requests whose Origin/Referer isn't on the allowlist.
+  app.use(env.API_PREFIX, originGuard);
 
   app.use(
     pinoHttp({
@@ -169,6 +174,9 @@ export function createApp() {
     "/uploads",
     (_req, res, next) => {
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      // Uploaded files are data, never documents: forbid script execution and type sniffing.
+      res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");
+      res.setHeader("X-Content-Type-Options", "nosniff");
       next();
     },
     express.static(getUploadDir()),
@@ -176,137 +184,122 @@ export function createApp() {
 
   // ─── Rate Limiters ────────────────────────────────────────────────────────
   //
+  // All limiters are Redis-backed (shared across API replicas) — see lib/rate-limit.ts.
+  //
   // Keying strategy:
   //   • Public limiters  → keyed by IP (default)
-  //   • Admin limiters   → keyed by JWT `sub` (admin user ID) so that
+  //   • Admin limiters   → keyed by the *verified* JWT `sub` (admin user ID) so that
   //     multiple admins on the same office network each get their own quota.
-  //     Falls back to IP when no valid Bearer token is present (the auth
-  //     middleware will reject it anyway).
+  //     Falls back to IP when there is no valid Bearer token — an unverified token must
+  //     never choose its own bucket, or an attacker could mint a fresh bucket per request.
 
-  /** Extracts admin user-id from Bearer JWT — falls back to IP. */
+  /** Extracts the admin user-id from a cryptographically verified Bearer JWT — falls back to IP. */
   function adminKeyGenerator(req: express.Request): string {
     const header = req.headers.authorization;
     if (header?.startsWith("Bearer ")) {
       try {
-        const token = header.slice(7);
-        // Decode without full verification — we only need the sub for bucketing.
-        // Full cryptographic verification still happens in requireAdmin middleware.
-        const parts = token.split(".");
-        const b64Payload = parts[1];
-        if (parts.length === 3 && b64Payload) {
-          const payload = JSON.parse(Buffer.from(b64Payload, "base64url").toString("utf8")) as {
-            sub?: string;
-          };
-          if (payload.sub) return `admin:${payload.sub}`;
-        }
+        const payload = jwt.verify(header.slice(7), env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }) as {
+          sub?: string;
+        };
+        if (payload.sub) return `admin:${payload.sub}`;
       } catch {
-        // fall through to IP
+        // invalid / expired token — bucket by IP; requireAdmin will reject it anyway
       }
     }
-    return `ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
+    return ipKey(req);
   }
 
   /** Public CMS endpoints — keyed by IP. */
-  const publicLimiter = rateLimit({
+  const publicLimiter = createLimiter({
+    name: "public",
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_PUBLIC,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: { code: "RATE_LIMITED", message: "Too many requests. Please wait and try again." },
-    },
+    message: "Too many requests. Please wait and try again.",
   });
 
   /** Auth / login endpoints — keyed by IP, tight. */
-  const authLimiter = rateLimit({
+  const authLimiter = createLimiter({
+    name: "auth",
     windowMs: 15 * 60 * 1000,
     max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: { code: "RATE_LIMITED", message: "Too many authentication attempts. Please wait 15 minutes." },
-    },
+    message: "Too many authentication attempts. Please wait 15 minutes.",
   });
 
   /** High-sensitivity write endpoints (orders, consultations, leads) — keyed by IP. */
-  const strictLimiter = rateLimit({
+  const strictLimiter = createLimiter({
+    name: "strict",
     windowMs: 10 * 60 * 1000,
     max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: { code: "RATE_LIMITED", message: "Too many requests. Please wait and try again." },
-    },
+    message: "Too many requests. Please wait and try again.",
   });
 
   /** Customer signup/login/password-reset — keyed by IP, tight (brute-force protection). */
-  const customerAuthLimiter = rateLimit({
+  const customerAuthLimiter = createLimiter({
+    name: "customer-auth",
     windowMs: 15 * 60 * 1000,
     max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: { code: "RATE_LIMITED", message: "Too many attempts. Please wait 15 minutes." },
-    },
+    message: "Too many attempts. Please wait 15 minutes.",
   });
 
   /** Guest OTP — keyed by IP, very tight. */
-  const otpLimiter = rateLimit({
+  const otpLimiter = createLimiter({
+    name: "otp",
     windowMs: 15 * 60 * 1000,
     max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: { code: "RATE_LIMITED", message: "Too many OTP attempts. Please wait 15 minutes." },
-    },
+    message: "Too many OTP attempts. Please wait 15 minutes.",
+  });
+
+  /** Chatbot flow reads happen on every page load with the widget — generous but bounded. */
+  const chatbotFlowLimiter = createLimiter({
+    name: "chatbot-flow",
+    windowMs: 60 * 1000,
+    max: env.RATE_LIMIT_CHATBOT_FLOW_PER_MINUTE,
+    message: "Too many requests. Please slow down.",
   });
 
   /**
-   * Admin panel — keyed by JWT sub (admin user ID).
-   * 1 000 requests per 10-minute window per admin user.
+   * Chatbot session saves create CRM leads (and can trigger notifications) — the abuse target
+   * for spam/lead flooding. Small hourly allowance per IP; a real visitor completes one or two flows.
+   */
+  const chatbotSessionLimiter = createLimiter({
+    name: "chatbot-session",
+    windowMs: 60 * 60 * 1000,
+    max: env.RATE_LIMIT_CHATBOT_SESSIONS_PER_HOUR,
+    message: "You've reached the chat limit for now. Please try again later or contact us on WhatsApp.",
+  });
+
+  /** Razorpay / Meta webhooks are signature-verified; the limiter only caps floods of forged calls. */
+  const webhookLimiter = createLimiter({
+    name: "webhook",
+    windowMs: 60 * 1000,
+    max: 300,
+    message: "Too many requests.",
+  });
+
+  /**
+   * Admin panel — keyed by verified JWT sub (admin user ID).
    * Multiple admins sharing one office IP each get their own full quota.
    */
-  const adminLimiter = rateLimit({
+  const adminLimiter = createLimiter({
+    name: "admin",
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_ADMIN,
-    standardHeaders: true,
-    legacyHeaders: false,
     keyGenerator: adminKeyGenerator,
     validate: { ip: false },
-    message: {
-      success: false,
-      error: {
-        code: "RATE_LIMITED",
-        message:
-          "Admin request limit reached. Your quota resets automatically — please wait a moment and retry.",
-      },
-    },
+    message: "Admin request limit reached. Your quota resets automatically — please wait a moment and retry.",
   });
 
   /**
-   * Media upload endpoints (presign + multipart) — keyed by JWT sub.
+   * Media upload endpoints (presign + multipart) — keyed by verified JWT sub.
    * Prevents accidental bulk-upload loops from exhausting R2 or bandwidth.
-   * 100 upload operations per 10-minute window per admin user.
    */
-  const mediaUploadLimiter = rateLimit({
+  const mediaUploadLimiter = createLimiter({
+    name: "media-upload",
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_UPLOAD,
-    standardHeaders: true,
-    legacyHeaders: false,
     keyGenerator: adminKeyGenerator,
     validate: { ip: false },
-    message: {
-      success: false,
-      error: {
-        code: "RATE_LIMITED",
-        message: "Upload limit reached. You can upload up to 100 files per 10 minutes. Please wait and retry.",
-      },
-    },
+    message: `Upload limit reached. You can upload up to ${env.RATE_LIMIT_MAX_UPLOAD} files per 10 minutes. Please wait and retry.`,
   });
 
   // Health check — no rate limiting (used by uptime monitors)
@@ -330,7 +323,7 @@ export function createApp() {
   api.use("/pricing", publicLimiter, pricingRouter);
   api.use("/builder", publicLimiter, builderRouter);
   api.use("/gallery", publicLimiter, galleryRouter);
-  api.use(contentRouter); // no extra limiter — served via static-ish reads
+  api.use(publicLimiter, contentRouter);
   api.use("/pages", publicLimiter, pagesRouter);
   api.use("/settings", publicLimiter, publicSettingsRouter);
   api.use("/blog", publicLimiter, blogRouter);
@@ -350,12 +343,20 @@ export function createApp() {
   api.use("/account/registries", publicLimiter, accountRegistryRouter);
   api.use("/registry", publicLimiter, registryRouter);
 
-  api.use("/whatsapp/webhook", whatsappWebhookRouter);
-  api.use("/payments", paymentsRouter);
+  api.use("/whatsapp/webhook", webhookLimiter, whatsappWebhookRouter);
+  // Webhooks get their own (looser) limiter; everything else under /payments uses the public one.
+  api.use("/payments/webhook", webhookLimiter);
+  api.use(
+    "/payments",
+    (req, res, next) => (req.path === "/webhook" ? next() : publicLimiter(req, res, next)),
+    paymentsRouter,
+  );
   api.use("/invoices", publicLimiter, invoicesRouter);
   api.use("/consultations", strictLimiter, consultationsRouter);
   api.use("/leads", strictLimiter, leadsPublicRouter);
-  api.use("/chatbot", publicLimiter, chatbotRouter);
+  // Chatbot: flow reads and lead-creating session saves are limited separately (see limiters above).
+  api.use("/chatbot/session", chatbotSessionLimiter);
+  api.use("/chatbot", chatbotFlowLimiter, chatbotRouter);
 
   // ─── Admin Panel ──────────────────────────────────────────────────────────
   // All admin routes: JWT-keyed rate limit + Cache-Control: no-store (P3).

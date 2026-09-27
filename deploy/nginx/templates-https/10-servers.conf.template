@@ -1,0 +1,64 @@
+# Self-managed TLS (VM / bare Docker host with Let's Encrypt). Variables come from the environment:
+#   SITE_HOST  www.example.com     ADMIN_HOST admin.example.com
+#   API_HOST   api.example.com     CERT_NAME  name of the certbot lineage (folder under /etc/letsencrypt/live)
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+ssl_session_cache shared:SSL:20m;
+ssl_session_timeout 1d;
+ssl_session_tickets off;
+ssl_stapling on;
+ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 5s;
+
+# Anything that is not one of our hostnames (bots probing the IP, forged Host headers) gets no answer.
+server {
+    listen 80 default_server;
+    listen 443 ssl default_server;
+    http2 on;
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    server_name _;
+    # Container health check (plain HTTP, any Host header) - everything else is dropped.
+    location = /nginx-health { access_log off; default_type text/plain; return 200 "ok\n"; }
+    location / { return 444; }
+}
+
+# HTTP: ACME challenge for certificate issuance/renewal, otherwise redirect to HTTPS.
+server {
+    listen 80;
+    server_name ${SITE_HOST} ${API_HOST} ${ADMIN_HOST};
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SITE_HOST};
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    include /etc/nginx/snippets/frontend-locations.conf;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${API_HOST};
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    include /etc/nginx/snippets/api-locations.conf;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ADMIN_HOST};
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    include /etc/nginx/snippets/admin-locations.conf;
+}
