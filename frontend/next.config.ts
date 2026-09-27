@@ -82,11 +82,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
-      // Fingerprinted build assets never change — let browsers/CDNs cache them for a year.
-      {
-        source: "/_next/static/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
+      // Production build assets are content-hashed, so they can be cached for a year. Dev chunk
+      // names are NOT content-hashed (same URL, new code after an edit), so this must never apply
+      // in dev or browsers keep stale client code and hydration fails.
+      ...(isDev
+        ? []
+        : [
+            {
+              source: "/_next/static/:path*",
+              headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+            },
+          ]),
     ];
   },
   async rewrites() {

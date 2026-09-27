@@ -117,7 +117,10 @@
 
 /* ── Base ────────────────────────────────────────────────────────── */
 html, body {
-  scroll-behavior: smooth;
+  /* Left as "auto" (not "smooth") on purpose: there are no same-page "#anchor"
+     links in this app, and a global smooth-scroll makes Next.js's scroll-to-top
+     on route navigation visibly animate from wherever the previous page was
+     scrolled to, instead of landing instantly at the top of the new page. */
   overflow-x: clip;
 }
 

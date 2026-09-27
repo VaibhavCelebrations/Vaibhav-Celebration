@@ -20,10 +20,29 @@ export type BuilderProduct = {
     isRequired: boolean;
     maxLength: number | null;
   }>;
+  category: { name: string; slug: string; celebrationStage: CelebrationStage | null } | null;
+};
+
+/** Parent grouping of product categories (set per category in admin) — the Customize-step sections. */
+export type CelebrationStage = "BEFORE" | "DURING" | "AFTER";
+
+export const CELEBRATION_STAGES: CelebrationStage[] = ["BEFORE", "DURING", "AFTER"];
+
+export const CELEBRATION_STAGE_LABELS: Record<CelebrationStage, string> = {
+  BEFORE: "Before the Celebration",
+  DURING: "During the Celebration",
+  AFTER: "After the Celebration",
+};
+
+/** Where a service sits in the Customize step — derived from its products' categories. */
+export type ServicePlacement = {
+  celebrationStage: CelebrationStage | null;
+  categoryName: string | null;
+  categoryOrder: number;
 };
 
 /** A product-choice service from the admin package matrix, with the products allowed for the theme. */
-export type BuilderChoiceService = {
+export type BuilderChoiceService = ServicePlacement & {
   serviceId: string;
   label: string;
   description: string | null;
@@ -32,6 +51,19 @@ export type BuilderChoiceService = {
   isPerGroup: boolean;
   products: BuilderProduct[];
 };
+
+/**
+ * Split services into the Before / During / After sections (already ordered by the API).
+ * Services whose products have no staged category go into a trailing "More options" group.
+ */
+export function groupByStage<T extends ServicePlacement>(services: T[]) {
+  const groups: Array<{ stage: CelebrationStage | null; label: string; services: T[] }> = [];
+  for (const stage of [...CELEBRATION_STAGES, null]) {
+    const items = services.filter((s) => (s.celebrationStage ?? null) === stage);
+    if (items.length) groups.push({ stage, label: stage ? CELEBRATION_STAGE_LABELS[stage] : "More Options", services: items });
+  }
+  return groups;
+}
 
 export type BuilderSelections = {
   /** ExtraService id → picked product SKUs. */
@@ -110,7 +142,7 @@ export async function getBuilderQuote(input: BuilderQuoteInput) {
 export const CUSTOM_PLAN_SLUG = "custom-plan";
 
 /** A product-choice service from any package, with the products the admin allowed for the theme. */
-export type CustomPlanService = {
+export type CustomPlanService = ServicePlacement & {
   serviceId: string;
   label: string;
   description: string | null;

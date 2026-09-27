@@ -163,7 +163,15 @@ cd backend && npm ci
 DATABASE_URL="<production url>" SEED_ADMIN_EMAIL=you@example.com SEED_ADMIN_PASSWORD='<strong password>' SEED_ADMIN_NAME='Owner' npm run db:seed
 ```
 
-> ⚠ `prisma/seed.ts` also inserts **demo content**. On a database that already holds real content, do not re-run the full seed. Create admin users through the admin panel (Settings) instead, or ask a developer to run a targeted script.
+> ⚠ `prisma/seed.ts` **deletes every table** before inserting demo content, so it refuses to run unless `SEED_CONFIRM_WIPE=yes` is set. Only ever use it on an empty or disposable database (prefix the command above with `SEED_CONFIRM_WIPE=yes`). On a database that already holds real content, never run it — create admin users through the admin panel (Settings) instead.
+>
+> To bring an **existing** database up to date with the official business details and site content (settings, contact page, policies, festive collections, seasonal pop-up, category stages), run the non-destructive, re-runnable sync instead:
+>
+> ```bash
+> cd backend
+> npm run db:sync-business -- --dry-run   # preview
+> npm run db:sync-business                # apply
+> ```
 
 ### 4.6 Verify
 

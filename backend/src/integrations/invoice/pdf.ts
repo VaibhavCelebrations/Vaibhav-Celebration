@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { BUSINESS } from "../../lib/business";
 import { storeMediaBuffer, cdnKeyFromPublicUrl } from "../media/storage";
 import { LETTERHEAD_LAYOUT as L } from "./layout";
 
@@ -100,7 +101,10 @@ export async function renderInvoicePdfBuffer(input: InvoicePdfInput): Promise<Bu
   };
 
   draw("TAX INVOICE", L.left, y, 14, true, mocha);
-  y -= 22;
+  y -= 15;
+  // The letterhead carries address/phone/email; a tax invoice must also state the seller's GSTIN.
+  draw(`GSTIN: ${BUSINESS.gstin}   ·   Proprietor: ${BUSINESS.proprietor}`, L.left, y, 9, true, muted);
+  y -= 20;
   draw(`Invoice: ${input.invoiceNumber}`, L.left, y, 11, true);
   if (input.orderCode) draw(`Order: ${input.orderCode}`, 320, y, 11);
   y -= L.lineGap;

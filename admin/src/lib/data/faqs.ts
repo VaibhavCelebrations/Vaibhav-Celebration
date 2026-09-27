@@ -7,7 +7,7 @@ import { qs, type Repository } from "./types";
 const ENDPOINT = "/admin/faqs";
 
 const seed: Faq[] = [
-  { id: "faq_1", question: "How far in advance should I book?", answer: "We recommend booking at least 3–6 months ahead for peak wedding season (Oct–Feb).", category: "Booking", displayOrder: 1, isActive: true, deletedAt: null },
+  { id: "faq_1", question: "How far in advance should I book?", answer: "We recommend booking at least 2–3 weeks ahead, and earlier during the festive season (Oct–Feb).", category: "Booking", displayOrder: 1, isActive: true, deletedAt: null },
   { id: "faq_2", question: "Can I visit the venue before booking?", answer: "Yes! Schedule a free consultation or attend our monthly Open Day events.", category: "Booking", displayOrder: 2, isActive: true, deletedAt: null },
   { id: "faq_3", question: "What is included in the base package price?", answer: "Each package includes venue access, base décor, seating, and event coordination.", category: "Packages", displayOrder: 3, isActive: true, deletedAt: null },
   { id: "faq_4", question: "Can I upgrade my package after booking?", answer: "Yes, upgrades are possible subject to availability. Contact our operations team.", category: "Packages", displayOrder: 4, isActive: true, deletedAt: null },

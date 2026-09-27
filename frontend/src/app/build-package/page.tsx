@@ -30,10 +30,12 @@ import { useCart } from "@/context/cart-context";
 import {
   getBuilderQuote,
   getBuilderOptions,
+  groupByStage,
   type BuilderChoiceService,
   type BuilderProduct,
   type BuilderQuote,
   type BuilderSelections,
+  type CelebrationStage,
 } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
@@ -144,9 +146,16 @@ function BuilderStepper({
   );
 }
 
+const STAGE_HINTS: Record<CelebrationStage, string> = {
+  BEFORE: "Everything that sets the mood in the days leading up to the party.",
+  DURING: "Welcome items and activities your guests enjoy at the celebration.",
+  AFTER: "Return gifts, packaging and thank-you touches guests take home.",
+};
+
 function ProductPicker({
   title,
   description,
+  isPerGroup,
   products,
   selectedSkus,
   required,
@@ -157,6 +166,7 @@ function ProductPicker({
 }: {
   title: string;
   description?: string | null;
+  isPerGroup?: boolean;
   products: BuilderProduct[];
   selectedSkus: string[];
   /** How many products the customer must pick. */
@@ -166,15 +176,19 @@ function ProductPicker({
   onPersonalizationChange?: (sku: string, enabled: boolean) => void;
   onToggle: (sku: string) => void;
 }) {
+  const done = selectedSkus.length === required;
   return (
-    <div className="mb-8">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="text-base font-semibold text-charcoal">{title}</h3>
-        <span
-          className={`text-xs font-semibold shrink-0 ${
-            selectedSkus.length === required ? "text-emerald-700" : "text-text-muted"
-          }`}
-        >
+    <div className="mb-8 last:mb-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-semibold text-charcoal">{title}</h3>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-mocha bg-mocha/10 px-2.5 py-1 rounded-full">
+            Choose any {required}
+            {isPerGroup ? " · per group" : ""}
+          </span>
+        </div>
+        <span className={`text-xs font-semibold shrink-0 ${done ? "text-emerald-700" : "text-text-muted"}`}>
+          {done && <Check size={12} className="inline -mt-0.5 mr-1" />}
           {selectedSkus.length} of {required} selected
         </span>
       </div>
@@ -965,20 +979,49 @@ function BuildPackageContent() {
                 </div>
               ) : (
                 <>
-                  {choiceServices.map((svc) => (
-                    <ProductPicker
-                      key={svc.serviceId}
-                      title={`${svc.label} — choose ${svc.selectionCount}${svc.isPerGroup ? " (per group)" : ""}`}
-                      description={svc.description}
-                      products={svc.products}
-                      required={svc.selectionCount}
-                      selectedSkus={selections.choices?.[svc.serviceId] ?? []}
-                      guestCount={guestCount}
-                      personalization={selections.personalization}
-                      onPersonalizationChange={togglePersonalization}
-                      onToggle={(sku) => toggleChoice(svc, sku)}
-                    />
-                  ))}
+                  {groupByStage(choiceServices).map((group, gi) => {
+                    const complete = group.services.filter(
+                      (svc) => (selections.choices?.[svc.serviceId]?.length ?? 0) === svc.selectionCount,
+                    ).length;
+                    return (
+                      <div
+                        key={group.stage ?? "other"}
+                        className="mb-6 rounded-2xl border border-border-light bg-surface p-5 md:p-6"
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-5 pb-4 border-b border-border-light">
+                          <div className="flex items-start gap-3">
+                            <span className="w-8 h-8 rounded-full bg-mocha text-white text-sm font-bold flex items-center justify-center shrink-0">
+                              {gi + 1}
+                            </span>
+                            <div>
+                              <h2 className="font-display text-lg md:text-xl font-semibold text-charcoal">{group.label}</h2>
+                              <p className="text-xs text-text-muted mt-0.5">
+                                {group.stage ? STAGE_HINTS[group.stage] : "Other items included with this package."}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-xs font-semibold text-text-muted shrink-0 mt-1">
+                            {complete}/{group.services.length} done
+                          </span>
+                        </div>
+                        {group.services.map((svc) => (
+                          <ProductPicker
+                            key={svc.serviceId}
+                            title={svc.label}
+                            description={svc.description}
+                            isPerGroup={svc.isPerGroup}
+                            products={svc.products}
+                            required={svc.selectionCount}
+                            selectedSkus={selections.choices?.[svc.serviceId] ?? []}
+                            guestCount={guestCount}
+                            personalization={selections.personalization}
+                            onPersonalizationChange={togglePersonalization}
+                            onToggle={(sku) => toggleChoice(svc, sku)}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
                   {pkgSlug === "signature" || pkgSlug === "grand" ? (
                     <div className="rounded-2xl border-2 border-mocha/30 bg-mocha/5 p-4 flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-mocha/15 flex items-center justify-center shrink-0">

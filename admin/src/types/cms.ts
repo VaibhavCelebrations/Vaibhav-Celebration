@@ -381,7 +381,18 @@ export type PopupInput = Pick<
 
 // ─── Products / Shop catalog ────────────────────────────────────────────────
 
-export type ProductCategoryRef = { id: string; name: string; slug: string };
+/** Parent grouping above product categories — the three sections of the Customize step. */
+export type CelebrationStage = "BEFORE" | "DURING" | "AFTER";
+
+export const CELEBRATION_STAGES: CelebrationStage[] = ["BEFORE", "DURING", "AFTER"];
+
+export const CELEBRATION_STAGE_LABELS: Record<CelebrationStage, string> = {
+  BEFORE: "Before the Celebration",
+  DURING: "During the Celebration",
+  AFTER: "After the Celebration",
+};
+
+export type ProductCategoryRef = { id: string; name: string; slug: string; celebrationStage?: CelebrationStage | null };
 export type ProductThemeRef = { id: string; title: string; slug: string };
 
 export const PERSONALIZATION_FIELD_TYPES = ["text", "number", "shortText"] as const;
@@ -457,9 +468,11 @@ export type ProductCategory = {
   slug: string;
   displayOrder: number;
   isActive: boolean;
+  /** Parent grouping for the category — drives the Before/During/After sections of the Customize step. */
+  celebrationStage: CelebrationStage | null;
 };
 
-export type ProductCategoryInput = Pick<ProductCategory, "name" | "slug" | "displayOrder" | "isActive">;
+export type ProductCategoryInput = Pick<ProductCategory, "name" | "slug" | "displayOrder" | "isActive" | "celebrationStage">;
 
 export type ProductCollection = SoftDeletable &
   Timestamped & {
@@ -471,6 +484,8 @@ export type ProductCollection = SoftDeletable &
     startsAt: ISODate | null;
     endsAt: ISODate | null;
     showOnHomepage: boolean;
+    /** Festival collection (Navratri, Diwali…) — listed under "Festive Collections" in the shop. */
+    isFestive: boolean;
     isActive: boolean;
     displayOrder: number;
     products: Product[];
@@ -479,7 +494,7 @@ export type ProductCollection = SoftDeletable &
 
 export type ProductCollectionInput = Pick<
   ProductCollection,
-  "title" | "slug" | "description" | "startsAt" | "endsAt" | "showOnHomepage" | "isActive" | "displayOrder"
+  "title" | "slug" | "description" | "startsAt" | "endsAt" | "showOnHomepage" | "isFestive" | "isActive" | "displayOrder"
 > & {
   heroImageId?: string | null;
   productIds?: string[];

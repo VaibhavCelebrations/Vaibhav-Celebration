@@ -4,6 +4,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import type { HomeCtaBandSection } from "@/lib/cms/types";
 import type { PublicSettings } from "@/lib/cms/types";
 import { whatsappHref } from "@/lib/cms/map-media";
+import { BUSINESS, envWhatsAppNumber, telHref, validPhoneOrNull } from "@/lib/business";
 import { asText } from "@/lib/cms/text";
 
 type CTABandProps = {
@@ -13,9 +14,9 @@ type CTABandProps = {
 };
 
 export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
-  const phone = settings?.businessPhone || "+91 00000 00000";
-  const email = settings?.businessEmail || "hello@vaibhavcelebrations.in";
-  const wa = whatsappNumber || settings?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+  const phone = settings?.businessPhone || BUSINESS.phone;
+  const email = settings?.businessEmail || BUSINESS.email;
+  const wa = validPhoneOrNull(whatsappNumber) ?? validPhoneOrNull(settings?.whatsappNumber) ?? envWhatsAppNumber();
   const waPrefillMessage = process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
 
   return (
@@ -66,8 +67,8 @@ export function CTABand({ content, settings, whatsappNumber }: CTABandProps) {
           </div>
 
           <div className="mt-16 flex flex-wrap justify-center gap-x-10 gap-y-3 text-sm text-white/50">
-            <span className="flex items-center gap-2"><Phone size={16} /> {phone}</span>
-            <span className="flex items-center gap-2"><Mail size={16} /> {email}</span>
+            <a href={telHref(phone)} className="flex items-center gap-2 hover:text-white transition-colors"><Phone size={16} /> {phone}</a>
+            <a href={`mailto:${email}`} className="flex items-center gap-2 hover:text-white transition-colors"><Mail size={16} /> {email}</a>
           </div>
         </ScrollReveal>
       </div>

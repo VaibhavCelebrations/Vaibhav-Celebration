@@ -102,10 +102,14 @@ export type PageContent<TSections = Record<string, unknown>> = {
 
 export type PublicSettings = {
   businessName: string;
+  businessProprietor: string;
+  businessGstin: string;
   businessPhone: string;
   businessEmail: string;
   businessAddress: string;
+  websiteUrl: string;
   whatsappNumber: string;
+  instagramHandle: string | null;
   instagramUrl: string | null;
   facebookUrl: string | null;
   youtubeUrl: string | null;

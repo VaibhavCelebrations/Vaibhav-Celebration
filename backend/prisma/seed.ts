@@ -16,6 +16,16 @@ import {
   PricingMode,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import fs from "fs";
+import path from "path";
+import { BUSINESS, BUSINESS_SETTINGS } from "../src/lib/business";
+import {
+  CATEGORY_STAGES,
+  FESTIVE_COLLECTIONS,
+  GRAND_PACKAGE_DESCRIPTION,
+  GRAND_PACKAGING,
+  SEASONAL_POPUP,
+} from "./site-content";
 
 const prisma = new PrismaClient();
 
@@ -522,8 +532,8 @@ const SPACE_PRODUCTS: ProductDef[] = [
     autoForTier: "signature",
   },
   {
-    sku: "SP-PACK-CUS",
-    title: "Custom Space Gift Bag",
+    sku: GRAND_PACKAGING.sku,
+    title: GRAND_PACKAGING.title,
     slug: "custom-space-gift-bag",
     description: "Customized theme gift bag auto-included with Luxe",
     categorySlug: "packaging",
@@ -581,6 +591,8 @@ async function clearDevData() {
     "OrderPackage",
     "OrderItem",
     "Order",
+    "ProductCollectionItem",
+    "ProductCollection",
     "ServiceProduct",
     "WishlistItem",
     "CartItem",
@@ -643,6 +655,19 @@ async function clearDevData() {
 }
 
 async function main() {
+  // This seed DELETES EVERY TABLE first. Never let it run by accident (e.g. with the
+  // production DATABASE_URL in .env) — to update an existing database use
+  // `npm run db:sync-business`, which is non-destructive.
+  if (process.env.SEED_CONFIRM_WIPE !== "yes") {
+    const host = (process.env.DATABASE_URL ?? "").replace(/^.*@/, "").replace(/[/?].*$/, "");
+    console.error(
+      `Refusing to seed: this wipes ALL data in ${host || "the configured database"}.\n` +
+        "Run with SEED_CONFIRM_WIPE=yes only on a disposable dev database.\n" +
+        "To fix business data on an existing database, use: npm run db:sync-business",
+    );
+    process.exit(1);
+  }
+
   console.log("Clearing existing dev data...");
   await clearDevData();
 
@@ -702,22 +727,7 @@ async function main() {
       { key: "min_consultation_advance_days", value: "15" },
       { key: "FREE_SHIPPING_THRESHOLD_IN_PAISE", value: "299900" },
       { key: "SHIPPING_FEE_IN_PAISE", value: "19900" },
-      { key: "business_name", value: "Vaibhav Celebrations" },
-      { key: "business_phone", value: "+91 98765 43210" },
-      { key: "business_email", value: "hello@vaibhavcelebrations.in" },
-      {
-        key: "business_address",
-        value: "Vaibhav Farmhouse, Near Surajkund, Faridabad, Haryana 121009",
-      },
-      { key: "whatsapp_number", value: "+919876543210" },
-      {
-        key: "instagram_url",
-        value: "https://instagram.com/vaibhavcelebrations",
-      },
-      {
-        key: "facebook_url",
-        value: "https://facebook.com/vaibhavcelebrations",
-      },
+      ...BUSINESS_SETTINGS,
     ],
   });
 
@@ -889,8 +899,7 @@ async function main() {
       isActive: true,
       isCustomizable: true,
       displayOrder: 3,
-      description:
-        "Signature celebration with keepsake PDF, family activity, custom gift bags, and priority consultation.",
+      description: GRAND_PACKAGE_DESCRIPTION,
     },
   });
 
@@ -945,7 +954,7 @@ async function main() {
   const catIds: Record<string, string> = {};
   for (const cat of CATEGORIES) {
     const row = await prisma.productCategory.create({
-      data: { ...cat, isActive: true },
+      data: { ...cat, isActive: true, celebrationStage: CATEGORY_STAGES[cat.slug] ?? null },
     });
     catIds[cat.slug] = row.id;
   }
@@ -967,6 +976,21 @@ async function main() {
     });
     await prisma.productCategoryTag.create({
       data: { productId: product.id, categoryId: catIds[p.categorySlug]! }
+    });
+  }
+
+  // ── Festive collections (empty — hampers are added from the admin Collections screen) ──
+  for (const c of FESTIVE_COLLECTIONS) {
+    await prisma.productCollection.create({
+      data: {
+        slug: c.slug,
+        title: c.title,
+        description: c.description,
+        endsAt: c.endsAt,
+        displayOrder: c.displayOrder,
+        isFestive: true,
+        isActive: true,
+      },
     });
   }
 // ── Kids Birthday Themes ─────────────────────────────────────────────────────
@@ -1377,13 +1401,20 @@ async function main() {
     });
   }
 
-  // ── Legal Pages (all types) ──────────────────────────────────────────────────
-  for (const type of Object.values(LegalPageType)) {
+  // ── Legal Pages (full policies from prisma/legal-content) ─────────────────────
+  const legalPages: Record<LegalPageType, { title: string; file: string }> = {
+    PRIVACY_POLICY: { title: "Privacy Policy", file: "privacy-policy.html" },
+    TERMS_OF_SERVICE: { title: "Terms & Conditions", file: "terms-of-service.html" },
+    REFUND_POLICY: { title: "Refund & Cancellation Policy", file: "refund-policy.html" },
+    // The footer's "Shipping & Delivery" link points at the CANCELLATION_POLICY page.
+    CANCELLATION_POLICY: { title: "Shipping & Delivery Policy", file: "shipping-policy.html" },
+  };
+  for (const [type, { title, file }] of Object.entries(legalPages) as Array<[LegalPageType, { title: string; file: string }]>) {
     await prisma.legalPage.create({
       data: {
         type,
-        title: type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        bodyHtml: `<h1>${type.replace(/_/g, " ")}</h1><p>This is placeholder legal content for development. Replace with lawyer-reviewed text before go-live.</p>`,
+        title,
+        bodyHtml: fs.readFileSync(path.join(__dirname, "legal-content", file), "utf8"),
         publishedAt: new Date(),
       },
     });
@@ -1415,7 +1446,7 @@ async function main() {
       pageKey: "packages",
       metaTitle: "Birthday Party Packages & Pricing | Vaibhav Celebrations",
       metaDescription:
-        "Standard, Premium, and Lux celebration packages for unforgettable kids birthdays.",
+        "Essential, Signature and Grand celebration packages for unforgettable kids birthdays.",
       canonicalUrl: "https://vaibhavcelebrations.in/packages",
     },
     {
@@ -1506,17 +1537,17 @@ async function main() {
 
   // ── Blog ─────────────────────────────────────────────────────────────────────
   const catPlanning = await prisma.blogCategory.create({
-    data: { name: "Wedding Planning" },
+    data: { name: "Birthday Planning" },
   });
   const catTrends = await prisma.blogCategory.create({
     data: { name: "Trends & Inspiration" },
   });
   const catVenue = await prisma.blogCategory.create({
-    data: { name: "Venue Guide" },
+    data: { name: "Theme Guides" },
   });
 
   const tagDestination = await prisma.blogTag.create({
-    data: { name: "Destination" },
+    data: { name: "Return Gifts" },
   });
   const tagBudget = await prisma.blogTag.create({
     data: { name: "Budget Tips" },
@@ -1527,29 +1558,29 @@ async function main() {
 
   const publishedPost = await prisma.blogPost.create({
     data: {
-      title: "Top 10 Wedding Trends for 2026",
-      slug: "top-wedding-trends-2026",
+      title: "5 Magical Themes for Your Child's Next Birthday (2026 Guide)",
+      slug: "magical-kids-birthday-themes-2026",
       excerpt:
-        "From sustainable florals to intimate micro-weddings — discover what's trending this season.",
+        "From space adventures to princess palaces — the themes kids are loving this year, and how to make each one feel complete.",
       contentHtml:
-        "<p>2026 brings fresh inspiration for couples planning their big day. Sustainable florals, intimate gatherings, and personalized digital invites lead the way.</p>",
+        "<p>A great theme ties every detail together — the invite, the welcome, the activities and the return gifts. Here are the themes children are asking for most this year.</p>",
       featuredImageId: blogCoverMedia.id,
       authorName: "Content Editor",
       status: BlogStatus.PUBLISHED,
       publishedAt: new Date("2026-01-15"),
       isFeatured: true,
-      seoTitle: "Top 10 Wedding Trends 2026 | Vaibhav Celebrations",
+      seoTitle: "5 Magical Kids Birthday Themes for 2026 | Vaibhav Celebrations",
       seoDescription:
-        "Discover the hottest wedding trends for 2026 at Vaibhav Celebrations.",
+        "Space, Cocomelon, Princess and more — kids birthday theme ideas for 2026 from Vaibhav Celebrations.",
     },
   });
 
   const draftPost = await prisma.blogPost.create({
     data: {
-      title: "How to Choose the Perfect Wedding Package",
-      slug: "choose-perfect-wedding-package",
+      title: "How to Choose the Right Birthday Package",
+      slug: "choose-right-birthday-package",
       excerpt:
-        "A complete guide to matching your guest count, budget, and vision to the right package.",
+        "Match your guest count, budget and plans to Essential, Signature or Grand.",
       contentHtml: "<p>Draft content — to be published soon.</p>",
       authorName: "Content Editor",
       status: BlogStatus.DRAFT,
@@ -1558,9 +1589,9 @@ async function main() {
 
   const unpublishedPost = await prisma.blogPost.create({
     data: {
-      title: "Farmhouse Wedding Venue Guide",
-      slug: "farmhouse-wedding-venue-guide",
-      excerpt: "Why a farmhouse venue might be perfect for your celebration.",
+      title: "Return Gift Ideas Kids Actually Love",
+      slug: "return-gift-ideas-kids-love",
+      excerpt: "Thoughtful, theme-matched return gifts that children keep and use.",
       contentHtml: "<p>Previously published, now under review.</p>",
       authorName: "Content Editor",
       status: BlogStatus.UNPUBLISHED,
@@ -1590,19 +1621,19 @@ async function main() {
   // ── Events ───────────────────────────────────────────────────────────────────
   const augustEvent = await prisma.event.create({
     data: {
-      title: "August Open Day — Visit & Book",
+      title: "August Theme Showcase — Visit & Book",
       slug: "august-open-day-2026",
       description:
-        "Tour our farmhouse venue, meet our team, and enjoy complimentary refreshments. Special booking discounts for same-day confirmations.",
+        "See our birthday themes, sample setups and return gifts up close, meet our team, and enjoy special booking offers for same-day confirmations.",
       bannerMediaId: eventBannerMedia.id,
       activities: [
-        "Venue tour",
         "Theme showcase",
-        "Q&A with event manager",
+        "Return gift display",
+        "Q&A with our celebration planner",
         "Complimentary refreshments",
       ],
       ageGroup: "All ages",
-      venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
+      venue: BUSINESS.address,
       scheduleStartAt: new Date("2026-08-15T10:00:00+05:30"),
       scheduleEndAt: new Date("2026-08-15T18:00:00+05:30"),
       isRegistrationOpen: true,
@@ -1628,24 +1659,24 @@ async function main() {
       ctaUrl: "#register",
       seoTitle: "August Open Day 2026 | Vaibhav Celebrations",
       seoDescription:
-        "Visit Vaibhav Celebrations on August 15. Tour the venue and get exclusive booking offers.",
+        "Visit Vaibhav Celebrations on August 15. See our birthday themes and get exclusive booking offers.",
       isActive: true,
     },
   });
 
   const septemberEvent = await prisma.event.create({
     data: {
-      title: "Bridal Preview Evening",
-      slug: "bridal-preview-september-2026",
+      title: "Birthday Planning Preview Evening",
+      slug: "birthday-preview-september-2026",
       description:
-        "An exclusive evening showcasing our latest themes, packages, and vendor partners.",
+        "An evening showcasing our latest birthday themes, packages and personalized return gifts.",
       bannerMediaId: heroMedia.id,
       activities: [
         "Theme walkthrough",
-        "Vendor meet & greet",
+        "Return gift preview",
         "Package comparison session",
       ],
-      venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
+      venue: BUSINESS.address,
       scheduleStartAt: new Date("2026-09-20T11:00:00+05:30"),
       scheduleEndAt: new Date("2026-09-20T15:00:00+05:30"),
       isRegistrationOpen: true,
@@ -1680,7 +1711,7 @@ async function main() {
         "Photo booth",
       ],
       ageGroup: "Families & kids",
-      venue: "Vaibhav Farmhouse, Surajkund Road, Faridabad",
+      venue: BUSINESS.address,
       scheduleStartAt: new Date("2026-10-12T10:00:00+05:30"),
       scheduleEndAt: new Date("2026-10-12T19:00:00+05:30"),
       isRegistrationOpen: true,
@@ -1702,38 +1733,35 @@ async function main() {
     },
   });
 
-  // ── Popups (all placements) ──────────────────────────────────────────────────
+  // ── Popups ───────────────────────────────────────────────────────────────────
+  // Seasonal promotion (festival / campaign). Switch on in admin once its collection has products.
   await prisma.popup.create({
     data: {
-      title: "August Open Day — Register Now!",
-      bodyText:
-        "Join us on August 15 for a free venue tour and exclusive booking discounts.",
+      title: SEASONAL_POPUP.title,
+      bodyText: SEASONAL_POPUP.bodyText,
+      ctaLabel: SEASONAL_POPUP.ctaLabel,
+      ctaUrl: SEASONAL_POPUP.ctaUrl,
+      placements: [...SEASONAL_POPUP.placements] as PopupPlacement[],
+      triggerAfterSeconds: SEASONAL_POPUP.triggerAfterSeconds,
+      isActive: SEASONAL_POPUP.isActive,
+      endsAt: SEASONAL_POPUP.endsAt,
+    },
+  });
+
+  // Event-linked pop-up (demo of the linked-event flow).
+  await prisma.popup.create({
+    data: {
+      title: "August Theme Showcase — Register Now!",
+      bodyText: "Join us on August 15 to see our birthday themes and get exclusive booking offers.",
       ctaLabel: "Register Free",
       ctaUrl: "/events/august-open-day-2026",
       imageId: eventBannerMedia.id,
-      placements: [
-        PopupPlacement.HOMEPAGE,
-        PopupPlacement.THEMES_PAGE,
-        PopupPlacement.PACKAGES_PAGE,
-      ],
+      placements: [PopupPlacement.HOMEPAGE, PopupPlacement.THEMES_PAGE, PopupPlacement.PACKAGES_PAGE],
       linkedEventId: augustEvent.id,
       triggerAfterSeconds: 5,
       isActive: true,
       startsAt: new Date("2026-07-01"),
       endsAt: new Date("2026-08-14"),
-    },
-  });
-
-  await prisma.popup.create({
-    data: {
-      title: "Book Your 2026 Wedding Today",
-      bodyText:
-        "Limited dates available for Oct–Feb season. Secure your date with 40% advance.",
-      ctaLabel: "Check Availability",
-      ctaUrl: "/contact",
-      placements: [PopupPlacement.GALLERY_PAGE],
-      triggerAfterSeconds: 8,
-      isActive: true,
     },
   });
 

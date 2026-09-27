@@ -5,14 +5,7 @@ import { Send, HeartHandshake, Gift, Sparkles } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { apiFetch } from "@/lib/api-client";
 
-const celebrationTypes = [
-  "Kids' Birthday",
-  "Baby Shower",
-  "Naming Ceremony",
-  "Milestone Celebration",
-  "Custom Celebration",
-  "Other",
-];
+const celebrationTypes = ["Kids' Birthday", "Custom Celebration", "Other"];
 
 const budgetRanges = [
   "Under ₹5,000",

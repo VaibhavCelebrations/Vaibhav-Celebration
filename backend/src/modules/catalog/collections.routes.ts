@@ -33,6 +33,7 @@ const collectionSchema = z.object({
   startsAt: z.coerce.date().optional().nullable(),
   endsAt: z.coerce.date().optional().nullable(),
   showOnHomepage: z.boolean().optional(),
+  isFestive: z.boolean().optional(),
   isActive: z.boolean().optional(),
   displayOrder: z.number().int().optional(),
   productIds: z.array(z.string().min(1)).optional(),
@@ -53,7 +54,16 @@ export const productCollectionsRouter = Router();
 
 productCollectionsRouter.get(
   "/",
-  validate(z.object({ featured: z.coerce.boolean().optional() }), "query"),
+  validate(
+    z.object({
+      featured: z.coerce.boolean().optional(),
+      festive: z
+        .enum(["true", "false"])
+        .transform((v) => v === "true")
+        .optional(),
+    }),
+    "query",
+  ),
   async (req, res, next) => {
     try {
       return ok(res, await listCollections(req.query as never));
