@@ -2,6 +2,7 @@ import { prisma } from "../../db/prisma";
 import { parsePagination } from "../../lib/response";
 import { loadMediaMap } from "../../lib/media-ref";
 import { cached, cacheKey, delPattern } from "../../lib/redis";
+import { CUSTOM_PLAN_SLUG } from "../builder/builder.service";
 
 const ADM_TTL = 30; // 30 seconds for admin lists
 
@@ -173,6 +174,8 @@ export async function adminListPackages(q: AdminListQuery) {
   const { page, pageSize, skip, take } = parsePagination(q);
   const where = {
     deletedAt: null as null,
+    // The hidden custom-plan anchor row is internal, not an admin-managed package.
+    slug: { not: CUSTOM_PLAN_SLUG },
     ...(q.isActive !== undefined && q.isActive !== ""
       ? { isActive: q.isActive === "true" }
       : {}),

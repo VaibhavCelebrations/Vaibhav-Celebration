@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
 import { cached, delPattern } from "../../lib/redis";
-import { invalidateBuilderCaches } from "../builder/builder.service";
+import { CUSTOM_PLAN_SLUG, invalidateBuilderCaches } from "../builder/builder.service";
 
 const PUB_TTL = 5 * 60;
 
@@ -237,7 +237,7 @@ export async function savePackageMatrix({ packages, extraServices }: PackageMatr
       }
 
       return tx.package.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, slug: { not: CUSTOM_PLAN_SLUG } },
         include: detailInclude,
         orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
       });

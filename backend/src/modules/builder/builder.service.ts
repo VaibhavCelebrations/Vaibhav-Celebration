@@ -218,6 +218,74 @@ async function loadServiceProducts(serviceIds: string[], themeId: string, withMe
   return bySvc;
 }
 
+function toProductOption(p: ChoiceProductRowWithMedia, isGroup: boolean): BuilderProductOption {
+  return {
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    sku: p.sku,
+    description: p.description,
+    priceInPaise: p.priceInPaise,
+    minOrderQuantity: p.minOrderQuantity,
+    pricingMode: isGroup ? "PER_GROUP" : "PER_CHILD",
+    imageUrl: p.images[0]?.media ? (toMediaRef(p.images[0].media)?.url ?? null) : null,
+    personalizationEnabled: p.personalizationEnabled,
+    personalizationCostInPaise: p.personalizationCostInPaise,
+    personalizationFields: p.personalizationFields.map((f) => ({
+      id: f.id,
+      fieldKey: f.fieldKey,
+      label: f.label,
+      fieldType: f.fieldType,
+      isRequired: f.isRequired,
+      maxLength: f.maxLength,
+    })),
+  };
+}
+
+/** Prices one picked product: per-child × max(guests, MOQ), or per-group with MOQ, plus optional personalization. */
+function makeProductLine(
+  guestCount: number,
+  personalization: Record<string, boolean> | undefined,
+  opts: {
+    key: string;
+    product: ChoiceProductRow;
+    labelPrefix: string;
+    section: BuilderLineItem["section"];
+    isGroup: boolean;
+    packageServiceItemId?: string;
+  },
+): BuilderLineItem {
+  const { product, isGroup } = opts;
+  const { qty, moqApplied } = isGroup
+    ? perGroupQty(guestCount, product.minOrderQuantity)
+    : perChildQty(guestCount, product.minOrderQuantity);
+
+  const personalizationSelected = Boolean(product.personalizationEnabled && personalization?.[product.sku]);
+  const personalizationCostInPaise = personalizationSelected ? product.personalizationCostInPaise : 0;
+  const unitWithPersonalization = product.priceInPaise + personalizationCostInPaise;
+
+  return {
+    key: opts.key,
+    label: personalizationSelected
+      ? `${opts.labelPrefix}: ${product.title} (personalized)`
+      : `${opts.labelPrefix}: ${product.title}`,
+    sublabel: moqApplied
+      ? `Minimum ${product.minOrderQuantity} units — charged for ${qty}`
+      : isGroup
+        ? `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty} group`
+        : `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty}`,
+    section: opts.section,
+    sku: product.sku,
+    packageServiceItemId: opts.packageServiceItemId,
+    quantity: qty,
+    unitPriceInPaise: unitWithPersonalization,
+    lineTotalInPaise: unitWithPersonalization * qty,
+    moqApplied,
+    personalizationSelected,
+    personalizationCostInPaise,
+  };
+}
+
 /** Map legacy slot fields (welcomeItem, activity1, …) onto per-service `choices` for old carts / links. */
 function resolveChoices(
   sel: BuilderSelections,
@@ -288,27 +356,7 @@ export async function getBuilderOptions(q: { theme: string; package: string }) {
         description: svc.description,
         selectionCount: Math.min(svc.selectionCount, rows.length),
         isPerGroup: svc.isPerGroup,
-        products: rows.map((p) => ({
-          id: p.id,
-          title: p.title,
-          slug: p.slug,
-          sku: p.sku,
-          description: p.description,
-          priceInPaise: p.priceInPaise,
-          minOrderQuantity: p.minOrderQuantity,
-          pricingMode: isGroupPriced(svc, p.sku) ? ("PER_GROUP" as const) : ("PER_CHILD" as const),
-          imageUrl: p.images[0]?.media ? (toMediaRef(p.images[0].media)?.url ?? null) : null,
-          personalizationEnabled: p.personalizationEnabled,
-          personalizationCostInPaise: p.personalizationCostInPaise,
-          personalizationFields: p.personalizationFields.map((f) => ({
-            id: f.id,
-            fieldKey: f.fieldKey,
-            label: f.label,
-            fieldType: f.fieldType,
-            isRequired: f.isRequired,
-            maxLength: f.maxLength,
-          })),
-        })),
+        products: rows.map((p) => toProductOption(p, isGroupPriced(svc, p.sku))),
       });
     }
     return result;
@@ -322,6 +370,8 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
   if (!["jaipur", "outside"].includes(input.location)) {
     throw new ValidationError("location must be jaipur or outside");
   }
+
+  if (input.packageSlug === CUSTOM_PLAN_SLUG) return computeCustomPlanQuote(input);
 
   const pkg = await prisma.package.findFirst({
     where: { slug: input.packageSlug, deletedAt: null, isActive: true },
@@ -401,37 +451,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     isGroup: boolean;
     packageServiceItemId?: string;
   }) {
-    const { product, isGroup } = opts;
-    const { qty, moqApplied } = isGroup
-      ? perGroupQty(input.guestCount, product.minOrderQuantity)
-      : perChildQty(input.guestCount, product.minOrderQuantity);
-
-    const personalizationSelected = Boolean(
-      product.personalizationEnabled && input.selections.personalization?.[product.sku],
-    );
-    const personalizationCostInPaise = personalizationSelected ? product.personalizationCostInPaise : 0;
-    const unitWithPersonalization = product.priceInPaise + personalizationCostInPaise;
-
-    lineItems.push({
-      key: opts.key,
-      label: personalizationSelected
-        ? `${opts.labelPrefix}: ${product.title} (personalized)`
-        : `${opts.labelPrefix}: ${product.title}`,
-      sublabel: moqApplied
-        ? `Minimum ${product.minOrderQuantity} units — charged for ${qty}`
-        : isGroup
-          ? `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty} group`
-          : `₹${(unitWithPersonalization / 100).toFixed(0)} × ${qty}`,
-      section: opts.section,
-      sku: product.sku,
-      packageServiceItemId: opts.packageServiceItemId,
-      quantity: qty,
-      unitPriceInPaise: unitWithPersonalization,
-      lineTotalInPaise: unitWithPersonalization * qty,
-      moqApplied,
-      personalizationSelected,
-      personalizationCostInPaise,
-    });
+    lineItems.push(makeProductLine(input.guestCount, input.selections.personalization, opts));
   }
 
   /** Auto-assigned (not customer-chosen) products: packaging, thank-you tag. */
@@ -622,6 +642,248 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     includedLabels,
     hasPersonalization,
     giftRegistryIncluded,
+    giftRegistryCustomizePriceInPaise,
+  };
+}
+
+/* ─── Custom plan (à la carte) ─────────────────────────────────────────────
+ * A custom celebration has no fixed package: the customer picks any products the
+ * admin has configured (per service, per theme) across ALL packages. Every
+ * product is priced with the same per-child / per-group / MOQ / personalization
+ * rules as a package, there is no base price, and the result flows through the
+ * normal PACKAGE-order pipeline (payment, invoice, email, WhatsApp, registry)
+ * anchored to a hidden, inactive "custom-plan" package row.
+ */
+
+export const CUSTOM_PLAN_SLUG = "custom-plan";
+export const CUSTOM_PLAN_TITLE = "Custom Celebration";
+
+export type CustomPlanService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  category: string | null;
+  isPerGroup: boolean;
+  /** Titles of the packages that include this service (informational). */
+  packageTitles: string[];
+  products: BuilderProductOption[];
+};
+
+export type CustomPlanOptions = {
+  themeSlug: string;
+  services: CustomPlanService[];
+  giftRegistry: { available: boolean; label: string; description: string | null; priceInPaise: number };
+};
+
+/** The hidden package a custom order hangs off (created on first use). */
+async function ensureCustomPlanPackage() {
+  const existing = await prisma.package.findFirst({ where: { slug: CUSTOM_PLAN_SLUG } });
+  if (existing) return existing;
+  try {
+    return await prisma.package.create({
+      data: {
+        title: CUSTOM_PLAN_TITLE,
+        slug: CUSTOM_PLAN_SLUG,
+        internalKey: CUSTOM_PLAN_SLUG,
+        priceInPaise: 0,
+        tierRank: 99,
+        displayOrder: 99,
+        isActive: false,
+        isCustomizable: true,
+        description: "Build-your-own celebration. Internal record — not shown as a public package.",
+      },
+    });
+  } catch (err) {
+    // Two first-time checkouts racing — the loser just reads the winner's row.
+    const row = await prisma.package.findFirst({ where: { slug: CUSTOM_PLAN_SLUG } });
+    if (row) return row;
+    throw err;
+  }
+}
+
+type CatalogService = {
+  id: string;
+  label: string;
+  description: string | null;
+  category: string | null;
+  isPerGroup: boolean;
+  isProductChoice: boolean;
+  customizationPriceInPaise: number;
+  slug: string | null;
+};
+
+/** Distinct product-choice services included in at least one active package, plus the gift-registry service. */
+async function loadCustomPlanCatalog() {
+  const packages = await prisma.package.findMany({
+    where: { deletedAt: null, isActive: true, slug: { not: CUSTOM_PLAN_SLUG } },
+    orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
+    select: {
+      title: true,
+      serviceItems: {
+        where: { isIncluded: true, extraService: { deletedAt: null, isActive: true } },
+        orderBy: { displayOrder: "asc" },
+        select: { extraService: true },
+      },
+    },
+  });
+
+  const services = new Map<string, { svc: CatalogService; packageTitles: string[] }>();
+  let giftRegistry: CatalogService | null = null;
+  for (const pkg of packages) {
+    for (const { extraService: svc } of pkg.serviceItems) {
+      if (isGiftRegistryMatrixService(svc)) {
+        giftRegistry ??= svc;
+        continue;
+      }
+      if (!svc.isProductChoice) continue;
+      const entry = services.get(svc.id) ?? { svc, packageTitles: [] };
+      entry.packageTitles.push(pkg.title);
+      services.set(svc.id, entry);
+    }
+  }
+  return { services, giftRegistry };
+}
+
+/** Everything the custom-plan "Build" and "Add-ons" steps need for one theme. Cached; busted by any admin change. */
+export async function getCustomPlanOptions(q: { theme: string }): Promise<CustomPlanOptions> {
+  return cached(`pub:builder:custom-options:${q.theme}`, OPTIONS_TTL, async () => {
+    const theme = await prisma.theme.findFirst({
+      where: { slug: q.theme, deletedAt: null, isActive: true },
+      select: { id: true, slug: true },
+    });
+    if (!theme) throw new NotFoundError("Theme not found");
+
+    const { services, giftRegistry } = await loadCustomPlanCatalog();
+    const productsBySvc = await loadServiceProducts([...services.keys()], theme.id, true);
+
+    const result: CustomPlanService[] = [];
+    for (const { svc, packageTitles } of services.values()) {
+      const rows = (productsBySvc.get(svc.id) ?? []) as ChoiceProductRowWithMedia[];
+      if (!rows.length) continue; // nothing configured for this theme
+      result.push({
+        serviceId: svc.id,
+        label: svc.label,
+        description: svc.description,
+        category: svc.category,
+        isPerGroup: svc.isPerGroup,
+        packageTitles,
+        products: rows.map((p) => toProductOption(p, isGroupPriced(svc, p.sku))),
+      });
+    }
+
+    return {
+      themeSlug: theme.slug,
+      services: result,
+      giftRegistry: {
+        available: Boolean(giftRegistry),
+        label: "Gift Registry",
+        description: giftRegistry?.description ?? null,
+        priceInPaise: giftRegistry?.customizationPriceInPaise ?? 0,
+      },
+    };
+  });
+}
+
+async function computeCustomPlanQuote(input: BuilderQuoteInput): Promise<BuilderQuoteResult> {
+  const [customPkg, theme] = await Promise.all([
+    ensureCustomPlanPackage(),
+    prisma.theme.findFirst({ where: { slug: input.themeSlug, deletedAt: null, isActive: true } }),
+  ]);
+  if (!theme) throw new NotFoundError("Theme not found");
+
+  const { services, giftRegistry } = await loadCustomPlanCatalog();
+  const productsBySvc = await loadServiceProducts([...services.keys()], theme.id, false);
+
+  const lineItems: BuilderLineItem[] = [
+    {
+      key: "base",
+      label: `${CUSTOM_PLAN_TITLE} — ${theme.title}`,
+      sublabel: "Build-your-own celebration",
+      section: "package",
+      quantity: 1,
+      unitPriceInPaise: 0,
+      lineTotalInPaise: 0,
+    },
+  ];
+
+  const sel = input.selections;
+  for (const [serviceId, skus] of Object.entries(sel.choices ?? {})) {
+    if (!skus.length) continue;
+    const entry = services.get(serviceId);
+    const available = productsBySvc.get(serviceId) ?? [];
+    if (!entry || !available.length) {
+      throw new ValidationError("One of your selections is no longer available. Please review your choices.");
+    }
+    if (new Set(skus).size !== skus.length) {
+      throw new ValidationError(`Please choose different options for ${entry.svc.label}`);
+    }
+    for (const [i, sku] of skus.entries()) {
+      const product = available.find((p) => p.sku === sku);
+      if (!product) {
+        throw new ValidationError(`"${sku}" is not available for ${entry.svc.label} in this theme`);
+      }
+      const isGroup = isGroupPriced(entry.svc, product.sku);
+      lineItems.push(
+        makeProductLine(input.guestCount, sel.personalization, {
+          key: `choice-${serviceId}-${i}`,
+          product,
+          labelPrefix: entry.svc.label,
+          section: isGroup ? "per-group" : "per-child",
+          isGroup,
+        }),
+      );
+    }
+  }
+
+  if (lineItems.length === 1) {
+    throw new ValidationError("Choose at least one item to build your celebration");
+  }
+
+  const giftRegistryCustomizePriceInPaise = giftRegistry?.customizationPriceInPaise ?? 0;
+  const giftRegistrySelected = Boolean(sel.giftRegistryCustomize);
+  if (giftRegistrySelected) {
+    if (!giftRegistry) throw new ValidationError("Gift Registry is not available right now");
+    lineItems.push({
+      key: "gift-registry-addon",
+      label: "Gift Registry",
+      sublabel: "Digital add-on",
+      section: "fixed",
+      quantity: 1,
+      unitPriceInPaise: giftRegistryCustomizePriceInPaise,
+      lineTotalInPaise: giftRegistryCustomizePriceInPaise,
+    });
+  }
+
+  const customizationTotalInPaise = lineItems.reduce((sum, l) => sum + l.lineTotalInPaise, 0);
+  const subtotalInPaise = customizationTotalInPaise;
+  const shipping = await computeShippingForSubtotal(subtotalInPaise);
+  const gstPercent = await getGstPercent();
+  const taxable = subtotalInPaise + shipping.shippingInPaise;
+  const gstInPaise = gstOn(taxable, gstPercent);
+
+  return {
+    packageId: customPkg.id,
+    packageSlug: CUSTOM_PLAN_SLUG,
+    packageTitle: CUSTOM_PLAN_TITLE,
+    themeId: theme.id,
+    themeSlug: theme.slug,
+    themeTitle: theme.title,
+    guestCount: input.guestCount,
+    location: input.location,
+    lineItems,
+    basePriceInPaise: 0,
+    customizationTotalInPaise,
+    subtotalInPaise,
+    shippingInPaise: shipping.shippingInPaise,
+    shippingWaived: shipping.shippingWaived,
+    freeShippingThresholdInPaise: shipping.freeShippingThresholdInPaise,
+    amountUntilFreeShippingInPaise: shipping.amountUntilFreeShippingInPaise,
+    gstPercent,
+    gstInPaise,
+    totalInPaise: taxable + gstInPaise,
+    includedLabels: giftRegistrySelected ? ["Gift Registry"] : [],
+    hasPersonalization: lineItems.some((l) => l.personalizationSelected),
+    giftRegistryIncluded: giftRegistrySelected,
     giftRegistryCustomizePriceInPaise,
   };
 }

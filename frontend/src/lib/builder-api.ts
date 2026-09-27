@@ -103,3 +103,29 @@ export async function getBuilderOptions(params: { theme: string; package: string
 export async function getBuilderQuote(input: BuilderQuoteInput) {
   return apiFetch<BuilderQuote>("/builder/quote", { method: "POST", body: input, cache: "no-store" });
 }
+
+/* ─── Custom plan (build your own celebration) ─────────────────────── */
+
+/** Slug of the internal package a custom celebration is ordered under. */
+export const CUSTOM_PLAN_SLUG = "custom-plan";
+
+/** A product-choice service from any package, with the products the admin allowed for the theme. */
+export type CustomPlanService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  category: string | null;
+  isPerGroup: boolean;
+  packageTitles: string[];
+  products: BuilderProduct[];
+};
+
+export type CustomPlanOptions = {
+  themeSlug: string;
+  services: CustomPlanService[];
+  giftRegistry: { available: boolean; label: string; description: string | null; priceInPaise: number };
+};
+
+export async function getCustomPlanOptions(theme: string) {
+  return apiFetch<CustomPlanOptions>(`/builder/custom-options?theme=${encodeURIComponent(theme)}`);
+}

@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { ServerCartItem } from "@/lib/shop-types";
 import { combineCartQuote } from "@/lib/cart-totals";
+import { CUSTOM_PLAN_SLUG } from "@/lib/builder-api";
 import { useDeliverySettings } from "@/lib/delivery-settings";
 
 function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQuantity: (id: string, qty: number) => void }) {
@@ -140,7 +141,9 @@ export function CartDrawer() {
               {packages.map((pkg) => {
                 const pkgData = packagesBySlug[pkg.packageId];
                 const themeData = themesBySlug[pkg.themeSlug];
-                if (!pkgData) return null;
+                const isCustomPlan = pkg.packageId === CUSTOM_PLAN_SLUG;
+                if (!pkgData && !isCustomPlan) return null;
+                const pkgTitle = isCustomPlan ? "Custom Celebration" : `${pkgData.title} Package`;
 
                 const addons = pkg.addons || [];
                 const addonsTotal = addons.reduce((sum, item) => sum + toRupees(item.product.priceInPaise) * item.quantity, 0);
@@ -157,7 +160,7 @@ export function CartDrawer() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-charcoal line-clamp-1">
-                          {pkgData.title} Package
+                          {pkgTitle}
                         </h4>
                         {themeData && (
                           <p className="text-xs font-medium text-mocha mt-0.5">

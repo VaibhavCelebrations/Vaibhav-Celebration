@@ -12,7 +12,7 @@ import { orderConfirmationHtml, sendEmail } from "../../integrations/email/maile
 import { getGstPercent } from "../../lib/settings";
 import { sendOrderConfirmationWhatsapp } from "../whatsapp/whatsapp.service";
 import { logger } from "../../lib/logger";
-import { giftRegistryStateForPackageOrder } from "../upgrades/upgrades.service";
+import { GIFT_REGISTRY_ELIGIBLE_SLUGS, giftRegistryStateForPackageOrder } from "../upgrades/upgrades.service";
 import { InvoiceLinkedType } from "@prisma/client";
 import { fulfillRegistryContributionsForOrder, releaseRegistryReservationsForOrder, reserveRegistryItemQty } from "../registry/registry-qty";
 import { parseShippingAddress } from "../registry/address";
@@ -1086,13 +1086,28 @@ function findOrderForConfirmationEmail(orderId: string) {
       invoice: true,
       packageOrder: {
         include: {
-          package: { select: { title: true } },
+          package: { select: { title: true, slug: true } },
           theme: { select: { title: true } },
           lines: true,
         },
       },
     },
   });
+}
+
+/**
+ * Whether a paid order carries a Gift Registry the customer still has to set up —
+ * an included one (Signature / Grand), a paid add-on (Essential, custom plan) or a
+ * standalone registry upgrade. Drives the setup instructions in email + WhatsApp.
+ */
+function orderIncludesGiftRegistry(order: NonNullable<Awaited<ReturnType<typeof findOrderForConfirmationEmail>>>) {
+  if (order.upgradeKind === "GIFT_REGISTRY") return true;
+  if (order.kind !== OrderKind.PACKAGE || !order.packageOrder) return false;
+  const { package: pkg, quoteSnapshot, builderInput, lines } = order.packageOrder;
+  if ((GIFT_REGISTRY_ELIGIBLE_SLUGS as readonly string[]).includes(pkg.slug)) return true;
+  if ((quoteSnapshot as { giftRegistryIncluded?: boolean } | null)?.giftRegistryIncluded) return true;
+  if ((builderInput as { selections?: BuilderSelections } | null)?.selections?.giftRegistryCustomize) return true;
+  return lines.some((line) => line.section === "fixed" && /gift\s*registry/i.test(line.label));
 }
 
 /** Builds and sends the order-confirmation email + invoice attachment, then records the outcome. Shared by the payment webhook and the admin resend action. */
@@ -1190,12 +1205,7 @@ export async function resendOrderConfirmationEmail(orderId: string) {
   const invoiceNumber = order.invoice?.invoiceNumber ?? order.invoiceNumber;
   const pdfUrl = order.invoice?.pdfUrl ?? order.invoicePdfUrl;
   
-  let includeGiftRegistrySetup = false;
-  if (order.upgradeKind === "GIFT_REGISTRY") {
-    includeGiftRegistrySetup = true;
-  } else if (order.kind === "PACKAGE" && (order.packageOrder?.builderInput as any)?.selections?.giftRegistryCustomize) {
-    includeGiftRegistrySetup = true;
-  }
+  const includeGiftRegistrySetup = orderIncludesGiftRegistry(order);
 
   const confirmation = await sendOrderConfirmationEmailNow(order, invoiceNumber, pdfUrl, includeGiftRegistrySetup);
   return { orderId: order.id, orderCode: order.orderCode, ...confirmation };
@@ -1330,12 +1340,7 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string |
     }
   }
 
-  let includeGiftRegistrySetup = false;
-  if (order.upgradeKind === "GIFT_REGISTRY") {
-    includeGiftRegistrySetup = true;
-  } else if (order.kind === "PACKAGE" && (order.packageOrder?.builderInput as any)?.selections?.giftRegistryCustomize) {
-    includeGiftRegistrySetup = true;
-  }
+  const includeGiftRegistrySetup = orderIncludesGiftRegistry(order);
 
   // Guest credential token (if any) — password already emailed at OTP verify.
   const guestPassword = await consumeGuestCredential(order.orderCode);

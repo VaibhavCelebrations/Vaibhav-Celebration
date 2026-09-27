@@ -26,7 +26,8 @@ import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";
 import { useDeliverySettings } from "@/lib/delivery-settings";
 import type { PersonalizationValue } from "@/lib/ecom-types";
-import { combineCartQuote } from "@/lib/cart-totals";
+import { cartPackageHasGiftRegistry, combineCartQuote } from "@/lib/cart-totals";
+import { CUSTOM_PLAN_SLUG } from "@/lib/builder-api";
 import { notifyRegistryAccessChanged } from "@/hooks/useRegistryAccess";
 import { CheckoutGateModal, GUEST_CHECKOUT_PREFILL_KEY } from "@/components/ecom/CheckoutGateModal";
 
@@ -352,6 +353,24 @@ export default function CheckoutPage() {
     return true;
   };
 
+  /**
+   * Offers Gift Registry setup after payment — only when the purchased package actually
+   * includes one, and only for signed-in customers. Guests get the setup steps by email.
+   */
+  function promptGiftRegistrySetup(orderCode: string) {
+    const registryPkg = packages.find(cartPackageHasGiftRegistry);
+    if (!isAuthenticated || !registryPkg) return;
+    const bi = registryPkg.builderInput;
+    const childName = bi?.eventDetails?.childName;
+    setRegistryPromptData({
+      title: childName ? `${childName}'s Celebration` : "My Celebration",
+      date: bi?.eventDetails?.eventDate,
+      orderCode,
+      shippingAddress: bi?.shippingAddress,
+      childName,
+    });
+  }
+
   function pollOrderUntilPaid(orderCode: string) {
     setPaymentStatus("confirming");
     let attempts = 0;
@@ -366,17 +385,7 @@ export default function CheckoutPage() {
             setConfirmedOrderCode(orderCode);
             setConfirmedInvoiceUrl(order.invoicePdfUrl);
             setHadPackagesAtCheckout(packages.length > 0);
-            // Only show registry popup for authenticated users
-            if (isAuthenticated && packages.length > 0) {
-              const childName = packages[0]?.builderInput?.eventDetails?.childName;
-              setRegistryPromptData({
-                title: childName ? `${childName}'s Celebration` : "My Celebration",
-                date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                orderCode: orderCode,
-                shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                childName: childName,
-              });
-            }
+            promptGiftRegistrySetup(orderCode);
             setPaymentStatus("idle");
             setIsPlacingOrder(false);
             setPendingOrderCode(null);
@@ -450,18 +459,7 @@ export default function CheckoutPage() {
               setIsPlacingOrder(false);
               setPendingOrderCode(null);
               setHadPackagesAtCheckout(packages.length > 0);
-              // Only show the registry popup for authenticated users.
-              // Guest users receive registry instructions in their confirmation email.
-              if (isAuthenticated && packages.length > 0) {
-                const childName = packages[0]?.builderInput?.eventDetails?.childName;
-                setRegistryPromptData({
-                  title: childName ? `${childName}'s Celebration` : "My Celebration",
-                  date: packages[0]?.builderInput?.eventDetails?.eventDate,
-                  orderCode: verified.orderCode,
-                  shippingAddress: packages[0]?.builderInput?.shippingAddress,
-                  childName: childName,
-                });
-              }
+              promptGiftRegistrySetup(verified.orderCode);
               void clearCart().then(() => refreshCart());
               setCurrentStep(1);
             }, 2500);
@@ -514,10 +512,10 @@ export default function CheckoutPage() {
           },
           eventDetails: {
             childName: eventDetails.childName || pkg.builderInput.eventDetails?.childName,
-            childAge: eventDetails.childAge,
+            childAge: eventDetails.childAge || pkg.builderInput.eventDetails?.childAge,
             venue: address.line1.trim() || eventDetails.venue || pkg.builderInput.eventDetails?.venue,
             guestCount: eventDetails.guestCount || pkg.builderInput.guestCount,
-            notes: eventDetails.notes,
+            notes: eventDetails.notes || pkg.builderInput.eventDetails?.notes,
           },
           builder: {
             ...pkg.builderInput,
@@ -745,7 +743,8 @@ export default function CheckoutPage() {
                         {packages.map((pkg) => {
                           const pkgData = packagesBySlug[pkg.packageId];
                           const themeData = themesBySlug[pkg.themeSlug];
-                          if (!pkgData) return null;
+                          const isCustomPlan = pkg.packageId === CUSTOM_PLAN_SLUG;
+                          if (!pkgData && !isCustomPlan) return null;
                           return (
                             <div key={pkg.id} className="flex gap-4 p-4 md:p-5 bg-gradient-to-br from-cream-dark to-surface rounded-2xl border border-mocha/20 shadow-sm relative overflow-hidden group">
                               <div className="absolute top-0 right-0 w-24 h-24 bg-mocha/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform" />
@@ -753,7 +752,7 @@ export default function CheckoutPage() {
                                 <Package size={36} className="text-mocha" />
                               </div>
                               <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                <h4 className="font-bold text-charcoal text-base">{pkgData.title} Package</h4>
+                                <h4 className="font-bold text-charcoal text-base">{isCustomPlan ? "Custom Celebration" : `${pkgData.title} Package`}</h4>
                                 {themeData && <p className="text-[11px] font-bold text-mocha/80 mt-1 uppercase tracking-wider">{themeData.title} Theme</p>}
                                 <div className="flex items-center justify-between mt-4">
                                   <span className="font-display font-bold text-charcoal text-lg">₹{pkg.basePrice.toLocaleString("en-IN")}</span>
@@ -1151,7 +1150,7 @@ export default function CheckoutPage() {
             </div>
             <h2 className="font-display text-2xl font-bold text-charcoal mb-4">Create a Gift Registry?</h2>
             <p className="text-text-muted text-sm mb-8 leading-relaxed">
-              Make gifting easy for your guests. Create a free registry for <strong>{registryPromptData.title}</strong> and add the gifts your child really wants!
+              Your order includes a Gift Registry. Set it up now for <strong>{registryPromptData.title}</strong> so guests can gift exactly what your child really wants!
             </p>
             <div className="flex flex-col gap-3">
               <button

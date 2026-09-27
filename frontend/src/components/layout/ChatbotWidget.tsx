@@ -164,7 +164,8 @@ export function ChatbotWidget({ flow }: ChatbotWidgetProps) {
   };
 
   // Push FAB up if on checkout flows
-  const isCheckoutFlow = pathname?.startsWith("/checkout") || pathname?.startsWith("/build-package");
+  const isCheckoutFlow =
+    pathname?.startsWith("/checkout") || pathname?.startsWith("/build-package") || pathname?.startsWith("/custom-plan");
   const bottomClass = isCheckoutFlow ? "bottom-[100px] md:bottom-6" : "bottom-6";
 
   const currentNode = flow.nodes[currentNodeId];

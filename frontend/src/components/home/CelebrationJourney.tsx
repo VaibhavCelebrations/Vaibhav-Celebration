@@ -19,7 +19,7 @@ const journeys = [
     description:
       "Mix and match invites, activities, welcome details, return gifts and keepsakes.",
     cta: "Start Customizing",
-    href: "/build-package",
+    href: "/custom-plan",
     accent: "group-hover:bg-gold-light/20",
     iconBg: "bg-gold-light/10",
     iconColor: "text-amber-700",
