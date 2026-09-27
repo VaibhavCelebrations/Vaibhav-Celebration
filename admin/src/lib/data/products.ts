@@ -34,7 +34,9 @@ const seed: Product[] = [
   },
 ];
 
-const mockCategorySeed: ProductCategory[] = [{ id: "cat_1", name: "Keepsakes", slug: "keepsakes", displayOrder: 1, isActive: true }];
+const mockCategorySeed: ProductCategory[] = [
+  { id: "cat_1", name: "Keepsakes", slug: "keepsakes", displayOrder: 1, isActive: true, celebrationStage: "AFTER" },
+];
 
 const mockProductsRepo = createMockCollection<Product, ProductInput>({
   idPrefix: "product",

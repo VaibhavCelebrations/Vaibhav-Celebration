@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { whatsappHref } from "@/lib/cms/map-media";
+import { envWhatsAppNumber, validPhoneOrNull } from "@/lib/business";
 
 type WhatsAppFABProps = {
   phone?: string;
@@ -9,9 +10,8 @@ type WhatsAppFABProps = {
 
 export function WhatsAppFAB({ phone }: WhatsAppFABProps) {
   const pathname = usePathname();
-  const envPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.trim();
   const prefillMessage = process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE?.trim() || undefined;
-  const href = whatsappHref(phone || envPhone || "", prefillMessage);
+  const href = whatsappHref(validPhoneOrNull(phone) ?? envWhatsAppNumber(), prefillMessage);
 
   // Push the FAB up on checkout and builder pages to avoid overlapping the mobile sticky footer
   const isCheckoutFlow =

@@ -89,6 +89,8 @@ export interface ProductCollection {
   startsAt: string | null;
   endsAt: string | null;
   showOnHomepage: boolean;
+  /** Festival collection (Navratri, Diwali…) — shown under Shop → Festive Collections. */
+  isFestive: boolean;
   isActive: boolean;
   displayOrder: number;
   createdAt: string;
@@ -97,6 +99,9 @@ export interface ProductCollection {
   products: Product[];
   productCount: number;
 }
+
+/** Shop filter value for the Festive Collections view (not a product category). */
+export const FESTIVE_FILTER = "festive";
 
 /* ── Derived helpers ───────────────────────────────────────────────── */
 

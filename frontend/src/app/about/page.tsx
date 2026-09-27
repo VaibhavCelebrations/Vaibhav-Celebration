@@ -7,7 +7,7 @@ import { CTABand } from "@/components/home/CTABand";
 import { WhyUsSection } from "@/components/home/WhyUsSection";
 import { TestimonialCarousel } from "@/components/home/TestimonialCarousel";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { PenTool, HeartHandshake, Award, Shield } from "lucide-react";
+import { PenTool, HeartHandshake, Award, Shield, type LucideIcon } from "lucide-react";
 import aboutBg from "@/assets/about_bg.png";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { getAboutPageContent } from "@/lib/cms/pages";
@@ -23,11 +23,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const defaultValues = [
-  { title: "Thoughtful Design", desc: "Every element is curated to create a cohesive and immersive experience.", icon: PenTool },
-  { title: "Memorable Experiences", desc: "We focus on how the celebration feels, not just how it looks.", icon: HeartHandshake },
-  { title: "Premium Quality", desc: "From decor to return gifts, we partner only with the best vendors.", icon: Award },
-  { title: "Stress-Free For Parents", desc: "We handle the details so you can be fully present for the memories.", icon: Shield },
+  { title: "Personalization", desc: "Every celebration is tailored to your child's personality and interests." },
+  { title: "Quality", desc: "Premium materials, professional execution, and attention to every detail." },
+  { title: "Trust", desc: "Transparent pricing, reliable timelines, and a team that cares deeply." },
 ];
+
+/** Pick the icon by meaning, not position, so CMS edits/reordering keep the right icon. */
+function valueIcon(title: string): LucideIcon {
+  const t = title.toLowerCase();
+  if (t.includes("personal") || t.includes("design")) return PenTool;
+  if (t.includes("quality")) return Award;
+  if (t.includes("trust") || t.includes("stress")) return Shield;
+  return HeartHandshake;
+}
 
 const defaultStoryImages = [
   "/theme/gallery_setup.png",
@@ -50,13 +58,16 @@ export default async function AboutPage() {
     "We create meaningful and stress-free celebration experiences for parents by offering carefully designed birthday concepts, customized party elements, themed products, activity kits, keepsakes, digital invitations, and personalized celebration solutions.",
     "At Vaibhav Celebrations, we believe that celebrations should not only look beautiful but should also feel meaningful, thoughtful, and unforgettable.",
   ]);
-  const values = sections?.values?.items?.length
-    ? sections.values.items.map((item, i) => ({
-        title: asText(item.title, defaultValues[i]?.title ?? "Value"),
-        desc: asText(item.description, defaultValues[i]?.desc ?? ""),
-        icon: defaultValues[i]?.icon ?? PenTool,
-      }))
-    : defaultValues;
+  const values = (
+    sections?.values?.items?.length
+      ? sections.values.items.map((item, i) => ({
+          title: asText(item.title, defaultValues[i]?.title ?? "Value"),
+          desc: asText(item.description, defaultValues[i]?.desc ?? ""),
+        }))
+      : defaultValues
+  ).map((v) => ({ ...v, icon: valueIcon(v.title) }));
+  // Three cards sit in one evenly spaced row; other counts fall back to a 2/4-column grid.
+  const valuesGrid = values.length === 3 ? "md:grid-cols-3 max-w-5xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-4";
   const storyImages = defaultStoryImages;
 
   return (
@@ -117,12 +128,12 @@ export default async function AboutPage() {
                 <p className="text-text-muted max-w-2xl mx-auto text-lg">These principles guide everything we do, ensuring every event we touch is truly exceptional.</p>
               </div>
             </ScrollReveal>
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className={`grid grid-cols-1 gap-6 md:gap-8 ${valuesGrid}`}>
               {values.map((val, idx) => {
                 const Icon = val.icon;
                 return (
-                  <ScrollReveal key={val.title} delay={idx * 100}>
-                    <div className="bg-cream border border-border-light rounded-[2rem] p-8 text-center h-full hover:shadow-card hover:-translate-y-2 transition-all duration-300">
+                  <ScrollReveal key={val.title} delay={idx * 100} className="h-full">
+                    <div className="bg-cream border border-border-light rounded-[2rem] p-8 text-center h-full flex flex-col items-center hover:shadow-card hover:-translate-y-2 transition-all duration-300">
                       <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-border-light">
                         <Icon className="text-mocha" size={28} />
                       </div>

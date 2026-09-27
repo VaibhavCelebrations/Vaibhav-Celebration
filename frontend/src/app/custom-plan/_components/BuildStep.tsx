@@ -3,9 +3,9 @@
 import { memo, useMemo, useState } from "react";
 import Image from "next/image";
 import { Check, Loader2, MessageCircle, Sparkles } from "lucide-react";
-import type { BuilderProduct, CustomPlanService } from "@/lib/builder-api";
+import { groupByStage, type BuilderProduct, type CustomPlanService } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
-import { categoryMeta, estimateLine, type Selections } from "./shared";
+import { estimateLine, type Selections } from "./shared";
 
 type CardProps = {
   product: BuilderProduct;
@@ -131,18 +131,11 @@ export function BuildStep({
 }: Props) {
   const [active, setActive] = useState<string>("all");
 
-  // Group services under their admin category, in a stable, meaningful order.
-  const categories = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; order: number; services: CustomPlanService[] }>();
-    for (const svc of services) {
-      const key = svc.category ?? "OTHER";
-      const meta = categoryMeta(svc.category);
-      const entry = map.get(key) ?? { key, label: meta.label, order: meta.order, services: [] };
-      entry.services.push(svc);
-      map.set(key, entry);
-    }
-    return [...map.values()].sort((a, b) => a.order - b.order);
-  }, [services]);
+  // Before / During / After sections — set per product category in admin, same as the package Customize step.
+  const categories = useMemo(
+    () => groupByStage(services).map((g) => ({ key: g.stage ?? "OTHER", label: g.label, services: g.services })),
+    [services],
+  );
 
   const pickedIn = (svcs: CustomPlanService[]) => svcs.reduce((n, s) => n + (selections.choices[s.serviceId]?.length ?? 0), 0);
   const visible = active === "all" ? categories : categories.filter((c) => c.key === active);
@@ -186,9 +179,9 @@ export function BuildStep({
         </div>
       ) : (
         <>
-          {/* Category tabs */}
+          {/* Stage tabs */}
           <div className="-mx-5 px-5 md:mx-0 md:px-0 mb-8 overflow-x-auto hide-scrollbar">
-            <div className="flex gap-2 w-max md:w-auto md:flex-wrap" role="tablist" aria-label="Item categories">
+            <div className="flex gap-2 w-max md:w-auto md:flex-wrap" role="tablist" aria-label="Celebration stages">
               {[{ key: "all", label: "All", picked: pickedIn(services) }, ...categories.map((c) => ({ key: c.key, label: c.label, picked: pickedIn(c.services) }))].map(
                 (tab) => (
                   <button
@@ -220,7 +213,8 @@ export function BuildStep({
           </div>
 
           <div className="space-y-12">
-            {visible.map((cat) => (
+            {visible.map((cat) => {
+              return (
               <div key={cat.key}>
                 <h2 className="font-display text-xl md:text-2xl font-semibold text-charcoal mb-5 pb-3 border-b border-border-light">
                   {cat.label}
@@ -260,7 +254,8 @@ export function BuildStep({
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

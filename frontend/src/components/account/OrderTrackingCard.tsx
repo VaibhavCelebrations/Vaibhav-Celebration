@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { OrderDto, OrderStatus } from "@/lib/shop-types";
 import { whatsappHref } from "@/lib/cms/map-media";
+import { envWhatsAppNumber } from "@/lib/business";
 
 interface OrderTrackingCardProps {
   order: OrderDto;
@@ -179,7 +180,7 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
     }
   };
 
-  const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "+919900000000";
+  const whatsappPhone = envWhatsAppNumber();
   const conciergeUrl = whatsappHref(
     whatsappPhone,
     `Hi Vaibhav Celebrations! I'm inquiring about delivery and tracking for my order #${order.orderCode}.`

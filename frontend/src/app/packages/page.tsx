@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const PACKAGING_NOTE: Record<string, string> = {
   essential: "Simple Packaging included",
   signature: "Theme-based Gift Bag included",
-  grand: "Customized Theme Gift Bag included",
+  grand: "Customized/Personalized Box or Bag included",
 };
 
 const DECOR_OUTSIDE_NOTE: Record<string, string> = {
@@ -106,7 +106,7 @@ export default async function PackagesPage() {
                 Have a unique theme, guest count, or venue in mind? We&apos;ll design every detail around your celebration.
               </p>
               <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link href="/consultation" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
+                <Link href="/custom-plan" className="btn-primary text-base px-10 py-4 w-full sm:w-auto uppercase tracking-wider font-bold">
                   Plan Custom Celebration
                 </Link>
                 <Link href="/consultation" className="btn-outline text-sm px-8 py-3.5 w-full sm:w-auto uppercase tracking-wider font-bold bg-white">

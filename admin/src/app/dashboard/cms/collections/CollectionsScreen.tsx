@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2, Layers, Pencil, Plus } from "lucide-react";
+import { Copy, Trash2, Layers, Pencil, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import { collectionsRepo, emptyCollectionInput } from "@/lib/data/collections";
@@ -26,6 +26,13 @@ import {
 } from "@/components/ui/fields";
 import type { MediaRef } from "@/types/common";
 import type { ProductCollection, ProductCollectionInput, Product } from "@/types/cms";
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vaibhavcelebrations.in").replace(/\/+$/, "");
+
+/** Public page for a collection — shareable in social-media ads. */
+function collectionUrl(slug: string) {
+  return `${SITE_URL}/gifts/collection/${slug}`;
+}
 
 export function CollectionsScreen() {
   const { query, setQuery } = useListQuery({ sort: "displayOrder", dir: "asc" });
@@ -73,6 +80,7 @@ export function CollectionsScreen() {
       startsAt: row.startsAt || null,
       endsAt: row.endsAt || null,
       showOnHomepage: row.showOnHomepage,
+      isFestive: row.isFestive,
       isActive: row.isActive,
       displayOrder: row.displayOrder,
       heroImageId: row.heroImage?.id || null,
@@ -175,21 +183,46 @@ export function CollectionsScreen() {
       ),
     },
     {
-      key: "homepage",
-      header: "Homepage",
+      key: "type",
+      header: "Type",
+      cell: (r) =>
+        r.isFestive ? <StatusBadge tone="warning" label="Festive" /> : <span className="text-sm text-stone-400">Standard</span>,
+    },
+    {
+      key: "link",
+      header: "Direct link",
+      hideBelow: "lg",
       cell: (r) => (
-        <div className="text-sm">
-          {r.showOnHomepage ? <span className="text-emerald-600 font-medium">Featured</span> : <span className="text-stone-400">—</span>}
-        </div>
+        <button
+          type="button"
+          onClick={() => copyLink(r)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-(--color-mocha) hover:underline cursor-pointer"
+          title={collectionUrl(r.slug)}
+        >
+          <Copy size={13} aria-hidden="true" /> Copy link
+        </button>
       ),
     },
   ];
+
+  async function copyLink(r: ProductCollection) {
+    try {
+      await navigator.clipboard.writeText(collectionUrl(r.slug));
+      toast({
+        tone: "success",
+        title: "Link copied",
+        description: r.productCount ? collectionUrl(r.slug) : "Add products first — empty collections are hidden on the website.",
+      });
+    } catch {
+      toast({ tone: "error", title: "Could not copy", description: collectionUrl(r.slug) });
+    }
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6">
       <PageHeader
         title="Collections"
-        description="Create festive shop collections, pick active products, and publish them to /gifts."
+        description="Festive collections (Navratri, Diwali…) appear under Shop → Festive Collections, each with its own shareable link. They hide themselves after their end date; products are kept."
         actions={
           <button type="button" onClick={openCreate} className="btn btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm">
             <Plus size={16} /> New Collection
@@ -239,7 +272,11 @@ export function CollectionsScreen() {
         <FormField label="Title" htmlFor="collection-title" required>
           <TextInput id="collection-title" value={form.title} onChange={(e) => patchForm({ title: e.target.value })} required />
         </FormField>
-        <FormField label="Slug" htmlFor="collection-slug" hint="Used in the URL /gifts/collection/...">
+        <FormField
+          label="Slug"
+          htmlFor="collection-slug"
+          hint={`Direct link for ads: ${collectionUrl(form.slug || "your-slug")}`}
+        >
           <SlugInput
             id="collection-slug"
             value={form.slug || ""}
@@ -268,7 +305,11 @@ export function CollectionsScreen() {
               onChange={(e) => patchForm({ startsAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
             />
           </FormField>
-          <FormField label="End Date (Optional)" htmlFor="collection-end">
+          <FormField
+            label="End Date (Optional)"
+            htmlFor="collection-end"
+            hint="After this date the collection hides itself automatically. Its products stay saved for next year."
+          >
             <input
               id="collection-end"
               type="datetime-local"
@@ -295,7 +336,18 @@ export function CollectionsScreen() {
           <FormField label="Active" htmlFor="collection-active" hint="Turn off to hide this collection from the shop">
             <ToggleSwitch checked={form.isActive} onChange={(v) => patchForm({ isActive: v })} />
           </FormField>
-          <FormField label="Homepage Featured" htmlFor="collection-homepage" hint="Show this collection in the Festive Collections row on Shop">
+          <FormField
+            label="Festive collection"
+            htmlFor="collection-festive"
+            hint="Lists this collection under Shop → Festive Collections, grouped by festival (e.g. Navratri, Diwali)."
+          >
+            <ToggleSwitch checked={form.isFestive} onChange={(v) => patchForm({ isFestive: v })} />
+          </FormField>
+          <FormField
+            label="Featured"
+            htmlFor="collection-homepage"
+            hint="Reserved for a future homepage section — the homepage does not show collections at present."
+          >
             <ToggleSwitch checked={form.showOnHomepage} onChange={(v) => patchForm({ showOnHomepage: v })} />
           </FormField>
           <FormField label="Display Order" htmlFor="collection-order">

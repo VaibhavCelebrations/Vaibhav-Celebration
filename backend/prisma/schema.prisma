@@ -751,11 +751,14 @@ model PhoneVerificationToken {
 }
 
 model ProductCategory {
-  id           String               @id @default(cuid())
-  name         String               @unique
-  slug         String               @unique
-  displayOrder Int                  @default(0)
-  isActive     Boolean              @default(true)
+  id               String               @id @default(cuid())
+  name             String               @unique
+  slug             String               @unique
+  displayOrder     Int                  @default(0)
+  isActive         Boolean              @default(true)
+  /// Parent grouping (Before / During / After the Celebration). Products inherit it through their
+  /// category, and the package Customize step is split into these three sections.
+  celebrationStage CelebrationStage?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   products     ProductCategoryTag[]
@@ -1030,6 +1033,8 @@ model ProductCollection {
   startsAt       DateTime?
   endsAt         DateTime?
   showOnHomepage Boolean                 @default(false)
+  /// Festival collection (Navratri, Diwali…) — listed under "Festive Collections" in the shop.
+  isFestive      Boolean                 @default(false)
   isActive       Boolean                 @default(true)
   displayOrder   Int                     @default(0)
   createdAt      DateTime                @default(now())
@@ -1201,6 +1206,13 @@ enum ExtraServiceCategory {
   GIFT_REGISTRY
   PERSONALIZATION
   DECOR
+}
+
+/// The three celebration phases product categories are grouped under (admin + Customize step).
+enum CelebrationStage {
+  BEFORE
+  DURING
+  AFTER
 }
 
 enum PricingMode {

@@ -37,8 +37,11 @@ import {
 } from "@/components/ui/fields";
 import type { MediaRef } from "@/types/common";
 import {
+  CELEBRATION_STAGE_LABELS,
+  CELEBRATION_STAGES,
   INVENTORY_LEDGER_REASONS,
   PERSONALIZATION_FIELD_TYPES,
+  type CelebrationStage,
   type InventoryLedgerReasonType,
   type PersonalizationFieldType,
   type Product,
@@ -113,7 +116,14 @@ export function ProductsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
+  // Ordered Before → During → After, so the admin sees each category under its celebration stage.
+  const stageRank = (s: CelebrationStage | null) => (s ? CELEBRATION_STAGES.indexOf(s) : CELEBRATION_STAGES.length);
+  const categoryOptions = [...categories]
+    .sort((a, b) => stageRank(a.celebrationStage) - stageRank(b.celebrationStage) || a.displayOrder - b.displayOrder)
+    .map((c) => ({
+      value: c.id,
+      label: `${c.celebrationStage ? CELEBRATION_STAGE_LABELS[c.celebrationStage] : "No stage"} › ${c.name}`,
+    }));
 
   function openCreate() {
     setEditing(null);
@@ -268,13 +278,23 @@ export function ProductsScreen() {
     },
     {
       key: "categories",
-      header: "Categories",
+      header: "Category",
       hideBelow: "lg",
-      cell: (r) => (
-        <div className="flex flex-wrap gap-1">
-          {r.categories.length === 0 ? <span className="text-(--color-text-muted)">—</span> : r.categories.map((c) => <span key={c.id} className="badge badge-neutral">{c.name}</span>)}
-        </div>
-      ),
+      cell: (r) =>
+        r.categories.length === 0 ? (
+          <span className="text-(--color-text-muted)">—</span>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {r.categories.map((c) => (
+              <div key={c.id} className="flex flex-col">
+                <span className="badge badge-neutral w-fit">{c.name}</span>
+                <span className={`mt-0.5 text-[10px] font-semibold uppercase tracking-wide ${c.celebrationStage ? "text-(--color-mocha)" : "text-(--color-text-muted)"}`}>
+                  {c.celebrationStage ? CELEBRATION_STAGE_LABELS[c.celebrationStage] : "No stage"}
+                </span>
+              </div>
+            ))}
+          </div>
+        ),
     },
     {
       key: "isActive",
@@ -392,7 +412,11 @@ export function ProductsScreen() {
           </FormField>
         </div>
 
-        <FormField label="Category" htmlFor="product-categories" hint="Each product belongs to one category. Used for shop filtering and navigation.">
+        <FormField
+          label="Category"
+          htmlFor="product-categories"
+          hint="Each product belongs to one category. The category's stage (Before / During / After the Celebration) decides which section of the package Customize step it appears in. Manage stages under Categories."
+        >
           <SelectInput id="product-categories" value={form.categoryIds?.[0] ?? ""} onChange={(e) => patchForm({ categoryIds: e.target.value ? [e.target.value] : [] })} options={categoryOptions} placeholder="Select a category…" />
         </FormField>
         <FormField label="Theme" htmlFor="product-themes" hint="Each product belongs to one theme. It is offered under this theme in package services.">
@@ -620,6 +644,7 @@ function CategoriesManagerDrawer({
   onChanged: () => void;
 }) {
   const [name, setName] = useState("");
+  const [stage, setStage] = useState<CelebrationStage | "">("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -628,11 +653,22 @@ function CategoriesManagerDrawer({
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim()) return;
+    if (!stage) {
+      setError("Choose which stage this category belongs to (Before, During or After the Celebration).");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await createProductCategory({ name: name.trim(), slug: "", displayOrder: categories.length, isActive: true });
+      await createProductCategory({
+        name: name.trim(),
+        slug: "",
+        displayOrder: categories.length,
+        isActive: true,
+        celebrationStage: stage,
+      });
       setName("");
+      setStage("");
       onChanged();
       toast({ tone: "success", title: "Category added" });
     } catch (err) {
@@ -641,6 +677,27 @@ function CategoriesManagerDrawer({
       setSubmitting(false);
     }
   }
+
+  async function changeStage(cat: ProductCategory, next: CelebrationStage | null) {
+    setBusyId(cat.id);
+    try {
+      await updateProductCategory(cat.id, { celebrationStage: next });
+      onChanged();
+      toast({
+        tone: "success",
+        title: next ? `"${cat.name}" moved to ${CELEBRATION_STAGE_LABELS[next]}` : `"${cat.name}" is now unassigned`,
+      });
+    } catch (err) {
+      toast({ tone: "error", title: "Could not update category", description: err instanceof AdminApiError ? err.message : undefined });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const groups: Array<{ stage: CelebrationStage | null; label: string; items: ProductCategory[] }> = [
+    ...CELEBRATION_STAGES.map((s) => ({ stage: s, label: CELEBRATION_STAGE_LABELS[s], items: categories.filter((c) => c.celebrationStage === s) })),
+    { stage: null, label: "Not assigned to a stage", items: categories.filter((c) => !c.celebrationStage) },
+  ];
 
   async function toggleActive(cat: ProductCategory) {
     setBusyId(cat.id);
@@ -669,30 +726,79 @@ function CategoriesManagerDrawer({
   }
 
   return (
-    <AdminModalForm open={open} onClose={onClose} title="Manage Categories" description="Categories group products for shop filtering and navigation." onSubmit={onSubmit} submitting={submitting} submitLabel="Add category" error={error}>
-      <div className="flex flex-col gap-2">
-        {categories.length === 0 && <p className="text-sm text-(--color-text-muted)">No categories yet — add the first one below.</p>}
-        {categories.map((c) => (
-          <div key={c.id} className="flex items-center justify-between gap-2 rounded-sm border border-(--color-border-soft) px-3 py-2">
-            <span className="min-w-0 truncate text-sm">{c.name}</span>
-            <div className="flex shrink-0 items-center gap-2">
-              {busyId === c.id ? (
-                <Loader2 size={14} className="animate-spin text-(--color-text-muted)" aria-hidden="true" />
-              ) : (
-                <>
-                  <ToggleSwitch checked={c.isActive} onChange={() => toggleActive(c)} label={`${c.name} active`} />
-                  <button type="button" onClick={() => remove(c)} aria-label={`Delete ${c.name}`} className="cursor-pointer text-(--color-error)">
-                    <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                </>
-              )}
+    <AdminModalForm
+      open={open}
+      onClose={onClose}
+      title="Manage Categories"
+      description="Each category sits under a celebration stage. Products inherit it, and the package Customize step shows three sections — Before, During and After the Celebration — in this order."
+      onSubmit={onSubmit}
+      submitting={submitting}
+      submitLabel="Add category"
+      error={error}
+    >
+      {categories.length === 0 && <p className="text-sm text-(--color-text-muted)">No categories yet — add the first one below.</p>}
+      <div className="flex flex-col gap-4">
+        {groups
+          .filter((g) => g.stage !== null || g.items.length > 0)
+          .map((g) => (
+            <div key={g.stage ?? "none"}>
+              <p className={`mb-1.5 text-[11px] font-semibold uppercase tracking-wide ${g.stage ? "text-(--color-mocha)" : "text-(--color-error)"}`}>
+                {g.label}
+              </p>
+              <div className="flex flex-col gap-2">
+                {g.items.length === 0 && (
+                  <p className="rounded-sm border border-dashed border-(--color-border-soft) px-3 py-2 text-xs text-(--color-text-muted)">
+                    No categories in this stage yet.
+                  </p>
+                )}
+                {g.items.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-2 rounded-sm border border-(--color-border-soft) px-3 py-2">
+                    <span className="min-w-0 truncate text-sm">{c.name}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {busyId === c.id ? (
+                        <Loader2 size={14} className="animate-spin text-(--color-text-muted)" aria-hidden="true" />
+                      ) : (
+                        <>
+                          <select
+                            aria-label={`${c.name} celebration stage`}
+                            className="input h-8 w-auto py-0 text-xs"
+                            value={c.celebrationStage ?? ""}
+                            onChange={(e) => changeStage(c, (e.target.value || null) as CelebrationStage | null)}
+                          >
+                            <option value="">Not assigned</option>
+                            {CELEBRATION_STAGES.map((s) => (
+                              <option key={s} value={s}>
+                                {CELEBRATION_STAGE_LABELS[s]}
+                              </option>
+                            ))}
+                          </select>
+                          <ToggleSwitch checked={c.isActive} onChange={() => toggleActive(c)} label={`${c.name} active`} />
+                          <button type="button" onClick={() => remove(c)} aria-label={`Delete ${c.name}`} className="cursor-pointer text-(--color-error)">
+                            <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
-      <FormField label="New category name" htmlFor="new-category-name">
-        <TextInput id="new-category-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Return Gifts" />
-      </FormField>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FormField label="New category name" htmlFor="new-category-name">
+          <TextInput id="new-category-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Invitations" />
+        </FormField>
+        <FormField label="Celebration stage" htmlFor="new-category-stage" required>
+          <SelectInput
+            id="new-category-stage"
+            value={stage}
+            onChange={(e) => setStage(e.target.value as CelebrationStage | "")}
+            placeholder="Choose a stage…"
+            options={CELEBRATION_STAGES.map((s) => ({ value: s, label: CELEBRATION_STAGE_LABELS[s] }))}
+          />
+        </FormField>
+      </div>
     </AdminModalForm>
   );
 }

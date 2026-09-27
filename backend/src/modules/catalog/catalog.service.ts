@@ -40,7 +40,12 @@ function shapeProduct(p: ProductWithRelations) {
     minOrderQuantity: p.minOrderQuantity,
     maxOrderQuantity: p.maxOrderQuantity,
     images: p.images.map((img) => ({ id: img.id, displayOrder: img.displayOrder, media: toMediaRef(img.media) })),
-    categories: p.categoryTags.map((t) => ({ id: t.category.id, name: t.category.name, slug: t.category.slug })),
+    categories: p.categoryTags.map((t) => ({
+      id: t.category.id,
+      name: t.category.name,
+      slug: t.category.slug,
+      celebrationStage: t.category.celebrationStage,
+    })),
     themes: p.themeTags.map((t) => ({ id: t.theme.id, title: t.theme.title, slug: t.theme.slug })),
     personalizationFields: (p.personalizationFields ?? []).map((f) => ({
       id: f.id,
@@ -352,12 +357,34 @@ export async function adminListCategories() {
   return prisma.productCategory.findMany({ orderBy: [{ displayOrder: "asc" }, { name: "asc" }] });
 }
 
-export async function createCategory(input: { name: string; slug?: string; displayOrder?: number; isActive?: boolean }) {
+type CelebrationStageValue = "BEFORE" | "DURING" | "AFTER";
+
+type CategoryInput = {
+  name: string;
+  slug?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+  celebrationStage?: CelebrationStageValue | null;
+};
+
+/** Category changes can move products between Customize-step sections and shop filters. */
+function invalidateCategoryCaches() {
+  void delPattern("pub:product-categories:*");
+  void invalidateProductCaches();
+}
+
+export async function createCategory(input: CategoryInput) {
   const slug = await ensureUniqueCategorySlug(slugify(input.slug || input.name));
   const category = await prisma.productCategory.create({
-    data: { name: input.name, slug, displayOrder: input.displayOrder ?? 0, isActive: input.isActive ?? true },
+    data: {
+      name: input.name,
+      slug,
+      displayOrder: input.displayOrder ?? 0,
+      isActive: input.isActive ?? true,
+      celebrationStage: input.celebrationStage ?? null,
+    },
   });
-  void delPattern("pub:product-categories:*");
+  invalidateCategoryCaches();
   return category;
 }
 
@@ -372,7 +399,7 @@ async function ensureUniqueCategorySlug(base: string, excludeId?: string): Promi
   }
 }
 
-export async function updateCategory(id: string, input: { name?: string; slug?: string; displayOrder?: number; isActive?: boolean }) {
+export async function updateCategory(id: string, input: Partial<CategoryInput>) {
   const existing = await prisma.productCategory.findFirst({ where: { id } });
   if (!existing) throw new NotFoundError("Category not found");
   let slug = existing.slug;
@@ -381,9 +408,15 @@ export async function updateCategory(id: string, input: { name?: string; slug?: 
   }
   const category = await prisma.productCategory.update({
     where: { id },
-    data: { name: input.name, slug, displayOrder: input.displayOrder, isActive: input.isActive },
+    data: {
+      name: input.name,
+      slug,
+      displayOrder: input.displayOrder,
+      isActive: input.isActive,
+      celebrationStage: input.celebrationStage,
+    },
   });
-  void delPattern("pub:product-categories:*");
+  invalidateCategoryCaches();
   return category;
 }
 
@@ -392,7 +425,7 @@ export async function deleteCategory(id: string) {
   if (!existing) throw new NotFoundError("Category not found");
   await prisma.productCategoryTag.deleteMany({ where: { categoryId: id } });
   await prisma.productCategory.delete({ where: { id } });
-  void delPattern("pub:product-categories:*");
+  invalidateCategoryCaches();
 }
 
 export { StockStatusFlag };

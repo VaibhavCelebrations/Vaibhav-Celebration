@@ -90,6 +90,7 @@ function shapeCollection(c: CollectionWithRelations, includeInactiveProducts = f
     startsAt: c.startsAt?.toISOString() ?? null,
     endsAt: c.endsAt?.toISOString() ?? null,
     showOnHomepage: c.showOnHomepage,
+    isFestive: c.isFestive,
     isActive: c.isActive,
     displayOrder: c.displayOrder,
     createdAt: c.createdAt.toISOString(),
@@ -100,11 +101,15 @@ function shapeCollection(c: CollectionWithRelations, includeInactiveProducts = f
   };
 }
 
-export async function listCollections(q: { featured?: boolean }) {
+export async function listCollections(q: { featured?: boolean; festive?: boolean }) {
   const key = `pub:collections:${cacheKey(q)}`;
   return cached(key, PUB_TTL, async () => {
     const rows = await prisma.productCollection.findMany({
-      where: { ...activeWindow(), ...(q.featured ? { showOnHomepage: true } : {}) },
+      where: {
+        ...activeWindow(),
+        ...(q.featured ? { showOnHomepage: true } : {}),
+        ...(q.festive !== undefined ? { isFestive: q.festive } : {}),
+      },
       include: collectionInclude,
       orderBy: [{ displayOrder: "asc" }, { title: "asc" }],
     });
@@ -130,6 +135,7 @@ export type CollectionInput = {
   startsAt?: Date | null;
   endsAt?: Date | null;
   showOnHomepage?: boolean;
+  isFestive?: boolean;
   isActive?: boolean;
   displayOrder?: number;
   productIds?: string[];
@@ -198,6 +204,7 @@ export async function adminListCollections(q: { page?: number; pageSize?: number
           startsAt: c.startsAt?.toISOString() ?? null,
           endsAt: c.endsAt?.toISOString() ?? null,
           showOnHomepage: c.showOnHomepage,
+          isFestive: c.isFestive,
           isActive: c.isActive,
           displayOrder: c.displayOrder,
           createdAt: c.createdAt.toISOString(),
@@ -244,6 +251,7 @@ export async function createCollection(input: CollectionInput) {
         startsAt: input.startsAt ?? null,
         endsAt: input.endsAt ?? null,
         showOnHomepage: input.showOnHomepage ?? false,
+        isFestive: input.isFestive ?? false,
         isActive: input.isActive ?? true,
         displayOrder: input.displayOrder ?? 0,
       },
@@ -273,6 +281,7 @@ export async function updateCollection(id: string, input: Partial<CollectionInpu
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         showOnHomepage: input.showOnHomepage,
+        isFestive: input.isFestive,
         isActive: input.isActive,
         displayOrder: input.displayOrder,
       },

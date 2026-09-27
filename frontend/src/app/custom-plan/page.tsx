@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { whatsappHref } from "@/lib/cms/map-media";
+import { envWhatsAppNumber } from "@/lib/business";
 import { useCatalog } from "@/context/catalog-context";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
@@ -84,7 +85,7 @@ function CustomPlanContent() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const hydrated = useRef(false);
-  const whatsappUrl = whatsappHref(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "", process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE);
+  const whatsappUrl = whatsappHref(envWhatsAppNumber(), process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE);
 
   /* ── Draft persistence ─────────────────────────────────────────── */
 

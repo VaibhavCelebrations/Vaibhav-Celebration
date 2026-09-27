@@ -128,9 +128,20 @@ export type BuilderProductOption = {
     isRequired: boolean;
     maxLength: number | null;
   }>;
+  /** The product's category and the celebration stage that category sits under. */
+  category: { name: string; slug: string; celebrationStage: string | null } | null;
 };
 
-export type BuilderChoiceService = {
+/** Where a service is shown in the Customize step, derived from its products' categories. */
+type ServicePlacement = {
+  /** Before / During / After (null = category not yet assigned a stage in admin). */
+  celebrationStage: string | null;
+  /** Category of the service's products — ordered by the category's display order. */
+  categoryName: string | null;
+  categoryOrder: number;
+};
+
+export type BuilderChoiceService = ServicePlacement & {
   serviceId: string;
   label: string;
   description: string | null;
@@ -139,6 +150,35 @@ export type BuilderChoiceService = {
   isPerGroup: boolean;
   products: BuilderProductOption[];
 };
+
+const STAGE_ORDER: Record<string, number> = { BEFORE: 0, DURING: 1, AFTER: 2 };
+const stageRank = (s: string | null) => (s ? (STAGE_ORDER[s] ?? 99) : 99);
+
+/**
+ * A service sits under the stage of the category most of its products belong to (ties go to the
+ * earlier stage), so the admin controls the Customize sections purely through product categories.
+ */
+function placeService(products: ChoiceProductRow[]): ServicePlacement {
+  const counts = new Map<string, { n: number; cat: CategoryRow }>();
+  for (const p of products) {
+    const cat = primaryCategory(p);
+    if (!cat) continue;
+    const entry = counts.get(cat.slug) ?? { n: 0, cat };
+    entry.n += 1;
+    counts.set(cat.slug, entry);
+  }
+  const best = [...counts.values()].sort(
+    (a, b) => b.n - a.n || stageRank(a.cat.celebrationStage) - stageRank(b.cat.celebrationStage) || a.cat.displayOrder - b.cat.displayOrder,
+  )[0];
+  return best
+    ? { celebrationStage: best.cat.celebrationStage, categoryName: best.cat.name, categoryOrder: best.cat.displayOrder }
+    : { celebrationStage: null, categoryName: null, categoryOrder: 9999 };
+}
+
+/** Before -> During -> After (uncategorized last), then category order; stable for ties. */
+function byPlacement(a: ServicePlacement, b: ServicePlacement): number {
+  return stageRank(a.celebrationStage) - stageRank(b.celebrationStage) || a.categoryOrder - b.categoryOrder;
+}
 
 function perChildQty(guestCount: number, moq: number): { qty: number; moqApplied: boolean } {
   const qty = Math.max(guestCount, moq);
@@ -155,6 +195,8 @@ function isGroupPriced(svc: { isPerGroup: boolean }, sku: string) {
   return svc.isPerGroup || PER_GROUP_SKUS.has(sku);
 }
 
+type CategoryRow = { name: string; slug: string; displayOrder: number; isActive: boolean; celebrationStage: string | null };
+
 type ChoiceProductRow = {
   id: string;
   title: string;
@@ -165,7 +207,14 @@ type ChoiceProductRow = {
   minOrderQuantity: number;
   personalizationEnabled: boolean;
   personalizationCostInPaise: number;
+  categoryTags?: Array<{ category: CategoryRow }>;
 };
+
+/** Products belong to one category in the admin; prefer an active one if several are tagged. */
+function primaryCategory(p: ChoiceProductRow): CategoryRow | null {
+  const cats = (p.categoryTags ?? []).map((t) => t.category);
+  return cats.find((c) => c.isActive) ?? cats[0] ?? null;
+}
 
 type ChoiceProductRowWithMedia = ChoiceProductRow & {
   images: Array<{ media: Parameters<typeof toMediaRef>[0] }>;
@@ -196,6 +245,13 @@ async function loadServiceProducts(serviceIds: string[], themeId: string, withMe
           minOrderQuantity: true,
           personalizationEnabled: true,
           personalizationCostInPaise: true,
+          categoryTags: {
+            select: {
+              category: {
+                select: { name: true, slug: true, displayOrder: true, isActive: true, celebrationStage: true },
+              },
+            },
+          },
           ...(withMedia
             ? {
                 images: {
@@ -239,6 +295,10 @@ function toProductOption(p: ChoiceProductRowWithMedia, isGroup: boolean): Builde
       isRequired: f.isRequired,
       maxLength: f.maxLength,
     })),
+    category: (() => {
+      const c = primaryCategory(p);
+      return c ? { name: c.name, slug: c.slug, celebrationStage: c.celebrationStage } : null;
+    })(),
   };
 }
 
@@ -356,10 +416,11 @@ export async function getBuilderOptions(q: { theme: string; package: string }) {
         description: svc.description,
         selectionCount: Math.min(svc.selectionCount, rows.length),
         isPerGroup: svc.isPerGroup,
+        ...placeService(rows),
         products: rows.map((p) => toProductOption(p, isGroupPriced(svc, p.sku))),
       });
     }
-    return result;
+    return result.sort(byPlacement);
   });
 }
 
@@ -658,7 +719,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
 export const CUSTOM_PLAN_SLUG = "custom-plan";
 export const CUSTOM_PLAN_TITLE = "Custom Celebration";
 
-export type CustomPlanService = {
+export type CustomPlanService = ServicePlacement & {
   serviceId: string;
   label: string;
   description: string | null;
@@ -765,11 +826,13 @@ export async function getCustomPlanOptions(q: { theme: string }): Promise<Custom
         label: svc.label,
         description: svc.description,
         category: svc.category,
+        ...placeService(rows),
         isPerGroup: svc.isPerGroup,
         packageTitles,
         products: rows.map((p) => toProductOption(p, isGroupPriced(svc, p.sku))),
       });
     }
+    result.sort(byPlacement);
 
     return {
       themeSlug: theme.slug,

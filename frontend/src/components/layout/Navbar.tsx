@@ -42,6 +42,11 @@ const navLinks: NavLink[] = [
   {
     label: "Shop",
     href: "/gifts",
+    submenu: [
+      { label: "All Products", href: "/gifts" },
+      { label: "Festive Collections", href: "/gifts?category=festive" },
+      { label: "Return Gifts", href: "/gifts?category=return-gifts" },
+    ],
   },
   { label: "Events", href: "/events" },
   { label: "Gallery", href: "/gallery" },

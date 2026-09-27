@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api-client";
+import { BUSINESS, validPhoneOrNull } from "@/lib/business";
 import type { PublicSettings } from "./types";
 import { CMS_TAGS, cmsFetchOptions } from "./tags";
 
@@ -7,13 +8,13 @@ export async function getPublicSettings(): Promise<PublicSettings> {
 }
 
 export async function getWhatsAppNumber(): Promise<string> {
-  const fromEnv = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.trim();
+  const fromEnv = validPhoneOrNull(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
   if (fromEnv) return fromEnv;
   try {
     const settings = await getPublicSettings();
-    return settings.whatsappNumber?.trim() || "";
+    return validPhoneOrNull(settings.whatsappNumber) ?? validPhoneOrNull(settings.businessPhone) ?? BUSINESS.phone;
   } catch {
-    return "";
+    return BUSINESS.phone;
   }
 }
 

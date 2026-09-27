@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X, Loader2, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Search, SlidersHorizontal, X, Loader2, ChevronLeft, ChevronRight, Check, Sparkles, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
 import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
@@ -14,7 +14,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
 import { useCatalog } from "@/context/catalog-context";
 import * as shopApi from "@/lib/shop-api";
-import type { GiftFilter, Product, ProductCategory, ProductCollection } from "@/lib/shop-types";
+import { FESTIVE_FILTER, type GiftFilter, type Product, type ProductCategory, type ProductCollection } from "@/lib/shop-types";
 
 const sortOptions = [
   { value: "newest", label: "Newest First" },
@@ -43,10 +43,22 @@ function GiftsPageContent() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // The header's Shop menu links (All Products / Festive Collections / Return Gifts) change the
+  // query string while this page stays mounted — follow them.
+  const urlCategory = searchParams.get("category");
+  const urlTheme = searchParams.get("theme");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFilter((prev) => ({ ...prev, category: urlCategory, theme: urlTheme }));
+  }, [urlCategory, urlTheme]);
+
   // Reset page to 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filter]);
+
+  const isFestiveView = filter.category === FESTIVE_FILTER;
+  const festiveCollections = useMemo(() => collections.filter((c) => c.isFestive && c.isActive), [collections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +97,28 @@ function GiftsPageContent() {
     };
   }, []);
 
+  /** Theme + search filters, shared by the product grid and the festive collection groups. */
+  const matchesThemeAndSearch = useCallback(
+    (p: Product) => {
+      if (filter.theme && !(Array.isArray(p.themes) && p.themes.some((t) => t.slug === filter.theme))) return false;
+      const q = filter.search.trim().toLowerCase();
+      if (!q) return true;
+      const title = typeof p.title === "string" ? p.title : "";
+      const description = typeof p.description === "string" ? p.description : "";
+      const themeMatch = Array.isArray(p.themes) && p.themes.some((t) => t.title?.toLowerCase().includes(q));
+      return title.toLowerCase().includes(q) || description.toLowerCase().includes(q) || themeMatch;
+    },
+    [filter.theme, filter.search],
+  );
+
+  const festiveGroups = useMemo(
+    () =>
+      festiveCollections
+        .map((c) => ({ collection: c, products: c.products.filter((p) => p.isActive && matchesThemeAndSearch(p)) }))
+        .filter((g) => g.products.length > 0),
+    [festiveCollections, matchesThemeAndSearch],
+  );
+
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => p.isActive);
 
@@ -92,7 +126,9 @@ function GiftsPageContent() {
       result = result.filter((p) => Array.isArray(p.themes) && p.themes.some((t) => t.slug === filter.theme));
     }
 
-    if (filter.category === "personalized") {
+    if (filter.category === FESTIVE_FILTER) {
+      result = festiveGroups.flatMap((g) => g.products);
+    } else if (filter.category === "personalized") {
       result = result.filter(
         (p) => p.personalizationEnabled || (p.personalizationFields?.length ?? 0) > 0,
       );
@@ -124,7 +160,7 @@ function GiftsPageContent() {
     }
 
     return result;
-  }, [products, filter]);
+  }, [products, filter, festiveGroups]);
 
   const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -171,6 +207,18 @@ function GiftsPageContent() {
           >
             All Products
             {!filter.category && <Check size={14} />}
+          </button>
+          <button
+            onClick={() => setFilter({ ...filter, category: isFestiveView ? null : FESTIVE_FILTER })}
+            className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left ${
+              isFestiveView ? "bg-mocha text-white font-semibold shadow-md shadow-mocha/20" : "text-charcoal hover:bg-cream-dark"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles size={14} className={isFestiveView ? "text-white" : "text-mocha"} />
+              Festive Collections
+            </span>
+            {isFestiveView && <Check size={14} />}
           </button>
           {categories.map((cat) => (
             <button
@@ -379,8 +427,42 @@ function GiftsPageContent() {
                 </div>
               )}
 
+              {/* Festive Collections — one section per festival, each linking to its own page */}
+              {!isLoading && !loadError && isFestiveView && festiveGroups.length > 0 && (
+                <div className="space-y-14">
+                  {festiveGroups.map(({ collection, products: items }) => (
+                    <section key={collection.id} aria-labelledby={`festive-${collection.slug}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 pb-4 border-b border-border-light">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-mocha mb-1">Festive Collection</p>
+                          <h3 id={`festive-${collection.slug}`} className="font-display text-2xl md:text-3xl font-semibold text-charcoal">
+                            {collection.title}
+                          </h3>
+                          {collection.description && (
+                            <p className="text-sm text-text-muted mt-1.5 max-w-2xl">{collection.description}</p>
+                          )}
+                        </div>
+                        <Link
+                          href={`/gifts/collection/${collection.slug}`}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-mocha hover:text-mocha-dark shrink-0"
+                        >
+                          View collection <ArrowRight size={15} />
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                        {items.map((product, i) => (
+                          <ScrollReveal key={product.id} delay={(i % 12) * 50}>
+                            <ProductCard product={product} />
+                          </ScrollReveal>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+
               {/* Product Grid */}
-              {!isLoading && !loadError && (
+              {!isLoading && !loadError && !isFestiveView && (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {paginatedProducts.map((product, i) => (
                     <ScrollReveal key={product.id} delay={(i % 12) * 50}>
@@ -390,8 +472,26 @@ function GiftsPageContent() {
                 </div>
               )}
 
+              {/* Festive: nothing live right now */}
+              {!isLoading && !loadError && isFestiveView && festiveGroups.length === 0 && (
+                <div className="text-center py-24 bg-white/40 rounded-3xl border border-border-light mt-8">
+                  <div className="w-16 h-16 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
+                    <Sparkles size={24} className="text-mocha" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-charcoal mb-2">Festive hampers are on their way</h3>
+                  <p className="text-text-muted text-sm mb-6 max-w-md mx-auto">
+                    {filter.search || filter.theme
+                      ? "No festive products match these filters."
+                      : "Our next festive collection is being curated. Meanwhile, explore everything in the shop."}
+                  </p>
+                  <button onClick={clearFilters} className="btn-outline px-6 py-2.5 text-sm cursor-pointer">
+                    View All Products
+                  </button>
+                </div>
+              )}
+
               {/* Empty State */}
-              {!isLoading && !loadError && filteredProducts.length === 0 && (
+              {!isLoading && !loadError && !isFestiveView && filteredProducts.length === 0 && (
                 <div className="text-center py-24 bg-white/40 rounded-3xl border border-border-light mt-8">
                   <div className="w-16 h-16 rounded-full bg-cream-dark mx-auto flex items-center justify-center mb-6">
                     <Search size={24} className="text-text-light" />
@@ -409,7 +509,7 @@ function GiftsPageContent() {
               )}
 
               {/* Pagination */}
-              {!isLoading && totalPages > 1 && (
+              {!isLoading && !isFestiveView && totalPages > 1 && (
                 <div className="mt-16 flex items-center justify-center gap-2">
                   <button
                     disabled={currentPage === 1}

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
+import { BUSINESS } from "../../lib/business";
 import { NotFoundError } from "../../lib/errors";
 import { resolveMediaInJson, toMediaRef } from "../../lib/media-ref";
 
@@ -173,10 +174,10 @@ export const defaultPageSections: Record<PageKey, Prisma.InputJsonValue> = {
       subtitle: "We'd love to hear about your celebration plans.",
     },
     info: {
-      phone: "+91 98765 43210",
-      email: "hello@vaibhavcelebrations.in",
-      address: "Vaibhav Farmhouse, Near Surajkund, Faridabad, Haryana 121009",
-      hours: "Mon–Sat, 10 AM – 7 PM",
+      phone: BUSINESS.phone,
+      email: BUSINESS.email,
+      address: BUSINESS.address,
+      hours: BUSINESS.hours,
     },
     formLabels: {
       name: "Your Name",

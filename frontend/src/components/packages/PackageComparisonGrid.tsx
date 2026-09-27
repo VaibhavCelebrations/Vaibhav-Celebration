@@ -1,20 +1,53 @@
+import { Fragment } from "react";
 import { Check, Minus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
-const comparisonFeatures = [
-  { feature: "Digital Theme Invite", essential: true, signature: true, grand: true },
-  { feature: "Welcome Board / Standee", essential: true, signature: true, grand: true },
-  { feature: "Theme Table Elements", essential: true, signature: true, grand: true },
-  { feature: "Thank You Tags", essential: true, signature: true, grand: true },
-  { feature: "Parent Party Brief", essential: false, signature: true, grand: true },
-  { feature: "Countdown Cards (5 Days)", essential: false, signature: true, grand: true },
-  { feature: "Theme Activity / Craft", essential: false, signature: "1 Activity", grand: "2 Activities" },
-  { feature: "Return Gift Sourcing", essential: false, signature: true, grand: true },
-  { feature: "Themed Gift Bag / Box", essential: "Simple Bag", signature: "Theme Bag", grand: "Custom Box" },
-  { feature: "On-Day Coordination (Jaipur)", essential: false, signature: false, grand: true },
-  { feature: "Premium Keepsake Box", essential: false, signature: false, grand: true },
-  { feature: "Gift Registry", essential: false, signature: true, grand: true },
+type ComparisonRow = {
+  feature: string;
+  essential: boolean | string;
+  signature: boolean | string;
+  grand: boolean | string;
+};
+
+type ComparisonPhase = {
+  phase: "Before the Celebration" | "During the Celebration" | "After the Celebration";
+  rows: ComparisonRow[];
+};
+
+const comparisonPhases: ComparisonPhase[] = [
+  {
+    phase: "Before the Celebration",
+    rows: [
+      { feature: "Digital Theme Invite", essential: true, signature: true, grand: true },
+      { feature: "Countdown Cards (5 Days)", essential: false, signature: true, grand: true },
+      { feature: "Parent Party Brief", essential: false, signature: true, grand: true },
+      { feature: "Gift Registry", essential: false, signature: true, grand: true },
+    ],
+  },
+  {
+    phase: "During the Celebration",
+    rows: [
+      { feature: "Welcome Board / Standee", essential: true, signature: true, grand: true },
+      { feature: "Theme Table Elements", essential: true, signature: true, grand: true },
+      { feature: "Theme Activity / Craft", essential: false, signature: "Choose any 1", grand: "Choose any 2" },
+      { feature: "On-Day Coordination (Jaipur)", essential: false, signature: false, grand: true },
+    ],
+  },
+  {
+    phase: "After the Celebration",
+    rows: [
+      { feature: "Thank You Tags", essential: true, signature: true, grand: true },
+      { feature: "Return Gift Sourcing", essential: false, signature: true, grand: true },
+      {
+        feature: "Themed Gift Bag / Box",
+        essential: "Simple Bag",
+        signature: "Theme Bag",
+        grand: "Customized/Personalized Box or Bag",
+      },
+      { feature: "Premium Keepsake Box", essential: false, signature: false, grand: true },
+    ],
+  },
 ];
 
 export function PackageComparisonGrid() {
@@ -49,37 +82,49 @@ export function PackageComparisonGrid() {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {comparisonFeatures.map((row, i) => (
-                <tr key={i} className="border-b border-border/50 hover:bg-cream-dark/30 transition-colors">
-                  <td className="py-4 px-6 text-sm font-medium text-charcoal">{row.feature}</td>
-                  
-                  {/* Essential */}
-                  <td className="py-4 px-6 text-center border-l border-border/50">
-                    {typeof row.essential === "boolean" ? (
-                      row.essential ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
-                    ) : (
-                      <span className="text-sm text-text-muted">{row.essential}</span>
-                    )}
-                  </td>
-                  
-                  {/* Signature */}
-                  <td className="py-4 px-6 text-center border-l border-border/50 bg-mocha/5">
-                    {typeof row.signature === "boolean" ? (
-                      row.signature ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
-                    ) : (
-                      <span className="text-sm font-semibold text-mocha">{row.signature}</span>
-                    )}
-                  </td>
-                  
-                  {/* Grand */}
-                  <td className="py-4 px-6 text-center border-l border-border/50">
-                    {typeof row.grand === "boolean" ? (
-                      row.grand ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
-                    ) : (
-                      <span className="text-sm font-semibold text-charcoal">{row.grand}</span>
-                    )}
-                  </td>
-                </tr>
+              {comparisonPhases.map((group) => (
+                <Fragment key={group.phase}>
+                  <tr className="bg-cream-dark/60 border-b border-border/50">
+                    <td
+                      colSpan={4}
+                      className="py-2.5 px-6 text-xs font-bold uppercase tracking-[0.15em] text-mocha"
+                    >
+                      {group.phase}
+                    </td>
+                  </tr>
+                  {group.rows.map((row) => (
+                    <tr key={row.feature} className="border-b border-border/50 hover:bg-cream-dark/30 transition-colors">
+                      <td className="py-4 px-6 text-sm font-medium text-charcoal">{row.feature}</td>
+
+                      {/* Essential */}
+                      <td className="py-4 px-6 text-center border-l border-border/50">
+                        {typeof row.essential === "boolean" ? (
+                          row.essential ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
+                        ) : (
+                          <span className="text-sm text-text-muted">{row.essential}</span>
+                        )}
+                      </td>
+
+                      {/* Signature */}
+                      <td className="py-4 px-6 text-center border-l border-border/50 bg-mocha/5">
+                        {typeof row.signature === "boolean" ? (
+                          row.signature ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
+                        ) : (
+                          <span className="text-sm font-semibold text-mocha">{row.signature}</span>
+                        )}
+                      </td>
+
+                      {/* Grand */}
+                      <td className="py-4 px-6 text-center border-l border-border/50">
+                        {typeof row.grand === "boolean" ? (
+                          row.grand ? <Check className="mx-auto text-mocha" size={20} /> : <Minus className="mx-auto text-text-light/50" size={20} />
+                        ) : (
+                          <span className="text-sm font-semibold text-charcoal">{row.grand}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>

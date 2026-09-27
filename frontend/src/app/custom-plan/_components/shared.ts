@@ -119,22 +119,3 @@ export function estimateLine(p: BuilderProduct, guestCount: number, isGroup: boo
   const qty = isGroup ? (moqApplied ? p.minOrderQuantity : 1) : Math.max(guestCount, p.minOrderQuantity);
   return { unit, qty, total: unit * qty, moqApplied };
 }
-
-/* ─── Categories (from the admin package matrix) ──────────────────── */
-
-const CATEGORY_META: Record<string, { label: string; order: number }> = {
-  WELCOME_ITEM: { label: "Welcome Items", order: 1 },
-  CHILDREN_ACTIVITY: { label: "Children's Activities", order: 2 },
-  FAMILY_ACTIVITY: { label: "Family Activities", order: 3 },
-  RETURN_GIFT: { label: "Return Gifts", order: 4 },
-  KEEPSAKE: { label: "Keepsakes", order: 5 },
-  DIGITAL: { label: "Digital Extras", order: 6 },
-  PACKAGING: { label: "Packaging", order: 7 },
-  THANK_YOU_TAG: { label: "Thank-you Tags", order: 8 },
-  PERSONALIZATION: { label: "Personalised Touches", order: 9 },
-  DECOR: { label: "Décor", order: 10 },
-};
-
-export function categoryMeta(category: string | null) {
-  return (category && CATEGORY_META[category]) || { label: "More Options", order: 99 };
-}

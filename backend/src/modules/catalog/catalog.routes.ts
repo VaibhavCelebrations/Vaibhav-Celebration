@@ -249,6 +249,8 @@ const categorySchema = z.object({
   slug: z.string().optional(),
   displayOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  /** Parent grouping: Before / During / After the Celebration. */
+  celebrationStage: z.enum(["BEFORE", "DURING", "AFTER"]).nullable().optional(),
 });
 
 adminProductCategoriesRouter.post("/", validate(categorySchema), async (req, res, next) => {

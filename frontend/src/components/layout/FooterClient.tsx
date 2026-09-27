@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Mail, Phone, Clock } from "lucide-react";
 import type { PublicSettings } from "@/lib/cms/types";
+import { BUSINESS, DEFAULT_PUBLIC_SETTINGS, telHref } from "@/lib/business";
 
 const exploreLinks = [
   { label: "Home", href: "/" },
@@ -21,17 +22,13 @@ const supportLinks = [
   { label: "Terms & Conditions", href: "/legal/terms-of-service" },
 ];
 
-export const DEFAULT_FOOTER_SETTINGS: PublicSettings = {
-  businessName: "Vaibhav Celebrations",
-  businessPhone: "+91 00000 00000",
-  businessEmail: "hello@vaibhavcelebrations.in",
-  businessAddress: "Jaipur, Rajasthan, India",
-  whatsappNumber: "",
-  instagramUrl: "https://www.instagram.com/vaibhavcelebrations.in/",
-  facebookUrl: "https://www.facebook.com/profile.php?id=61574357200002",
-  youtubeUrl: null,
-  linkedinUrl: null,
-};
+export const DEFAULT_FOOTER_SETTINGS: PublicSettings = DEFAULT_PUBLIC_SETTINGS;
+
+/** Drop empty/null values so they don't override the official fallbacks. */
+function stripEmpty(settings?: Partial<PublicSettings>): Partial<PublicSettings> {
+  if (!settings) return {};
+  return Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+}
 
 const DEFAULT_THEME_LINKS = [{ label: "All Themes", href: "/themes" }];
 const DEFAULT_BLOG_LINKS = [{ label: "All Articles", href: "/blog" }];
@@ -43,10 +40,12 @@ export type FooterClientProps = {
 };
 
 export function FooterClient({
-  settings = DEFAULT_FOOTER_SETTINGS,
+  settings: fromApi,
   themeLinks = DEFAULT_THEME_LINKS,
   blogLinks = DEFAULT_BLOG_LINKS,
 }: FooterClientProps) {
+  // Any field missing from the settings API falls back to the official business details.
+  const settings: PublicSettings = { ...DEFAULT_PUBLIC_SETTINGS, ...stripEmpty(fromApi) };
   return (
     <footer className="bg-cream pt-16 md:pt-20 pb-8 border-t border-border">
       <div className="max-w-7xl mx-auto px-5 md:px-10 grid sm:grid-cols-2 lg:grid-cols-6 gap-10">
@@ -60,9 +59,15 @@ export function FooterClient({
           </p>
           <ul className="mt-6 space-y-2.5 text-xs text-text-muted">
             <li className="flex items-start gap-2"><MapPin size={13} className="shrink-0 mt-0.5 text-mocha" />{settings.businessAddress}</li>
-            <li className="flex items-center gap-2"><Phone size={13} className="shrink-0 text-mocha" />{settings.businessPhone}</li>
-            <li className="flex items-center gap-2"><Mail size={13} className="shrink-0 text-mocha" />{settings.businessEmail}</li>
-            <li className="flex items-center gap-2"><Clock size={13} className="shrink-0 text-mocha" />Mon - Sun: 10 AM - 6 PM</li>
+            <li className="flex items-center gap-2">
+              <Phone size={13} className="shrink-0 text-mocha" />
+              <a href={telHref(settings.businessPhone)} className="hover:text-mocha transition-colors">{settings.businessPhone}</a>
+            </li>
+            <li className="flex items-center gap-2">
+              <Mail size={13} className="shrink-0 text-mocha" />
+              <a href={`mailto:${settings.businessEmail}`} className="hover:text-mocha transition-colors">{settings.businessEmail}</a>
+            </li>
+            <li className="flex items-center gap-2"><Clock size={13} className="shrink-0 text-mocha" />{BUSINESS.hours}</li>
           </ul>
         </div>
 
@@ -96,12 +101,24 @@ export function FooterClient({
       </div>
 
       <div className="max-w-7xl mx-auto px-5 md:px-10 mt-12 pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-text-light">
-        <p>© {new Date().getFullYear()} {settings.businessName}. All rights reserved.</p>
+        <div className="text-center sm:text-left space-y-1">
+          <p>© {new Date().getFullYear()} {settings.businessName}. All rights reserved.</p>
+          <p>
+            Proprietor: {settings.businessProprietor} · GSTIN: {settings.businessGstin}
+          </p>
+        </div>
 
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 text-charcoal/60">
             {settings.instagramUrl && (
-              <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="hover:text-mocha transition-colors">
+              <a
+                href={settings.instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Instagram ${settings.instagramHandle ?? ""}`.trim()}
+                title={settings.instagramHandle ?? "Instagram"}
+                className="hover:text-mocha transition-colors"
+              >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="0.6" fill="currentColor" stroke="none"/></svg>
               </a>
             )}
