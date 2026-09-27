@@ -10,6 +10,18 @@ export const envSchema = z.object({
   API_PREFIX: z.string().default("/api/v1"),
   DATABASE_URL: z.string().min(1),
   CORS_ORIGINS: z.string().default("http://localhost:3000,http://localhost:3001"),
+  /** Number of reverse-proxy hops in front of the app (nginx = 1, nginx behind a cloud LB = 2). Drives req.ip and rate-limit keys. */
+  /** When true, unsafe production settings (see findProductionConfigProblems) abort startup. Enabled in the Docker/production compose files. */
+  ENFORCE_PRODUCTION_CHECKS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
+  /** Allow this project's Vercel preview URLs as CORS origins. Never enable in production. */
+  ALLOW_VERCEL_PREVIEWS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
@@ -101,6 +113,12 @@ export const envSchema = z.object({
   RATE_LIMIT_MAX_PUBLIC: z.coerce.number().default(100),
   RATE_LIMIT_MAX_ADMIN: z.coerce.number().default(1000),
   RATE_LIMIT_MAX_UPLOAD: z.coerce.number().default(100),
+  /** Chatbot lead capture: max sessions saved per IP per hour. */
+  RATE_LIMIT_CHATBOT_SESSIONS_PER_HOUR: z.coerce.number().default(10),
+  /** Chatbot flow reads (page loads): max per IP per minute. */
+  RATE_LIMIT_CHATBOT_FLOW_PER_MINUTE: z.coerce.number().default(60),
+  /** Max upload size for media (MB). Files are buffered in memory, so keep this modest on small instances. */
+  MEDIA_MAX_UPLOAD_MB: z.coerce.number().default(50),
   DEFAULT_GST_PERCENT: z.coerce.number().default(18),
   DEFAULT_MAX_BOOKINGS_PER_DAY: z.coerce.number().default(2),
   MIN_CONSULTATION_ADVANCE_DAYS: z.coerce.number().default(15),
@@ -134,3 +152,51 @@ export const env = {
 export const corsOrigins = env.CORS_ORIGINS.split(",")
   .map((o) => o.trim())
   .filter(Boolean);
+
+/**
+ * Production guard rails — refuse to boot with settings that would silently weaken security.
+ * Checked at startup so a bad deploy fails fast (and the previous release keeps serving).
+ */
+export function findProductionConfigProblems(e: typeof env): string[] {
+  if (e.NODE_ENV !== "production") return [];
+  const problems: string[] = [];
+
+  const secrets: Array<[string, string]> = [
+    ["JWT_ACCESS_SECRET", e.JWT_ACCESS_SECRET],
+    ["JWT_REFRESH_SECRET", e.JWT_REFRESH_SECRET],
+    ["JWT_CUSTOMER_ACCESS_SECRET", e.JWT_CUSTOMER_ACCESS_SECRET],
+  ];
+  for (const [name, value] of secrets) {
+    if (/change[-_ ]?me|example|placeholder|your[-_ ]?secret/i.test(value)) problems.push(`${name} looks like a placeholder`);
+  }
+  if (new Set(secrets.map(([, v]) => v)).size !== secrets.length) {
+    problems.push("JWT secrets must all be different from each other");
+  }
+  const origins = e.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean);
+  if (origins.some((o) => /localhost|127\.0\.0\.1/.test(o) || !o.startsWith("https://"))) {
+    problems.push("CORS_ORIGINS must be exact https:// production origins (no localhost / http)");
+  }
+  if (e.ALLOW_VERCEL_PREVIEWS) problems.push("ALLOW_VERCEL_PREVIEWS must be false in production");
+  if (!e.FRONTEND_URL.startsWith("https://")) problems.push("FRONTEND_URL must be https:// in production");
+  if (e.RAZORPAY_MODE === "live" && e.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {
+    problems.push("RAZORPAY_MODE=live but RAZORPAY_KEY_ID is a test key");
+  }
+  if (e.RAZORPAY_KEY_ID && !e.RAZORPAY_WEBHOOK_SECRET) {
+    problems.push("RAZORPAY_WEBHOOK_SECRET is required so payment webhooks can be verified");
+  }
+  if (e.WHATSAPP_PROVIDER === "meta" && (!e.WHATSAPP_APP_SECRET || !e.WHATSAPP_WEBHOOK_VERIFY_TOKEN)) {
+    problems.push("WHATSAPP_APP_SECRET and WHATSAPP_WEBHOOK_VERIFY_TOKEN are required when WHATSAPP_PROVIDER=meta");
+  }
+  return problems;
+}
+
+const productionProblems = findProductionConfigProblems(env);
+if (productionProblems.length) {
+  const report = `Unsafe production configuration:\n - ${productionProblems.join("\n - ")}`;
+  if (env.ENFORCE_PRODUCTION_CHECKS) {
+    console.error(`Refusing to start. ${report}`);
+    process.exit(1);
+  }
+  // Not enforced (e.g. a developer running NODE_ENV=production locally) - warn loudly instead.
+  console.warn(`[security] ${report}\n[security] Set ENFORCE_PRODUCTION_CHECKS=true on real deployments to make this fatal.`);
+}

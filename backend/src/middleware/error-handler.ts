@@ -54,6 +54,15 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     });
   }
 
+  // Malformed / oversized request bodies (body-parser) are client errors, not server faults.
+  const parserErr = err as { type?: string } | null;
+  if (parserErr?.type === "entity.too.large") {
+    return res.status(413).json({ success: false, error: { code: "PAYLOAD_TOO_LARGE", message: "Request body is too large" } });
+  }
+  if (parserErr?.type === "entity.parse.failed" || parserErr?.type === "encoding.unsupported") {
+    return res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Malformed request body" } });
+  }
+
   logger.error({ err }, "Unhandled error");
   return res.status(500).json({
     success: false,

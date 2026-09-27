@@ -183,17 +183,33 @@ async function rehostProductImage(imageUrl: string, pageUrl: URL): Promise<strin
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(target, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        "User-Agent": BROWSER_UA,
-        Referer: `${pageUrl.origin}/`,
-      },
-    });
-    if (!res.ok) return null;
+    // Redirects are followed by hand so EVERY hop is re-validated against the private-network
+    // blocklist. `redirect: "follow"` would let a public URL bounce us to 169.254.169.254 / internal hosts (SSRF).
+    let current = target;
+    let res: Response | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      current = await assertSafePublicUrl(current.toString());
+      const attempt = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          "User-Agent": BROWSER_UA,
+          Referer: `${pageUrl.origin}/`,
+        },
+      });
+      if ([301, 302, 303, 307, 308].includes(attempt.status)) {
+        const location = attempt.headers.get("location");
+        await attempt.body?.cancel();
+        if (!location) return null;
+        current = new URL(location, current);
+        continue;
+      }
+      res = attempt;
+      break;
+    }
+    if (!res || !res.ok) return null;
     const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
     if (!contentType.startsWith("image/")) return null;
     const buffer = await readLimitedBody(res, IMAGE_MAX_BYTES, "The product image is too large to process");

@@ -22,3 +22,13 @@ export function sanitizeLegalHtml(html: string): string {
 export function sanitizeBlogHtml(html: string): string {
   return DOMPurify.sanitize(html, BLOG_ALLOWED);
 }
+
+const INLINE_ALLOWED = {
+  ALLOWED_TAGS: ["p", "br", "strong", "em", "b", "i", "u", "span", "a", "ul", "ol", "li"],
+  ALLOWED_ATTR: ["href", "target", "rel"],
+};
+
+/** For short CMS blurbs (event summaries) rendered inline — text formatting and links only. */
+export function sanitizeInlineHtml(html: string): string {
+  return DOMPurify.sanitize(html, INLINE_ALLOWED);
+}

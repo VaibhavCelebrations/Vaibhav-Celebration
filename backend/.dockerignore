@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+uploads
+coverage
+*.log
+*.md
+Dockerfile
+.dockerignore
+# one-off developer scripts and data dumps — never part of the runtime image
+scripts
+set-r2-cors.mjs
+vitest.config.ts

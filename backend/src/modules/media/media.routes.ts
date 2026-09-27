@@ -8,6 +8,8 @@ import { param } from "../../lib/params";
 import { created, ok, paginationMeta, parsePagination } from "../../lib/response";
 import { requireAdmin, requireRoles, type AuthenticatedRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
+import { env } from "../../config/env";
+import { assertAllowedMediaType } from "./media-policy";
 import {
   createPresignedUpload,
   deleteByPrefix,
@@ -21,8 +23,17 @@ import {
 } from "../../integrations/media/storage";
 
 const upload = multer({
+  // Buffered in memory, so the cap protects small instances from memory exhaustion.
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { fileSize: env.MEDIA_MAX_UPLOAD_MB * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, cb) {
+    try {
+      assertAllowedMediaType(file.mimetype);
+      cb(null, true);
+    } catch (err) {
+      cb(err as Error);
+    }
+  },
 });
 
 const roles = [
@@ -172,13 +183,7 @@ mediaRouter.post(
         category?: MediaPrefixKind;
         folder?: string | null;
       };
-      if (
-        !body.contentType.startsWith("image/") &&
-        !body.contentType.startsWith("video/") &&
-        body.contentType !== "application/pdf"
-      ) {
-        throw new ValidationError("Only images, video, and PDF are allowed");
-      }
+      assertAllowedMediaType(body.contentType);
       const presign = await createPresignedUpload({
         kind: body.kind,
         scope: body.scope ?? body.folder ?? undefined,
@@ -226,6 +231,7 @@ mediaRouter.post(
         sizeBytes?: number | null;
         url?: string;
       };
+      assertAllowedMediaType(body.contentType);
       // Infer category from cdnKey prefix if not explicitly provided
       const inferredCategory = (body.category ?? body.cdnKey.split("/")[0]) as MediaPrefixKind | undefined;
       const item = await prisma.mediaAsset.create({
@@ -297,7 +303,7 @@ mediaRouter.post("/upload", upload.single("file"), async (req, res, next) => {
 mediaRouter.put("/upload-binary", express.raw({ type: "*/*", limit: "25mb" }), async (req, res, next) => {
   try {
     const cdnKey = req.header("x-cdn-key");
-    const contentType = req.header("content-type") ?? "application/octet-stream";
+    const contentType = assertAllowedMediaType(req.header("content-type") ?? "");
     const buffer = req.file?.buffer ?? (Buffer.isBuffer(req.body) ? req.body : null);
     if (!cdnKey || !buffer) throw new ValidationError("x-cdn-key header and body required");
 

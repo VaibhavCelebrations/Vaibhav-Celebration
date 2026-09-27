@@ -136,7 +136,7 @@ export async function refreshAccessToken(
   // Step 1 — JWT integrity check
   let jwtPayload: { sub: string; type: string };
   try {
-    jwtPayload = jwt.verify(rawRefreshToken, env.JWT_REFRESH_SECRET) as {
+    jwtPayload = jwt.verify(rawRefreshToken, env.JWT_REFRESH_SECRET, { algorithms: ["HS256"] }) as {
       sub: string;
       type: string;
     };
