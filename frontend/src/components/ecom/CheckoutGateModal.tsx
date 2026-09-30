@@ -10,6 +10,7 @@ import {
   requestPasswordReset,
 } from "@/lib/customer-auth-api";
 import { ApiClientError } from "@/lib/api-client";
+import { useOverlay } from "@/hooks/useOverlay";
 import type { ShippingAddress } from "@/lib/shop-types";
 
 export const GUEST_CHECKOUT_PREFILL_KEY = "vc_guest_checkout_prefill";
@@ -43,6 +44,7 @@ export function CheckoutGateModal({
   onSuccess,
   onEmailChanged,
 }: CheckoutGateModalProps) {
+  const panelRef = useOverlay<HTMLDivElement>(open, onClose);
   const { applyAuthenticatedUser, login } = useAuth();
 
   const [mode, setMode] = useState<GateMode>(initialMode);
@@ -235,7 +237,12 @@ export function CheckoutGateModal({
       onMouseDown={onClose}
     >
       <div
-        className="relative w-full max-w-md bg-surface rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Verify your email to continue"
+        tabIndex={-1}
+        className="relative w-full max-w-md bg-surface rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <button

@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Expand, X } from "lucide-react";
+import { ArrowRight, Expand } from "lucide-react";
+import { MediaViewer } from "@/components/media/MediaViewer";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap-register";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
@@ -20,7 +21,7 @@ type GalleryPreviewProps = {
 export function GalleryPreview({ images }: GalleryPreviewProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const demoImages = (images.length ? images.slice(0, 8) : []).map((img) => ({
     id: img.id,
@@ -68,11 +69,13 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
 
         <div className="mt-10 md:mt-14 w-full relative overflow-x-auto md:overflow-visible hide-scrollbar snap-x snap-mandatory pb-8 md:pb-0">
           <div ref={trackRef} className="flex gap-5 px-5 md:px-10 md:will-change-transform w-max">
-            {demoImages.map((img) => (
-              <div
+            {demoImages.map((img, index) => (
+              <button
                 key={img.id}
-                className="shrink-0 w-[280px] md:w-[400px] group cursor-pointer snap-center"
-                onClick={() => setActiveImage(img.url)}
+                type="button"
+                aria-label={`View photo: ${img.caption}`}
+                className="shrink-0 w-[280px] md:w-[400px] group cursor-pointer snap-center text-left rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha focus-visible:ring-offset-2"
+                onClick={() => setActiveIndex(index)}
               >
                 <div className="relative overflow-hidden rounded-2xl shadow-card aspect-[4/5] bg-cream transition-premium hover:-translate-y-2">
                   <Image
@@ -89,7 +92,7 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
 
             <div className="shrink-0 w-[280px] md:w-[400px] flex items-center justify-center px-4 snap-center">
@@ -109,34 +112,12 @@ export function GalleryPreview({ images }: GalleryPreviewProps) {
         </div>
       </section>
 
-      {activeImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 md:p-10"
-          onClick={() => setActiveImage(null)}
-        >
-          <div
-            className="relative w-full max-w-5xl aspect-square md:aspect-[3/2] rounded-lg overflow-hidden shadow-2xl transition-transform duration-300 scale-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Image
-              src={activeImage}
-              alt="Enlarged view"
-              fill
-              className="object-contain"
-              sizes="100vw"
-              quality={100}
-            />
-          </div>
-          <button
-            className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-[1000] cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveImage(null);
-            }}
-          >
-            <X size={24} />
-          </button>
-        </div>
+      {activeIndex !== null && (
+        <MediaViewer
+          items={demoImages.map((img) => ({ url: img.url, altText: img.caption, caption: img.caption }))}
+          initialIndex={activeIndex}
+          onClose={() => setActiveIndex(null)}
+        />
       )}
     </>
   );

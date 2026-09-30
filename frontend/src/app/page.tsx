@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { HeroSection } from "@/components/home/HeroSection";
 import { DeliverableStrip } from "@/components/home/DeliverableStrip";
 import { ThemeShowcase } from "@/components/home/ThemeShowcase";
@@ -10,6 +9,7 @@ import { PackagePreview } from "@/components/home/PackagePreview";
 import { WhyUsSection } from "@/components/home/WhyUsSection";
 import { GalleryPreview } from "@/components/home/GalleryPreview";
 import { ShopTeaser } from "@/components/home/ShopTeaser";
+import { FeaturedCollections } from "@/components/home/FeaturedCollections";
 import { TestimonialCarousel } from "@/components/home/TestimonialCarousel";
 import { FeaturedEventSection } from "@/components/home/FeaturedEventSection";
 import { FeaturedBlogSection } from "@/components/home/FeaturedBlogSection";
@@ -23,6 +23,7 @@ import { listTestimonials } from "@/lib/cms/content";
 import { listEvents } from "@/lib/cms/events";
 import { listBlogPosts } from "@/lib/cms/blog";
 import { getPublicSettings, getWhatsAppNumber } from "@/lib/cms/settings";
+import { listProductCollections } from "@/lib/shop-api";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("home", {
@@ -43,6 +44,7 @@ export default async function HomePage() {
     whatsappNumber,
     events,
     blogPosts,
+    featuredCollections,
   ] = await Promise.all([
     getHomePageContent().catch(() => null),
     listThemes().catch(() => []),
@@ -53,6 +55,7 @@ export default async function HomePage() {
     getWhatsAppNumber().catch(() => ""),
     listEvents().catch(() => []),
     listBlogPosts().catch(() => []),
+    listProductCollections({ featured: true }).catch(() => []),
   ]);
 
   const sections = pageContent?.sections;
@@ -72,6 +75,7 @@ export default async function HomePage() {
           <WhyUsSection />
           <GalleryPreview images={gallery} />
           <TestimonialCarousel testimonials={testimonials} />
+          <FeaturedCollections collections={featuredCollections} />
           <ShopTeaser />
           <FeaturedEventSection event={featuredEvent} />
           <FeaturedBlogSection post={featuredPost} />
@@ -79,7 +83,6 @@ export default async function HomePage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

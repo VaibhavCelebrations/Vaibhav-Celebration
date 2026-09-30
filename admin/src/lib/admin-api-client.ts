@@ -56,6 +56,41 @@ async function tryRefresh(): Promise<string | null> {
   return refreshInFlight;
 }
 
+/** The refresh cookie is gone or revoked: drop the dead token and send the admin to sign in again. */
+function handleSessionExpired() {
+  setStoredAccessToken(null);
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    // A full navigation on purpose: this module has no router, and it drops any stale in-memory state.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/login");
+  }
+}
+
+/**
+ * For calls that need the raw `Response` or a non-JSON body (multipart uploads, responses whose
+ * `meta` matters): same Bearer token and refresh-and-retry-once behaviour as `adminFetch`.
+ */
+export async function adminFetchResponse(
+  path: string,
+  init: { method?: string; body?: BodyInit; headers?: Record<string, string> } = {},
+): Promise<Response> {
+  const send = (token: string | null) =>
+    fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+      method: init.method ?? "GET",
+      headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: init.body,
+      credentials: "include",
+    });
+
+  let res = await send(getStoredAccessToken());
+  if (res.status === 401) {
+    const token = await tryRefresh();
+    if (token) res = await send(token);
+    else handleSessionExpired();
+  }
+  return res;
+}
+
 type FetchOptions = { method?: string; body?: unknown; auth?: boolean };
 
 async function rawAdminFetch(path: string, options: FetchOptions = {}) {
@@ -97,6 +132,8 @@ async function rawAdminFetch(path: string, options: FetchOptions = {}) {
           0,
         );
       }
+    } else {
+      handleSessionExpired();
     }
   }
 

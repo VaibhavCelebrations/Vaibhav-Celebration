@@ -1,4 +1,8 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
 import Script from "next/script";
+import { consentServerSnapshot, consentSnapshot, parseConsent, subscribeConsent } from "@/lib/cookie-consent";
 
 const GA4 = process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID?.trim();
 const GTM = process.env.NEXT_PUBLIC_GTM_ID?.trim();
@@ -11,11 +15,15 @@ const safeId = (id: string | undefined) => (id && /^[A-Za-z0-9_-]+$/.test(id) ? 
  * GA4 / GTM / Meta Pixel. Each renders nothing until its NEXT_PUBLIC_* ID is set, so this is safe to
  * ship before the client hands over analytics accounts. Scripts load after the page is interactive
  * so they never block rendering (Core Web Vitals).
+ *
+ * Nothing loads until the visitor allows it in the cookie banner: GA4 and GTM need "analytics",
+ * the Meta Pixel needs "marketing".
  */
 export function Analytics() {
-  const ga = safeId(GA4);
-  const gtm = safeId(GTM);
-  const pixel = safeId(PIXEL);
+  const consent = parseConsent(useSyncExternalStore(subscribeConsent, consentSnapshot, consentServerSnapshot));
+  const ga = consent?.analytics ? safeId(GA4) : undefined;
+  const gtm = consent?.analytics ? safeId(GTM) : undefined;
+  const pixel = consent?.marketing ? safeId(PIXEL) : undefined;
   if (!ga && !gtm && !pixel) return null;
 
   return (

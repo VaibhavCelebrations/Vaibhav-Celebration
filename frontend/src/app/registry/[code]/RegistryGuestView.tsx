@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Lock, Gift, Loader2, Check, ShoppingBag, Copy, ExternalLink, X, Calendar, MapPin, Info } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { useToast } from "@/components/ui/Toast";
@@ -61,7 +60,7 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
     const run = async () => {
       setBusyId(item.id);
       try {
-        await addItem(item.internalProductId!, qty, undefined, item.id);
+        await addItem(item.internalProductId!, qty, { registryItemId: item.id });
         openCart();
         push("Gift added to cart — it will be delivered to the registry address", "success");
       } catch {
@@ -198,7 +197,6 @@ export function RegistryGuestView({ code, initial, needsPassword }: { code: stri
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
 
       {showAddress && registry?.shippingAddress && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-charcoal/60 p-4" onClick={() => setShowAddress(false)}>

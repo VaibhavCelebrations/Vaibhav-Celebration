@@ -195,7 +195,33 @@ export type ApiPackageServiceItem = {
     choiceCount: number | null;
     customizationPriceInPaise?: number;
     isActive?: boolean;
+    /** Customer picks `selectionCount` products for this service in the builder. */
+    isProductChoice?: boolean;
+    selectionCount?: number;
+    /** Before / During / After the celebration, set on the service in admin. */
+    celebrationStage?: CelebrationStageName | null;
+    /** Images/videos of the service, per theme; empty unless the admin turned Preview on. */
+    hasPreview?: boolean;
+    previewMedia?: ThemedPreviewMedia[];
   };
+};
+
+export type CelebrationStageName = "BEFORE" | "DURING" | "AFTER";
+
+/** A preview file and the theme it shows the service in. Previews are always theme-specific. */
+export type ThemedPreviewMedia = MediaRef & { themeSlug: string; themeTitle: string; caption?: string };
+
+/** One service as a package page shows it: what it is, when it happens, and what there is to look at. */
+export type PackageServiceInfo = {
+  id: string;
+  label: string;
+  description: string | null;
+  stage: CelebrationStageName | null;
+  included: boolean;
+  /** Set when the customer chooses this many products for it ("Choose any 2"). */
+  chooseCount: number | null;
+  /** All themes' previews, each captioned with its theme. Filter by `themeSlug` on a theme page. */
+  previewMedia: ThemedPreviewMedia[];
 };
 
 export type ApiPackage = {
@@ -292,7 +318,10 @@ export type ThemeCard = {
   seoTitle: string;
   seoDescription: string;
   themeVibe: string;
+  /** Image URLs only — safe to hand to next/image. */
   galleryImages: string[];
+  /** Images and videos (gallery photos plus theme samples such as a video invite), for the theme viewer. */
+  galleryMedia?: Array<{ url: string; type?: string | null; altText?: string | null; caption?: string | null }>;
 };
 
 export type PackageCard = {
@@ -308,6 +337,8 @@ export type PackageCard = {
   hasGiftRegistry: boolean;
   description: string;
   features: Array<{ label: string; included: boolean }>;
+  /** Every service in the matrix for this package (included or not), for comparisons and previews. */
+  services: PackageServiceInfo[];
 };
 
 export type GalleryCard = {
@@ -370,6 +401,9 @@ export type ContactFormPayload = {
   phone?: string;
   message?: string;
   interestArea?: string;
+  /** Optional "send me offers" tick; stored as a consent record against the email / phone. */
+  marketingConsent?: boolean;
+  consentSource?: "contact-form" | "enquiry-form";
 };
 
 export type Popup = {

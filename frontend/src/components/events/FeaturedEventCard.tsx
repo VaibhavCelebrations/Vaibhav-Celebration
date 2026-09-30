@@ -83,7 +83,7 @@ export function FeaturedEventCard({ event, priority = true }: FeaturedEventCardP
           </h3>
 
           <div
-            className="prose prose-sm text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4 mb-6"
+            className="cms-html-content text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4 mb-6"
             dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
           />
         </div>

@@ -145,7 +145,13 @@ export interface ServerCartItem {
   unitPriceInPaise: number;
   quantity: number;
   personalizationValues: Array<{ fieldId: string; label: string; value: string }> | null;
+  /** Per-unit charge on this line: the product's personalization cost when opted in, otherwise 0. */
   personalizationCostInPaise: number;
+  /** Optional only because carts saved in the browser before this field existed lack it. */
+  personalizationSelected?: boolean;
+  personalizationEnabled?: boolean;
+  /** What opting in costs per unit, whether or not this line has opted in. */
+  personalizationUnitCostInPaise?: number;
   image: MediaRef | null;
   isActive: boolean;
   stockAvailable: number;

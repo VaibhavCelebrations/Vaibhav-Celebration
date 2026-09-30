@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
+import { toMediaRef } from "../../lib/media-ref";
 import { cached, delPattern } from "../../lib/redis";
 import { CUSTOM_PLAN_SLUG, invalidateBuilderCaches } from "../builder/builder.service";
 
@@ -16,14 +17,61 @@ const detailInclude = {
   },
 };
 
+/** Public reads also carry each service's preview images/videos, so package pages can show them. */
+const publicInclude = {
+  serviceItems: {
+    where: { extraService: { deletedAt: null } },
+    orderBy: { displayOrder: "asc" as const },
+    include: {
+      extraService: {
+        include: {
+          previewMedia: {
+            where: { theme: { deletedAt: null, isActive: true } },
+            orderBy: [{ theme: { displayOrder: "asc" as const } }, { displayOrder: "asc" as const }],
+            include: { media: true, theme: { select: { slug: true, title: true } } },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.PackageInclude;
+
+type PublicPackageRow = Prisma.PackageGetPayload<{ include: typeof publicInclude }>;
+
+/**
+ * Reduce preview rows to public media refs (no storage keys), each tagged with the theme it
+ * belongs to, and only when Preview is switched on. Theme pages show their own theme's files;
+ * the general packages page shows them all, labelled by theme.
+ */
+function shapePublicPackage(pkg: PublicPackageRow) {
+  return {
+    ...pkg,
+    serviceItems: pkg.serviceItems.map((item) => ({
+      ...item,
+      extraService: {
+        ...item.extraService,
+        previewMedia: item.extraService.hasPreview
+          ? item.extraService.previewMedia.flatMap((m) => {
+              const ref = toMediaRef(m.media);
+              return ref ? [{ ...ref, themeSlug: m.theme.slug, themeTitle: m.theme.title }] : [];
+            })
+          : [],
+      },
+    })),
+  };
+}
+
+// Public cache keys are versioned ("v2") because the cached shape gained previewMedia: an older
+// API instance sharing this cache must not hand its shape to this one, or the reverse.
 export async function listPackages() {
-  return cached("pub:packages:list", PUB_TTL, () =>
-    prisma.package.findMany({
+  return cached("pub:packages:v3:list", PUB_TTL, async () => {
+    const rows = await prisma.package.findMany({
       where: { deletedAt: null, isActive: true },
-      include: detailInclude,
+      include: publicInclude,
       orderBy: [{ tierRank: "asc" }, { displayOrder: "asc" }],
-    }),
-  );
+    });
+    return rows.map(shapePublicPackage);
+  });
 }
 
 export async function comparePackages(ids: string[]) {
@@ -35,13 +83,14 @@ export async function comparePackages(ids: string[]) {
 }
 
 export async function getPackageBySlug(slug: string) {
-  const key = `pub:packages:slug:${slug}`;
-  const item = await cached(key, PUB_TTL, () =>
-    prisma.package.findFirst({
+  const key = `pub:packages:v3:slug:${slug}`;
+  const item = await cached(key, PUB_TTL, async () => {
+    const row = await prisma.package.findFirst({
       where: { slug, deletedAt: null, isActive: true },
-      include: detailInclude,
-    }),
-  );
+      include: publicInclude,
+    });
+    return row ? shapePublicPackage(row) : null;
+  });
   if (!item) throw new NotFoundError("Package not found");
   return item;
 }

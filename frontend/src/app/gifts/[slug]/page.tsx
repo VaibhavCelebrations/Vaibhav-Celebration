@@ -3,16 +3,16 @@
 import { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2, Zap } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Heart, Share2, Check, Loader2, Zap, Maximize2 } from "lucide-react";
+import { MediaViewer } from "@/components/media/MediaViewer";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ProductCard } from "@/components/ecom/ProductCard";
 import * as shopApi from "@/lib/shop-api";
 import { formatPaise, getStockStatus, getMaxPurchasable, productImageUrl } from "@/lib/shop-types";
 import type { Product } from "@/lib/shop-types";
-import type { PersonalizationValue } from "@/lib/ecom-types";
+import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
 import { useCart } from "@/context/cart-context";
 import { useWishlist } from "@/context/wishlist-context";
 import { useAuth } from "@/context/auth-context";
@@ -32,6 +32,8 @@ export default function ProductDetailPage({ params }: Props) {
   const [product, setProduct] = useState<(Product & { related: Product[] }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const { addItem, getItemQuantity } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -41,8 +43,7 @@ export default function ProductDetailPage({ params }: Props) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [personalizeSelected, setPersonalizeSelected] = useState(false);
-  const [personalization, setPersonalization] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
@@ -52,6 +53,7 @@ export default function ProductDetailPage({ params }: Props) {
     (async () => {
       setIsLoading(true);
       setNotFound(false);
+      setLoadFailed(false);
       try {
         const data = await shopApi.getProductBySlug(slug);
         if (!cancelled) {
@@ -59,12 +61,12 @@ export default function ProductDetailPage({ params }: Props) {
           setSelectedImage(0);
           setQuantity(1);
           setPersonalizeSelected(false);
-          setPersonalization({});
-          setErrors({});
         }
       } catch (err) {
         if (!cancelled) {
+          // Only a 404 means the product is gone; anything else is a failed load the customer can retry.
           if (err instanceof ApiClientError && err.status === 404) setNotFound(true);
+          else setLoadFailed(true);
           setProduct(null);
         }
       } finally {
@@ -74,7 +76,7 @@ export default function ProductDetailPage({ params }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   if (isLoading) {
     return (
@@ -92,11 +94,28 @@ export default function ProductDetailPage({ params }: Props) {
     return (
       <>
         <Navbar />
-        <main className="pt-36 pb-24 text-center min-h-screen">
-          <h1 className="font-display text-3xl font-bold text-charcoal">Product Not Found</h1>
-          <Link href="/gifts" className="btn-primary px-8 py-3 mt-8 inline-flex text-sm">
-            Back to Gifts
-          </Link>
+        <main className="pt-36 pb-24 px-5 text-center min-h-screen">
+          {loadFailed && !notFound ? (
+            <div role="alert">
+              <h1 className="font-display text-3xl font-bold text-charcoal">We couldn&apos;t load this product</h1>
+              <p className="mt-3 text-text-muted">Please check your connection and try again.</p>
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="btn-primary px-8 py-3 text-sm">
+                  Try again
+                </button>
+                <Link href="/gifts" className="btn-outline px-8 py-3 text-sm">
+                  Back to Gifts
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h1 className="font-display text-3xl font-bold text-charcoal">Product Not Found</h1>
+              <Link href="/gifts" className="btn-primary px-8 py-3 mt-8 inline-flex text-sm">
+                Back to Gifts
+              </Link>
+            </>
+          )}
         </main>
         <FooterClient />
       </>
@@ -108,19 +127,19 @@ export default function ProductDetailPage({ params }: Props) {
   const inCart = getItemQuantity(product.id);
   const wishlisted = isWishlisted(product.id);
   const relatedProducts = product.related;
+  const galleryItems = (product.images ?? [])
+    .filter((img) => img.media?.url)
+    .map((img) => ({ url: img.media.url, altText: img.media.altText ?? product.title }));
   const personalizationCost = product.personalizationEnabled && personalizeSelected ? product.personalizationCostInPaise : 0;
   const unitTotal = product.priceInPaise + personalizationCost;
 
   const handleAddToCart = async () => {
-    setErrors({});
-    
-    // Automatically fill all fields with a placeholder so the backend validation passes,
-    // since the client brief dictates we collect these details *after* booking now.
-    const pValues: PersonalizationValue[] = buildPersonalizationValues();
-
     setIsAdding(true);
     try {
-      await addItem(product.id, quantity, pValues);
+      // Opt-in only — the team collects the actual details after the order (see PERSONALIZATION_FOLLOW_UP_NOTE).
+      await addItem(product.id, quantity, {
+        personalizationSelected: product.personalizationEnabled ? personalizeSelected : undefined,
+      });
       setAddedToCart(true);
       setTimeout(() => setAddedToCart(false), 2000);
     } catch {
@@ -130,24 +149,14 @@ export default function ProductDetailPage({ params }: Props) {
     }
   };
 
-  const buildPersonalizationValues = (): PersonalizationValue[] =>
-    personalizeSelected
-      ? product.personalizationFields.map((f) => ({
-          fieldId: f.id,
-          label: f.label,
-          value: "To be collected by team after booking",
-        }))
-      : [];
-
   const handleBuyNow = () => {
     CacheStore.setSessionItem(DIRECT_CHECKOUT_KEY, {
       productId: product.id,
       title: product.title,
       quantity,
       unitPriceInPaise: product.priceInPaise,
-      personalizationSelected: personalizeSelected,
+      personalizationSelected: product.personalizationEnabled && personalizeSelected,
       personalizationCostInPaise: personalizationCost,
-      personalizationValues: buildPersonalizationValues(),
     });
     router.push("/checkout");
   };
@@ -170,24 +179,40 @@ export default function ProductDetailPage({ params }: Props) {
             <ScrollReveal>
               <div className="space-y-4">
                 {/* Main Image */}
-                <div className="relative aspect-square rounded-[2rem] overflow-hidden bg-surface shadow-card">
-                  <Image
-                    src={productImageUrl(product, selectedImage)}
-                    alt={product.title}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    priority
-                  />
+                <div className="relative aspect-square rounded-[2rem] overflow-hidden bg-surface shadow-card group">
+                  <button
+                    type="button"
+                    onClick={() => setViewerOpen(true)}
+                    disabled={galleryItems.length === 0}
+                    aria-label={`View ${product.title} photos full screen`}
+                    className="absolute inset-0 cursor-zoom-in disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-mocha"
+                  >
+                    <Image
+                      src={productImageUrl(product, selectedImage)}
+                      alt={product.title}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 1024px) 100vw, 50vw"
+                      preload
+                    />
+                    {galleryItems.length > 0 && (
+                      <span
+                        className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-surface/85 text-charcoal shadow-sm backdrop-blur-md md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                        aria-hidden="true"
+                      >
+                        <Maximize2 size={18} />
+                      </span>
+                    )}
+                  </button>
                   {stockStatus === "out_of_stock" && (
-                    <div className="absolute inset-0 bg-charcoal/40 flex items-center justify-center">
+                    <div className="pointer-events-none absolute inset-0 bg-charcoal/40 flex items-center justify-center">
                       <span className="bg-charcoal/90 text-white text-sm font-bold px-6 py-3 rounded-full uppercase tracking-wider">
                         Out of Stock
                       </span>
                     </div>
                   )}
                   {stockStatus === "low_stock" && (
-                    <div className="absolute top-4 left-4">
+                    <div className="pointer-events-none absolute top-4 left-4">
                       <span className="bg-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-md">
                         Only {product.stock?.quantityAvailable ?? 0} left!
                       </span>
@@ -200,14 +225,17 @@ export default function ProductDetailPage({ params }: Props) {
                     {product.images.map((img, i) => (
                       <button
                         key={img.id}
+                        type="button"
                         onClick={() => setSelectedImage(i)}
+                        aria-label={`Show photo ${i + 1} of ${product.images.length}`}
+                        aria-current={selectedImage === i}
                         className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
                           selectedImage === i
                             ? "border-mocha shadow-md scale-95"
                             : "border-transparent opacity-60 hover:opacity-100"
                         }`}
                       >
-                        <Image src={img.media?.url ?? "/placeholder-product.svg"} alt={`View ${i + 1}`} fill className="object-cover" sizes="80px" />
+                        <Image src={img.media?.url ?? "/placeholder-product.svg"} alt="" fill className="object-cover" sizes="80px" />
                       </button>
                     ))}
                   </div>
@@ -264,17 +292,19 @@ export default function ProductDetailPage({ params }: Props) {
 
                 <hr className="border-border-light" />
 
-                {/* Personalization Fields */}
-                {product.personalizationEnabled && (product.personalizationFields?.length ?? 0) > 0 && (
+                {/* Personalization opt-in */}
+                {product.personalizationEnabled && (
                   <div className="space-y-4">
-                    <h3 className="font-display text-lg font-semibold text-charcoal flex items-center gap-2">
+                    <h3 id="personalize-heading" className="font-display text-lg font-semibold text-charcoal flex items-center gap-2">
                       ✨ Personalize Your Gift
                     </h3>
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-labelledby="personalize-heading">
                       <button
                         type="button"
+                        role="radio"
+                        aria-checked={personalizeSelected}
                         onClick={() => setPersonalizeSelected(true)}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 cursor-pointer ${
                           personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
@@ -282,17 +312,20 @@ export default function ProductDetailPage({ params }: Props) {
                           {personalizeSelected && <div className="w-2 h-2 rounded-full bg-mocha" />}
                         </div>
                         <div>
-                          <span className="block font-semibold">Yes, I'd like personalization</span>
-                          <span>{formatPaise(product.personalizationCostInPaise)} extra</span>
+                          <span className="block font-semibold">Yes, personalize it</span>
+                          <span>
+                            {product.personalizationCostInPaise > 0
+                              ? `+${formatPaise(product.personalizationCostInPaise)} per item`
+                              : "No additional cost"}
+                          </span>
                         </div>
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setPersonalizeSelected(false);
-                          setErrors({});
-                        }}
-                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 ${
+                        role="radio"
+                        aria-checked={!personalizeSelected}
+                        onClick={() => setPersonalizeSelected(false)}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition-all flex items-center gap-3 cursor-pointer ${
                           !personalizeSelected ? "border-mocha bg-mocha/10 text-charcoal" : "border-border-light bg-surface text-text-muted"
                         }`}
                       >
@@ -306,25 +339,30 @@ export default function ProductDetailPage({ params }: Props) {
                       </button>
                     </div>
                     {personalizeSelected && (
-                      <div className="rounded-xl bg-amber-50 border border-amber-200/50 p-4 text-sm text-amber-900">
-                        <p className="font-medium">Our team will contact you after booking to collect names, messages, or customization details.</p>
+                      <div role="status" className="rounded-xl bg-amber-50 border border-amber-200/50 p-4 text-sm text-amber-900">
+                        <p className="font-medium">{PERSONALIZATION_FOLLOW_UP_NOTE}</p>
                       </div>
                     )}
-                    <div className="rounded-xl bg-surface border border-border-light p-4 text-sm">
+                    <div className="rounded-xl bg-surface border border-border-light p-4 text-sm" aria-live="polite">
                       <div className="flex justify-between text-text-muted">
-                        <span>Base product</span>
-                        <span>{formatPaise(product.priceInPaise)}</span>
+                        <span>Product price</span>
+                        <span>
+                          {formatPaise(product.priceInPaise)} × {quantity}
+                        </span>
                       </div>
                       {personalizeSelected && (
-                        <div className="mt-1 flex justify-between text-text-muted">
+                        <div className="mt-1 flex justify-between text-mocha font-medium">
                           <span>Personalization</span>
-                          <span>{formatPaise(product.personalizationCostInPaise)}</span>
+                          <span>
+                            +{formatPaise(product.personalizationCostInPaise)} × {quantity}
+                          </span>
                         </div>
                       )}
-                      <div className="mt-2 flex justify-between font-bold text-charcoal">
-                        <span>Unit total</span>
-                        <span>{formatPaise(unitTotal)}</span>
+                      <div className="mt-2 flex justify-between border-t border-border-light pt-2 font-bold text-charcoal">
+                        <span>Total</span>
+                        <span>{formatPaise(unitTotal * quantity)}</span>
                       </div>
+                      <p className="mt-1 text-xs text-text-light">Shipping and GST are calculated at checkout.</p>
                     </div>
                     <hr className="border-border-light" />
                   </div>
@@ -380,9 +418,6 @@ export default function ProductDetailPage({ params }: Props) {
                     >
                       {isBuying ? <Loader2 size={18} className="animate-spin" /> : <><Zap size={18} /> Buy Now — {formatPaise(unitTotal * quantity)}</>}
                     </button>
-                    {errors.personalize && (
-                      <p className="text-sm text-red-600 font-medium">{errors.personalize}</p>
-                    )}
                   </div>
                 )}
 
@@ -445,7 +480,14 @@ export default function ProductDetailPage({ params }: Props) {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
+      {viewerOpen && (
+        <MediaViewer
+          items={galleryItems}
+          initialIndex={selectedImage}
+          onClose={() => setViewerOpen(false)}
+          title={product.title}
+        />
+      )}
     </>
   );
 }

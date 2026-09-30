@@ -6,7 +6,6 @@ import { ArrowLeft, Sparkles, Package as PackageIcon, Truck, ArrowRight } from "
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CTABand } from "@/components/home/CTABand";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { getThemeBySlug, getThemeDetailRaw, listThemes } from "@/lib/cms/themes";
 import { mapPackageCard } from "@/lib/cms/packages";
@@ -65,7 +64,10 @@ export default async function ThemeDetailPage({ params }: Props) {
         <section className="max-w-7xl w-full mx-auto px-5 md:px-10 mb-20 lg:mb-32">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             <div className="w-full min-w-0 relative z-10 lg:sticky lg:top-24 h-auto lg:h-[calc(100vh-8rem)]">
-              <ThemeGallery images={theme.galleryImages} />
+              <ThemeGallery
+                media={theme.galleryMedia ?? theme.galleryImages.map((url) => ({ url }))}
+                title={theme.title}
+              />
             </div>
 
             <div className="w-full min-w-0 flex flex-col space-y-12 pb-10">
@@ -78,7 +80,7 @@ export default async function ThemeDetailPage({ params }: Props) {
               </ScrollReveal>
 
               <ScrollReveal>
-                <div className="prose prose-lg text-text-muted">
+                <div className="cms-html-content text-text-muted">
                   <p>{theme.fullDescription}</p>
                 </div>
               </ScrollReveal>
@@ -183,7 +185,6 @@ export default async function ThemeDetailPage({ params }: Props) {
         <CTABand settings={settings ?? undefined} whatsappNumber={whatsappNumber} />
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

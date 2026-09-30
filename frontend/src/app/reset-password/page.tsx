@@ -6,7 +6,6 @@ import Link from "next/link";
 import { ArrowLeft, Lock, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { resetPassword, friendlyAuthError } from "@/lib/customer-auth-api";
@@ -153,7 +152,6 @@ export default function ResetPasswordPage() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

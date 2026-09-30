@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ArrowLeft, MessageSquareCheck, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 
@@ -45,7 +44,6 @@ export default function VerifyPhonePage() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

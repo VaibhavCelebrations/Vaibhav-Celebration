@@ -3,6 +3,7 @@
 import { CheckCircle2, CloudUpload, FileImage, Loader2, X, XCircle } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { adminFetchResponse } from "@/lib/admin-api-client";
 import { useToast } from "./Toast";
 
 export type MediaPrefixKind =
@@ -62,14 +63,8 @@ type Props = {
   onUploaded: (assets: UploadedMediaAsset[]) => void;
 };
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1")
-    : "http://localhost:4000/api/v1";
-
 async function uploadViaBackend(entry: FileEntry, onProgress: (p: number) => void): Promise<UploadedMediaAsset> {
   onProgress(5);
-  const token = typeof window !== "undefined" ? window.localStorage.getItem("vbc_admin_access") : null;
 
   const form = new FormData();
   form.append("file", entry.file);
@@ -82,12 +77,7 @@ async function uploadViaBackend(entry: FileEntry, onProgress: (p: number) => voi
 
   onProgress(15);
 
-  const res = await fetch(`${API_BASE}/admin/media/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-    credentials: "include",
-  });
+  const res = await adminFetchResponse("/admin/media/upload", { method: "POST", body: form });
 
   onProgress(80);
 

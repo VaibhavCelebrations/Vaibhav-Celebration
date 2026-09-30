@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Heart, Package, User } from "lucide-react";
+import { useOverlay } from "@/hooks/useOverlay";
 
 interface NavLink {
   label: string;
@@ -23,15 +24,21 @@ const ACCOUNT_LINKS = [
 ];
 
 export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: MobileMenuProps) {
+  // Esc closes, the page behind does not scroll, and focus stays in the menu while it is open.
+  const panelRef = useOverlay<HTMLDivElement>(isOpen, onClose);
   return (
     <div
+      // Closed, the menu is only faded out — keep it out of the tab order and away from screen readers.
+      inert={!isOpen}
       className={`lg:hidden fixed inset-0 top-[80px] z-40 transition-all duration-500 ${
         isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       }`}
     >
       <div className="absolute inset-0 bg-charcoal/20" onClick={onClose} />
       <div
-        className={`relative bg-cream border-t border-border shadow-lg transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        ref={panelRef}
+        tabIndex={-1}
+        className={`relative bg-cream border-t border-border shadow-lg focus:outline-none transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isOpen ? "translate-y-0" : "-translate-y-4"
         }`}
       >
@@ -40,7 +47,7 @@ export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: 
             <div key={link.label}>
               <Link
                 href={link.href}
-                onClick={link.submenu ? undefined : onClose}
+                onClick={onClose}
                 className="mobile-link text-base font-medium py-3"
               >
                 {link.label}
@@ -63,7 +70,7 @@ export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: 
           ))}
           {isAuthenticated && (
             <div className="mt-3 pt-3 border-t border-border">
-              <p className="px-0 pb-2 text-[11px] font-bold uppercase tracking-wider text-text-light">Your account</p>
+              <p className="px-0 pb-2 text-xs font-bold uppercase tracking-wider text-text-light">Your account</p>
               {ACCOUNT_LINKS.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -84,7 +91,7 @@ export function MobileMenu({ isOpen, onClose, links, isAuthenticated = false }: 
             onClick={onClose}
             className="btn-primary mt-4 justify-center text-sm px-6 py-3.5 rounded-lg"
           >
-            Book a Celebration
+            Plan My Celebration
           </Link>
         </nav>
       </div>

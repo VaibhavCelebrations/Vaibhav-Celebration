@@ -2,7 +2,7 @@
 // because the generated enum objects are not reliably available at runtime in all contexts.
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
-import { toMediaRef } from "../../lib/media-ref";
+import { toMediaRef, type MediaRef } from "../../lib/media-ref";
 import { cached, delPattern } from "../../lib/redis";
 import { getGstPercent, gstOn, computeShippingForSubtotal } from "../../lib/settings";
 import { isGiftRegistryMatrixService } from "../upgrades/upgrades.service";
@@ -57,6 +57,10 @@ export type BuilderSelections = {
   personalization?: Record<string, boolean>;
   /** Optional Gift Registry customize line (₹500) when the package includes Gift Registry. */
   giftRegistryCustomize?: boolean;
+  /** SKUs of optional add-on products for the chosen theme. */
+  addons?: string[];
+  /** Custom plan only: preview services bought individually at their Customize price. */
+  services?: string[];
 };
 
 export type BuilderQuoteInput = {
@@ -71,7 +75,7 @@ export type BuilderLineItem = {
   key: string;
   label: string;
   sublabel?: string;
-  section: "package" | "per-child" | "per-group" | "fixed" | "decor" | "auto";
+  section: "package" | "per-child" | "per-group" | "fixed" | "decor" | "auto" | "addon";
   sku?: string;
   packageServiceItemId?: string;
   quantity: number;
@@ -117,7 +121,9 @@ export type BuilderProductOption = {
   priceInPaise: number;
   minOrderQuantity: number;
   pricingMode: "PER_CHILD" | "PER_GROUP";
+  /** First image — kept for older clients; `images` has the full gallery. */
   imageUrl: string | null;
+  images: MediaRef[];
   personalizationEnabled: boolean;
   personalizationCostInPaise: number;
   personalizationFields: Array<{
@@ -255,7 +261,6 @@ async function loadServiceProducts(serviceIds: string[], themeId: string, withMe
           ...(withMedia
             ? {
                 images: {
-                  take: 1,
                   orderBy: { displayOrder: "asc" as const },
                   select: { media: true },
                 },
@@ -275,6 +280,7 @@ async function loadServiceProducts(serviceIds: string[], themeId: string, withMe
 }
 
 function toProductOption(p: ChoiceProductRowWithMedia, isGroup: boolean): BuilderProductOption {
+  const images = p.images.map((i) => toMediaRef(i.media)).filter((m): m is MediaRef => m !== null);
   return {
     id: p.id,
     title: p.title,
@@ -284,7 +290,8 @@ function toProductOption(p: ChoiceProductRowWithMedia, isGroup: boolean): Builde
     priceInPaise: p.priceInPaise,
     minOrderQuantity: p.minOrderQuantity,
     pricingMode: isGroup ? "PER_GROUP" : "PER_CHILD",
-    imageUrl: p.images[0]?.media ? (toMediaRef(p.images[0].media)?.url ?? null) : null,
+    imageUrl: images[0]?.url ?? null,
+    images,
     personalizationEnabled: p.personalizationEnabled,
     personalizationCostInPaise: p.personalizationCostInPaise,
     personalizationFields: p.personalizationFields.map((f) => ({
@@ -370,24 +377,145 @@ function resolveChoices(
   return out;
 }
 
+/** An included service the customer does not choose anything for — shown with its own images/videos. */
+export type BuilderPreviewService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  /** Before / During / After, set on the service by the admin. */
+  celebrationStage: string | null;
+  /** ALL | JAIPUR_ONLY | OUTSIDE_JAIPUR — the client hides previews that don't apply to the chosen location. */
+  locationScope: string;
+  media: MediaRef[];
+};
+
+/** Decor as offered for a package: a paid add-on in Jaipur, a free guide elsewhere. */
+export type BuilderDecorOption = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  priceInPaise: number;
+  media: MediaRef[];
+};
+
+export type BuilderOptions = {
+  services: BuilderChoiceService[];
+  previews: BuilderPreviewService[];
+  decor: { jaipur: BuilderDecorOption | null; guide: BuilderDecorOption | null };
+  /** Gift Registry for this package: included with the tier, or a paid add-on. Null when not offered. */
+  giftRegistry: { included: boolean; priceInPaise: number; description: string | null } | null;
+  /** Optional add-on products the admin tagged with this theme. */
+  addons: BuilderProductOption[];
+};
+
+/**
+ * Add-on products for a theme: products the admin marked "Add-on" and tagged with the theme.
+ * They are grouped by theme only (not by service or category) and priced per child like other picks.
+ */
+async function loadThemeAddons(themeId: string): Promise<ChoiceProductRowWithMedia[]> {
+  const rows = await prisma.product.findMany({
+    where: { isAddon: true, isActive: true, deletedAt: null, themeTags: { some: { themeId } } },
+    orderBy: [{ title: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      sku: true,
+      description: true,
+      priceInPaise: true,
+      minOrderQuantity: true,
+      personalizationEnabled: true,
+      personalizationCostInPaise: true,
+      categoryTags: {
+        select: { category: { select: { name: true, slug: true, displayOrder: true, isActive: true, celebrationStage: true } } },
+      },
+      images: { orderBy: { displayOrder: "asc" as const }, select: { media: true } },
+      personalizationFields: { orderBy: { fieldKey: "asc" as const } },
+    },
+  });
+  return rows as ChoiceProductRowWithMedia[];
+}
+
+/** Quote lines for the add-ons the customer picked — each must still be an add-on of this theme. */
+async function addonLines(themeId: string, guestCount: number, sel: BuilderSelections): Promise<BuilderLineItem[]> {
+  const skus = sel.addons ?? [];
+  if (!skus.length) return [];
+  if (new Set(skus).size !== skus.length) throw new ValidationError("Each add-on can only be added once");
+  const available = await loadThemeAddons(themeId);
+  return skus.map((sku) => {
+    const product = available.find((p) => p.sku === sku);
+    if (!product) {
+      throw new ValidationError("One of your add-ons is no longer available for this theme. Please review your add-ons.");
+    }
+    return makeProductLine(guestCount, sel.personalization, {
+      key: `addon-${sku}`,
+      product,
+      labelPrefix: "Add-on",
+      section: "addon",
+      isGroup: false,
+    });
+  });
+}
+
+/** Decor service slugs are fixed per tier (seeded); the matrix row carries price, copy and previews. */
+function decorSlugs(tier: string) {
+  const suffix = tier === "essential" ? "std" : tier === "signature" ? "prm" : "lux";
+  return { jaipur: `decor-jaipur-${suffix}`, guide: `decor-guide-${suffix}` };
+}
+
+type ServiceWithPreview = {
+  id: string;
+  label: string;
+  description: string | null;
+  customizationPriceInPaise: number;
+  hasPreview: boolean;
+  previewMedia: Array<{ themeId: string; media: Parameters<typeof toMediaRef>[0] }>;
+};
+
+/** A service's preview files for one theme — empty unless the admin turned Preview on. */
+function previewMediaOf(svc: ServiceWithPreview, themeId: string): MediaRef[] {
+  if (!svc.hasPreview) return [];
+  return svc.previewMedia
+    .filter((m) => m.themeId === themeId)
+    .map((m) => toMediaRef(m.media))
+    .filter((m): m is MediaRef => m !== null);
+}
+
+function toDecorOption(svc: ServiceWithPreview | undefined, themeId: string): BuilderDecorOption | null {
+  if (!svc) return null;
+  return {
+    serviceId: svc.id,
+    label: svc.label,
+    description: svc.description,
+    priceInPaise: svc.customizationPriceInPaise,
+    media: previewMediaOf(svc, themeId),
+  };
+}
+
 /**
  * Everything the "Customize" step needs in a single request: the package's product-choice
- * services (as configured in the admin package matrix) and, for the chosen theme, the
- * products the admin allowed for each. Cached; busted by any admin change.
+ * services (as configured in the admin package matrix) with, for the chosen theme, the products
+ * the admin allowed for each; the included services that carry a preview; and the decor option.
+ * Cached; busted by any admin change.
  */
-export async function getBuilderOptions(q: { theme: string; package: string }) {
-  return cached(`pub:builder:options:${q.package}:${q.theme}`, OPTIONS_TTL, async () => {
+export async function getBuilderOptions(q: { theme: string; package: string }): Promise<BuilderOptions> {
+  // "v3": the response became an object, and previews became per theme. The key is versioned so an older API instance sharing
+  // this cache never reads the new shape (or the reverse) during a rollout.
+  return cached(`pub:builder:options:v4:${q.package}:${q.theme}`, OPTIONS_TTL, async () => {
     const [pkg, theme] = await Promise.all([
       prisma.package.findFirst({
         where: { slug: q.package, deletedAt: null, isActive: true },
         select: {
+          slug: true,
           serviceItems: {
-            where: {
-              isIncluded: true,
-              extraService: { deletedAt: null, isActive: true, isProductChoice: true },
-            },
+            where: { extraService: { deletedAt: null, isActive: true } },
             orderBy: { displayOrder: "asc" },
-            select: { extraService: true },
+            select: {
+              isIncluded: true,
+              extraService: {
+                include: { previewMedia: { orderBy: { displayOrder: "asc" }, include: { media: true } } },
+              },
+            },
           },
         },
       }),
@@ -399,7 +527,37 @@ export async function getBuilderOptions(q: { theme: string; package: string }) {
     if (!pkg) throw new NotFoundError("Package not found");
     if (!theme) throw new NotFoundError("Theme not found");
 
-    const services = pkg.serviceItems.map((i) => i.extraService);
+    const included = pkg.serviceItems.filter((i) => i.isIncluded).map((i) => i.extraService);
+    const services = included.filter((s) => s.isProductChoice);
+
+    const previews: BuilderPreviewService[] = included
+      .filter((s) => s.hasPreview && s.category !== "DECOR")
+      .map((s) => ({
+        serviceId: s.id,
+        label: s.label,
+        description: s.description,
+        celebrationStage: s.celebrationStage,
+        locationScope: s.locationScope,
+        media: previewMediaOf(s, theme.id),
+      }))
+      .filter((p) => p.media.length > 0)
+      .sort((a, b) => stageRank(a.celebrationStage) - stageRank(b.celebrationStage));
+
+    // Decor rows are matched by slug whether or not the matrix box is ticked — same rule as the quote.
+    const slugs = decorSlugs(pkg.slug);
+    const bySlug = (slug: string) => pkg.serviceItems.find((i) => i.extraService.slug === slug)?.extraService;
+    const decor = { jaipur: toDecorOption(bySlug(slugs.jaipur), theme.id), guide: toDecorOption(bySlug(slugs.guide), theme.id) };
+
+    // Same lookup as the quote, so the step shows exactly what will be charged.
+    const registryItem = pkg.serviceItems.find((i) => isGiftRegistryMatrixService(i.extraService));
+    const giftRegistry = registryItem
+      ? {
+          included: registryItem.isIncluded,
+          priceInPaise: registryItem.extraService.customizationPriceInPaise,
+          description: registryItem.extraService.description,
+        }
+      : null;
+
     const productsBySvc = await loadServiceProducts(
       services.map((s) => s.id),
       theme.id,
@@ -420,7 +578,8 @@ export async function getBuilderOptions(q: { theme: string; package: string }) {
         products: rows.map((p) => toProductOption(p, isGroupPriced(svc, p.sku))),
       });
     }
-    return result.sort(byPlacement);
+    const addons = (await loadThemeAddons(theme.id)).map((p) => toProductOption(p, false));
+    return { services: result.sort(byPlacement), previews, decor, giftRegistry, addons };
   });
 }
 
@@ -611,8 +770,7 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
 
   // Decor
   if (input.location === "jaipur") {
-    const decorSlug =
-      tier === "essential" ? "decor-jaipur-std" : tier === "signature" ? "decor-jaipur-prm" : "decor-jaipur-lux";
+    const decorSlug = decorSlugs(tier).jaipur;
     const decorPsi = pkg.serviceItems.find(
       (s) => s.extraService.slug === decorSlug && s.extraService.locationScope === "JAIPUR_ONLY",
     );
@@ -631,13 +789,15 @@ export async function computeBuilderQuote(input: BuilderQuoteInput): Promise<Bui
     }
   } else {
     // Outside — free guide, informational only (₹0)
-    const guideSlug =
-      tier === "essential" ? "decor-guide-std" : tier === "signature" ? "decor-guide-prm" : "decor-guide-lux";
+    const guideSlug = decorSlugs(tier).guide;
     const guide = pkg.serviceItems.find((s) => s.extraService.slug === guideSlug);
     if (guide) {
       includedLabels.push(guide.extraService.label);
     }
   }
+
+  // Optional add-on products for this theme
+  lineItems.push(...(await addonLines(theme.id, input.guestCount, sel)));
 
   const giftRegistryPsi = pkg.serviceItems.find(
     (s) =>
@@ -730,9 +890,24 @@ export type CustomPlanService = ServicePlacement & {
   products: BuilderProductOption[];
 };
 
+/** A preview service sold on its own in the custom plan, shown with the chosen theme's images/videos. */
+export type CustomPlanPreviewService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  celebrationStage: string | null;
+  /** The service's Customize price, charged once. */
+  priceInPaise: number;
+  media: MediaRef[];
+};
+
 export type CustomPlanOptions = {
   themeSlug: string;
   services: CustomPlanService[];
+  /** Preview services that have a price and a preview for this theme. */
+  previewServices: CustomPlanPreviewService[];
+  /** Optional add-on products the admin tagged with this theme. */
+  addons: BuilderProductOption[];
   giftRegistry: { available: boolean; label: string; description: string | null; priceInPaise: number };
 };
 
@@ -805,9 +980,41 @@ async function loadCustomPlanCatalog() {
   return { services, giftRegistry };
 }
 
+/**
+ * Preview services a custom plan can buy for one theme: active, with Preview on, a Customize
+ * price above zero (so nothing is given away), and at least one preview file for that theme.
+ * Décor and the Gift Registry have their own handling and are left out.
+ */
+async function loadCustomPlanPreviewServices(themeId: string): Promise<CustomPlanPreviewService[]> {
+  const rows = await prisma.extraService.findMany({
+    where: {
+      deletedAt: null,
+      isActive: true,
+      hasPreview: true,
+      customizationPriceInPaise: { gt: 0 },
+      previewMedia: { some: { themeId } },
+    },
+    orderBy: [{ displayOrder: "asc" }, { label: "asc" }],
+    include: { previewMedia: { where: { themeId }, orderBy: { displayOrder: "asc" }, include: { media: true } } },
+  });
+  return rows
+    .filter((s) => s.category !== "DECOR" && !isGiftRegistryMatrixService(s))
+    .map((s) => ({
+      serviceId: s.id,
+      label: s.label,
+      description: s.description,
+      celebrationStage: s.celebrationStage,
+      priceInPaise: s.customizationPriceInPaise,
+      media: s.previewMedia.map((m) => toMediaRef(m.media)).filter((m): m is MediaRef => m !== null),
+    }))
+    .filter((s) => s.media.length > 0)
+    .sort((a, b) => stageRank(a.celebrationStage) - stageRank(b.celebrationStage));
+}
+
 /** Everything the custom-plan "Build" and "Add-ons" steps need for one theme. Cached; busted by any admin change. */
 export async function getCustomPlanOptions(q: { theme: string }): Promise<CustomPlanOptions> {
-  return cached(`pub:builder:custom-options:${q.theme}`, OPTIONS_TTL, async () => {
+  // "v2": products gained `images`; versioned for the same rollout reason as getBuilderOptions.
+  return cached(`pub:builder:custom-options:v3:${q.theme}`, OPTIONS_TTL, async () => {
     const theme = await prisma.theme.findFirst({
       where: { slug: q.theme, deletedAt: null, isActive: true },
       select: { id: true, slug: true },
@@ -834,9 +1041,13 @@ export async function getCustomPlanOptions(q: { theme: string }): Promise<Custom
     }
     result.sort(byPlacement);
 
+    const [previewServices, addonRows] = await Promise.all([loadCustomPlanPreviewServices(theme.id), loadThemeAddons(theme.id)]);
+
     return {
       themeSlug: theme.slug,
       services: result,
+      previewServices,
+      addons: addonRows.map((p) => toProductOption(p, false)),
       giftRegistry: {
         available: Boolean(giftRegistry),
         label: "Gift Registry",
@@ -897,6 +1108,29 @@ async function computeCustomPlanQuote(input: BuilderQuoteInput): Promise<Builder
       );
     }
   }
+
+  // Preview services bought on their own, at their Customize price
+  const serviceIds = sel.services ?? [];
+  if (serviceIds.length) {
+    if (new Set(serviceIds).size !== serviceIds.length) throw new ValidationError("Each service can only be added once");
+    const offered = await loadCustomPlanPreviewServices(theme.id);
+    for (const id of serviceIds) {
+      const svc = offered.find((s) => s.serviceId === id);
+      if (!svc) throw new ValidationError("One of your selections is no longer available for this theme. Please review your choices.");
+      lineItems.push({
+        key: `service-${id}`,
+        label: svc.label,
+        sublabel: "One-time",
+        section: "fixed",
+        quantity: 1,
+        unitPriceInPaise: svc.priceInPaise,
+        lineTotalInPaise: svc.priceInPaise,
+      });
+    }
+  }
+
+  // Optional add-on products for this theme
+  lineItems.push(...(await addonLines(theme.id, input.guestCount, sel)));
 
   if (lineItems.length === 1) {
     throw new ValidationError("Choose at least one item to build your celebration");

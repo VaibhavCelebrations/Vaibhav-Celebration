@@ -78,12 +78,24 @@ type OrderRow = {
   whatsappError?: string | null;
 };
 
+const POLICY_LABELS: Record<string, string> = {
+  TERMS_OF_SERVICE: "Terms",
+  PRIVACY_POLICY: "Privacy",
+  REFUND_POLICY: "Refund",
+  CANCELLATION_POLICY: "Shipping",
+};
+
 type Order = OrderRow & {
   contactPhone?: string | null;
   shippingAddress?: Record<string, string>;
   razorpayOrderId?: string | null;
   razorpayPaymentId?: string | null;
   adminNotes?: string | null;
+  /** When the customer agreed to the policies at checkout, and the version of each in force then. */
+  policiesAcceptedAt?: string | null;
+  policyVersions?: Record<string, number> | null;
+  /** The customer's current marketing choice (newest consent record for their email). */
+  marketingConsent?: { granted: boolean; updatedAt: string } | null;
   items?: OrderItem[];
   subtotalInPaise: number;
   shippingWaived?: boolean;
@@ -500,6 +512,34 @@ export function OrdersScreen() {
               <div>
                 <p className="text-stone-500 mb-1">Shipping Address</p>
                 <p className="whitespace-pre-wrap">{shippingLines(viewingOrder.shippingAddress)}</p>
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1">Policies accepted</p>
+                {viewingOrder.policiesAcceptedAt ? (
+                  <>
+                    <p className="font-medium">{new Date(viewingOrder.policiesAcceptedAt).toLocaleString()}</p>
+                    <p className="text-stone-600">
+                      {Object.entries(viewingOrder.policyVersions ?? {})
+                        .map(([type, version]) => `${POLICY_LABELS[type] ?? type} v${version}`)
+                        .join(" · ")}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-stone-600">Not recorded (order placed before this was tracked)</p>
+                )}
+              </div>
+              <div>
+                <p className="text-stone-500 mb-1">Marketing messages</p>
+                {viewingOrder.marketingConsent ? (
+                  <p className="font-medium">
+                    {viewingOrder.marketingConsent.granted ? "Opted in" : "Opted out"}{" "}
+                    <span className="font-normal text-stone-600">
+                      on {new Date(viewingOrder.marketingConsent.updatedAt).toLocaleDateString()}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-stone-600">No opt-in on record</p>
+                )}
               </div>
             </div>
 

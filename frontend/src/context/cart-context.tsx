@@ -9,7 +9,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { CartPackage, PersonalizationValue } from "@/lib/ecom-types";
+import type { CartPackage } from "@/lib/ecom-types";
 import type { CartQuote, ServerCartItem } from "@/lib/shop-types";
 import { toRupees } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
@@ -58,7 +58,9 @@ interface CartContextType {
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
-  addItem: (productId: string, quantity: number, personalizationValues?: PersonalizationValue[], registryItemId?: string) => Promise<void>;
+  addItem: (productId: string, quantity: number, options?: shopApi.CartLineOptions) => Promise<void>;
+  /** Opt a cart line in or out of personalization (applies to every unit on the line). */
+  setItemPersonalization: (lineKey: string, selected: boolean) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   addPackage: (pkg: Omit<CartPackage, "id">) => void;
@@ -110,6 +112,20 @@ function saveOfflineCart(items: ServerCartItem[], quote: CartQuote): void {
   } catch {
     // localStorage full / private-mode — silently ignore; cart state stays in memory
   }
+}
+
+/** A stored guest line as the quote endpoint wants it. Carts saved before the opt-in flag existed only show it through the charge. */
+function toGuestLine(item: ServerCartItem): shopApi.GuestCartLine {
+  return {
+    productId: item.productId,
+    quantity: item.quantity,
+    personalizationSelected: item.personalizationSelected ?? item.personalizationCostInPaise > 0,
+    registryItemId: item.registryItemId || undefined,
+  };
+}
+
+function matchesLine(item: ServerCartItem, lineKey: string): boolean {
+  return item.id === lineKey || item.productId === lineKey;
 }
 
 function clearOfflineCart(): void {
@@ -164,12 +180,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (offlineCart.items.length > 0) {
         for (const item of offlineCart.items) {
           try {
-            await shopApi.addCartItem(
-              item.productId,
-              item.quantity,
-              item.personalizationValues,
-              item.registryItemId ?? undefined,
-            );
+            const { productId, quantity, ...options } = toGuestLine(item);
+            await shopApi.addCartItem(productId, quantity, options);
           } catch (e) {
             console.error("Failed to sync offline cart item on login", e);
           }
@@ -196,7 +208,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItemRef = useRef<CartContextType["addItem"] | null>(null);
 
   const addItem = useCallback(
-    async (productId: string, quantity: number, personalizationValues?: PersonalizationValue[], registryItemId?: string) => {
+    async (productId: string, quantity: number, options: shopApi.CartLineOptions = {}) => {
+      const { personalizationSelected, registryItemId } = options;
       setOptimisticCartQuantities((prev) => ({
         ...prev,
         [productId]: (prev[productId] ?? 0) + quantity,
@@ -209,19 +222,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const existingIdx = offlineCart.items.findIndex(
             (i) => i.productId === productId && (i.registryItemId || "") === (registryItemId || ""),
           );
-          const currentItems = offlineCart.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            personalizationValues: i.personalizationValues,
-            registryItemId: i.registryItemId || undefined,
-          }));
+          const currentItems = offlineCart.items.map(toGuestLine);
 
           if (existingIdx >= 0) {
             currentItems[existingIdx].quantity += quantity;
-            currentItems[existingIdx].personalizationValues =
-              personalizationValues ?? currentItems[existingIdx].personalizationValues;
+            // Same rule as the server cart: an explicit choice replaces the line's setting, no choice keeps it.
+            if (personalizationSelected !== undefined) {
+              currentItems[existingIdx].personalizationSelected = personalizationSelected;
+            }
           } else {
-            currentItems.push({ productId, quantity, personalizationValues: personalizationValues ?? null, registryItemId });
+            currentItems.push({ productId, quantity, personalizationSelected: personalizationSelected ?? false, registryItemId });
           }
 
           const guestCart = await shopApi.getGuestCartQuote(currentItems);
@@ -229,7 +239,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setQuote(normalizeQuote(guestCart.quote));
           saveOfflineCart(guestCart.items, normalizeQuote(guestCart.quote));
         } else {
-          const cart = await shopApi.addCartItem(productId, quantity, personalizationValues ?? null, registryItemId);
+          const cart = await shopApi.addCartItem(productId, quantity, options);
           setItems(cart.items);
           setQuote(normalizeQuote(cart.quote));
         }
@@ -258,20 +268,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         if (!isAuthenticated) {
           const offlineCart = loadOfflineCart();
-          let currentItems = offlineCart.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            personalizationValues: i.personalizationValues,
-            registryItemId: i.registryItemId || undefined,
-            id: i.id,
-          }));
-
-          if (quantity <= 0) {
-            currentItems = currentItems.filter((i) => i.id !== lineKey && i.productId !== lineKey);
-          } else {
-            const existing = currentItems.find((i) => i.id === lineKey || i.productId === lineKey);
-            if (existing) existing.quantity = quantity;
-          }
+          const currentItems =
+            quantity <= 0
+              ? offlineCart.items.filter((i) => !matchesLine(i, lineKey)).map(toGuestLine)
+              : offlineCart.items.map((i) => (matchesLine(i, lineKey) ? { ...toGuestLine(i), quantity } : toGuestLine(i)));
 
           const guestCart = await shopApi.getGuestCartQuote(currentItems);
           setItems(guestCart.items);
@@ -289,19 +289,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [isAuthenticated, push],
   );
 
+  const setItemPersonalization = useCallback(
+    async (lineKey: string, selected: boolean) => {
+      try {
+        if (!isAuthenticated) {
+          const offlineCart = loadOfflineCart();
+          const currentItems = offlineCart.items.map((i) =>
+            matchesLine(i, lineKey) ? { ...toGuestLine(i), personalizationSelected: selected } : toGuestLine(i),
+          );
+          const guestCart = await shopApi.getGuestCartQuote(currentItems);
+          setItems(guestCart.items);
+          setQuote(normalizeQuote(guestCart.quote));
+          saveOfflineCart(guestCart.items, normalizeQuote(guestCart.quote));
+        } else {
+          const cart = await shopApi.setCartItemPersonalization(lineKey, selected);
+          setItems(cart.items);
+          setQuote(normalizeQuote(cart.quote));
+        }
+      } catch (err) {
+        push(err instanceof ApiClientError ? err.message : "Could not update personalization", "error");
+      }
+    },
+    [isAuthenticated, push],
+  );
+
   const removeItem = useCallback(
     async (lineKey: string) => {
       try {
         if (!isAuthenticated) {
           const offlineCart = loadOfflineCart();
-          const currentItems = offlineCart.items
-            .filter((i) => i.id !== lineKey && i.productId !== lineKey)
-            .map((i) => ({
-              productId: i.productId,
-              quantity: i.quantity,
-              personalizationValues: i.personalizationValues,
-              registryItemId: i.registryItemId || undefined,
-            }));
+          const currentItems = offlineCart.items.filter((i) => !matchesLine(i, lineKey)).map(toGuestLine);
 
           const guestCart = await shopApi.getGuestCartQuote(currentItems);
           setItems(guestCart.items);
@@ -324,12 +341,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (offlineCart.items.length > 0) {
       for (const item of offlineCart.items) {
         try {
-          await shopApi.addCartItem(
-            item.productId,
-            item.quantity,
-            item.personalizationValues,
-            item.registryItemId ?? undefined,
-          );
+          const { productId, quantity, ...options } = toGuestLine(item);
+          await shopApi.addCartItem(productId, quantity, options);
         } catch (e) {
           console.error("Failed to sync offline cart item", e);
         }
@@ -419,6 +432,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         closeCart,
         toggleCart,
         addItem,
+        setItemPersonalization,
         removeItem,
         updateQuantity,
         addPackage,

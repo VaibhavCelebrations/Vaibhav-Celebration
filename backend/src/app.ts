@@ -68,6 +68,7 @@ import {
 } from "./modules/inventory/inventory.routes";
 import { adminInventoryReportsRouter } from "./modules/inventory/reports.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
+import { accountConsentRouter } from "./modules/consent/consent.routes";
 
 export function createApp() {
   const app = express();
@@ -241,6 +242,18 @@ export function createApp() {
     message: "Too many attempts. Please wait 15 minutes.",
   });
 
+  /**
+   * Session upkeep (`GET /me`, `POST /refresh`) — every signed-in tab calls these on load and every
+   * time the 15-minute access token lapses, so they must not share the brute-force budget above.
+   * Refresh tokens are 32 random bytes; guessing is not a realistic threat at this rate.
+   */
+  const customerSessionLimiter = createLimiter({
+    name: "customer-session",
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    message: "Too many requests. Please wait and try again.",
+  });
+
   /** Guest OTP — keyed by IP, very tight. */
   const otpLimiter = createLimiter({
     name: "otp",
@@ -311,7 +324,15 @@ export function createApp() {
   api.use("/auth", authLimiter, authRouter);
   // Guest-checkout OTP paths get the tighter OTP limiter (applied before the auth router).
   api.use("/customer/auth/guest-checkout", otpLimiter);
-  api.use("/customer/auth", customerAuthLimiter, customerAuthRouter);
+  api.use(
+    "/customer/auth",
+    (req, res, next) => {
+      const isSessionUpkeep =
+        (req.method === "GET" && req.path === "/me") || (req.method === "POST" && req.path === "/refresh");
+      return (isSessionUpkeep ? customerSessionLimiter : customerAuthLimiter)(req, res, next);
+    },
+    customerAuthRouter,
+  );
   api.use("/guest", otpLimiter, guestRouter);
 
   // Public CMS — IP-keyed, 100/10min
@@ -341,6 +362,7 @@ export function createApp() {
   api.use("/shop/orders", strictLimiter, ordersRouter);
   api.use("/account/orders", publicLimiter, accountOrdersRouter);
   api.use("/account/registries", publicLimiter, accountRegistryRouter);
+  api.use("/account/consents", publicLimiter, accountConsentRouter);
   api.use("/registry", publicLimiter, registryRouter);
 
   api.use("/whatsapp/webhook", webhookLimiter, whatsappWebhookRouter);

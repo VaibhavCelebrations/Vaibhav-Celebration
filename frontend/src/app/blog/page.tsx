@@ -4,7 +4,6 @@ import Image from "next/image";
 import { ArrowRight, Search } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listBlogPosts } from "@/lib/cms/blog";
@@ -119,7 +118,6 @@ export default async function BlogPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Loader2,
   Save,
@@ -16,6 +16,7 @@ import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/components/ui/Toast";
 import * as authApi from "@/lib/customer-auth-api";
 import { friendlyAuthError } from "@/lib/customer-auth-api";
+import * as shopApi from "@/lib/shop-api";
 import type { User } from "@/lib/ecom-types";
 import { OtpVerificationModal } from "@/components/account/OtpVerificationModal";
 import { ChangeEmailModal } from "@/components/account/ChangeEmailModal";
@@ -243,6 +244,9 @@ function ProfileForm({ user, logout, refreshUser }: { user: User; logout: () => 
       {/* Delivery Address */}
       <AddressForm user={user} refreshUser={refreshUser} />
 
+      {/* Offers and updates */}
+      <MarketingPreference />
+
       {/* Change Password */}
       <form onSubmit={handleChangePassword} className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-4">
         <h3 className="font-display text-lg font-bold text-charcoal flex items-center gap-2">
@@ -305,6 +309,68 @@ function ProfileForm({ user, logout, refreshUser }: { user: User; logout: () => 
           push(`Email updated to ${updatedUser.email} and verified successfully!`, "success");
         }}
       />
+    </div>
+  );
+}
+
+/** Opt in to, or withdraw from, promotional messages. Order updates are not affected. */
+function MarketingPreference() {
+  const { push } = useToast();
+  const [granted, setGranted] = useState<boolean | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    shopApi
+      .getMarketingConsent()
+      .then((c) => !cancelled && setGranted(c.granted))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggle = async (next: boolean) => {
+    const previous = granted;
+    setGranted(next);
+    setIsSaving(true);
+    try {
+      const saved = await shopApi.setMarketingConsent(next);
+      setGranted(saved.granted);
+      push(saved.granted ? "You will receive offers and celebration ideas." : "You have opted out of promotional messages.", "success");
+    } catch (err) {
+      setGranted(previous);
+      push(friendlyAuthError(err), "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border-light p-6 shadow-soft space-y-3">
+      <div>
+        <h3 className="font-display text-lg font-bold text-charcoal">Offers and Updates</h3>
+        <p className="text-text-muted text-[13px] mt-1">
+          Order confirmations, delivery updates and invoices are always sent. Promotional messages are sent only if you opt in.
+        </p>
+      </div>
+      {failed ? (
+        <p className="text-sm text-red-600">We could not load your preference. Please refresh the page.</p>
+      ) : (
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={granted ?? false}
+            disabled={granted === null || isSaving}
+            onChange={(e) => void toggle(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
+          />
+          <span className="text-sm text-charcoal leading-relaxed">
+            Send me offers and celebration ideas via WhatsApp and email.
+          </span>
+        </label>
+      )}
     </div>
   );
 }

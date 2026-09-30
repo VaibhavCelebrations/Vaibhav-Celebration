@@ -1,9 +1,9 @@
 "use client";
 
-import { ImagePlus, Search, Upload, X } from "lucide-react";
+import { FileText, ImagePlus, Play, Search, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AdminApiError, adminFetch, type ApiSuccess } from "@/lib/admin-api-client";
+import { AdminApiError, adminFetch, adminFetchResponse, type ApiSuccess } from "@/lib/admin-api-client";
 import type { MediaRef } from "@/types/common";
 import { useToast } from "./Toast";
 import { MediaCategoryBadge } from "./MediaCategoryBadge";
@@ -23,15 +23,30 @@ type MediaItem = MediaRef & {
   sizeBytes?: number | null;
 };
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1")
-    : "http://localhost:4000/api/v1";
-
-function getAuthHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = window.localStorage.getItem("vbc_admin_access");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+/** Thumbnail for any library item: images as-is, videos as their first frame with a play badge, PDFs as a file tile. */
+export function MediaThumb({ media, className = "" }: { media: MediaRef; className?: string }) {
+  if (media.type?.startsWith("video/")) {
+    return (
+      <span className={`relative block overflow-hidden bg-black ${className}`}>
+        {/* "#t=0.1" makes browsers paint the first frame instead of a black box */}
+        <video src={`${media.url}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="rounded-full bg-black/60 p-1.5 text-white">
+            <Play size={12} fill="currentColor" aria-hidden="true" />
+          </span>
+        </span>
+      </span>
+    );
+  }
+  if (media.type === "application/pdf") {
+    return (
+      <span className={`flex items-center justify-center bg-[var(--color-surface-alt)] text-[var(--color-text-muted)] ${className}`}>
+        <FileText size={18} aria-hidden="true" />
+      </span>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={media.url} alt={media.altText ?? ""} className={`object-cover ${className}`} loading="lazy" />;
 }
 
 export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) {
@@ -52,6 +67,25 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
   const toast = useToast();
 
   useEffect(() => { setMounted(true); }, []);
+
+  // The picker usually opens on top of a form modal that also listens for Escape. Handle the key
+  // first (capture phase) and stop it there, so Esc closes only the topmost layer instead of
+  // asking to discard the whole form.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      if (showAltPrompt) {
+        setShowAltPrompt(false);
+        setPendingFile(null);
+      } else {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, showAltPrompt]);
   // Keep filter in sync with kind prop
   useEffect(() => { setFilterCategory(kind); }, [kind]);
 
@@ -91,7 +125,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
   const confirmUpload = async () => {
     if (!pendingFile) return;
     if (!altDraft.trim()) {
-      toast({ tone: "error", title: "ALT text is required", description: "Describe the image for SEO and screen readers." });
+      toast({ tone: "error", title: "ALT text is required", description: "Describe the image or video for SEO and screen readers." });
       return;
     }
     setUploading(true);
@@ -107,12 +141,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
       if (scope) form.append("folder", scope);
       if (altDraft.trim()) form.append("altText", altDraft.trim());
 
-      const res = await fetch(`${API_BASE}/admin/media/upload`, {
-        method: "POST",
-        credentials: "include",
-        headers: getAuthHeaders(),
-        body: form,
-      });
+      const res = await adminFetchResponse("/admin/media/upload", { method: "POST", body: form });
 
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       const completeResJson = (await res.json()) as ApiSuccess<UploadedMediaAsset>;
@@ -144,7 +173,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
             onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
           >
-            <div className="card flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
+            <div className="card relative flex max-h-[85vh] min-h-[22rem] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-[var(--color-border-soft)] px-5 py-4">
                 <div>
@@ -165,16 +194,16 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
 
               {/* ALT Text Prompt overlay (shown after file pick) */}
               {showAltPrompt && pendingFile && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Add ALT text">
                   <div className="card w-full max-w-sm p-6 shadow-2xl">
                     <h3 className="mb-1 font-serif text-lg">Add ALT Text</h3>
                     <p className="mb-3 text-xs text-[var(--color-text-muted)]">
-                      Required for SEO and accessibility. Describe what&apos;s in <strong>{pendingFile.name}</strong>.
+                      Required for SEO and accessibility. Describe the image or video <strong className="break-all">{pendingFile.name}</strong>.
                     </p>
                     <textarea
                       className="input w-full resize-none text-sm"
                       rows={3}
-                      placeholder="e.g. Bride and groom cutting a three-tier wedding cake…"
+                      placeholder="e.g. Space theme video invitation sample"
                       value={altDraft}
                       onChange={(e) => setAltDraft(e.target.value)}
                       maxLength={250}
@@ -285,13 +314,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
                         onClick={() => { onChange(item); setOpen(false); }}
                         className="group overflow-hidden rounded-lg border border-[var(--color-border-soft)] text-left transition-all hover:border-[var(--color-mocha)] hover:shadow-md cursor-pointer"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.url}
-                          alt={item.altText ?? ""}
-                          className="aspect-video w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                          loading="lazy"
-                        />
+                        <MediaThumb media={item} className="aspect-video w-full transition-transform duration-200 group-hover:scale-105" />
                         <div className="p-2 space-y-1">
                           <span className="block truncate text-xs font-medium text-[var(--color-charcoal)]">
                             {item.altText || <span className="italic text-amber-600">No ALT</span>}
@@ -317,8 +340,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
         className="input flex min-h-10 w-full items-center gap-2 text-left cursor-pointer"
       >
         {value?.url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={value.url} alt={value.altText ?? ""} className="h-7 w-10 rounded object-cover" />
+          <MediaThumb media={value} className="h-7 w-10 shrink-0 rounded" />
         ) : (
           <ImagePlus size={16} />
         )}

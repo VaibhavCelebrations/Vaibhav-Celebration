@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Heart } from "lucide-react";
@@ -24,11 +25,9 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
   const delivery = useDeliverySettings();
   const stockStatus = getStockStatus(product);
   const inCart = getItemQuantity(product.id);
-  const hasPersonalization = product.personalizationEnabled && (product.personalizationFields?.length ?? 0) > 0;
+  // Personalizable products are added from their own page, where the customer chooses whether to opt in.
+  const hasPersonalization = product.personalizationEnabled;
   const wishlisted = isWishlisted(product.id);
-  const fromPrice = hasPersonalization
-    ? product.priceInPaise + product.personalizationCostInPaise
-    : product.priceInPaise;
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -47,7 +46,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
   return (
     <div
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return;
+        if ((e.target as HTMLElement).closest("button, a")) return;
         router.push(`/gifts/${product.slug}`);
       }}
       className="group block relative cursor-pointer"
@@ -95,7 +94,10 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
         <div className="pt-4 pb-2 px-1 relative">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-display text-[1.1rem] sm:text-xl font-bold text-charcoal leading-snug group-hover:text-mocha transition-colors line-clamp-2">
-              {product.title}
+              {/* A real link, so the card is reachable by keyboard and can be opened in a new tab. */}
+              <Link href={`/gifts/${product.slug}`} className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha">
+                {product.title}
+              </Link>
             </h3>
             
             {/* Heart Button */}
@@ -116,7 +118,7 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
 
           <div className="flex items-center gap-2 mt-4">
             <span className="font-display text-lg sm:text-xl font-bold text-charcoal">
-              {hasPersonalization ? `From ${formatPaise(fromPrice)}` : formatPaise(product.priceInPaise)}
+              {formatPaise(product.priceInPaise)}
             </span>
             {product.compareAtPriceInPaise && (
               <span className="text-sm text-text-light line-through font-medium">
@@ -128,7 +130,8 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
           {/* Personalization hint */}
           {hasPersonalization && (
             <p className="text-[10px] text-mocha font-semibold mt-2 uppercase tracking-wider">
-              ✨ Personalizable · +{formatPaise(product.personalizationCostInPaise)}
+              ✨ Personalizable
+              {product.personalizationCostInPaise > 0 && ` · +${formatPaise(product.personalizationCostInPaise)}`}
             </p>
           )}
           {!compact && (

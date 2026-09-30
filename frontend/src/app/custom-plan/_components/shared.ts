@@ -30,12 +30,16 @@ export type Selections = {
   /** SKU → customer wants personalization. */
   personalization: Record<string, boolean>;
   giftRegistry: boolean;
+  /** SKUs of add-on products for the theme. */
+  addons: string[];
+  /** Ids of preview services bought on their own. */
+  services: string[];
 };
 
 export const EMPTY_DETAILS: Details = { eventType: "", childName: "", childAge: "", eventDate: "", guestCount: 10 };
 export const EMPTY_CONTACT: Contact = { name: "", email: "", phone: "" };
 export const EMPTY_ADDRESS: AddressForm = { line1: "", line2: "", city: "", state: "Rajasthan", country: "India", pincode: "" };
-export const EMPTY_SELECTIONS: Selections = { choices: {}, personalization: {}, giftRegistry: false };
+export const EMPTY_SELECTIONS: Selections = { choices: {}, personalization: {}, giftRegistry: false, addons: [], services: [] };
 
 export const STORAGE_KEY = "vc-custom-plan-draft";
 
@@ -100,9 +104,11 @@ export function validateDetails(d: Details, c: Contact, a: AddressForm): DetailE
 
 export function toBuilderSelections(sel: Selections): BuilderSelections {
   const choices = Object.fromEntries(Object.entries(sel.choices).filter(([, skus]) => skus.length > 0));
-  const picked = new Set(Object.values(choices).flat());
+  const picked = new Set([...Object.values(choices).flat(), ...sel.addons]);
   return {
     choices,
+    addons: sel.addons,
+    services: sel.services,
     // only send opt-ins for products that are actually picked
     personalization: Object.fromEntries(Object.entries(sel.personalization).filter(([sku, on]) => on && picked.has(sku))),
     decor: false,
@@ -110,7 +116,8 @@ export function toBuilderSelections(sel: Selections): BuilderSelections {
   };
 }
 
-export const countPicked = (sel: Selections) => Object.values(sel.choices).reduce((n, skus) => n + skus.length, 0);
+export const countPicked = (sel: Selections) =>
+  Object.values(sel.choices).reduce((n, skus) => n + skus.length, 0) + sel.addons.length + sel.services.length;
 
 /** Client-side estimate of one product's line for the card — the quote API is authoritative. */
 export function estimateLine(p: BuilderProduct, guestCount: number, isGroup: boolean, personalize: boolean) {

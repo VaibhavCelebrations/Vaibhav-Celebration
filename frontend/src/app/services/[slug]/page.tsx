@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 
 const servicesDetails: Record<string, { title: string; description: string }> = {
   "customized-celebrations": {
@@ -29,14 +31,23 @@ const servicesDetails: Record<string, { title: string; description: string }> = 
   }
 };
 
-export default function ServicePage({ params }: { params: { slug: string } }) {
-  const service = servicesDetails[params.slug];
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const service = servicesDetails[slug];
+  return service ? { title: `${service.title} | Vaibhav Celebrations`, description: service.description } : { title: "Service Not Found" };
+}
+
+export default async function ServicePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const service = servicesDetails[slug];
 
   if (!service) {
     notFound();
   }
 
   return (
+    <>
+    <Navbar />
     <main className="min-h-dvh pt-[120px] pb-24 bg-surface">
       <div className="max-w-4xl mx-auto px-5 md:px-10">
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-text-light hover:text-mocha transition-colors mb-12">
@@ -47,12 +58,19 @@ export default function ServicePage({ params }: { params: { slug: string } }) {
           {service.title}
         </h1>
         
-        <div className="prose prose-lg text-text-muted">
-          <p className="text-lg md:text-xl leading-relaxed">
-            {service.description}
-          </p>
+        <p className="text-lg md:text-xl leading-relaxed text-text-muted">{service.description}</p>
+
+        <div className="mt-10 flex flex-col sm:flex-row gap-3">
+          <Link href="/packages" className="btn-primary px-8 py-3 text-sm text-center">
+            View Packages
+          </Link>
+          <Link href="/consultation" className="btn-outline px-8 py-3 text-sm text-center">
+            Book a Consultation
+          </Link>
         </div>
       </div>
     </main>
+    <Footer />
+    </>
   );
 }

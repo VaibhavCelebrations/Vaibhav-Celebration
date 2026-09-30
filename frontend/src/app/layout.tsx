@@ -5,7 +5,9 @@ import { listThemes } from "@/lib/cms/themes";
 import { listPackages } from "@/lib/cms/packages";
 import { PopupModal } from "@/components/ui/PopupModal";
 import { ChatbotWidgetServer } from "@/components/layout/ChatbotWidgetServer";
+import { FloatingActionsServer } from "@/components/layout/FloatingActionsServer";
 import { Analytics } from "@/components/layout/Analytics";
+import { CookieBanner } from "@/components/layout/CookieBanner";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -107,7 +109,9 @@ export default async function RootLayout({
         <Providers themes={themes} packages={packages}>
           {children}
           <ChatbotWidgetServer />
+          <FloatingActionsServer />
           <PopupModal />
+          <CookieBanner />
         </Providers>
       </body>
     </html>

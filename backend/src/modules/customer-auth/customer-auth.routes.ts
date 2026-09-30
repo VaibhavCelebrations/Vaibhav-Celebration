@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../../config/env";
+import { AppError } from "../../lib/errors";
 import { ok } from "../../lib/response";
 import { validate } from "../../middleware/validate";
 import {
@@ -16,6 +17,7 @@ import {
   logoutAllSessions,
   logoutCustomer,
   refreshCustomerSession,
+  SESSION_REFRESH_RACE,
   requestPasswordReset,
   resetPassword,
   signupCustomer,
@@ -57,12 +59,20 @@ const loginSchema = z.object({
 
 const SESSION_COOKIE_PATH = `${env.API_PREFIX}/customer/auth`;
 
+/** Access cookie lives exactly as long as the JWT inside it ("15m", "900s", "1h"; bare numbers are ms). */
+function accessCookieMaxAgeMs(): number {
+  const match = /^(\d+)\s*(ms|s|m|h|d)?$/.exec(env.JWT_CUSTOMER_ACCESS_EXPIRES_IN.trim());
+  if (!match) return 15 * 60 * 1000;
+  const unitMs = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2] ?? "ms"] ?? 1;
+  return Number(match[1]) * unitMs;
+}
+
 function setAuthCookies(res: import("express").Response, result: { accessToken: string; sessionToken: string; sessionExpiresAt: Date }) {
   res.cookie(CUSTOMER_ACCESS_COOKIE, result.accessToken, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
     sameSite: env.COOKIE_SECURE ? "none" : "lax",
-    maxAge: 15 * 60 * 1000, // matches JWT_CUSTOMER_ACCESS_EXPIRES_IN default; refreshed silently
+    maxAge: accessCookieMaxAgeMs(), // refreshed silently by the storefront on 401
     path: "/",
   });
   res.cookie(CUSTOMER_SESSION_COOKIE, result.sessionToken, {
@@ -119,7 +129,7 @@ customerAuthRouter.post("/refresh", async (req, res, next) => {
     setAuthCookies(res, result);
     return res.json({ success: true, data: { user: result.user } });
   } catch (err) {
-    clearAuthCookies(res);
+    if (!(err instanceof AppError && err.code === SESSION_REFRESH_RACE)) clearAuthCookies(res);
     return next(err);
   }
 });

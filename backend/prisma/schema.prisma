@@ -107,6 +107,7 @@ model MediaAsset {
   popupImages           Popup[]             @relation("PopupImage")
   productCollections    ProductCollection[]
   productImages         ProductImage[]
+  servicePreviews       ExtraServiceMedia[]
   metadataOgImages      SiteMetadata[]      @relation("MetadataOgImage")
   themeHeroes           Theme[]             @relation("ThemeHero")
   themeOgImages         Theme[]             @relation("ThemeOgImage")
@@ -138,6 +139,7 @@ model Theme {
   orderPackages    OrderPackage[]
   productTags      ProductThemeTag[]
   serviceProducts  ServiceProduct[]
+  servicePreviews  ExtraServiceMedia[]
   testimonials     Testimonial[]
   heroImage        MediaAsset?        @relation("ThemeHero", fields: [heroImageId], references: [id])
   ogImage          MediaAsset?        @relation("ThemeOgImage", fields: [ogImageId], references: [id])
@@ -232,10 +234,32 @@ model ExtraService {
   selectionCount            Int                   @default(1)
   /// Charge each picked product once per group instead of once per child
   isPerGroup                Boolean               @default(false)
+  /// When true the customer is shown this service's images/videos in the builder (admin "Preview"
+  /// option). Mutually exclusive with isProductChoice: a service is previewed OR chosen, never both.
+  hasPreview                Boolean               @default(false)
+  /// Before / During / After section for a preview service. Product-choice services take their
+  /// stage from their products' categories instead.
+  celebrationStage          CelebrationStage?
   packageItems              PackageServiceItem[]
   serviceProducts           ServiceProduct[]
+  previewMedia              ExtraServiceMedia[]
 
   @@index([label(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+/// Images / videos shown to the customer for a preview service under one theme, in display order.
+/// Previews are always per theme: a service looks different for each theme.
+model ExtraServiceMedia {
+  id             String       @id @default(cuid())
+  extraServiceId String
+  themeId        String
+  mediaId        String
+  displayOrder   Int          @default(0)
+  extraService   ExtraService @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
+  theme          Theme        @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  media          MediaAsset   @relation(fields: [mediaId], references: [id])
+
+  @@index([extraServiceId, themeId])
 }
 
 /// Per-package inclusion matrix — one checkbox per service per package tier.
@@ -387,8 +411,48 @@ model LegalPage {
   type        LegalPageType @unique
   title       String
   bodyHtml    String
+  /// Bumped every time the title or body changes; each version is kept in LegalPageVersion.
+  version     Int           @default(1)
   updatedAt   DateTime      @updatedAt
   publishedAt DateTime?
+}
+
+/// Immutable copy of a legal page as it stood at one version, so the text a customer
+/// accepted at checkout can always be produced later.
+model LegalPageVersion {
+  id          String        @id @default(cuid())
+  type        LegalPageType
+  version     Int
+  title       String
+  bodyHtml    String
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@unique([type, version])
+}
+
+/// Append-only log of consent given or withdrawn. The newest row for a contact is their current choice.
+model ConsentRecord {
+  id        String         @id @default(cuid())
+  purpose   ConsentPurpose
+  granted   Boolean
+  email     String?
+  phone     String?
+  userId    String?
+  /// Where the choice was made: checkout, contact-form, enquiry-form, account.
+  source    String
+  orderId   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+
+  @@index([email])
+  @@index([phone])
+  @@index([userId])
+}
+
+enum ConsentPurpose {
+  MARKETING
 }
 
 model SiteMetadata {
@@ -775,6 +839,8 @@ model Product {
   title                       String
   slug                        String                        @unique
   sku                         String                        @unique
+  /// Offered as an optional add-on (per theme) in the package builder and custom plan, as well as in the shop.
+  isAddon                     Boolean                       @default(false)
   barcode                     String?                       @unique
   unit                        String                        @default("piece")
   description                 String
@@ -953,6 +1019,10 @@ model Order {
   whatsappSendStatus          String?
   whatsappError               String?
   whatsappMessageId           String?
+  /// When the customer ticked "I agree to the Terms & Policies" at checkout.
+  policiesAcceptedAt          DateTime?
+  /// Version of each legal page in force at that moment, e.g. { "TERMS_OF_SERVICE": 2 }.
+  policyVersions              Json?
   giftContributions           GiftRegistryContribution[]
   invoice                     Invoice?
   registry                    GiftRegistry?               @relation("GuestRegistryOrder", fields: [registryId], references: [id])

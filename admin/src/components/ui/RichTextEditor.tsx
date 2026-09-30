@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { MediaRef } from "@/types/common";
 import { MediaPicker } from "./MediaPicker";
-import type { ApiSuccess } from "@/lib/admin-api-client";
+import { adminFetchResponse, type ApiSuccess } from "@/lib/admin-api-client";
 
 type RichTextEditorProps = {
   id?: string;
@@ -394,26 +394,12 @@ function MediaPickerGrid({
   const [altDraft, setAltDraft] = useState("");
   const [showAltPrompt, setShowAltPrompt] = useState(false);
 
-  const API_BASE =
-    typeof window !== "undefined"
-      ? (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1")
-      : "http://localhost:4000/api/v1";
-
-  function getAuthHeaders(): Record<string, string> {
-    if (typeof window === "undefined") return {};
-    const token = window.localStorage.getItem("vbc_admin_access");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: "1", pageSize: "60", category: kind });
       if (search.trim()) params.set("search", search.trim());
-      const res = await fetch(`${API_BASE}/admin/media?${params}`, {
-        credentials: "include",
-        headers: getAuthHeaders(),
-      });
+      const res = await adminFetchResponse(`/admin/media?${params}`);
       if (!res.ok) throw new Error("Failed to load media");
       const data = await res.json() as { data: { items: MediaRef[] } };
       setItems(data.data?.items ?? []);
@@ -422,7 +408,6 @@ function MediaPickerGrid({
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, search]);
 
   // Load on mount and search change
@@ -441,12 +426,7 @@ function MediaPickerGrid({
       form.append("category", kind);
       form.append("altText", altDraft.trim());
 
-      const res = await fetch(`${API_BASE}/admin/media/upload`, {
-        method: "POST",
-        credentials: "include",
-        headers: getAuthHeaders(),
-        body: form,
-      });
+      const res = await adminFetchResponse("/admin/media/upload", { method: "POST", body: form });
       if (!res.ok) throw new Error("Upload failed");
       const completeResJson = await res.json() as ApiSuccess<MediaRef>;
       onChange(completeResJson.data);

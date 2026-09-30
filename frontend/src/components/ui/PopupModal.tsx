@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { X } from "lucide-react";
@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { listActivePopups } from "@/lib/cms/content";
 import type { Popup } from "@/lib/cms/types";
 import { CacheStore } from "@/lib/cache-store";
+import { useOverlay } from "@/hooks/useOverlay";
 
 export function PopupModal() {
   const pathname = usePathname();
@@ -46,7 +47,7 @@ export function PopupModal() {
 
     // Find the first popup that hasn't been dismissed
     const nextPopup = popups.find((p) => {
-      const dismissed = CacheStore.getItem<boolean>(`dismissed_popup_${p.id}`, false);
+      const dismissed = CacheStore.getSessionItem<boolean>(`dismissed_popup_${p.id}`, false);
       return !dismissed;
     });
 
@@ -60,17 +61,29 @@ export function PopupModal() {
     }
   }, [popups]);
 
-  if (!activePopup || !isVisible) return null;
-
-  const handleDismiss = () => {
+  // Dismissal lasts for the browser session: a returning visitor sees a current offer again,
+  // but nobody is interrupted twice in one visit.
+  const handleDismiss = useCallback(() => {
     setIsVisible(false);
-    CacheStore.setItem(`dismissed_popup_${activePopup.id}`, true);
-  };
+    if (activePopup) CacheStore.setSessionItem(`dismissed_popup_${activePopup.id}`, true);
+  }, [activePopup]);
+  const panelRef = useOverlay<HTMLDivElement>(Boolean(activePopup && isVisible), handleDismiss);
+
+  if (!activePopup || !isVisible) return null;
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center bg-charcoal/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className="bg-surface rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-300">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="popup-title"
+        tabIndex={-1}
+        className="bg-surface rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-300 focus:outline-none"
+      >
         <button
+          type="button"
+          aria-label="Close"
           onClick={handleDismiss}
           className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-charcoal flex items-center justify-center z-10 shadow-sm cursor-pointer transition-colors"
         >
@@ -90,7 +103,7 @@ export function PopupModal() {
         )}
 
         <div className="p-8 text-center">
-          <h2 className="font-display text-2xl font-bold text-charcoal mb-3">
+          <h2 id="popup-title" className="font-display text-2xl font-bold text-charcoal mb-3">
             {typeof activePopup.title === "string" ? activePopup.title : "Vaibhav Celebrations"}
           </h2>
           {typeof activePopup.bodyText === "string" && activePopup.bodyText && (

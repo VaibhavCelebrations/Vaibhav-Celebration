@@ -3,10 +3,10 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { PackageComparisonGrid } from "@/components/packages/PackageComparisonGrid";
+import { ServicePreviewButton } from "@/components/packages/ServicePreviewButton";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listPackages } from "@/lib/cms/packages";
 
@@ -66,12 +66,18 @@ export default async function PackagesPage() {
                   <p className="text-xs text-text-light mt-1">Base package onwards</p>
                   <hr className="my-6 border-border" />
                   <ul className="space-y-3 text-sm flex-1">
-                    {pkg.features.map((f) => (
-                      <li key={f.label} className="flex gap-3 text-text">
-                        <Check size={16} className="text-mocha shrink-0 mt-0.5" />
-                        <span>{f.label}</span>
-                      </li>
-                    ))}
+                    {pkg.services
+                      .filter((s) => s.included)
+                      .map((s) => (
+                        <li key={s.id} className="flex gap-3 text-text">
+                          <Check size={16} className="text-mocha shrink-0 mt-0.5" aria-hidden="true" />
+                          <span>
+                            {s.label}
+                            {s.chooseCount ? ` (choose any ${s.chooseCount})` : ""}
+                            <ServicePreviewButton label={s.label} description={s.description} media={s.previewMedia} className="ml-2" />
+                          </span>
+                        </li>
+                      ))}
                     <li className="flex gap-3 text-text">
                       <Check size={16} className="text-mocha shrink-0 mt-0.5" />
                       <span>{PACKAGING_NOTE[pkg.slug] ?? "Packaging included"}</span>
@@ -86,7 +92,7 @@ export default async function PackagesPage() {
                       href={`/build-package?pkg=${pkg.slug}`}
                       className="text-sm font-semibold px-6 py-3.5 rounded-lg text-center btn-primary"
                     >
-                      Checkout
+                      Choose {pkg.title}
                     </Link>
                   </div>
                 </div>
@@ -94,7 +100,7 @@ export default async function PackagesPage() {
             ))}
           </div>
 
-          <PackageComparisonGrid />
+          <PackageComparisonGrid packages={packages} />
 
           <ScrollReveal>
             <div className="mt-16 mb-8 rounded-3xl border border-mocha/15 bg-cream-dark/50 px-6 py-10 text-center">
@@ -121,7 +127,6 @@ export default async function PackagesPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

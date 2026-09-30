@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, ShoppingCart, Package, Truck, PartyPopper, Check, Loader2, CalendarHeart } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CheckoutStepper } from "@/components/ecom/CheckoutStepper";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
@@ -17,7 +16,7 @@ import { useAuth } from "@/context/auth-context";
 import { useCatalog } from "@/context/catalog-context";
 import { useToast } from "@/components/ui/Toast";
 import { formatPaise, toRupees } from "@/lib/shop-types";
-import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult, ServerCartItem } from "@/lib/shop-types";
+import type { ShippingAddress, CreateOrderResult, CheckoutQuoteResult, ServerCartItem, CartQuote } from "@/lib/shop-types";
 import * as shopApi from "@/lib/shop-api";
 import * as authApi from "@/lib/customer-auth-api";
 import { friendlyAuthError, requestGuestCheckoutOtp } from "@/lib/customer-auth-api";
@@ -25,7 +24,8 @@ import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/load-razorpay";
 import { ApiClientError } from "@/lib/api-client";
 import { CacheStore } from "@/lib/cache-store";
 import { useDeliverySettings } from "@/lib/delivery-settings";
-import type { PersonalizationValue } from "@/lib/ecom-types";
+import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
+import { PersonalizationToggle } from "@/components/ecom/CartDrawer";
 import { cartPackageHasGiftRegistry, combineCartQuote } from "@/lib/cart-totals";
 import { CUSTOM_PLAN_SLUG } from "@/lib/builder-api";
 import { notifyRegistryAccessChanged } from "@/hooks/useRegistryAccess";
@@ -85,7 +85,6 @@ type DirectCheckoutPayload = {
   unitPriceInPaise: number;
   personalizationSelected: boolean;
   personalizationCostInPaise: number;
-  personalizationValues: PersonalizationValue[];
 };
 
 const STEPS = [
@@ -96,7 +95,7 @@ const STEPS = [
 const EMPTY_ADDRESS: ShippingAddress = { fullName: "", line1: "", line2: "", city: "", state: "", pincode: "", country: "India" };
 
 export default function CheckoutPage() {
-  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, removeItem, removePackage, refreshCart, clearCart, syncOfflineCart } = useCart();
+  const { items, quote, packages, itemCount, packagesSubtotalRupees, updateQuantity, setItemPersonalization, removeItem, removePackage, refreshCart, clearCart, syncOfflineCart } = useCart();
   const { isAuthenticated, openAuthModal, user } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const { push } = useToast();
@@ -122,6 +121,7 @@ export default function CheckoutPage() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [agreedPolicies, setAgreedPolicies] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [gateConfig, setGateConfig] = useState<{
     open: boolean;
     initialMode: "otp" | "login";
@@ -153,6 +153,7 @@ export default function CheckoutPage() {
 
   const [registryCheckout, setRegistryCheckout] = useState<CheckoutQuoteResult["registryCheckout"]>(null);
   const [directCheckout, setDirectCheckout] = useState<DirectCheckoutPayload | null>(null);
+  const [directServerQuote, setDirectServerQuote] = useState<CartQuote | null>(null);
 
   useEffect(() => {
     const payload = CacheStore.getSessionItem<DirectCheckoutPayload | null>(DIRECT_CHECKOUT_KEY, null);
@@ -244,9 +245,9 @@ export default function CheckoutPage() {
     }
   }, []);
 
-  // 2. If logged in and no packages in cart, prefill from authenticated user profile
+  // 2. If logged in, prefill from the profile — never over details a builder or the customer supplied
   useEffect(() => {
-    if (user && !registryCheckout && packages.length === 0) {
+    if (user && !registryCheckout) {
       setAddress((prev) => {
         const isEmpty = prev.fullName === "" && prev.line1 === "" && prev.city === "";
         if (isEmpty && user.defaultAddress) {
@@ -257,7 +258,15 @@ export default function CheckoutPage() {
       setContactEmail((prev) => prev || user.email);
       setContactPhone((prev) => prev || user.phone || "");
     }
-  }, [user, registryCheckout, packages.length]);
+  }, [user, registryCheckout]);
+
+  // 3. A package booked for Jaipur is delivered in Jaipur: start the city/state there.
+  const packageLocation = packages[0]?.builderInput?.location as "jaipur" | "outside" | undefined;
+  useEffect(() => {
+    if (packageLocation !== "jaipur") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAddress((prev) => (prev.city || prev.line1 ? prev : { ...prev, city: "Jaipur", state: prev.state || "Rajasthan" }));
+  }, [packageLocation]);
 
   useEffect(() => {
     if (!items.some((i) => i.registryItemId)) {
@@ -275,6 +284,28 @@ export default function CheckoutPage() {
   useEffect(() => () => {
     if (pollTimer.current) clearInterval(pollTimer.current);
   }, []);
+
+  // Buy Now: show the server's numbers (live price, personalization charge, shipping, GST) so the
+  // summary matches what Razorpay will charge. The local estimate below is only the fallback.
+  useEffect(() => {
+    if (!directCheckout) return; // a stale quote is never read: it is only used while directCheckout is set
+    let cancelled = false;
+    shopApi
+      .getGuestCartQuote([
+        {
+          productId: directCheckout.productId,
+          quantity: directCheckout.quantity,
+          personalizationSelected: directCheckout.personalizationSelected,
+        },
+      ])
+      .then((cart) => {
+        if (!cancelled && cart.items.length > 0) setDirectServerQuote(cart.quote);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [directCheckout]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -306,20 +337,12 @@ export default function CheckoutPage() {
   // One shipping/GST calculation across the shop cart AND event packages —
   // free delivery must consider both, matching the backend's combined quote.
   const displayQuote = isDirectCheckout
-    ? directQuote
+    ? (directServerQuote ?? directQuote)
     : combineCartQuote(quote, packages, deliverySettings.shippingFeeInPaise);
   const combinedTotalRupees = toRupees(displayQuote.totalInPaise);
 
-  // Package-only checkout (no shop cart items) reuses the delivery address
-  // already collected in the package builder — it has no address form of
-  // its own here, so that address must exist and be sent to the backend.
-  const packageOnlyCheckout = !hasItems && !isDirectCheckout && packages.length > 0;
-
-  // For package-only checkout, fall back to the builder's contact info if
-  // the checkout form fields are still empty (the address form is hidden).
-  const effectiveEmail = contactEmail.trim() || (packageOnlyCheckout ? (pkg?.builderInput?.contactEmail ?? "") : "");
-  const effectivePhone = contactPhone.trim() || (packageOnlyCheckout ? (pkg?.builderInput?.contactPhone ?? "") : "");
-
+  // Contact and delivery details are entered here for every kind of order — the package builder
+  // no longer collects them (a custom plan still does, and prefills this form).
   const validateCheckout = (): boolean => {
     const errors: Record<string, string> = {};
     if (!address.fullName.trim()) errors.fullName = "Full name is required";
@@ -335,24 +358,6 @@ export default function CheckoutPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const isFormComplete = (): boolean => {
-    if (hasItems || isDirectCheckout) {
-      if (!address.fullName.trim()) return false;
-      if (!address.line1.trim()) return false;
-      if (!address.city.trim()) return false;
-      if (!address.state.trim()) return false;
-      if (!/^\d{4,10}$/.test(address.pincode.trim())) return false;
-    } else if (packageOnlyCheckout) {
-      if (!pkg?.builderInput?.shippingAddress?.line1) return false;
-    } else {
-      if (!address.fullName.trim()) return false;
-    }
-    if (!/^\S+@\S+\.\S+$/.test(effectiveEmail)) return false;
-    if (effectivePhone.length < 6) return false;
-    if (!agreedPolicies) return false;
-    return true;
-  };
-
   /**
    * Offers Gift Registry setup after payment — only when the purchased package actually
    * includes one, and only for signed-in customers. Guests get the setup steps by email.
@@ -366,7 +371,7 @@ export default function CheckoutPage() {
       title: childName ? `${childName}'s Celebration` : "My Celebration",
       date: bi?.eventDetails?.eventDate,
       orderCode,
-      shippingAddress: bi?.shippingAddress,
+      shippingAddress: bi?.shippingAddress ?? address,
       childName,
     });
   }
@@ -532,9 +537,10 @@ export default function CheckoutPage() {
           shippingAddress: address,
           contactEmail: contactEmail.trim(),
           contactPhone: contactPhone.trim(),
-          personalizationValues: directCheckout.personalizationSelected ? directCheckout.personalizationValues : undefined,
           personalizationSelected: directCheckout.personalizationSelected,
           packageData,
+          policiesAccepted: agreedPolicies,
+          marketingConsent: marketingOptIn,
         });
 
         if (saveAsDefault && isAuthenticated) {
@@ -564,6 +570,8 @@ export default function CheckoutPage() {
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
         packageData,
+        policiesAccepted: agreedPolicies,
+        marketingConsent: marketingOptIn,
       };
 
       const order = await shopApi.createShopOrder(payload);
@@ -729,9 +737,21 @@ export default function CheckoutPage() {
                             <div className="flex-1">
                               <p className="text-xs font-bold uppercase tracking-wider text-mocha mb-1">Buy Now</p>
                               <h4 className="font-semibold text-charcoal">{directCheckout.title}</h4>
-                              <p className="text-sm text-text-muted mt-1">Qty: {directCheckout.quantity}</p>
+                              <p className="text-sm text-text-muted mt-1">
+                                {formatPaise(directCheckout.unitPriceInPaise)} × {directCheckout.quantity}
+                              </p>
                               {directCheckout.personalizationSelected && (
-                                <p className="text-xs text-mocha font-semibold mt-1">✨ Personalization included — our team will contact you for details</p>
+                                <div className="mt-2 rounded-lg border border-mocha/20 bg-mocha/5 px-2.5 py-2 text-xs">
+                                  <p className="font-semibold text-charcoal">
+                                    ✨ Personalization{" "}
+                                    <span className="text-mocha">
+                                      {directCheckout.personalizationCostInPaise > 0
+                                        ? `+${formatPaise(directCheckout.personalizationCostInPaise)} × ${directCheckout.quantity} = ${formatPaise(directCheckout.personalizationCostInPaise * directCheckout.quantity)}`
+                                        : "(no extra cost)"}
+                                    </span>
+                                  </p>
+                                  <p className="mt-1 text-[11px] leading-snug text-text-muted">{PERSONALIZATION_FOLLOW_UP_NOTE}</p>
+                                </div>
                               )}
                             </div>
                             <div className="text-right font-bold text-charcoal">
@@ -771,15 +791,10 @@ export default function CheckoutPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="font-bold text-charcoal text-sm line-clamp-1">{item.title}</h4>
-                              {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
-                                <p className="text-[11px] text-mocha font-medium mt-1">
-                                  {(item.personalizationValues as Array<{ label?: unknown; value?: unknown }>).map((pv) => {
-                                    const label = typeof pv.label === "string" ? pv.label : "Personalization";
-                                    const value = typeof pv.value === "string" ? pv.value : "";
-                                    return value ? `${label}: ${value}` : label;
-                                  }).join(", ")}
-                                </p>
-                              )}
+                              <p className="text-xs text-text-muted mt-1">
+                                {formatPaise(item.unitPriceInPaise)} × {item.quantity}
+                              </p>
+                              <PersonalizationToggle item={item} onChange={setItemPersonalization} />
                               <div className="flex items-center justify-between mt-3">
                                 <div className="flex items-center gap-1 bg-cream-dark rounded-lg border border-border-light h-9">
                                   <button onClick={() => void updateQuantity(item.id, item.quantity - 1)} className="w-9 h-full flex items-center justify-center text-charcoal hover:text-mocha transition-colors"><Minus size={14} /></button>
@@ -820,7 +835,7 @@ export default function CheckoutPage() {
                             </div>
                           </div>
                           <div>
-                            {packages.length > 0 ? (
+                            {packages[0]?.builderInput?.shippingAddress?.line1 ? (
                               <span className="text-[10px] bg-mocha/10 text-mocha px-3 py-1.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">
                                 Package details applied
                               </span>
@@ -1005,10 +1020,12 @@ export default function CheckoutPage() {
                       <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="checkbox"
+                          checked={marketingOptIn}
+                          onChange={(e) => setMarketingOptIn(e.target.checked)}
                           className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
                         />
                         <span className="text-[11px] text-text-muted leading-relaxed">
-                          I would like to receive order updates, offers, and celebration ideas via WhatsApp/email. (Optional)
+                          I would like to receive offers and celebration ideas via WhatsApp/email. You can opt out any time. (Optional)
                         </span>
                       </label>
                     </div>
@@ -1047,7 +1064,7 @@ export default function CheckoutPage() {
                 )}
                 {hadPackagesAtCheckout && paymentStatus !== "pending" && (
                   <p className="text-sm text-text-muted max-w-md mx-auto mb-6 bg-cream/60 rounded-xl px-4 py-3 border border-border-light">
-                    If your package includes personalization, our team will contact you to confirm details before production.
+                    If your package includes personalized items: {PERSONALIZATION_FOLLOW_UP_NOTE}
                   </p>
                 )}
                 {!isAuthenticated && paymentStatus !== "pending" && (
@@ -1124,7 +1141,6 @@ export default function CheckoutPage() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
       
       {/* Payment Processing Overlay */}
       {(isPlacingOrder || paymentStatus === "confirming") && (

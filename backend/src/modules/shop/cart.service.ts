@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
 import { computeQuote } from "./cart-pricing.service";
@@ -55,6 +56,8 @@ function shapeCartItem(
     personalizationSelected: item.personalizationSelected,
     personalizationCostInPaise,
     personalizationEnabled: item.product.personalizationEnabled,
+    /** Per-unit price of opting in, whether or not this line has — lets the cart offer the toggle. */
+    personalizationUnitCostInPaise: item.product.personalizationEnabled ? item.product.personalizationCostInPaise : 0,
     image: item.product.images[0]?.media ?? null,
     isActive: item.product.isActive,
     stockAvailable: item.product.inventory?.quantityAvailable ?? 0,
@@ -136,10 +139,25 @@ function hasPersonalizationValues(values: unknown): boolean {
   return false;
 }
 
-export async function addCartItem(
-  userId: string,
-  input: { productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string },
-) {
+/**
+ * Personalization is an explicit opt-in (`personalizationSelected`); details are collected by the
+ * team after the order. Older clients sent no flag and signalled opt-in by sending field values,
+ * so that is still honoured when the flag is absent.
+ */
+function wantsPersonalization(input: { personalizationSelected?: boolean; personalizationValues?: unknown }): boolean | undefined {
+  if (input.personalizationSelected !== undefined) return input.personalizationSelected;
+  return hasPersonalizationValues(input.personalizationValues) ? true : undefined;
+}
+
+export type CartItemInput = {
+  productId: string;
+  quantity: number;
+  personalizationSelected?: boolean;
+  personalizationValues?: unknown;
+  registryItemId?: string;
+};
+
+export async function addCartItem(userId: string, input: CartItemInput) {
   const cart = await getOrCreateCart(userId);
   const registryItemId = input.registryItemId ?? "";
   const existing = await prisma.cartItem.findUnique({
@@ -160,10 +178,12 @@ export async function addCartItem(
     }
   }
 
-  const wantsPersonalization = hasPersonalizationValues(input.personalizationValues) || existing?.personalizationSelected;
-  const selected = Boolean(product.personalizationEnabled && wantsPersonalization);
+  // One line per product: the latest explicit choice applies to every unit on the line.
+  // With no choice in this request (e.g. quick-add), the line keeps what it had.
+  const wanted = wantsPersonalization(input) ?? existing?.personalizationSelected ?? false;
+  const selected = Boolean(product.personalizationEnabled && wanted);
   const cost = selected ? product.personalizationCostInPaise : 0;
-  const values = input.personalizationValues ?? existing?.personalizationValues ?? null;
+  const values = selected ? (input.personalizationValues ?? existing?.personalizationValues ?? null) : null;
 
   await prisma.cartItem.upsert({
     where: { cartId_productId_registryItemId: { cartId: cart.id, productId: input.productId, registryItemId } },
@@ -172,13 +192,13 @@ export async function addCartItem(
       productId: input.productId,
       registryItemId,
       quantity: input.quantity,
-      personalizationValues: values as never,
+      personalizationValues: (values ?? Prisma.DbNull) as never,
       personalizationSelected: selected,
       personalizationCostSnapshot: cost,
     },
     update: {
       quantity: nextQuantity,
-      personalizationValues: values as never,
+      personalizationValues: (values ?? Prisma.DbNull) as never,
       personalizationSelected: selected,
       personalizationCostSnapshot: cost,
     },
@@ -214,6 +234,29 @@ export async function updateCartItemQuantity(userId: string, productId: string, 
   return getCart(userId);
 }
 
+/** Turns personalization on or off for a line already in the cart. */
+export async function setCartItemPersonalization(userId: string, lineKey: string, selected: boolean) {
+  const cart = await getOrCreateCart(userId);
+  const existing = await findCartLine(cart.id, lineKey);
+  if (!existing) throw new NotFoundError("Item not found in cart");
+
+  const product = await prisma.product.findFirst({ where: { id: existing.productId, deletedAt: null } });
+  if (!product) throw new NotFoundError("Product not found or unavailable");
+  if (selected && !product.personalizationEnabled) {
+    throw new ValidationError("Personalization is not available for this product");
+  }
+
+  await prisma.cartItem.update({
+    where: { id: existing.id },
+    data: {
+      personalizationSelected: selected,
+      personalizationCostSnapshot: selected ? product.personalizationCostInPaise : 0,
+      ...(selected ? {} : { personalizationValues: Prisma.DbNull }),
+    },
+  });
+  return getCart(userId);
+}
+
 export async function removeCartItem(userId: string, productId: string) {
   const cart = await getOrCreateCart(userId);
   const existing = await findCartLine(cart.id, productId);
@@ -228,7 +271,7 @@ export async function clearCart(userId: string) {
   return getCart(userId);
 }
 
-export async function getGuestCartQuote(items: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>) {
+export async function getGuestCartQuote(items: CartItemInput[]) {
   const registryIds = items.map((i) => i.registryItemId).filter(Boolean) as string[];
   const registryItems = registryIds.length
     ? await prisma.giftRegistryItem.findMany({
@@ -250,8 +293,7 @@ export async function getGuestCartQuote(items: Array<{ productId: string; quanti
     if (!product) return null;
 
     const registryItem = item.registryItemId ? registryMap.get(item.registryItemId) : undefined;
-    const wantsPersonalization = hasPersonalizationValues(item.personalizationValues);
-    const selected = Boolean(product.personalizationEnabled && wantsPersonalization);
+    const selected = Boolean(product.personalizationEnabled && wantsPersonalization(item));
     const cost = selected ? product.personalizationCostInPaise : 0;
 
     return shapeCartItem(
@@ -260,7 +302,7 @@ export async function getGuestCartQuote(items: Array<{ productId: string; quanti
         productId: item.productId,
         registryItemId: item.registryItemId || "",
         quantity: item.quantity,
-        personalizationValues: item.personalizationValues,
+        personalizationValues: selected ? (item.personalizationValues ?? null) : null,
         personalizationSelected: selected,
         personalizationCostSnapshot: cost,
         product,

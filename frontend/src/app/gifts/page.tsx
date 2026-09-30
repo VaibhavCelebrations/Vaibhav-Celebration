@@ -8,10 +8,10 @@ import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X, Loader2, ChevronLeft, ChevronRight, Check, Sparkles, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { ProductCard } from "@/components/ecom/ProductCard";
+import { useOverlay } from "@/hooks/useOverlay";
 import { useCatalog } from "@/context/catalog-context";
 import * as shopApi from "@/lib/shop-api";
 import { FESTIVE_FILTER, type GiftFilter, type Product, type ProductCategory, type ProductCollection } from "@/lib/shop-types";
@@ -41,6 +41,8 @@ function GiftsPageContent() {
   });
   
   const [showFilters, setShowFilters] = useState(false);
+  const closeFilters = useCallback(() => setShowFilters(false), []);
+  const filterPanelRef = useOverlay<HTMLDivElement>(showFilters, closeFilters);
   const [currentPage, setCurrentPage] = useState(1);
 
   // The header's Shop menu links (All Products / Festive Collections / Return Gifts) change the
@@ -187,6 +189,7 @@ function GiftsPageContent() {
           {filter.search && (
             <button
               onClick={() => setFilter({ ...filter, search: "" })}
+              aria-label="Clear search"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer"
             >
               <X size={14} />
@@ -359,10 +362,17 @@ function GiftsPageContent() {
             {showFilters && (
               <div className="fixed inset-0 z-50 flex lg:hidden">
                 <div className="fixed inset-0 bg-charcoal/50 backdrop-blur-sm" onClick={() => setShowFilters(false)} />
-                <div className="relative w-[85vw] max-w-sm h-full bg-cream p-6 overflow-y-auto shadow-2xl flex flex-col">
+                <div
+                  ref={filterPanelRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Filters"
+                  tabIndex={-1}
+                  className="relative w-[85vw] max-w-sm h-full bg-cream p-6 overflow-y-auto shadow-2xl flex flex-col focus:outline-none"
+                >
                   <div className="flex items-center justify-between mb-8 pb-4 border-b border-border-light">
                     <h3 className="font-display text-xl font-bold text-charcoal">Filters</h3>
-                    <button onClick={() => setShowFilters(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-surface text-charcoal hover:bg-cream-dark transition-colors cursor-pointer">
+                    <button type="button" aria-label="Close filters" onClick={() => setShowFilters(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-surface text-charcoal hover:bg-cream-dark transition-colors cursor-pointer">
                       <X size={18} />
                     </button>
                   </div>
@@ -512,6 +522,7 @@ function GiftsPageContent() {
               {!isLoading && !isFestiveView && totalPages > 1 && (
                 <div className="mt-16 flex items-center justify-center gap-2">
                   <button
+                    aria-label="Previous page"
                     disabled={currentPage === 1}
                     onClick={() => {
                       setCurrentPage(p => Math.max(1, p - 1));
@@ -551,6 +562,7 @@ function GiftsPageContent() {
                   </div>
 
                   <button
+                    aria-label="Next page"
                     disabled={currentPage === totalPages}
                     onClick={() => {
                       setCurrentPage(p => Math.min(totalPages, p + 1));
@@ -568,7 +580,6 @@ function GiftsPageContent() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

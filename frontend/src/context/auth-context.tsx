@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { User } from "@/lib/ecom-types";
 import * as authApi from "@/lib/customer-auth-api";
-import { ApiClientError } from "@/lib/api-client";
+import { ApiClientError, onAuthLost } from "@/lib/api-client";
 
 /* ── Context shape ─────────────────────────────────────────────────── */
 
@@ -26,15 +26,22 @@ interface AuthContextType {
   closeAuthModal: () => void;
   /** Apply an already-authenticated user (e.g. after guest OTP verify set cookies). */
   applyAuthenticatedUser: (user: User, onSuccess?: () => void) => void;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, phone: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   /** Preferred auth-modal tab when opened from checkout gate. */
   authModalTab: "login" | "signup";
+  /** Why the modal opened on its own (e.g. the session expired); null when the customer opened it. */
+  authModalNotice: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+type AuthTabMessage = "signed-in" | "signed-out";
+
+/** A returning tab re-checks the session at most this often. */
+const SESSION_RECHECK_MS = 60_000;
 
 /* ── Provider ──────────────────────────────────────────────────────── */
 
@@ -44,45 +51,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "signup">("login");
+  const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
   const onSuccessRef = useRef<(() => void) | null>(null);
+  // Mirrors `isAuthenticated` for listeners that outlive a render (auth-lost, focus, other tabs).
+  const isAuthenticatedRef = useRef(false);
+  const lastCheckedAtRef = useRef(0);
+  const channelRef = useRef<BroadcastChannel | null>(null);
 
-  const refreshUser = useCallback(async () => {
+  const applySignedIn = useCallback((nextUser: User) => {
+    isAuthenticatedRef.current = true;
+    lastCheckedAtRef.current = Date.now();
+    setUser(nextUser);
+    setIsAuthenticated(true);
+    setAuthModalNotice(null);
+  }, []);
+
+  const applySignedOut = useCallback(() => {
+    isAuthenticatedRef.current = false;
+    setUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  const tellOtherTabs = useCallback((type: AuthTabMessage) => {
     try {
-      const me = await authApi.fetchCurrentUser();
-      setUser(me);
-      setIsAuthenticated(true);
+      channelRef.current?.postMessage(type);
     } catch {
-      setUser(null);
-      setIsAuthenticated(false);
+      // channel closed — other tabs re-check on focus anyway
     }
   }, []);
+
+  /** `apiFetch` refreshes an expired access token itself, so a 401 here means the session is gone. */
+  const refreshUser = useCallback(async () => {
+    try {
+      applySignedIn(await authApi.fetchCurrentUser());
+    } catch (err) {
+      // A network blip or rate limit says nothing about the session — keep the current state.
+      if (err instanceof ApiClientError && err.status === 401) applySignedOut();
+    }
+  }, [applySignedIn, applySignedOut]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const me = await authApi.fetchCurrentUser();
-        if (!cancelled) {
-          setUser(me);
-          setIsAuthenticated(true);
-        }
-      } catch (err) {
-        // Access token expired but session cookie may still be valid — try a silent refresh.
-        if (err instanceof ApiClientError && err.status === 401) {
-          try {
-            await import("@/lib/api-client").then((m) => m.apiFetch("/customer/auth/refresh", { method: "POST" }));
-            const me = await authApi.fetchCurrentUser();
-            if (!cancelled) {
-              setUser(me);
-              setIsAuthenticated(true);
-            }
-          } catch {
-            if (!cancelled) {
-              setUser(null);
-              setIsAuthenticated(false);
-            }
-          }
-        }
+        if (!cancelled) applySignedIn(me);
+      } catch {
+        if (!cancelled) applySignedOut();
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -90,38 +105,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applySignedIn, applySignedOut]);
+
+  // Session ended mid-visit (revoked, expired, signed out elsewhere): say so instead of failing silently.
+  useEffect(() => {
+    return onAuthLost(() => {
+      if (!isAuthenticatedRef.current) return;
+      applySignedOut();
+      onSuccessRef.current = null;
+      setAuthModalTab("login");
+      setAuthModalNotice("Your session has expired. Please sign in again to continue.");
+      setIsAuthModalOpen(true);
+      tellOtherTabs("signed-out");
+    });
+  }, [applySignedOut, tellOtherTabs]);
+
+  // Coming back to a tab after a while: renew quietly before the customer's next click needs it.
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState !== "visible" || !isAuthenticatedRef.current) return;
+      if (Date.now() - lastCheckedAtRef.current < SESSION_RECHECK_MS) return;
+      lastCheckedAtRef.current = Date.now();
+      void refreshUser();
+    };
+    document.addEventListener("visibilitychange", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+  }, [refreshUser]);
+
+  // Signing in or out in one tab is reflected in the others.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel("vc-auth");
+    channelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<AuthTabMessage>) => {
+      if (event.data === "signed-in") void refreshUser();
+      else if (event.data === "signed-out") applySignedOut();
+    };
+    return () => {
+      channelRef.current = null;
+      channel.close();
+    };
+  }, [refreshUser, applySignedOut]);
 
   const openAuthModal = useCallback((onSuccess?: () => void, options?: { tab?: "login" | "signup" }) => {
     onSuccessRef.current = onSuccess ?? null;
     if (options?.tab) setAuthModalTab(options.tab);
+    setAuthModalNotice(null);
     setIsAuthModalOpen(true);
   }, []);
 
   const closeAuthModal = useCallback(() => {
     setIsAuthModalOpen(false);
+    setAuthModalNotice(null);
     onSuccessRef.current = null;
   }, []);
 
-  const handleAuthSuccess = useCallback((nextUser: User) => {
-    setUser(nextUser);
-    setIsAuthenticated(true);
-    setIsAuthModalOpen(false);
-    const cb = onSuccessRef.current;
-    onSuccessRef.current = null;
-    if (cb) setTimeout(cb, 0);
-  }, []);
+  const handleAuthSuccess = useCallback(
+    (nextUser: User) => {
+      applySignedIn(nextUser);
+      setIsAuthModalOpen(false);
+      tellOtherTabs("signed-in");
+      const cb = onSuccessRef.current;
+      onSuccessRef.current = null;
+      if (cb) setTimeout(cb, 0);
+    },
+    [applySignedIn, tellOtherTabs],
+  );
 
-  const applyAuthenticatedUser = useCallback((nextUser: User, onSuccess?: () => void) => {
-    setUser(nextUser);
-    setIsAuthenticated(true);
-    setIsAuthModalOpen(false);
-    if (onSuccess) setTimeout(onSuccess, 0);
-  }, []);
+  const applyAuthenticatedUser = useCallback(
+    (nextUser: User, onSuccess?: () => void) => {
+      applySignedIn(nextUser);
+      setIsAuthModalOpen(false);
+      tellOtherTabs("signed-in");
+      if (onSuccess) setTimeout(onSuccess, 0);
+    },
+    [applySignedIn, tellOtherTabs],
+  );
 
   const login = useCallback(
-    async (email: string, password: string, rememberMe?: boolean) => {
-      const nextUser = await authApi.login({ email, password, rememberMe });
+    async (email: string, password: string) => {
+      const nextUser = await authApi.login({ email, password });
       handleAuthSuccess(nextUser);
     },
     [handleAuthSuccess],
@@ -139,10 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout();
     } finally {
-      setUser(null);
-      setIsAuthenticated(false);
+      applySignedOut();
+      tellOtherTabs("signed-out");
     }
-  }, []);
+  }, [applySignedOut, tellOtherTabs]);
 
   return (
     <AuthContext.Provider
@@ -152,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthModalOpen,
         authModalTab,
+        authModalNotice,
         openAuthModal,
         closeAuthModal,
         applyAuthenticatedUser,

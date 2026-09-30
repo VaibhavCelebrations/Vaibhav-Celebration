@@ -50,17 +50,23 @@ async function audit(req: AuthenticatedRequest, action: string, entityId: string
   });
 }
 
+const booleanQuery = z
+  .enum(["true", "false"])
+  .transform((v) => v === "true")
+  .optional();
+
+/** Collections appear on the shop and, when featured, on the home page. */
+const COLLECTION_PAGES = ["/", "/gifts"];
+
 export const productCollectionsRouter = Router();
 
 productCollectionsRouter.get(
   "/",
   validate(
     z.object({
-      featured: z.coerce.boolean().optional(),
-      festive: z
-        .enum(["true", "false"])
-        .transform((v) => v === "true")
-        .optional(),
+      // Not z.coerce.boolean(): that turns the string "false" into true.
+      featured: booleanQuery,
+      festive: booleanQuery,
     }),
     "query",
   ),
@@ -116,7 +122,7 @@ adminProductCollectionsRouter.post("/", validate(collectionSchema), async (req, 
   try {
     const item = await createCollection(req.body);
     await audit(req as AuthenticatedRequest, "CREATE", item.id, req.body);
-    void triggerRevalidate(["/gifts"]);
+    void triggerRevalidate(COLLECTION_PAGES);
     return created(res, item);
   } catch (err) {
     return next(err);
@@ -127,7 +133,7 @@ async function updateHandler(req: AuthenticatedRequest, res: import("express").R
   try {
     const item = await updateCollection(param(req, "id"), req.body);
     await audit(req, "UPDATE", item.id, req.body);
-    void triggerRevalidate(["/gifts", `/gifts/collection/${item.slug}`]);
+    void triggerRevalidate([...COLLECTION_PAGES, `/gifts/collection/${item.slug}`]);
     return ok(res, item);
   } catch (err) {
     return next(err);
@@ -141,7 +147,7 @@ adminProductCollectionsRouter.delete("/:id", validate(idSchema, "params"), async
   try {
     await deleteCollection(param(req, "id"));
     await audit(req as AuthenticatedRequest, "DELETE", param(req, "id"));
-    void triggerRevalidate(["/gifts"]);
+    void triggerRevalidate(COLLECTION_PAGES);
     return ok(res, { deleted: true });
   } catch (err) {
     return next(err);

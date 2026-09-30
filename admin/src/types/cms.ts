@@ -116,6 +116,10 @@ export type ExtraService = SoftDeletable &
     selectionCount: number;
     /** Charge each pick once per group instead of once per child. */
     isPerGroup: boolean;
+    /** "Preview": the customer is shown this service's images/videos. Never together with isProductChoice. */
+    hasPreview: boolean;
+    /** Where a preview service appears in the builder. */
+    celebrationStage: CelebrationStage | null;
   };
 
 export type ThemeProductAssignment = { themeId: string; productIds: string[] };
@@ -131,9 +135,13 @@ export type ExtraServiceInput = Pick<
   | "isProductChoice"
   | "selectionCount"
   | "isPerGroup"
+  | "hasPreview"
+  | "celebrationStage"
 > & {
   /** Full per-theme product lists; only sent when isProductChoice. */
   themeProducts?: ThemeProductAssignment[];
+  /** Per-theme preview files (media library ids, in order); only sent when hasPreview. */
+  themePreviews?: Array<{ themeId: string; mediaIds: string[] }>;
 };
 
 export type PackageServiceItem = {
@@ -428,6 +436,8 @@ export type Product = SoftDeletable &
     priceInPaise: Paise;
     compareAtPriceInPaise: Paise | null;
     personalizationEnabled: boolean;
+    /** Also offered as an optional add-on (per theme) in the package builder and custom plan. */
+    isAddon?: boolean;
     personalizationCostInPaise: Paise;
     isActive: boolean;
     minOrderQuantity: number;
@@ -448,6 +458,7 @@ export type ProductInput = Pick<
   | "priceInPaise"
   | "compareAtPriceInPaise"
   | "personalizationEnabled"
+  | "isAddon"
   | "personalizationCostInPaise"
   | "isActive"
   | "minOrderQuantity"
@@ -540,6 +551,19 @@ export type LegalPage = {
   title: string;
   bodyHtml: string;
   publishedAt: ISODate | null;
+  /** Bumped on every text change; earlier versions are kept. */
+  version: number;
+};
+
+export type LegalPageVersion = {
+  id: string;
+  type: LegalPageType;
+  version: number;
+  title: string;
+  publishedAt: ISODate | null;
+  createdAt: ISODate;
+  /** Only present when a single version is fetched. */
+  bodyHtml?: string;
 };
 
 // ─── Static pages ───────────────────────────────────────────────────────────
