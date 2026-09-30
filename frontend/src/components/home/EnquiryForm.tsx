@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Send, HeartHandshake, Gift, Sparkles } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { apiFetch } from "@/lib/api-client";
+import { submitContactForm } from "@/lib/cms/leads";
 
 const celebrationTypes = ["Kids' Birthday", "Custom Celebration", "Other"];
 
@@ -18,25 +18,51 @@ const budgetRanges = [
 export function EnquiryForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
+    setError(null);
+    setPhoneError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData);
-
-    try {
-      // Reuses the shared API client so this hits the same base URL
-      // (NEXT_PUBLIC_API_BASE_URL) as the rest of the app in every
-      // environment, instead of the unused NEXT_PUBLIC_API_URL var.
-      await apiFetch("/enquiries", { method: "POST", body: data });
-    } catch {
-      // Silently continue
+    const form = new FormData(e.currentTarget);
+    const field = (name: string) => String(form.get(name) ?? "").trim();
+    const phone = field("mobile");
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 13) {
+      setPhoneError("Enter a valid mobile number, e.g. 98765 43210");
+      return;
     }
 
-    setLoading(false);
-    setSubmitted(true);
+    // The lead endpoint takes one free-text message; the celebration details go into it, labelled.
+    const details = [
+      ["Celebration date", field("celebrationDate")],
+      ["City", field("city")],
+      ["Guests / kids", field("guestCount")],
+      ["Theme / idea", field("themeIdea")],
+      ["Budget", field("budgetRange")],
+      ["Marketing updates", form.get("marketingConsent") ? "Yes" : "No"],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `${label}: ${value}`)
+      .join("\n");
+
+    setLoading(true);
+    try {
+      await submitContactForm({
+        name: field("name"),
+        phone,
+        interestArea: field("celebrationType") || undefined,
+        message: details || undefined,
+      });
+      setSubmitted(true);
+    } catch {
+      // Never claim success for an enquiry that did not reach the team.
+      setError("We couldn't send your enquiry. Please check your connection and try again, or message us on WhatsApp.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const inputClass =
@@ -112,11 +138,13 @@ export function EnquiryForm() {
                   {/* Row 1: Name + Mobile */}
                   <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-name" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Name <span className="text-red-400">*</span>
                       </label>
                       <input
+                        id="enq-name"
                         type="text"
+                        autoComplete="name"
                         name="name"
                         required
                         placeholder="Your full name"
@@ -124,26 +152,36 @@ export function EnquiryForm() {
                       />
                     </div>
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-mobile" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Mobile / WhatsApp <span className="text-red-400">*</span>
                       </label>
                       <input
+                        id="enq-mobile"
                         type="tel"
                         name="mobile"
                         required
-                        placeholder="+91 00000 00000"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder="10-digit mobile number"
+                        aria-invalid={Boolean(phoneError)}
+                        aria-describedby={phoneError ? "enq-mobile-error" : undefined}
                         className={inputClass}
                       />
+                      {phoneError && (
+                        <p id="enq-mobile-error" role="alert" className="mt-1.5 text-xs font-medium text-danger">
+                          {phoneError}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   {/* Row 2: Celebration Type + Date */}
                   <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-type" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Celebration Type <span className="text-red-400">*</span>
                       </label>
-                      <select name="celebrationType" required className={inputClass} defaultValue="">
+                      <select id="enq-type" name="celebrationType" required className={inputClass} defaultValue="">
                         <option value="" disabled hidden>Select type...</option>
                         {celebrationTypes.map((type) => (
                           <option key={type} value={type}>
@@ -153,10 +191,11 @@ export function EnquiryForm() {
                       </select>
                     </div>
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-date" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Celebration Date
                       </label>
                       <input
+                        id="enq-date"
                         type="date"
                         name="celebrationDate"
                         min={new Date().toISOString().split("T")[0]}
@@ -168,10 +207,11 @@ export function EnquiryForm() {
                   {/* Row 3: City + Guests */}
                   <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-city" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         City <span className="text-red-400">*</span>
                       </label>
                       <input
+                        id="enq-city"
                         type="text"
                         name="city"
                         required
@@ -180,10 +220,11 @@ export function EnquiryForm() {
                       />
                     </div>
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-guests" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Guests / Kids
                       </label>
                       <input
+                        id="enq-guests"
                         type="number"
                         name="guestCount"
                         min={1}
@@ -196,10 +237,11 @@ export function EnquiryForm() {
                   {/* Row 4: Theme + Budget */}
                   <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-theme" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Theme / Idea
                       </label>
                       <input
+                        id="enq-theme"
                         type="text"
                         name="themeIdea"
                         placeholder="e.g. Space, Princess..."
@@ -207,10 +249,10 @@ export function EnquiryForm() {
                       />
                     </div>
                     <div className="group">
-                      <label className="block text-[10px] font-bold text-charcoal/60 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
+                      <label htmlFor="enq-budget" className="block text-xs font-bold text-charcoal/75 mb-1 uppercase tracking-widest group-focus-within:text-mocha transition-colors">
                         Budget Range <span className="font-normal opacity-70">(opt)</span>
                       </label>
-                      <select name="budgetRange" className={inputClass} defaultValue="">
+                      <select id="enq-budget" name="budgetRange" className={inputClass} defaultValue="">
                         <option value="" disabled hidden>Select budget...</option>
                         {budgetRanges.map((range) => (
                           <option key={range} value={range}>
@@ -232,7 +274,7 @@ export function EnquiryForm() {
                       />
                       <span className="text-xs text-charcoal/70 leading-relaxed">
                         I agree to the processing of my personal data as described in the{" "}
-                        <a href="/legal/privacy-policy" target="_blank" className="text-mocha underline hover:text-mocha-dark">
+                        <a href="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-mocha underline hover:text-mocha-dark">
                           Privacy Policy
                         </a>
                         . I understand that Vaibhav Celebrations will use my information to respond to my enquiry. <span className="text-red-400">*</span>
@@ -256,6 +298,11 @@ export function EnquiryForm() {
 
                   {/* Submit */}
                   <div className="pt-4 md:pt-8">
+                    {error && (
+                      <p role="alert" className="mb-4 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+                        {error}
+                      </p>
+                    )}
                     <button
                       type="submit"
                       disabled={loading}

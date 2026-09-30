@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
@@ -18,7 +17,6 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

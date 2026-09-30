@@ -14,6 +14,8 @@ import type { ServerCartItem } from "@/lib/shop-types";
 import { combineCartQuote } from "@/lib/cart-totals";
 import { CUSTOM_PLAN_SLUG } from "@/lib/builder-api";
 import { useDeliverySettings } from "@/lib/delivery-settings";
+import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
+import { useOverlay } from "@/hooks/useOverlay";
 
 function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQuantity: (id: string, qty: number) => void }) {
   const [val, setVal] = useState(item.quantity.toString());
@@ -52,6 +54,7 @@ function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQ
       max={item.maxOrderQuantity ?? item.stockAvailable}
       value={val}
       onChange={(e) => setVal(e.target.value)}
+      aria-label={`Quantity of ${item.title}`}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       className="w-10 text-center text-xs font-bold text-charcoal bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-mocha rounded-sm"
@@ -60,12 +63,66 @@ function QuantityInput({ item, updateQuantity }: { item: ServerCartItem; updateQ
   );
 }
 
+/**
+ * Personalization opt-in for a cart line, with its price spelled out. Shown for every
+ * personalizable product so the customer can add or drop it without going back to the product page.
+ */
+export function PersonalizationToggle({
+  item,
+  onChange,
+}: {
+  item: ServerCartItem;
+  onChange: (lineKey: string, selected: boolean) => Promise<void>;
+}) {
+  // The tick responds at once; the price follows when the server has re-quoted the cart.
+  const [pending, setPending] = useState<boolean | null>(null);
+  const busy = pending !== null;
+  const selected = pending ?? item.personalizationSelected ?? item.personalizationCostInPaise > 0;
+  // A line can be opted in only if the product still allows it; an opted-in line can always opt out.
+  if (!item.personalizationEnabled && !selected) return null;
+
+  const unitCost = item.personalizationUnitCostInPaise ?? item.personalizationCostInPaise;
+  const priceLabel = unitCost > 0 ? `+${formatPaise(unitCost)} each` : "no extra cost";
+
+  return (
+    <div className="mt-2 rounded-lg border border-mocha/20 bg-mocha/5 px-2.5 py-2">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-mocha disabled:cursor-wait"
+          checked={selected}
+          disabled={busy}
+          onChange={async (e) => {
+            setPending(e.target.checked);
+            try {
+              await onChange(item.id, e.target.checked);
+            } finally {
+              // Back to the cart's own value: the new one on success, the old one if it failed.
+              setPending(null);
+            }
+          }}
+        />
+        <span className="text-xs text-charcoal">
+          <span className="font-semibold">Personalize</span> <span className="text-mocha font-semibold">({priceLabel})</span>
+          {selected && unitCost > 0 && item.quantity > 1 && (
+            <span className="block text-text-muted">
+              {formatPaise(unitCost)} × {item.quantity} = {formatPaise(unitCost * item.quantity)}
+            </span>
+          )}
+        </span>
+      </label>
+      {selected && <p className="mt-1.5 text-[11px] leading-snug text-text-muted">{PERSONALIZATION_FOLLOW_UP_NOTE}</p>}
+    </div>
+  );
+}
+
 export function CartDrawer() {
-  const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, removeItem, removePackage, isLoading } = useCart();
+  const { items, quote, packages, itemCount, packagesSubtotalRupees, isCartOpen, closeCart, updateQuantity, setItemPersonalization, removeItem, removePackage, isLoading } = useCart();
   const { isAuthenticated } = useAuth();
   const { themesBySlug, packagesBySlug } = useCatalog();
   const deliverySettings = useDeliverySettings();
   const router = useRouter();
+  const panelRef = useOverlay<HTMLDivElement>(isCartOpen, closeCart);
 
   const handleCheckout = () => {
     closeCart();
@@ -91,7 +148,14 @@ export function CartDrawer() {
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 bottom-0 z-[151] w-full max-w-md bg-surface shadow-2xl flex flex-col animate-slide-in-right">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Your cart"
+        tabIndex={-1}
+        className="fixed top-0 right-0 bottom-0 z-[151] w-full max-w-md bg-surface shadow-2xl flex flex-col animate-slide-in-right focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-border-light shrink-0">
           <div className="flex items-center gap-3">
@@ -104,6 +168,8 @@ export function CartDrawer() {
             </span>
           </div>
           <button
+            type="button"
+            aria-label="Close cart"
             onClick={closeCart}
             className="w-8 h-8 rounded-full bg-cream hover:bg-blush flex items-center justify-center text-charcoal transition-colors cursor-pointer"
           >
@@ -174,6 +240,7 @@ export function CartDrawer() {
                       <button
                         onClick={() => removePackage(pkg.id)}
                         className="text-text-light hover:text-red-500 transition-colors cursor-pointer self-start p-1"
+                        aria-label={`Remove ${pkgTitle} from cart`}
                         title="Remove Entire Package"
                       >
                         <Trash2 size={16} />
@@ -238,17 +305,6 @@ export function CartDrawer() {
                       <p className="text-[10px] text-red-500 font-semibold mt-1">No longer available</p>
                     )}
 
-                    {/* Personalization values */}
-                    {Array.isArray(item.personalizationValues) && item.personalizationValues.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(item.personalizationValues as Array<{ fieldId?: string; label: string; value: string }>).map((pv, idx) => (
-                          <span key={pv.fieldId ?? `${pv.label}-${idx}`} className="text-[10px] text-mocha bg-mocha/10 px-2 py-0.5 rounded-full">
-                            {typeof pv.label === "string" ? pv.label : "Personalization"}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
                     <p className="text-sm font-bold text-charcoal mt-1.5">
                       {formatPaise((item.unitPriceInPaise + item.personalizationCostInPaise) * item.quantity)}
                       {item.quantity > 1 && (
@@ -257,17 +313,15 @@ export function CartDrawer() {
                         </span>
                       )}
                     </p>
-                    {item.personalizationCostInPaise > 0 && (
-                      <p className="mt-0.5 text-[10px] font-semibold text-mocha">
-                        Includes {formatPaise(item.personalizationCostInPaise)} personalization per item
-                      </p>
-                    )}
+
+                    <PersonalizationToggle item={item} onChange={setItemPersonalization} />
 
                     {/* Quantity + Remove */}
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-1 bg-surface border border-border-light rounded-lg">
                         <button
                           onClick={() => void updateQuantity(item.id, item.quantity - 1)}
+                          aria-label={`Decrease quantity of ${item.title}`}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
                         >
                           <Minus size={12} />
@@ -275,6 +329,7 @@ export function CartDrawer() {
                         <QuantityInput item={item} updateQuantity={updateQuantity} />
                         <button
                           onClick={() => void updateQuantity(item.id, item.quantity + 1)}
+                          aria-label={`Increase quantity of ${item.title}`}
                           className="w-7 h-7 flex items-center justify-center text-charcoal hover:text-mocha transition-colors cursor-pointer"
                           disabled={item.quantity >= item.stockAvailable || (item.maxOrderQuantity !== null && item.quantity >= item.maxOrderQuantity)}
                         >
@@ -283,6 +338,7 @@ export function CartDrawer() {
                       </div>
                       <button
                         onClick={() => void removeItem(item.id)}
+                        aria-label={`Remove ${item.title} from cart`}
                         className="text-text-light hover:text-red-500 transition-colors cursor-pointer"
                       >
                         <Trash2 size={14} />

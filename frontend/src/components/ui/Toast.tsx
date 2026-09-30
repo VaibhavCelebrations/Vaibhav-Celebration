@@ -11,6 +11,12 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+const TONE_CLASS: Record<ToastTone, string> = {
+  default: "bg-ink text-white",
+  success: "bg-success text-white",
+  error: "bg-danger text-white",
+};
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
@@ -18,9 +24,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const text = typeof message === "string" && message.trim() ? message : "Something went wrong. Please try again.";
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     setItems((prev) => [...prev, { id, message: text, tone }]);
-    window.setTimeout(() => {
-      setItems((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
+    // Errors stay longer: they usually need to be read, not just noticed.
+    window.setTimeout(
+      () => {
+        setItems((prev) => prev.filter((t) => t.id !== id));
+      },
+      tone === "error" ? 6000 : 3500,
+    );
   }, []);
 
   const value = useMemo(() => ({ push }), [push]);
@@ -28,17 +38,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-full max-w-sm flex-col gap-2">
+      {/* Top of the screen, above every drawer and modal: the cart drawer opens at the same moment
+          many toasts fire, and the bottom corners belong to the floating buttons and sticky bars. */}
+      <div
+        className="pointer-events-none fixed inset-x-4 top-24 z-[600] flex flex-col items-center gap-2 sm:inset-x-auto sm:right-6 sm:w-full sm:max-w-sm sm:items-stretch"
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {items.map((item) => (
           <div
             key={item.id}
-            className={`pointer-events-auto rounded-[var(--radius-md)] px-4 py-3 text-sm shadow-[var(--shadow-lift)] ${
-              item.tone === "success"
-                ? "bg-[var(--color-success)] text-white"
-                : item.tone === "error"
-                  ? "bg-[var(--color-blush-deep)] text-white"
-                  : "bg-[var(--color-ink)] text-white"
-            }`}
+            role={item.tone === "error" ? "alert" : "status"}
+            className={`pointer-events-auto w-full max-w-sm rounded-xl px-4 py-3 text-sm font-medium shadow-lift animate-slide-up ${TONE_CLASS[item.tone]}`}
           >
             {item.message}
           </div>

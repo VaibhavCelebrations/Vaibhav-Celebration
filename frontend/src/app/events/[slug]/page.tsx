@@ -8,6 +8,8 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SimpleGalleryGrid } from "@/components/shared/SimpleGalleryGrid";
 import { getEventBySlug } from "@/lib/cms/events";
 import { formatInrFromPaise } from "@/lib/cms/map-media";
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -31,23 +33,24 @@ export default async function EventDetailPage({ params }: Props) {
     notFound();
   }
 
-  const ctaLink = event.ctaUrl || `/events/${event.slug}/register`;
+  // There is no on-site registration page: without an admin-set link, send people to the contact form.
+  const ctaLink = event.ctaUrl || "/contact";
   const ctaText = event.ctaLabel || (event.isRegistrationOpen ? "Register Now" : "Contact Us");
 
   return (
-    <div className="bg-cream min-h-screen">
-      {/* Floating Back Button */}
-      <Link href="/events" className="fixed top-6 left-6 z-50 bg-white/80 backdrop-blur-md hover:bg-white text-charcoal p-3 rounded-full border border-border-light transition-colors shadow-sm">
-        <ArrowLeft size={24} />
-      </Link>
-
-      <section className="relative w-full h-[60vh] min-h-[500px] flex flex-col justify-end pb-20 md:pb-32 overflow-hidden bg-cream-dark">
-        <Image src={event.coverImage} alt={event.title} fill className="object-cover opacity-80" priority sizes="100vw" />
+    <>
+    <Navbar />
+    <main className="bg-cream min-h-screen">
+      <section className="relative w-full min-h-[60vh] flex flex-col justify-end pt-32 pb-20 md:pb-32 overflow-hidden bg-cream-dark">
+        <Image src={event.coverImage} alt="" fill className="object-cover opacity-80" preload sizes="100vw" />
         
         <div className="absolute inset-0 bg-gradient-to-t from-cream via-cream/60 to-transparent" />
         
         <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 w-full">
           <ScrollReveal>
+            <Link href="/events" className="mb-6 flex w-fit items-center gap-2 text-sm font-semibold uppercase tracking-wide text-charcoal hover:text-mocha transition-colors">
+              <ArrowLeft size={16} aria-hidden="true" /> All Events
+            </Link>
             <div className="inline-flex items-center gap-2 bg-white/60 text-mocha backdrop-blur-md px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6 border border-border-light">
               <Sparkles size={14} />
               {event.theme || "Special Event"}
@@ -102,7 +105,7 @@ export default async function EventDetailPage({ params }: Props) {
       <section className="py-24 max-w-4xl mx-auto px-6 md:px-12">
         <ScrollReveal>
           <div 
-            className="prose prose-lg md:prose-2xl prose-headings:font-display prose-headings:text-charcoal prose-p:text-text-muted prose-p:leading-relaxed prose-a:text-mocha mx-auto"
+            className="cms-html-content text-lg text-text-muted leading-relaxed"
             dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
           />
         </ScrollReveal>
@@ -179,6 +182,8 @@ export default async function EventDetailPage({ params }: Props) {
           </div>
         </section>
       )}
-    </div>
+    </main>
+    <Footer />
+    </>
   );
 }

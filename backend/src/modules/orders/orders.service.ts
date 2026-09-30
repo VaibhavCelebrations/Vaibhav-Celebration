@@ -619,6 +619,7 @@ export async function createGuestShopOrder(input: {
   cartItems: Array<{
     productId: string;
     quantity: number;
+    personalizationSelected?: boolean;
     personalizationValues?: unknown;
     registryItemId?: string;
   }>;
@@ -640,6 +641,7 @@ export async function createGuestShopOrder(input: {
     await addCartItem(userId, {
       productId: item.productId,
       quantity: item.quantity,
+      personalizationSelected: item.personalizationSelected,
       personalizationValues: item.personalizationValues,
       registryItemId: item.registryItemId,
     });
@@ -831,7 +833,7 @@ export async function createOrderFromCart(
     orderBy: { createdAt: "desc" },
   });
 
-  if (pending && cartMatchesOrder(pending.items, lines)) {
+  if (pending && cartMatchesOrder(pending.items, lines) && (await pricesStillMatch(pending.items))) {
     await prisma.order.update({
       where: { id: pending.id },
       data: {
@@ -881,6 +883,26 @@ function cartMatchesOrder(
   const a = orderItems.map((i) => key(i.productId, i.quantity, i.personalizationSelected, i.registryItemId)).sort();
   const b = lines.map((i) => key(i.productId, i.quantity, i.personalizationSelected ?? false, i.registryItemId)).sort();
   return a.join("|") === b.join("|");
+}
+
+/**
+ * A pending order carries price snapshots. If the admin has since changed a product's price or
+ * personalization charge, the order must be rebuilt rather than reused at the old total.
+ */
+async function pricesStillMatch(
+  orderItems: Array<{ productId: string; unitPriceInPaise: number; personalizationSelected: boolean; personalizationCostSnapshot: number }>,
+) {
+  const products = await prisma.product.findMany({
+    where: { id: { in: orderItems.map((i) => i.productId) }, deletedAt: null },
+    select: { id: true, priceInPaise: true, personalizationEnabled: true, personalizationCostInPaise: true },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return orderItems.every((item) => {
+    const product = byId.get(item.productId);
+    if (!product) return false;
+    const cost = item.personalizationSelected && product.personalizationEnabled ? product.personalizationCostInPaise : 0;
+    return product.priceInPaise === item.unitPriceInPaise && cost === item.personalizationCostSnapshot;
+  });
 }
 
 /** Single-item order used by the gift-registry "gift this item" flow — bypasses the cart entirely. */
@@ -1859,6 +1881,7 @@ export async function reorderFromOrder(userId: string, orderCode: string) {
     await addCartItem(userId, {
       productId: item.productId,
       quantity: item.quantity,
+      personalizationSelected: item.personalizationSelected,
       personalizationValues: item.personalizationSelected ? item.personalizationValues : undefined,
       registryItemId: item.registryItemId ?? undefined,
     });

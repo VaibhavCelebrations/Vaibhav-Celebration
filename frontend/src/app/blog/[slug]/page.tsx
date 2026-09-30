@@ -6,7 +6,6 @@ import { ArrowLeft, Calendar, Clock, User } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CTABand } from "@/components/home/CTABand";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { getBlogPostBySlug } from "@/lib/cms/blog";
 import { sanitizeBlogHtml } from "@/lib/cms/sanitize-html";
@@ -85,7 +84,6 @@ export default async function BlogDetailPage({ params }: Props) {
       </main>
       <CTABand settings={settings ?? undefined} whatsappNumber={whatsappNumber} />
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

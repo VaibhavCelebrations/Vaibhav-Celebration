@@ -8,6 +8,8 @@ export type MediaRef = {
   id: string;
   url: string;
   altText?: string | null;
+  /** MIME type (image/*, video/*, application/pdf) — present on everything the API returns. */
+  type?: string;
 };
 
 export type SoftDeletable = {

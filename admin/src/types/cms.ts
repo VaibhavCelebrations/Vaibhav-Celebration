@@ -116,6 +116,10 @@ export type ExtraService = SoftDeletable &
     selectionCount: number;
     /** Charge each pick once per group instead of once per child. */
     isPerGroup: boolean;
+    /** "Preview": the customer is shown this service's images/videos. Never together with isProductChoice. */
+    hasPreview: boolean;
+    /** Where a preview service appears in the builder. */
+    celebrationStage: CelebrationStage | null;
   };
 
 export type ThemeProductAssignment = { themeId: string; productIds: string[] };
@@ -131,9 +135,13 @@ export type ExtraServiceInput = Pick<
   | "isProductChoice"
   | "selectionCount"
   | "isPerGroup"
+  | "hasPreview"
+  | "celebrationStage"
 > & {
   /** Full per-theme product lists; only sent when isProductChoice. */
   themeProducts?: ThemeProductAssignment[];
+  /** Media library ids shown as the preview, in order; only sent when hasPreview. */
+  previewMediaIds?: string[];
 };
 
 export type PackageServiceItem = {

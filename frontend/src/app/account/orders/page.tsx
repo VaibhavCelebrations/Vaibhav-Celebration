@@ -36,6 +36,8 @@ export default function OrderHistoryPage() {
   const [isFetchingOrders, setIsFetchingOrders] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const pageSize = 10;
 
   const { isAuthenticated, isLoading } = useAuth();
@@ -51,14 +53,16 @@ export default function OrderHistoryPage() {
     let cancelled = false;
     (async () => {
       setIsFetchingOrders(true);
+      setLoadFailed(false);
       try {
         const result = await shopApi.listMyOrders(page, pageSize);
         if (!cancelled) {
           setOrders(result.items || []);
           setTotal(result.total || 0);
         }
-      } catch (err) {
-        if (!cancelled) setOrders([]);
+      } catch {
+        // Never present a failed load as "No orders yet".
+        if (!cancelled) setLoadFailed(true);
       } finally {
         if (!cancelled) setIsFetchingOrders(false);
       }
@@ -66,7 +70,7 @@ export default function OrderHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, isAuthenticated, isLoading]);
+  }, [page, isAuthenticated, isLoading, reloadKey]);
 
   return (
     <div className="space-y-6">
@@ -78,6 +82,15 @@ export default function OrderHistoryPage() {
       {isLoading || (isFetchingOrders && orders.length === 0) ? (
         <div className="flex justify-center py-20">
           <Loader2 size={28} className="animate-spin text-mocha" />
+        </div>
+      ) : loadFailed ? (
+        <div role="alert" className="text-center py-20 bg-surface rounded-2xl border border-dashed border-border-light">
+          <Package size={40} className="mx-auto text-text-light mb-4" />
+          <h3 className="font-display text-xl font-semibold text-charcoal mb-2">We couldn&apos;t load your orders</h3>
+          <p className="text-text-muted text-sm mb-6">Please check your connection and try again.</p>
+          <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="btn-primary px-8 py-3 text-sm">
+            Try again
+          </button>
         </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-20 bg-surface rounded-2xl border border-dashed border-border-light">

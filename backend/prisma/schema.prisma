@@ -107,6 +107,7 @@ model MediaAsset {
   popupImages           Popup[]             @relation("PopupImage")
   productCollections    ProductCollection[]
   productImages         ProductImage[]
+  servicePreviews       ExtraServiceMedia[]
   metadataOgImages      SiteMetadata[]      @relation("MetadataOgImage")
   themeHeroes           Theme[]             @relation("ThemeHero")
   themeOgImages         Theme[]             @relation("ThemeOgImage")
@@ -232,10 +233,29 @@ model ExtraService {
   selectionCount            Int                   @default(1)
   /// Charge each picked product once per group instead of once per child
   isPerGroup                Boolean               @default(false)
+  /// When true the customer is shown this service's images/videos in the builder (admin "Preview"
+  /// option). Mutually exclusive with isProductChoice: a service is previewed OR chosen, never both.
+  hasPreview                Boolean               @default(false)
+  /// Before / During / After section for a preview service. Product-choice services take their
+  /// stage from their products' categories instead.
+  celebrationStage          CelebrationStage?
   packageItems              PackageServiceItem[]
   serviceProducts           ServiceProduct[]
+  previewMedia              ExtraServiceMedia[]
 
   @@index([label(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+/// Images / videos shown to the customer for a preview service, in display order.
+model ExtraServiceMedia {
+  id             String       @id @default(cuid())
+  extraServiceId String
+  mediaId        String
+  displayOrder   Int          @default(0)
+  extraService   ExtraService @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
+  media          MediaAsset   @relation(fields: [mediaId], references: [id])
+
+  @@index([extraServiceId])
 }
 
 /// Per-package inclusion matrix — one checkbox per service per package tier.

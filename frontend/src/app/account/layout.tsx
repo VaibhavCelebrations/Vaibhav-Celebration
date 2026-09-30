@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { User, Package, Heart, Lock, Loader2 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { useAuth } from "@/context/auth-context";
 
 const NAV_ITEMS = [
@@ -75,7 +74,6 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

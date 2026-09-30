@@ -4,7 +4,14 @@ import { param } from "../../lib/params";
 import { ok } from "../../lib/response";
 import { requireCustomer, type CustomerAuthenticatedRequest } from "../../middleware/customer-auth";
 import { validate } from "../../middleware/validate";
-import { addCartItem, clearCart, getCart, removeCartItem, updateCartItemQuantity } from "./cart.service";
+import {
+  addCartItem,
+  clearCart,
+  getCart,
+  removeCartItem,
+  setCartItemPersonalization,
+  updateCartItemQuantity,
+} from "./cart.service";
 import { addToWishlist, listWishlist, removeFromWishlist } from "./wishlist.service";
 
 function customerId(req: import("express").Request): string {
@@ -30,6 +37,7 @@ cartRouter.post(
     z.object({
       productId: z.string().min(1),
       quantity: z.number().int().positive().max(999),
+      personalizationSelected: z.boolean().optional(),
       personalizationValues: z.unknown().optional(),
       registryItemId: z.string().min(1).optional(),
     }),
@@ -46,10 +54,28 @@ cartRouter.post(
 cartRouter.patch(
   "/items/:productId",
   validate(z.object({ productId: z.string().min(1) }), "params"),
-  validate(z.object({ quantity: z.number().int().nonnegative().max(999) })),
+  validate(
+    z
+      .object({
+        quantity: z.number().int().nonnegative().max(999).optional(),
+        personalizationSelected: z.boolean().optional(),
+      })
+      .refine((b) => b.quantity !== undefined || b.personalizationSelected !== undefined, {
+        message: "Provide quantity or personalizationSelected",
+      }),
+  ),
   async (req, res, next) => {
     try {
-      return ok(res, await updateCartItemQuantity(customerId(req), param(req, "productId"), req.body.quantity));
+      const { quantity, personalizationSelected } = req.body as { quantity?: number; personalizationSelected?: boolean };
+      const lineKey = param(req, "productId");
+      let cart;
+      if (personalizationSelected !== undefined) {
+        cart = await setCartItemPersonalization(customerId(req), lineKey, personalizationSelected);
+      }
+      if (quantity !== undefined) {
+        cart = await updateCartItemQuantity(customerId(req), lineKey, quantity);
+      }
+      return ok(res, cart);
     } catch (err) {
       return next(err);
     }

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ProductCard } from "@/components/ecom/ProductCard";
 import * as shopApi from "@/lib/shop-api";
@@ -97,7 +96,6 @@ export default async function CollectionPage({ params }: PageProps) {
       </section>
 
       <FooterClient />
-      <WhatsAppFAB />
     </main>
   );
 }

@@ -172,6 +172,8 @@ export function buildCdnKey(input: {
       return `popups/${scope}/${role}-${id}${ext}`;
     case "invoices":
       return `invoices/${scope}/${role}-${id}${ext}`;
+    case "products":
+      return `products/${scope}/${role}-${id}${ext}`;
     default:
       return `media/${scope}/${role}-${id}${ext}`;
   }

@@ -346,7 +346,7 @@ export function CollectionsScreen() {
           <FormField
             label="Featured"
             htmlFor="collection-homepage"
-            hint="Reserved for a future homepage section — the homepage does not show collections at present."
+            hint="Shows this collection in the Featured Collections section of the home page. It must be Active, inside its start/end dates, and contain at least one active product. Changes appear within about a minute."
           >
             <ToggleSwitch checked={form.showOnHomepage} onChange={(v) => patchForm({ showOnHomepage: v })} />
           </FormField>

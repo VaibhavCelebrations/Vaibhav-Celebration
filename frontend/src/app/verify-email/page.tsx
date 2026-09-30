@@ -6,7 +6,6 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { verifyEmail, friendlyAuthError } from "@/lib/customer-auth-api";
@@ -88,7 +87,6 @@ export default function VerifyEmailPage() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { X, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { friendlyAuthError } from "@/lib/customer-auth-api";
+import { useOverlay } from "@/hooks/useOverlay";
 
 type AuthTab = "login" | "signup";
 
@@ -15,7 +16,7 @@ function isStrongPassword(pw: string): boolean {
 }
 
 export function AuthModal() {
-  const { isAuthModalOpen, closeAuthModal, login, signup, authModalTab } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, login, signup, authModalTab, authModalNotice } = useAuth();
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,7 +25,6 @@ export function AuthModal() {
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
 
   // Signup form
   const [signupName, setSignupName] = useState("");
@@ -35,6 +35,7 @@ export function AuthModal() {
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const panelRef = useOverlay<HTMLDivElement>(isAuthModalOpen, closeAuthModal);
 
   // Sync preferred tab when modal opens
   useEffect(() => {
@@ -64,7 +65,7 @@ export function AuthModal() {
 
     setIsSubmitting(true);
     try {
-      await login(loginEmail.trim(), loginPassword, rememberMe);
+      await login(loginEmail.trim(), loginPassword);
       setLoginEmail("");
       setLoginPassword("");
     } catch (err) {
@@ -79,8 +80,9 @@ export function AuthModal() {
     const newErrors: Record<string, string> = {};
     if (!signupName.trim()) newErrors.signupName = "Name is required";
     if (!signupEmail.trim()) newErrors.signupEmail = "Email is required";
-    if (signupPassword && !isStrongPassword(signupPassword)) newErrors.signupPassword = PASSWORD_HINT;
-    if (!signupPassword.trim()) newErrors.signupPassword = "Password is required";
+    if (!signupPassword) newErrors.signupPassword = "Password is required";
+    else if (!isStrongPassword(signupPassword)) newErrors.signupPassword = PASSWORD_HINT;
+    if (signupPhone && signupPhone.length !== 10) newErrors.signupPhone = "Enter a 10-digit phone number, or leave it blank";
     if (signupPassword !== signupConfirmPassword) newErrors.signupConfirmPassword = "Passwords do not match";
     setErrors(newErrors);
     setFormError("");
@@ -107,7 +109,7 @@ export function AuthModal() {
   ];
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-border-light bg-surface text-charcoal text-sm font-sans placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-mocha/30 focus:border-mocha transition-all";
-  const errorClass = "text-red-500 text-xs mt-1";
+  const errorClass = "text-danger text-xs mt-1";
 
   return (
     <div
@@ -115,11 +117,18 @@ export function AuthModal() {
       onMouseDown={closeAuthModal}
     >
       <div
-        className="relative w-full max-w-md bg-surface rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+        tabIndex={-1}
+        className="relative w-full max-w-md bg-surface rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Close */}
         <button
+          type="button"
+          aria-label="Close"
           onClick={closeAuthModal}
           className="absolute top-4 right-4 w-8 h-8 rounded-full bg-cream hover:bg-blush flex items-center justify-center text-charcoal z-10 transition-colors cursor-pointer"
         >
@@ -128,7 +137,7 @@ export function AuthModal() {
 
         {/* Header */}
         <div className="px-8 pt-8 pb-4">
-          <h2 className="font-display text-2xl font-bold text-charcoal">
+          <h2 id="auth-modal-title" className="font-display text-2xl font-bold text-charcoal">
             {activeTab === "login" ? "Welcome Back" : "Create Account"}
           </h2>
           <p className="text-text-muted text-sm mt-1">
@@ -157,6 +166,11 @@ export function AuthModal() {
 
         {/* Form Content */}
         <div className="px-8 py-6 max-h-[65vh] overflow-y-auto hide-scrollbar">
+          {authModalNotice && !formError && (
+            <div role="status" className="mb-4 px-4 py-3 rounded-xl bg-cream border border-border-light text-charcoal text-xs font-medium">
+              {authModalNotice}
+            </div>
+          )}
           {formError && (
             <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
               {formError}
@@ -167,23 +181,19 @@ export function AuthModal() {
           {activeTab === "login" && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <input type="email" placeholder="Enter your email address" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="email" />
+                <input type="email" aria-label="Email address" placeholder="Enter your email address" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="email" />
                 {errors.loginEmail && <p className={errorClass}>{errors.loginEmail}</p>}
               </div>
               <div>
                 <div className="relative">
-                  <input type={showPassword ? "text" : "password"} placeholder="Enter your password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="current-password" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                  <input type={showPassword ? "text" : "password"} aria-label="Password" placeholder="Enter your password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="current-password" />
+                  <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 {errors.loginPassword && <p className={errorClass}>{errors.loginPassword}</p>}
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 text-mocha border-border-light rounded focus:ring-mocha focus:ring-2 accent-mocha" />
-                  <span className="text-xs text-charcoal font-medium">Stay signed in</span>
-                </label>
+              <div className="flex items-center justify-end mt-2">
                 <Link href="/forgot-password" onClick={closeAuthModal} className="text-xs text-mocha font-semibold hover:underline">
                   Forgot password?
                 </Link>
@@ -202,21 +212,21 @@ export function AuthModal() {
           {activeTab === "signup" && (
             <form onSubmit={handleSignup} className="space-y-4">
               <div>
-                <input type="text" placeholder="Enter your full name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="name" />
+                <input type="text" aria-label="Full name" placeholder="Enter your full name" value={signupName} onChange={(e) => setSignupName(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="name" />
                 {errors.signupName && <p className={errorClass}>{errors.signupName}</p>}
               </div>
               <div>
-                <input type="email" placeholder="Enter your email address" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="email" />
+                <input type="email" aria-label="Email address" placeholder="Enter your email address" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="email" />
                 {errors.signupEmail && <p className={errorClass}>{errors.signupEmail}</p>}
               </div>
               <div>
-                <input type="tel" placeholder="Phone number (optional)" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} className={inputClass} disabled={isSubmitting} autoComplete="tel" />
+                <input type="tel" aria-label="Phone number (optional)" placeholder="Phone number (optional)" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} className={inputClass} disabled={isSubmitting} autoComplete="tel" />
                 {errors.signupPhone && <p className={errorClass}>{errors.signupPhone}</p>}
               </div>
               <div>
                 <div className="relative">
-                  <input type={showPassword ? "text" : "password"} placeholder="Create a password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                  <input type={showPassword ? "text" : "password"} aria-label="Create a password" placeholder="Create a password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
+                  <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -228,8 +238,8 @@ export function AuthModal() {
               </div>
               <div>
                 <div className="relative">
-                  <input type={showPassword ? "text" : "password"} placeholder="Confirm password" value={signupConfirmPassword} onChange={(e) => setSignupConfirmPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
+                  <input type={showPassword ? "text" : "password"} aria-label="Confirm password" placeholder="Confirm password" value={signupConfirmPassword} onChange={(e) => setSignupConfirmPassword(e.target.value)} className={inputClass} disabled={isSubmitting} autoComplete="new-password" />
+                  <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-charcoal cursor-pointer">
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>

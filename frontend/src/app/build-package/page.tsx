@@ -1,318 +1,55 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, Suspense } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Loader2,
-  Minus,
-  Plus,
-  Palette,
-  Package,
-  Users,
-  Gift,
-  ClipboardCheck,
-  ShoppingCart,
-  Info,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, ShoppingCart } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { useCatalog } from "@/context/catalog-context";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
-import {
-  getBuilderQuote,
-  getBuilderOptions,
-  groupByStage,
-  type BuilderChoiceService,
-  type BuilderProduct,
-  type BuilderQuote,
-  type BuilderSelections,
-  type CelebrationStage,
-} from "@/lib/builder-api";
-import { formatPaise } from "@/lib/shop-types";
-import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import { ApiClientError } from "@/lib/api-client";
-import * as authApi from "@/lib/customer-auth-api";
+import { getBuilderOptions, getBuilderQuote, type BuilderOptions, type BuilderQuote, type BuilderSelections } from "@/lib/builder-api";
+import { formatPaise } from "@/lib/shop-types";
+import { BasicsStep } from "./_components/BasicsStep";
+import { BuilderStepper } from "./_components/BuilderStepper";
+import { CustomizeStep } from "./_components/CustomizeStep";
+import { ReviewStep } from "./_components/ReviewStep";
+import {
+  DRAFT_KEY,
+  MIN_GUESTS,
+  STEP_BASICS,
+  STEP_CUSTOMIZE,
+  STEP_REVIEW,
+  estimateSubtotalInPaise,
+  incompleteServices,
+  normalizePackageSlug,
+  pruneSelections,
+  validateBasics,
+  type Basics,
+  type Draft,
+} from "./_components/shared";
 
-type Tier = "essential" | "signature" | "grand";
-type Location = "jaipur" | "outside";
-
-const STEPS = [
-  { label: "Theme", icon: Palette },
-  { label: "Details", icon: Users },
-  { label: "Customize", icon: Gift },
-  { label: "Decor", icon: Sparkles },
-  { label: "Review", icon: ClipboardCheck },
-] as const;
-
-const TIER_META: Record<
-  Tier,
-  { eyebrow: string; blurb: string }
-> = {
-  essential: { eyebrow: "ESSENTIAL", blurb: "Thoughtful essentials" },
-  signature: { eyebrow: "SIGNATURE", blurb: "Complete experience" },
-  grand: { eyebrow: "GRAND", blurb: "Signature celebration" },
-};
-
-function parseTier(v: string | null): Tier | null {
-  if (v === "essential" || v === "signature" || v === "grand") return v;
-  if (v === "lux") return "grand";
-  return null;
-}
-
-const getTodayDateString = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const isDateWithin7Days = (dateStr: string) => {
-  if (!dateStr) return false;
-  const parts = dateStr.split("-").map(Number);
-  if (parts.length !== 3 || parts.some(isNaN)) return false;
-  const [year, month, day] = parts;
-  const selectedDate = new Date(year, month - 1, day);
-  selectedDate.setHours(0, 0, 0, 0);
-
-  const minAllowed = new Date();
-  minAllowed.setDate(minAllowed.getDate() + 7);
-  minAllowed.setHours(0, 0, 0, 0);
-
-  return selectedDate < minAllowed;
-};
-
-function BuilderStepper({
-  currentStep,
-  onStepClick,
-}: {
-  currentStep: number;
-  onStepClick: (step: number) => void;
-}) {
-  return (
-    <div className="flex items-center justify-center w-full max-w-4xl mx-auto mb-10">
-      {STEPS.map((step, index) => {
-        const isCompleted = index < currentStep;
-        const isActive = index === currentStep;
-        const Icon = step.icon;
-        const canClick = index < currentStep;
-        return (
-          <div key={step.label} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center relative">
-              <button
-                type="button"
-                onClick={() => canClick && onStepClick(index)}
-                disabled={!canClick}
-                className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 shrink-0 ${
-                  isCompleted
-                    ? "bg-mocha text-white shadow-md cursor-pointer hover:scale-105"
-                    : isActive
-                      ? "bg-mocha text-white shadow-lg scale-110"
-                      : "bg-cream-dark text-text-light border border-border-light cursor-default"
-                }`}
-              >
-                {isCompleted ? <Check size={18} /> : <Icon size={18} />}
-              </button>
-              <span
-                className={`hidden md:block absolute top-14 text-[11px] font-semibold whitespace-nowrap ${
-                  isCompleted || isActive ? "text-charcoal" : "text-text-light"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-            {index < STEPS.length - 1 && (
-              <div className="flex-1 h-[2px] mx-2 md:mx-3 relative">
-                <div className="absolute inset-0 bg-border-light rounded-full" />
-                <div
-                  className="absolute inset-y-0 left-0 bg-mocha rounded-full transition-all duration-700"
-                  style={{ width: isCompleted ? "100%" : "0%" }}
-                />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const STAGE_HINTS: Record<CelebrationStage, string> = {
-  BEFORE: "Everything that sets the mood in the days leading up to the party.",
-  DURING: "Welcome items and activities your guests enjoy at the celebration.",
-  AFTER: "Return gifts, packaging and thank-you touches guests take home.",
-};
-
-function ProductPicker({
-  title,
-  description,
-  isPerGroup,
-  products,
-  selectedSkus,
-  required,
-  guestCount,
-  personalization,
-  onPersonalizationChange,
-  onToggle,
-}: {
-  title: string;
-  description?: string | null;
-  isPerGroup?: boolean;
-  products: BuilderProduct[];
-  selectedSkus: string[];
-  /** How many products the customer must pick. */
-  required: number;
-  guestCount: number;
-  personalization?: Record<string, boolean>;
-  onPersonalizationChange?: (sku: string, enabled: boolean) => void;
-  onToggle: (sku: string) => void;
-}) {
-  const done = selectedSkus.length === required;
-  return (
-    <div className="mb-8 last:mb-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-base font-semibold text-charcoal">{title}</h3>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-mocha bg-mocha/10 px-2.5 py-1 rounded-full">
-            Choose any {required}
-            {isPerGroup ? " · per group" : ""}
-          </span>
-        </div>
-        <span className={`text-xs font-semibold shrink-0 ${done ? "text-emerald-700" : "text-text-muted"}`}>
-          {done && <Check size={12} className="inline -mt-0.5 mr-1" />}
-          {selectedSkus.length} of {required} selected
-        </span>
-      </div>
-      {description && <p className="text-sm text-text-muted -mt-1 mb-3">{description}</p>}
-      {products.length === 0 ? (
-        <p className="text-sm text-text-muted">No products available for this theme yet.</p>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {products.map((p) => {
-            const selected = selectedSkus.includes(p.sku);
-            const qty = Math.max(guestCount, p.minOrderQuantity);
-            const moqNote = guestCount < p.minOrderQuantity;
-            const personalizeOn = Boolean(personalization?.[p.sku]);
-            const unitWithPersonalization = p.priceInPaise + (personalizeOn ? p.personalizationCostInPaise : 0);
-            const line =
-              p.pricingMode === "PER_GROUP"
-                ? guestCount < p.minOrderQuantity
-                  ? unitWithPersonalization * p.minOrderQuantity
-                  : unitWithPersonalization
-                : unitWithPersonalization * qty;
-            // Temporarily disable out-of-stock check in builder until backend correctly handles null inventory for unlimited stock
-            const isOutOfStock = false; // p.stockAvailable <= 0;
-            return (
-              <div
-                key={p.sku}
-                className={`text-left rounded-xl p-3 border transition-all flex flex-col relative ${
-                  isOutOfStock 
-                    ? "opacity-60 grayscale border-border-light cursor-not-allowed" 
-                    : selected
-                      ? "border-2 border-mocha bg-mocha/5"
-                      : "border-border hover:border-mocha/50"
-                }`}
-              >
-                {isOutOfStock && (
-                  <div className="absolute top-4 left-4 z-10 bg-black text-white text-[10px] uppercase font-bold px-2 py-1 rounded">
-                    Out of Stock
-                  </div>
-                )}
-                <button
-                  type="button"
-                  disabled={isOutOfStock}
-                  onClick={() => onToggle(p.sku)}
-                  className={`text-left flex flex-col flex-1 ${isOutOfStock ? "cursor-not-allowed" : "cursor-pointer"}`}
-                >
-                <div className="relative w-full aspect-[4/3] mb-3 rounded-lg overflow-hidden bg-cream-dark">
-                  <Image src={p.imageUrl ?? "/placeholder-product.svg"} alt={p.title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" />
-                </div>
-                <div className="text-sm font-bold text-mocha">{formatPaise(p.priceInPaise)}</div>
-                <div className="text-sm text-charcoal mt-1 font-medium">{p.title}</div>
-                {p.personalizationEnabled && (
-                  <span className="inline-block mt-2 text-[10px] font-semibold text-mocha bg-mocha/10 px-2 py-0.5 rounded uppercase tracking-wider">
-                    Personalizable · +{formatPaise(p.personalizationCostInPaise)}
-                  </span>
-                )}
-                {p.pricingMode === "PER_GROUP" ? (
-                  <span className="inline-block mt-2 text-[10px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded">
-                    per group
-                  </span>
-                ) : selected ? (
-                  <span className="inline-block mt-2 text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded">
-                    × {qty} = {formatPaise(line)}
-                  </span>
-                ) : null}
-                {moqNote && selected && (
-                  <p className="text-[10px] text-amber-700 mt-1">
-                    Minimum {p.minOrderQuantity} units — charged for {qty}
-                  </p>
-                )}
-                </button>
-                {selected && p.personalizationEnabled && (
-                  <div className="mt-3 space-y-2 border-t border-border-light pt-3">
-                    <p className="text-[11px] font-semibold text-charcoal">Add personalization?</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onPersonalizationChange?.(p.sku, true)}
-                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
-                      >
-                        Yes (+{formatPaise(p.personalizationCostInPaise)}/unit)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onPersonalizationChange?.(p.sku, false)}
-                        className={`rounded-lg border px-2 py-2 text-[11px] font-medium cursor-pointer ${!personalizeOn ? "border-mocha bg-mocha/10" : "border-border-light"}`}
-                      >
-                        No
-                      </button>
-                    </div>
-                    {personalizeOn && (
-                      <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2">
-                        Our team will contact you to collect personalization details.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+const QUOTE_DEBOUNCE_MS = 300;
 
 function BuildPackageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { themes, packagesBySlug } = useCatalog();
-  const { isAuthenticated, user, openAuthModal } = useAuth();
-  const { addPackage } = useCart();
+  const { themes, packages, themesBySlug, packagesBySlug } = useCatalog();
+  const { user } = useAuth();
+  const { addPackage, closeCart } = useCart();
 
-  const initialPkg =
-    parseTier(searchParams.get("pkg")) ?? parseTier(searchParams.get("package"));
-  const initialTheme = searchParams.get("theme");
-  const initialGuests = Math.max(5, parseInt(searchParams.get("guests") || "10", 10) || 10);
-  const initialLoc = (searchParams.get("loc") === "jaipur" ? "jaipur" : "outside") as Location;
-  const initialStep = Math.min(4, Math.max(0, parseInt(searchParams.get("step") || "0", 10) || 0));
+  /* ── State: the URL seeds it, then mirrors it, so a link or a refresh restores the same place ── */
 
-  const [step, setStep] = useState(initialTheme ? Math.max(initialStep, 1) : initialStep);
-  const [themeSlug, setThemeSlug] = useState<string | null>(initialTheme);
-  const [pkgSlug, setPkgSlug] = useState<Tier | null>(initialPkg);
-  const [guestCount, setGuestCount] = useState(initialGuests);
-  const [location, setLocation] = useState<Location>(initialLoc);
-  const [selections, setSelections] = useState<BuilderSelections>({
+  const [basics, setBasics] = useState<Basics>(() => ({
+    pkgSlug: normalizePackageSlug(searchParams.get("pkg") ?? searchParams.get("package")),
+    themeSlug: searchParams.get("theme"),
+    guestCount: Math.max(MIN_GUESTS, parseInt(searchParams.get("guests") || "10", 10) || 10),
+    location: searchParams.get("loc") === "jaipur" ? "jaipur" : "outside",
+    eventDate: "",
+    childName: "",
+  }));
+  const [selections, setSelections] = useState<BuilderSelections>(() => ({
     choices: Object.fromEntries(
       [...searchParams.entries()]
         .filter(([k, v]) => k.startsWith("pick.") && v)
@@ -321,157 +58,94 @@ function BuildPackageContent() {
     decor: searchParams.get("decor") === "1",
     giftRegistryCustomize: searchParams.get("grc") === "1",
     personalization: {},
-  });
+  }));
+  const [hydrated, setHydrated] = useState(false);
+  const [showBasicsErrors, setShowBasicsErrors] = useState(false);
+  const [flaggedServiceIds, setFlaggedServiceIds] = useState<string[]>([]);
 
-  // Admin-defined product-choice services for the current package + theme (one request, cached per combo)
-  const optionsCache = useRef(new Map<string, BuilderChoiceService[]>());
-  const [choiceServices, setChoiceServices] = useState<BuilderChoiceService[]>([]);
+  const [options, setOptions] = useState<BuilderOptions | null>(null);
   const [optionsKey, setOptionsKey] = useState<string | null>(null);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [optionsAttempt, setOptionsAttempt] = useState(0);
+  const optionsCache = useRef(new Map<string, BuilderOptions>());
+
   const [quote, setQuote] = useState<BuilderQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [eventDate, setEventDate] = useState("");
-  const [guestName, setGuestName] = useState(user?.name ?? "");
-  const [guestEmail, setGuestEmail] = useState(user?.email ?? "");
-  const [guestPhone, setGuestPhone] = useState(user?.phone ?? "");
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [step]);
-  const [guestAddress, setGuestAddress] = useState("");
-  const [guestAddressLine2, setGuestAddressLine2] = useState("");
-  const [guestCity, setGuestCity] = useState("");
-  const [guestState, setGuestState] = useState("Rajasthan");
-  const [guestCountry, setGuestCountry] = useState("India");
-  const [guestPincode, setGuestPincode] = useState("");
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const patchBasics = useCallback((patch: Partial<Basics>) => setBasics((prev) => ({ ...prev, ...patch })), []);
 
-  // Restore state from sessionStorage on mount
+  /* ── Draft: the date, name and personalization opt-ins are not in the URL ── */
+
+  // Client-only: sessionStorage is unavailable during SSR, so the draft is restored after mount.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem("vc_builder_state");
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (data.eventDate) setEventDate(data.eventDate);
-        if (data.guestName) setGuestName(data.guestName);
-        if (data.guestEmail) setGuestEmail(data.guestEmail);
-        if (data.guestPhone) setGuestPhone(data.guestPhone);
-        if (data.guestAddress) setGuestAddress(data.guestAddress);
-        if (data.guestAddressLine2) setGuestAddressLine2(data.guestAddressLine2);
-        if (data.guestCity) setGuestCity(data.guestCity);
-        if (data.guestState) setGuestState(data.guestState);
-        if (data.guestCountry) setGuestCountry(data.guestCountry);
-        if (data.guestPincode) setGuestPincode(data.guestPincode);
-        if (data.selections) setSelections((prev) => ({ ...prev, ...data.selections }));
-      }
-    } catch (err) {}
-  }, []);
-
-  // Pre-fill from user profile default address if available and not overridden
-  useEffect(() => {
-    if (user && user.defaultAddress) {
-      const addr = user.defaultAddress as import("@/lib/shop-types").ShippingAddress;
-      setGuestName((prev) => prev || addr.fullName || user.name);
-      setGuestAddress((prev) => prev || addr.line1 || "");
-      setGuestAddressLine2((prev) => prev || addr.line2 || "");
-      setGuestState((prev) => prev !== "Rajasthan" && prev ? prev : (addr.state || "Rajasthan"));
-      setGuestCountry((prev) => prev !== "India" && prev ? prev : (addr.country || "India"));
-      setGuestCity((prev) => {
-        const c = prev || addr.city;
-        if (c.toLowerCase() === "jaipur" && location !== "jaipur") {
-          setLocation("jaipur");
-          syncUrl({ loc: "jaipur" });
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as Draft;
+        setBasics((prev) => ({
+          ...prev,
+          eventDate: typeof draft.eventDate === "string" ? draft.eventDate : prev.eventDate,
+          childName: typeof draft.childName === "string" ? draft.childName : prev.childName,
+        }));
+        // URL picks win (a shared link is explicit); the draft fills in what the URL can't carry.
+        const saved = draft.selections;
+        if (saved) {
+          setSelections((prev) => ({
+            ...prev,
+            choices: Object.keys(prev.choices ?? {}).length ? prev.choices : (saved.choices ?? {}),
+            personalization: saved.personalization ?? {},
+          }));
         }
-        return c;
-      });
-      setGuestPincode((prev) => prev || addr.pincode);
-    }
-  }, [user]);
-
-  // Save state to sessionStorage on change
-  useEffect(() => {
-    sessionStorage.setItem(
-      "vc_builder_state",
-      JSON.stringify({
-        eventDate,
-        guestName,
-        guestEmail,
-        guestPhone,
-        guestAddress,
-        guestAddressLine2,
-        guestCity,
-        guestState,
-        guestCountry,
-        guestPincode,
-        selections,
-      })
-    );
-  }, [eventDate, guestName, guestEmail, guestPhone, guestAddress, guestCity, guestPincode, selections]);
-
-  const activeThemes = themes;
-
-  const selectedPkg = pkgSlug ? packagesBySlug[pkgSlug] : null;
-
-  const syncUrl = useCallback(
-    (next: {
-      step?: number;
-      theme?: string | null;
-      pkg?: Tier | null;
-      guests?: number;
-      loc?: Location;
-      selections?: BuilderSelections;
-    }) => {
-      const params = new URLSearchParams();
-      const s = next.step ?? step;
-      const th = next.theme !== undefined ? next.theme : themeSlug;
-      const pk = next.pkg !== undefined ? next.pkg : pkgSlug;
-      const g = next.guests ?? guestCount;
-      const loc = next.loc ?? location;
-      const sel = next.selections ?? selections;
-      params.set("step", String(s));
-      if (th) params.set("theme", th);
-      if (pk) params.set("pkg", pk);
-      if (g) params.set("guests", String(g));
-      params.set("loc", loc);
-      for (const [serviceId, skus] of Object.entries(sel.choices ?? {})) {
-        if (skus.length) params.set(`pick.${serviceId}`, skus.join(","));
       }
-      if (sel.decor) params.set("decor", "1");
-      if (sel.giftRegistryCustomize) params.set("grc", "1");
-      window.history.replaceState(null, "", `/build-package?${params.toString()}`);
-    },
-    [step, themeSlug, pkgSlug, guestCount, location, selections, router],
-  );
+    } catch {
+      /* ignore a corrupt draft */
+    }
+    setHydrated(true);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const goTo = (nextStep: number) => {
-    setStep(nextStep);
-    syncUrl({ step: nextStep });
-  };
-
-  const currentOptionsKey = themeSlug && pkgSlug ? `${pkgSlug}:${themeSlug}` : null;
-  const wantOptions = step >= 1;
-
-  // Prefetch the theme's choices as soon as theme + package are known (cached per combination),
-  // so the Customize step opens instantly.
   useEffect(() => {
-    if (!wantOptions || !themeSlug || !pkgSlug || !currentOptionsKey) return;
+    if (!hydrated) return;
+    try {
+      const draft: Draft = { eventDate: basics.eventDate, childName: basics.childName, selections };
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [hydrated, basics.eventDate, basics.childName, selections]);
+
+  // A signed-in customer whose saved address is in Jaipur almost certainly celebrates there.
+  const locationFromProfile = useRef(false);
+  useEffect(() => {
+    if (locationFromProfile.current || searchParams.has("loc")) return;
+    const city = (user?.defaultAddress as { city?: string } | null | undefined)?.city;
+    if (city?.trim().toLowerCase() === "jaipur") {
+      locationFromProfile.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      patchBasics({ location: "jaipur" });
+    }
+  }, [user, searchParams, patchBasics]);
+
+  /* ── Options for the chosen package + theme (prefetched as soon as both are known) ── */
+
+  const selectedPkg = basics.pkgSlug ? packagesBySlug[basics.pkgSlug] : undefined;
+  const selectedTheme = basics.themeSlug ? themesBySlug[basics.themeSlug] : undefined;
+  const currentOptionsKey = selectedPkg && selectedTheme ? `${selectedPkg.slug}:${selectedTheme.slug}` : null;
+  const optionsReady = options !== null && optionsKey === currentOptionsKey;
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!currentOptionsKey || !selectedPkg || !selectedTheme) return;
     let cancelled = false;
 
-    const apply = (list: BuilderChoiceService[]) => {
-      setChoiceServices(list);
+    const apply = (next: BuilderOptions) => {
+      setOptions(next);
       setOptionsKey(currentOptionsKey);
-      // Drop picks that are not offered for this theme (theme/package changed, admin edited products)
-      setSelections((prev) => {
-        if (!prev.choices) return prev;
-        const next: Record<string, string[]> = {};
-        for (const svc of list) {
-          const valid = new Set(svc.products.map((p) => p.sku));
-          next[svc.serviceId] = (prev.choices[svc.serviceId] ?? []).filter((sku) => valid.has(sku));
-        }
-        return { ...prev, choices: next };
-      });
+      setOptionsError(null);
+      setSelections((prev) => pruneSelections(prev, next));
     };
 
     const hit = optionsCache.current.get(currentOptionsKey);
@@ -479,839 +153,266 @@ function BuildPackageContent() {
       apply(hit);
       return;
     }
-    setLoadingProducts(true);
-    getBuilderOptions({ theme: themeSlug, package: pkgSlug })
-      .then((list) => {
-        optionsCache.current.set(currentOptionsKey, list);
-        if (!cancelled) apply(list);
+    setOptionsLoading(true);
+    setOptionsError(null);
+    getBuilderOptions({ theme: selectedTheme.slug, package: selectedPkg.slug })
+      .then((next) => {
+        optionsCache.current.set(currentOptionsKey, next);
+        if (!cancelled) apply(next);
       })
-      .catch(() => {
-        if (!cancelled) setQuoteError("Could not load products for this theme.");
+      .catch((err) => {
+        if (!cancelled) {
+          setOptionsError(err instanceof ApiClientError ? err.message : "Could not load this package. Please try again.");
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoadingProducts(false);
+        if (!cancelled) setOptionsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [wantOptions, themeSlug, pkgSlug, currentOptionsKey]);
+    // selectedPkg/selectedTheme are derived from currentOptionsKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOptionsKey, optionsAttempt]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const optionsReady = optionsKey !== null && optionsKey === currentOptionsKey;
-  const choicesComplete =
-    optionsReady &&
-    choiceServices.every(
-      (svc) => (selections.choices?.[svc.serviceId]?.length ?? 0) === svc.selectionCount,
-    );
+  /* ── Step: read from the URL so the browser's Back and Forward buttons move between steps ── */
 
-  const canQuote = !!themeSlug && !!pkgSlug && guestCount >= 5 && choicesComplete;
+  const basicsErrors = useMemo(() => validateBasics(basics, packagesBySlug, themesBySlug), [basics, packagesBySlug, themesBySlug]);
+  const basicsValid = Object.keys(basicsErrors).length === 0;
+  const missing = optionsReady && options ? incompleteServices(options.services, selections) : [];
+  const choicesComplete = optionsReady && missing.length === 0;
+
+  const requestedStep = Math.min(STEP_REVIEW, Math.max(STEP_BASICS, parseInt(searchParams.get("step") || "0", 10) || 0));
+  // Never show a step whose prerequisites are missing (old links, edited URLs, a changed theme).
+  // Until the draft is restored the date is unknown, so the requested step is trusted for that moment.
+  const step = hydrated && !basicsValid ? STEP_BASICS : requestedStep === STEP_REVIEW && optionsReady && !choicesComplete ? STEP_CUSTOMIZE : requestedStep;
+
+  const buildUrl = useCallback(
+    (targetStep: number) => {
+      const params = new URLSearchParams();
+      params.set("step", String(targetStep));
+      if (basics.themeSlug) params.set("theme", basics.themeSlug);
+      if (basics.pkgSlug) params.set("pkg", basics.pkgSlug);
+      params.set("guests", String(basics.guestCount));
+      params.set("loc", basics.location);
+      for (const [serviceId, skus] of Object.entries(selections.choices ?? {})) {
+        if (skus.length) params.set(`pick.${serviceId}`, skus.join(","));
+      }
+      if (selections.decor) params.set("decor", "1");
+      if (selections.giftRegistryCustomize) params.set("grc", "1");
+      return `/build-package?${params.toString()}`;
+    },
+    [basics.themeSlug, basics.pkgSlug, basics.guestCount, basics.location, selections],
+  );
+
+  // Keep the address bar in step with the state without adding history entries.
+  useEffect(() => {
+    if (!hydrated) return;
+    const url = buildUrl(step);
+    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", url);
+  }, [hydrated, buildUrl, step]);
+
+  const goTo = useCallback(
+    (target: number) => {
+      // A new history entry per step: Back returns to the previous step instead of leaving the flow.
+      window.history.pushState(null, "", buildUrl(target));
+    },
+    [buildUrl],
+  );
 
   useEffect(() => {
-    if (step === 4) {
-      let cancelled = false;
-      const t = setTimeout(async () => {
-        setQuoteLoading(true);
-        setQuoteError(null);
-        try {
-          const q = await getBuilderQuote({
-            packageSlug: pkgSlug!,
-            themeSlug: themeSlug!,
-            guestCount,
-            location,
-            selections,
-          });
-          if (!cancelled) setQuote(q);
-        } catch (err) {
-          if (!cancelled) {
-            setQuote(null);
-            setQuoteError(err instanceof ApiClientError ? err.message : "Quote failed");
-          }
-        } finally {
-          if (!cancelled) setQuoteLoading(false);
+    window.scrollTo({ top: 0 });
+  }, [step]);
+
+  /* ── Pricing: an estimate while choices are incomplete, the server's quote once they are ── */
+
+  const canQuote = basicsErrors.pkgSlug === undefined && basicsErrors.themeSlug === undefined && basicsErrors.guestCount === undefined && choicesComplete;
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!canQuote || !selectedPkg || !selectedTheme) {
+      setQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const next = await getBuilderQuote({
+          packageSlug: selectedPkg.slug,
+          themeSlug: selectedTheme.slug,
+          guestCount: basics.guestCount,
+          location: basics.location,
+          selections,
+        });
+        if (!cancelled) {
+          setQuote(next);
+          setQuoteError(null);
         }
-      }, 300);
-      return () => {
-        cancelled = true;
-        clearTimeout(t);
-      };
-    }
-  }, [step, canQuote, themeSlug, pkgSlug, guestCount, location, selections]);
+      } catch (err) {
+        if (!cancelled) {
+          setQuote(null);
+          setQuoteError(err instanceof ApiClientError ? err.message : "Could not calculate your total. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setQuoteLoading(false);
+      }
+    }, QUOTE_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // selectedPkg/selectedTheme change only with the slugs already covered by canQuote + options
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canQuote, currentOptionsKey, basics.guestCount, basics.location, selections]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  useEffect(() => {
-    if (user) {
-      setGuestName((n) => n || user.name || "");
-      setGuestEmail((e) => e || user.email || "");
-      setGuestPhone((p) => p || user.phone || "");
-    }
-  }, [user]);
+  const estimate = estimateSubtotalInPaise(selectedPkg, optionsReady ? options : null, selections, basics.guestCount, basics.location);
 
-  const canContinue = () => {
-    if (step === 0) return !!themeSlug;
-    if (step === 1) {
-      if (guestCount < 5) return false;
-      if (!guestName.trim()) return false;
-      if (!guestEmail.trim() || !/^\S+@\S+\.\S+$/.test(guestEmail)) return false;
-      if (!guestPhone.trim() || guestPhone.trim().length < 6) return false;
-      if (!eventDate || isDateWithin7Days(eventDate)) return false;
-      if (!guestAddress.trim()) return false;
-      if (location === "outside" && !guestCity.trim()) return false;
-      if (!guestPincode.trim() || !/^\d{4,10}$/.test(guestPincode.trim())) return false;
-      return true;
-    }
-    if (step === 2) return choicesComplete;
-    return true;
+  /* ── Navigation ── */
+
+  const focusFirstError = (selector: string) => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(selector);
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
   };
 
   const onContinue = () => {
-    if (!canContinue()) return;
-    goTo(Math.min(4, step + 1));
-  };
-
-  const toggleChoice = (svc: BuilderChoiceService, sku: string) => {
-    const current = selections.choices?.[svc.serviceId] ?? [];
-    let next: string[];
-    if (svc.selectionCount === 1) next = [sku];
-    else if (current.includes(sku)) next = current.filter((s) => s !== sku);
-    else if (current.length >= svc.selectionCount) next = [...current.slice(1), sku];
-    else next = [...current, sku];
-    const updated = { ...selections, choices: { ...(selections.choices ?? {}), [svc.serviceId]: next } };
-    setSelections(updated);
-    syncUrl({ selections: updated });
-  };
-
-  const togglePersonalization = (sku: string, enabled: boolean) => {
-    const updated = {
-      ...selections,
-      personalization: { ...(selections.personalization ?? {}), [sku]: enabled },
-    };
-    setSelections(updated);
-    syncUrl({ selections: updated });
-  };
-
-  const handleAddToCart = async () => {
-    if (!canQuote || !pkgSlug || !themeSlug || !quote) return;
-    if (!eventDate || isDateWithin7Days(eventDate) || !guestName || !guestEmail || !guestPhone || !guestAddress || !guestCity || !guestPincode) {
-      if (isDateWithin7Days(eventDate)) {
-        setQuoteError("Need to complete purchase order at least 7 days before celebration date.");
-      } else {
-        setQuoteError("Please fill celebration date, contact, and address details.");
+    if (step === STEP_BASICS) {
+      if (!basicsValid) {
+        setShowBasicsErrors(true);
+        focusFirstError('main [role="alert"]');
+        return;
       }
+      goTo(STEP_CUSTOMIZE);
       return;
     }
-    if (saveAsDefault && isAuthenticated) {
-      try {
-        await authApi.updateProfile({
-          defaultAddress: {
-            fullName: guestName,
-            line1: guestAddress,
-            line2: guestAddressLine2,
-            city: guestCity,
-            state: guestState,
-            pincode: guestPincode,
-            country: guestCountry,
-          }
-        });
-      } catch (e) {
-        console.error("Failed to save default address", e);
+    if (step === STEP_CUSTOMIZE) {
+      if (!optionsReady) return;
+      if (missing.length) {
+        setFlaggedServiceIds(missing.map((s) => s.serviceId));
+        focusFirstError(`#svc-${missing[0].serviceId}`);
+        return;
       }
+      goTo(STEP_REVIEW);
     }
+  };
 
+  const onCheckout = () => {
+    if (!quote || !selectedPkg || !selectedTheme) return;
     addPackage({
-      packageId: pkgSlug,
-      themeSlug,
-      basePrice: quote.totalInPaise / 100, 
-      addons: [], 
+      packageId: selectedPkg.slug,
+      themeSlug: selectedTheme.slug,
+      basePrice: quote.totalInPaise / 100,
+      addons: [],
       builderInput: {
-        packageSlug: pkgSlug,
-        themeSlug,
-        guestCount,
-        location,
+        packageSlug: selectedPkg.slug,
+        themeSlug: selectedTheme.slug,
+        guestCount: basics.guestCount,
+        location: basics.location,
         selections,
-        eventDetails: {
-          eventDate,
-          childName: guestName, 
-          venue: guestAddress,
-        },
-        contactEmail: guestEmail,
-        contactPhone: guestPhone,
-        shippingAddress: {
-          fullName: guestName,
-          line1: guestAddress,
-          line2: guestAddressLine2,
-          city: guestCity,
-          state: guestState,
-          pincode: guestPincode,
-          country: guestCountry,
-        },
+        // Contact and delivery details are entered once, at checkout.
+        eventDetails: { eventDate: basics.eventDate, childName: basics.childName.trim() || undefined },
         quoteSnapshot: quote,
       },
     });
-
+    // addPackage opens the cart drawer; going straight to checkout, it would only cover the form.
+    closeCart();
     router.push("/checkout");
   };
-
-  const decorPriceLabel =
-    pkgSlug === "essential" ? "₹5,000" : pkgSlug === "signature" ? "₹10,000" : "₹20,000";
-
-  const includedForTier = selectedPkg?.features?.filter((f) => f.included).map((f) => f.label) ?? [];
 
   return (
     <>
       <Navbar />
-      <main className="pt-28 md:pt-32 min-h-screen bg-cream pb-12">
+      <main className="pt-28 md:pt-32 min-h-screen bg-cream pb-32">
         <div className="max-w-4xl mx-auto px-5 md:px-8">
           <BuilderStepper currentStep={step} onStepClick={goTo} />
 
-          {/* Step 0 Theme */}
-          {step === 0 && (
-            <section>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Choose a theme for the celebration
-              </h1>
-              <p className="text-sm text-text-muted mb-8">
-                Each theme has matching activities, gifts, and décor — all coordinated.
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {activeThemes.map((theme) => (
-                  <button
-                    key={theme.slug}
-                    type="button"
-                    onClick={() => {
-                      setThemeSlug(theme.slug);
-                      syncUrl({ theme: theme.slug, step: 0 });
-                    }}
-                    className={`rounded-2xl border p-4 text-left transition-all ${
-                      themeSlug === theme.slug
-                        ? "border-2 border-mocha bg-mocha/5"
-                        : "border-border hover:border-mocha/40"
-                    }`}
-                  >
-                    {theme.heroImageUrl ? (
-                      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden mb-3 bg-cream-dark">
-                        <Image src={theme.heroImageUrl} alt={theme.title} fill className="object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-full aspect-[4/3] rounded-xl bg-cream-dark mb-3" />
-                    )}
-                    <div className="font-semibold text-charcoal">{theme.title}</div>
-                    <div className="text-xs text-text-muted mt-1 line-clamp-2">{theme.shortDescription}</div>
-                  </button>
-                ))}
-              </div>
-            </section>
+          {step === STEP_BASICS && (
+            <BasicsStep
+              basics={basics}
+              onChange={patchBasics}
+              packages={packages}
+              themes={themes}
+              errors={showBasicsErrors ? basicsErrors : {}}
+            />
           )}
 
-          {/* Step 1 Details */}
-          {step === 1 && (
-            <section className="animate-slide-up">
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Celebration details
-              </h1>
-              <p className="text-sm text-text-muted mb-8">
-                Tell us about the event so we can prepare your quote.
-              </p>
-              
-              <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm">
-                <div className="grid md:grid-cols-2 gap-8 md:gap-12">
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-bold text-charcoal uppercase tracking-wider mb-3">
-                        Number of children attending
-                      </label>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center bg-cream-dark rounded-xl border border-border-light overflow-hidden h-14 w-40">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const g = Math.max(5, guestCount - 1);
-                              setGuestCount(g);
-                              syncUrl({ guests: g });
-                            }}
-                            className="w-12 h-full flex items-center justify-center text-charcoal hover:bg-mocha/10 transition-colors"
-                          >
-                            <Minus size={18} />
-                          </button>
-                          <input
-                            type="number"
-                            min="5"
-                            value={guestCount}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              if (!isNaN(val)) {
-                                setGuestCount(val);
-                                syncUrl({ guests: val });
-                              }
-                            }}
-                            onBlur={() => {
-                              if (guestCount < 5) {
-                                setGuestCount(5);
-                                syncUrl({ guests: 5 });
-                              }
-                            }}
-                            className="flex-1 text-center font-display text-xl font-bold text-charcoal bg-transparent border-none outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const g = guestCount + 1;
-                              setGuestCount(g);
-                              syncUrl({ guests: g });
-                            }}
-                            className="w-12 h-full flex items-center justify-center text-charcoal hover:bg-mocha/10 transition-colors"
-                          >
-                            <Plus size={18} />
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-text-muted mt-3 font-medium uppercase tracking-wider">
-                        Minimum 5 children per booking
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-bold text-charcoal uppercase tracking-wider mb-3">
-                        Are you in Jaipur?
-                      </label>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLocation("jaipur");
-                            setGuestCity("Jaipur");
-                            syncUrl({ loc: "jaipur" });
-                          }}
-                          className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
-                            location === "jaipur"
-                              ? "border-mocha bg-mocha/5 text-mocha shadow-sm"
-                              : "border-border-light text-charcoal hover:border-mocha/40 bg-surface"
-                          }`}
-                        >
-                          Yes — Jaipur
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLocation("outside");
-                            if (guestCity.toLowerCase() === "jaipur") setGuestCity("");
-                            syncUrl({ loc: "outside" });
-                          }}
-                          className={`flex-1 py-4 px-4 rounded-xl border font-bold text-sm transition-all ${
-                            location === "outside"
-                              ? "border-mocha bg-mocha/5 text-mocha shadow-sm"
-                              : "border-border-light text-charcoal hover:border-mocha/40 bg-surface"
-                          }`}
-                        >
-                          No — Other city
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-8 border-t border-border-light grid md:grid-cols-2 gap-8 md:gap-12">
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-charcoal mb-4">Contact Information</h3>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Your Name <span className="text-red-500">*</span></span>
-                      <input
-                        type="text"
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                        placeholder="Jane Doe"
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Email Address <span className="text-red-500">*</span></span>
-                      <input
-                        type="email"
-                        value={guestEmail}
-                        onChange={(e) => setGuestEmail(e.target.value)}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                        placeholder="jane@example.com"
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Phone Number <span className="text-red-500">*</span></span>
-                      <input
-                        type="tel"
-                        value={guestPhone}
-                        onChange={(e) => setGuestPhone(e.target.value)}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                        placeholder="+91 98765 43210"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-charcoal mb-4">Event & Location Details</h3>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Celebration Date <span className="text-red-500">*</span></span>
-                      <input
-                        type="date"
-                        value={eventDate}
-                        onChange={(e) => setEventDate(e.target.value)}
-                        min={getTodayDateString()}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all"
-                      />
-                      {isDateWithin7Days(eventDate) && (
-                        <p className="text-amber-700 text-xs font-medium mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                          Need to complete purchase order at least 7 days before celebration date.
-                        </p>
-                      )}
-                    </label>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 1 <span className="text-red-500">*</span></span>
-                      <input
-                        type="text"
-                        value={guestAddress}
-                        onChange={(e) => setGuestAddress(e.target.value)}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                        placeholder="Flat / House No. / Building"
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Address Line 2</span>
-                      <input
-                        type="text"
-                        value={guestAddressLine2}
-                        onChange={(e) => setGuestAddressLine2(e.target.value)}
-                        className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                        placeholder="Locality / Area / Street"
-                      />
-                    </label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">City <span className="text-red-500">*</span></span>
-                        <input
-                          type="text"
-                          value={location === "jaipur" ? "Jaipur" : guestCity}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setGuestCity(val);
-                            if (val.toLowerCase().trim() === "jaipur" && location !== "jaipur") {
-                              setLocation("jaipur");
-                              syncUrl({ loc: "jaipur" });
-                            }
-                          }}
-                          readOnly={location === "jaipur"}
-                          className={`w-full border rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50 ${
-                            location === "jaipur"
-                              ? "bg-cream-dark/50 border-border-light text-charcoal/70"
-                              : "bg-cream-dark border-border-light"
-                          }`}
-                          placeholder="City"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">State <span className="text-red-500">*</span></span>
-                        <input
-                          type="text"
-                          value={location === "jaipur" ? "Rajasthan" : guestState}
-                          onChange={(e) => setGuestState(e.target.value)}
-                          readOnly={location === "jaipur"}
-                          className={`w-full border rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50 ${
-                            location === "jaipur"
-                              ? "bg-cream-dark/50 border-border-light text-charcoal/70"
-                              : "bg-cream-dark border-border-light"
-                          }`}
-                          placeholder="State"
-                        />
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Country <span className="text-red-500">*</span></span>
-                        <input
-                          type="text"
-                          value={guestCountry}
-                          onChange={(e) => setGuestCountry(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="India"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="font-bold text-charcoal uppercase tracking-wider block mb-2 text-xs">Pincode <span className="text-red-500">*</span></span>
-                        <input
-                          type="text"
-                          value={guestPincode}
-                          onChange={(e) => setGuestPincode(e.target.value)}
-                          className="w-full bg-cream-dark border border-border-light rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-mocha/20 focus:border-mocha transition-all placeholder:text-text-light/50"
-                          placeholder="302001"
-                        />
-                      </label>
-                    </div>
-                    
-                    {isAuthenticated && (
-                      <div className="mt-4 flex items-center gap-3 bg-cream/30 p-3 rounded-xl border border-border-light">
-                        <input 
-                          type="checkbox" 
-                          id="saveAsDefaultBuilder" 
-                          checked={saveAsDefault} 
-                          onChange={(e) => setSaveAsDefault(e.target.checked)} 
-                          className="w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha"
-                        />
-                        <label htmlFor="saveAsDefaultBuilder" className="text-sm text-charcoal font-medium cursor-pointer">
-                          Save as my default delivery address for future orders
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
+          {step === STEP_CUSTOMIZE && (
+            <CustomizeStep
+              options={optionsReady ? options : null}
+              loading={optionsLoading || !optionsReady}
+              error={optionsError}
+              onRetry={() => setOptionsAttempt((n) => n + 1)}
+              themeTitle={selectedTheme?.title ?? ""}
+              packageTitle={selectedPkg?.title ?? ""}
+              guestCount={basics.guestCount}
+              location={basics.location}
+              selections={selections}
+              onSelectionsChange={setSelections}
+              flaggedServiceIds={flaggedServiceIds}
+              onEditBasics={() => goTo(STEP_BASICS)}
+            />
           )}
 
-          {/* Step 2 Customize */}
-          {step === 2 && (
-            <section>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Customize your celebration
-              </h1>
-              <p className="text-sm text-text-muted mb-4">
-                {activeThemes.find((t) => t.slug === themeSlug)?.title} ·{" "}
-                {guestCount} children · {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
-              </p>
-              {loadingProducts || !optionsReady ? (
-                <div className="flex items-center gap-2 text-text-muted py-12 justify-center">
-                  <Loader2 className="animate-spin" size={18} /> Loading options…
-                </div>
-              ) : (
-                <>
-                  {groupByStage(choiceServices).map((group, gi) => {
-                    const complete = group.services.filter(
-                      (svc) => (selections.choices?.[svc.serviceId]?.length ?? 0) === svc.selectionCount,
-                    ).length;
-                    return (
-                      <div
-                        key={group.stage ?? "other"}
-                        className="mb-6 rounded-2xl border border-border-light bg-surface p-5 md:p-6"
-                      >
-                        <div className="flex items-start justify-between gap-3 mb-5 pb-4 border-b border-border-light">
-                          <div className="flex items-start gap-3">
-                            <span className="w-8 h-8 rounded-full bg-mocha text-white text-sm font-bold flex items-center justify-center shrink-0">
-                              {gi + 1}
-                            </span>
-                            <div>
-                              <h2 className="font-display text-lg md:text-xl font-semibold text-charcoal">{group.label}</h2>
-                              <p className="text-xs text-text-muted mt-0.5">
-                                {group.stage ? STAGE_HINTS[group.stage] : "Other items included with this package."}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-xs font-semibold text-text-muted shrink-0 mt-1">
-                            {complete}/{group.services.length} done
-                          </span>
-                        </div>
-                        {group.services.map((svc) => (
-                          <ProductPicker
-                            key={svc.serviceId}
-                            title={svc.label}
-                            description={svc.description}
-                            isPerGroup={svc.isPerGroup}
-                            products={svc.products}
-                            required={svc.selectionCount}
-                            selectedSkus={selections.choices?.[svc.serviceId] ?? []}
-                            guestCount={guestCount}
-                            personalization={selections.personalization}
-                            onPersonalizationChange={togglePersonalization}
-                            onToggle={(sku) => toggleChoice(svc, sku)}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })}
-                  {pkgSlug === "signature" || pkgSlug === "grand" ? (
-                    <div className="rounded-2xl border-2 border-mocha/30 bg-mocha/5 p-4 flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-mocha/15 flex items-center justify-center shrink-0">
-                        <Gift size={18} className="text-mocha" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-charcoal">Gift Registry</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-mocha/15 text-mocha">
-                            Included with {TIER_META[pkgSlug].eyebrow}
-                          </span>
-                        </div>
-                        <p className="text-sm text-text-muted mt-1">
-                          Share a guided gift list with your guests — no extra charge. You can set it up from your
-                          order after checkout.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className={`rounded-2xl border p-4 ${
-                        selections.giftRegistryCustomize ? "border-2 border-mocha" : "border-border"
-                      }`}
-                    >
-                      <div className="flex justify-between gap-4 items-start">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-mocha/10 flex items-center justify-center shrink-0">
-                            <Gift size={18} className="text-mocha" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-charcoal mb-1">Gift Registry</div>
-                            <p className="text-sm text-text-muted">
-                              Add a guided gift list your guests can shop from. Optional add-on for Essential.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-lg font-bold text-charcoal">₹500</div>
-                          <div className="text-[11px] text-text-light">one-time</div>
-                        </div>
-                      </div>
-                      <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!selections.giftRegistryCustomize}
-                          onChange={(e) => {
-                            const updated = { ...selections, giftRegistryCustomize: e.target.checked };
-                            setSelections(updated);
-                            syncUrl({ selections: updated });
-                          }}
-                          className="w-4 h-4"
-                        />
-                        Add Gift Registry to my order
-                      </label>
-                    </div>
-                  )}
-
-                  <div className="bg-cream-dark border border-border rounded-xl p-4 text-sm text-text-muted">
-                    Packaging and thank-you tags (where included) are auto-assigned — shown on the review step.
-                  </div>
-
-                </>
-              )}
-            </section>
-          )}
-
-          {/* Step 3 Decor */}
-          {step === 3 && (
-            <section>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Décor for your celebration
-              </h1>
-              <p className="text-sm text-text-muted mb-8">
-                {location === "jaipur" ? "Jaipur" : "Outside Jaipur"}
-              </p>
-              {location === "jaipur" ? (
-                <div
-                  className={`rounded-2xl border p-6 ${
-                    selections.decor ? "border-2 border-mocha" : "border-border"
-                  }`}
-                >
-                  <div className="flex justify-between gap-4 items-start">
-                    <div>
-                      <div className="font-semibold text-charcoal mb-1">
-                        Theme décor — Jaipur
-                      </div>
-                      <p className="text-sm text-text-muted">
-                        Theme décor through our Jaipur vendor. Final quote may vary slightly on site.
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-xl font-bold">{decorPriceLabel}</div>
-                      <div className="text-[11px] text-text-light">flat rate</div>
-                    </div>
-                  </div>
-                  <label className="mt-4 flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!selections.decor}
-                      onChange={(e) => {
-                        const updated = { ...selections, decor: e.target.checked };
-                        setSelections(updated);
-                        syncUrl({ selections: updated });
-                      }}
-                      className="w-4 h-4"
-                    />
-                    Add décor to my order
-                  </label>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-border bg-cream-dark p-6">
-                  <div className="font-semibold text-charcoal mb-1">Decor Guide Included — free</div>
-                  <p className="text-sm text-text-muted">
-                    Outside Jaipur, your package includes a décor guide so you can recreate the look with local vendors.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Step 4 Review */}
-          {step === 4 && (
-            <section>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">
-                Review your order
-              </h1>
-              <p className="text-sm text-text-muted mb-6">
-                {quote
-                  ? `${quote.themeTitle} · ${quote.guestCount} children · ${
-                      quote.location === "jaipur" ? "Jaipur" : "Outside Jaipur"
-                    }`
-                  : "Loading quote…"}
-              </p>
-
-              {quoteLoading && (
-                <div className="flex items-center gap-2 text-text-muted mb-4">
-                  <Loader2 className="animate-spin" size={16} /> Calculating…
-                </div>
-              )}
-              {quoteError && <p className="text-sm text-red-600 mb-4">{quoteError}</p>}
-
-              {quote && (
-                <div className="max-w-2xl mx-auto items-start mb-12">
-                  <div className="bg-surface rounded-3xl border border-border-light p-6 md:p-8 shadow-sm text-center">
-                    <h3 className="font-display text-2xl font-bold text-charcoal mb-2">
-                      Ready to Celebrate!
-                    </h3>
-                    <p className="text-sm text-text-muted mb-6">
-                      All your details have been securely saved. You can proceed to add this package to your cart.
-                    </p>
-                    <div className="bg-cream-dark p-6 rounded-2xl mb-6 flex flex-col items-center justify-center">
-                      <div className="text-sm text-text-muted mb-1 font-bold uppercase tracking-widest">Grand Total</div>
-                      <div className="font-display text-4xl font-bold text-mocha mb-3">{formatPaise(quote.totalInPaise)}</div>
-                      <button 
-                        onClick={() => setShowBreakdown(true)}
-                        className="text-xs font-semibold text-charcoal flex items-center gap-1 hover:text-mocha transition-colors"
-                      >
-                        <Info size={14} /> View Price Breakdown
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Breakdown Modal */}
-                  {showBreakdown && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-sm">
-                      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center p-5 border-b border-border-light bg-cream">
-                          <h3 className="font-display text-xl font-bold text-charcoal">Quote Breakdown</h3>
-                          <button onClick={() => setShowBreakdown(false)} className="text-text-muted hover:text-charcoal transition-colors">
-                            <X size={20} />
-                          </button>
-                        </div>
-                        <div className="p-6 max-h-[60vh] overflow-y-auto hide-scrollbar">
-                          {(["per-child", "per-group", "auto", "fixed", "decor"] as const).map((section) => {
-                            const items = quote.lineItems.filter((l) => l.section === section);
-                            if (!items.length) return null;
-                            const titles: Record<string, string> = {
-                              "per-child": "Per-child items",
-                              "per-group": "Per-group items",
-                              auto: "Included physical items",
-                              fixed: "Fixed digital add-ons",
-                              decor: "Decor",
-                            };
-                            return (
-                              <div key={section} className="mb-5">
-                                <div className="text-[11px] font-bold uppercase tracking-wider text-mocha mb-3">
-                                  {titles[section]}
-                                </div>
-                                <div className="space-y-3">
-                                  {items.map((item) => (
-                                    <div
-                                      key={item.key}
-                                      className="flex justify-between gap-4 text-sm items-start"
-                                    >
-                                      <div>
-                                        <div className="text-charcoal font-medium">{item.label}</div>
-                                        {item.sublabel && (
-                                          <div className="text-[11px] text-text-light font-medium mt-0.5">{item.sublabel}</div>
-                                        )}
-                                      </div>
-                                      <div className="font-bold text-charcoal whitespace-nowrap">
-                                        {formatPaise(item.lineTotalInPaise)}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <div className="mt-6 pt-4 border-t border-border-light space-y-3">
-                            <FreeDeliveryProgress
-                              subtotalInPaise={quote.subtotalInPaise}
-                              freeShippingThresholdInPaise={quote.freeShippingThresholdInPaise}
-                              shippingFeeInPaise={quote.shippingInPaise || 19_900}
-                              shippingWaived={quote.shippingWaived}
-                            />
-                            <div className="flex justify-between text-sm text-text-muted">
-                              <span className="font-medium">Subtotal</span>
-                              <span className="font-bold text-charcoal">{formatPaise(quote.subtotalInPaise)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm text-text-muted">
-                              <span className="font-medium">Shipping</span>
-                              <span className="font-bold text-charcoal">
-                                {quote.shippingWaived ? "FREE" : formatPaise(quote.shippingInPaise)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-sm text-text-muted">
-                              <span className="font-medium">GST ({quote.gstPercent}%)</span>
-                              <span className="font-bold text-charcoal">{formatPaise(quote.gstInPaise)}</span>
-                            </div>
-                            <div className="flex justify-between items-end mt-4 pt-4 border-t border-border-light">
-                              <span className="text-base font-bold text-charcoal">Grand total</span>
-                              <span className="font-display text-xl font-bold text-mocha">{formatPaise(quote.totalInPaise)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-4 border-t border-border-light bg-cream-dark text-center">
-                          <button 
-                            onClick={() => setShowBreakdown(false)}
-                            className="btn-primary w-full py-3 text-sm font-semibold"
-                          >
-                            Close
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
+          {step === STEP_REVIEW && (
+            <ReviewStep
+              basics={basics}
+              theme={selectedTheme}
+              pkg={selectedPkg}
+              options={optionsReady ? options : null}
+              selections={selections}
+              quote={quote}
+              quoteLoading={quoteLoading}
+              quoteError={quoteError}
+              onEdit={goTo}
+            />
           )}
         </div>
 
-        {/* Sticky total bar */}
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-charcoal text-white">
+        {/* Sticky total + actions */}
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-charcoal text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)]">
           <div className="max-w-4xl mx-auto px-5 md:px-8 py-3 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[11px] text-white/60">Running total (incl. GST)</div>
-              <div className="text-xl font-bold">
-                {quoteLoading ? "…" : quote ? formatPaise(quote.totalInPaise) : "—"}
-              </div>
+            <div className="min-w-0" aria-live="polite">
+              <p className="text-xs text-white/70">
+                {quote ? "Total incl. GST" : estimate !== null ? "So far, before GST" : "Choose a package"}
+              </p>
+              <p className="text-xl font-bold flex items-center gap-2">
+                {quote ? formatPaise(quote.totalInPaise) : estimate !== null ? formatPaise(estimate) : "—"}
+                {quoteLoading && <Loader2 size={16} className="animate-spin text-white/70" aria-label="Updating total" />}
+              </p>
             </div>
-            <div className="flex gap-2">
-              {step > 0 && (
+            <div className="flex shrink-0 gap-2">
+              {step > STEP_BASICS && (
                 <button
                   type="button"
                   onClick={() => goTo(step - 1)}
-                  className="px-4 py-2.5 rounded-lg border border-white/20 text-sm text-white/80 hover:bg-white/10 flex items-center gap-1"
+                  className="h-11 px-4 rounded-lg border border-white/25 text-sm text-white/90 hover:bg-white/10 flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  <ArrowLeft size={14} /> Back
+                  <ArrowLeft size={14} aria-hidden="true" /> Back
                 </button>
               )}
-              {step < 4 ? (
+              {step < STEP_REVIEW ? (
                 <button
                   type="button"
-                  disabled={!canContinue()}
                   onClick={onContinue}
-                  className="px-5 py-2.5 rounded-lg bg-mocha text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1"
+                  disabled={step === STEP_CUSTOMIZE && !optionsReady}
+                  className="h-11 px-5 rounded-lg bg-mocha text-white text-sm font-semibold hover:bg-mocha-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  Continue <ArrowRight size={14} />
+                  Continue <ArrowRight size={14} aria-hidden="true" />
                 </button>
               ) : (
                 <button
                   type="button"
-                  disabled={!quote}
-                  onClick={handleAddToCart}
-                  className="px-5 py-2.5 rounded-lg bg-mocha text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-2"
+                  disabled={!quote || quoteLoading}
+                  onClick={onCheckout}
+                  className="h-11 px-5 rounded-lg bg-mocha text-white text-sm font-semibold hover:bg-mocha-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  <ShoppingCart size={14} />
-                  Add to Cart
+                  <ShoppingCart size={14} aria-hidden="true" /> <span className="hidden sm:inline">Continue to</span> Checkout
                 </button>
               )}
             </div>
@@ -1319,7 +420,6 @@ function BuildPackageContent() {
         </div>
       </main>
       <FooterClient />
-      <WhatsAppFAB />
     </>
   );
 }

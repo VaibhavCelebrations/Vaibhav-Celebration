@@ -122,13 +122,17 @@ export async function listProducts(q: {
 }
 
 export async function getProductBySlug(slug: string) {
-  const key = `pub:products:slug:${slug}`;
-  const product = await cached(key, PUB_TTL, () =>
-    prisma.product.findFirst({ where: { slug, deletedAt: null, isActive: true }, include: productDetailInclude }),
-  );
-  if (!product) throw new NotFoundError("Product not found");
+  // Cache the shaped product, never the raw row: a cached row comes back from Redis as JSON, with
+  // its dates as strings, and shaping it then threw (500 on every cache hit). The key is versioned
+  // so an older API instance sharing this cache never reads this shape.
+  const key = `pub:products:v2:slug:${slug}`;
+  const hit = await cached(key, PUB_TTL, async () => {
+    const row = await prisma.product.findFirst({ where: { slug, deletedAt: null, isActive: true }, include: productDetailInclude });
+    return row ? { product: shapeProduct(row as ProductWithRelations), themeIds: row.themeTags.map((t) => t.themeId) } : null;
+  });
+  if (!hit) throw new NotFoundError("Product not found");
 
-  const themeIds = product.themeTags.map((t) => t.themeId);
+  const { product, themeIds } = hit;
   const related = themeIds.length
     ? await prisma.product.findMany({
         where: { deletedAt: null, isActive: true, id: { not: product.id }, themeTags: { some: { themeId: { in: themeIds } } } },
@@ -137,7 +141,7 @@ export async function getProductBySlug(slug: string) {
       })
     : [];
 
-  return { ...shapeProduct(product as ProductWithRelations), related: related.map((r) => shapeProduct(r as ProductWithRelations)) };
+  return { ...product, related: related.map((r) => shapeProduct(r as ProductWithRelations)) };
 }
 
 export async function listCategories() {

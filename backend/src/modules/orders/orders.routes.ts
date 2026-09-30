@@ -74,20 +74,32 @@ shopCheckoutRouter.get("/quote", async (req, res, next) => {
 
 export const guestCheckoutRouter = Router();
 
-// ── Quote (no account needed, just price calculation) ────────────────────────
-guestCheckoutRouter.post("/quote", async (req, res, next) => {
-  try {
-    const { getGuestCartQuote } = await import("../shop/cart.service");
-    const { cartItems } = req.body;
-    if (!Array.isArray(cartItems)) {
-      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "cartItems array is required" } });
-    }
-    const quote = await getGuestCartQuote(cartItems);
-    return ok(res, quote);
-  } catch (err) {
-    return next(err);
-  }
+/** A guest's cart lives in the browser, so every line is validated on the way in. */
+const guestCartItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().positive().max(999),
+  personalizationSelected: z.boolean().optional(),
+  personalizationValues: z.unknown().optional(),
+  // The offline cart stores "no registry" as null or "".
+  registryItemId: z
+    .string()
+    .nullish()
+    .transform((v) => v || undefined),
 });
+
+// ── Quote (no account needed, just price calculation) ────────────────────────
+guestCheckoutRouter.post(
+  "/quote",
+  validate(z.object({ cartItems: z.array(guestCartItemSchema).max(100) })),
+  async (req, res, next) => {
+    try {
+      const { getGuestCartQuote } = await import("../shop/cart.service");
+      return ok(res, await getGuestCartQuote(req.body.cartItems));
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 // ── Shop cart checkout ────────────────────────────────────────────────────────
 guestCheckoutRouter.post(
@@ -95,14 +107,7 @@ guestCheckoutRouter.post(
   idempotency,
   validate(
     z.object({
-      cartItems: z.array(
-        z.object({
-          productId: z.string().min(1),
-          quantity: z.number().int().positive(),
-          personalizationValues: z.unknown().optional(),
-          registryItemId: z.string().optional(),
-        }),
-      ).min(1, "Cart must have at least one item"),
+      cartItems: z.array(guestCartItemSchema).min(1, "Cart must have at least one item"),
       shippingAddress: shippingAddressSchema,
       contactEmail: z.string().email("Enter a valid email"),
       contactPhone: z.string().min(6).max(20, "Enter a valid phone number"),

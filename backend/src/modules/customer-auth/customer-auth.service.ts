@@ -463,6 +463,12 @@ async function createSession(userId: string, ipAddress?: string, userAgent?: str
 // cookie is removed" work — while `absoluteExpiresAt` is copied forward
 // unchanged, forcing a full re-login after CUSTOMER_SESSION_ABSOLUTE_DAYS.
 
+/**
+ * Two tabs (or two parallel requests) refreshed with the same token within the grace window.
+ * The winner already set fresh cookies, so the loser must not clear them — it just retries.
+ */
+export const SESSION_REFRESH_RACE = "SESSION_REFRESH_RACE";
+
 export async function refreshCustomerSession(rawToken: string, ipAddress?: string, userAgent?: string) {
   const stored = await prisma.customerSession.findUnique({ where: { tokenHash: hashToken(rawToken) } });
   if (!stored) {
@@ -476,7 +482,7 @@ export async function refreshCustomerSession(rawToken: string, ipAddress?: strin
   if (stored.usedAt !== null) {
     const msSinceUse = Date.now() - stored.usedAt.getTime();
     if (msSinceUse < 10_000) {
-      throw new UnauthorizedError("Session was just refreshed. Please retry.");
+      throw new AppError(SESSION_REFRESH_RACE, "Session was just refreshed. Please retry.", 401);
     }
     await prisma.customerSession.updateMany({
       where: { familyId: stored.familyId, revokedAt: null },
@@ -501,7 +507,7 @@ export async function refreshCustomerSession(rawToken: string, ipAddress?: strin
     data: { usedAt: new Date() },
   });
   if (rotated.count === 0) {
-    throw new UnauthorizedError("Session was just refreshed. Please retry.");
+    throw new AppError(SESSION_REFRESH_RACE, "Session was just refreshed. Please retry.", 401);
   }
 
   await prisma.customerSession.create({

@@ -1,6 +1,6 @@
 "use client";
 
-import { adminFetch } from "@/lib/admin-api-client";
+import { adminFetch, adminFetchResponse } from "@/lib/admin-api-client";
 
 export const RECYCLE_BIN_ENTITY_TYPES = [
   "Theme",
@@ -77,17 +77,8 @@ export async function fetchRecycleBinItems(params: {
   const queryStr = qs.toString();
   const path = `/admin/recycle-bin${queryStr ? `?${queryStr}` : ""}`;
 
-  // Use rawAdminFetch so we can access meta.pagination
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1"}${path}`,
-    {
-      headers: {
-        Authorization: `Bearer ${typeof window !== "undefined" ? window.localStorage.getItem("vbc_admin_access") ?? "" : ""}`,
-        Accept: "application/json",
-      },
-      credentials: "include",
-    },
-  );
+  // Raw response so we can read meta.pagination
+  const res = await adminFetchResponse(path, { headers: { Accept: "application/json" } });
   const json = await res.json();
   if (!json.success) throw new Error(json.error?.message ?? "Failed to fetch recycle bin");
   return {

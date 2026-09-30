@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError, ValidationError } from "../../lib/errors";
+import { toMediaRef, type MediaRef } from "../../lib/media-ref";
 import { delPattern } from "../../lib/redis";
 import { invalidateBuilderCaches } from "../builder/builder.service";
 
@@ -8,6 +9,8 @@ export type ThemeProductsInput = Array<{ themeId: string; productIds: string[] }
 
 export type ExtraServiceWriteInput = {
   themeProducts?: ThemeProductsInput;
+  /** Media library ids for the service's preview; replaces the full list when present. */
+  previewMediaIds?: string[];
 } & Record<string, unknown>;
 
 function invalidate() {
@@ -112,21 +115,75 @@ async function assertThemeCoverage(tx: Prisma.TransactionClient, extraServiceId:
   }
 }
 
-function normalizeChoiceFields(data: Record<string, unknown>, current?: { isProductChoice: boolean }) {
+/**
+ * A service is shown to the customer in exactly one way: as a Preview (its own images/videos,
+ * nothing to choose) or as a Customize choice (pick N products), never both. Turning one on in a
+ * request turns the other off; asking for both at once is rejected.
+ */
+function normalizeChoiceFields(
+  data: Record<string, unknown>,
+  current?: { isProductChoice: boolean; hasPreview: boolean },
+) {
+  if (data.isProductChoice === true && data.hasPreview === true) {
+    throw new ValidationError("A service can show a preview or let the customer choose products, not both");
+  }
+  if (data.hasPreview === true) data.isProductChoice = false;
+  if (data.isProductChoice === true) data.hasPreview = false;
+
   const isChoice = (data.isProductChoice as boolean | undefined) ?? current?.isProductChoice ?? false;
+  const hasPreview = (data.hasPreview as boolean | undefined) ?? current?.hasPreview ?? false;
   if (data.isProductChoice === true) {
     // Choice services are priced from the picked products, never as a flat option.
     data.pricingMode = "PER_CHILD_CHOOSABLE";
   } else if (data.isProductChoice === false && current?.isProductChoice) {
     data.pricingMode = null;
   }
-  return isChoice;
+  return { isChoice, hasPreview };
+}
+
+/** Replace a service's preview images/videos (order = order given). */
+async function replacePreviewMedia(tx: Prisma.TransactionClient, extraServiceId: string, mediaIds: string[]) {
+  const unique = [...new Set(mediaIds)];
+  const found = await tx.mediaAsset.count({ where: { id: { in: unique }, deletedAt: null } });
+  if (found !== unique.length) throw new ValidationError("One or more preview files no longer exist in the media library");
+
+  await tx.extraServiceMedia.deleteMany({ where: { extraServiceId } });
+  if (unique.length) {
+    await tx.extraServiceMedia.createMany({
+      data: unique.map((mediaId, displayOrder) => ({ extraServiceId, mediaId, displayOrder })),
+    });
+  }
+}
+
+/** A preview with nothing to show, or with no place to show it, would silently never appear. */
+async function assertPreviewComplete(tx: Prisma.TransactionClient, extraServiceId: string) {
+  const svc = await tx.extraService.findUniqueOrThrow({
+    where: { id: extraServiceId },
+    select: { celebrationStage: true, _count: { select: { previewMedia: true } } },
+  });
+  if (!svc.celebrationStage) {
+    throw new ValidationError("Choose where the preview appears: Before, During or After the celebration");
+  }
+  if (svc._count.previewMedia === 0) {
+    throw new ValidationError("Add at least one image or video for the preview");
+  }
+}
+
+/** Preview images/videos of a service, in display order. */
+export async function getExtraServicePreviewMedia(id: string) {
+  await getExtraService(id);
+  const rows = await prisma.extraServiceMedia.findMany({
+    where: { extraServiceId: id },
+    orderBy: { displayOrder: "asc" },
+    include: { media: true },
+  });
+  return rows.map((r) => toMediaRef(r.media)).filter((m): m is MediaRef => m !== null);
 }
 
 export async function createExtraService(input: ExtraServiceWriteInput) {
-  const { themeProducts, ...raw } = input;
+  const { themeProducts, previewMediaIds, ...raw } = input;
   const data = raw as Prisma.ExtraServiceUncheckedCreateInput;
-  const isChoice = normalizeChoiceFields(data as Record<string, unknown>);
+  const { isChoice, hasPreview } = normalizeChoiceFields(data as Record<string, unknown>);
 
   const item = await prisma.$transaction(async (tx) => {
     const item = await tx.extraService.create({ data });
@@ -146,7 +203,9 @@ export async function createExtraService(input: ExtraServiceWriteInput) {
       });
     }
     if (themeProducts) await replaceServiceProducts(tx, item.id, themeProducts);
+    if (previewMediaIds) await replacePreviewMedia(tx, item.id, previewMediaIds);
     if (isChoice) await assertThemeCoverage(tx, item.id, item.selectionCount);
+    if (hasPreview) await assertPreviewComplete(tx, item.id);
     return item;
   });
   invalidate();
@@ -154,23 +213,26 @@ export async function createExtraService(input: ExtraServiceWriteInput) {
 }
 
 export async function updateExtraService(id: string, input: ExtraServiceWriteInput) {
-  const { themeProducts, ...raw } = input;
+  const { themeProducts, previewMediaIds, ...raw } = input;
   const data = raw as Prisma.ExtraServiceUncheckedUpdateInput;
 
   await prisma.$transaction(async (tx) => {
     const current = await tx.extraService.findFirst({ where: { id, deletedAt: null } });
     if (!current) throw new NotFoundError("Extra service not found");
 
-    const isChoice = normalizeChoiceFields(data as Record<string, unknown>, current);
-    // Unrelated edits (label, price…) must not be blocked by an incomplete product setup.
+    const { isChoice, hasPreview } = normalizeChoiceFields(data as Record<string, unknown>, current);
+    // Unrelated edits (label, price…) must not be blocked by an incomplete product or preview setup.
     const touchesChoice = Boolean(themeProducts) || "isProductChoice" in data || "selectionCount" in data;
+    const touchesPreview = Boolean(previewMediaIds) || "hasPreview" in data || "celebrationStage" in data;
     if (Object.keys(data).length) await tx.extraService.update({ where: { id }, data });
     if (themeProducts) await replaceServiceProducts(tx, id, themeProducts);
+    if (previewMediaIds) await replacePreviewMedia(tx, id, previewMediaIds);
 
     if (isChoice && touchesChoice) {
       const next = await tx.extraService.findUniqueOrThrow({ where: { id }, select: { selectionCount: true } });
       await assertThemeCoverage(tx, id, next.selectionCount);
     }
+    if (hasPreview && touchesPreview) await assertPreviewComplete(tx, id);
   });
   invalidate();
   return prisma.extraService.findUniqueOrThrow({ where: { id } });

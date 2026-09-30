@@ -10,6 +10,7 @@ import {
   createExtraService,
   deleteExtraService,
   getExtraService,
+  getExtraServicePreviewMedia,
   getExtraServiceProducts,
   listExtraServices,
   updateExtraService,
@@ -55,6 +56,11 @@ const schema = z.object({
   isProductChoice: z.boolean().optional(),
   selectionCount: z.number().int().min(1).max(3).optional(),
   isPerGroup: z.boolean().optional(),
+  /** "Preview" option: the customer is shown this service's images/videos. Exclusive with isProductChoice. */
+  hasPreview: z.boolean().optional(),
+  celebrationStage: z.enum(["BEFORE", "DURING", "AFTER"]).optional().nullable(),
+  /** Media library ids shown as the preview, in order; replaces the full list when present. */
+  previewMediaIds: z.array(z.string().min(1)).max(20).optional(),
   /** Per-theme product lists; replaces the service's full assignment when present. */
   themeProducts: z
     .array(z.object({ themeId: z.string().min(1), productIds: z.array(z.string().min(1)).max(500) }))
@@ -95,6 +101,14 @@ adminExtraServicesRouter.get("/:id", validate(id, "params"), async (req, res, ne
 adminExtraServicesRouter.get("/:id/products", validate(id, "params"), async (req, res, next) => {
   try {
     return ok(res, await getExtraServiceProducts(param(req, "id")));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+adminExtraServicesRouter.get("/:id/preview-media", validate(id, "params"), async (req, res, next) => {
+  try {
+    return ok(res, await getExtraServicePreviewMedia(param(req, "id")));
   } catch (err) {
     return next(err);
   }

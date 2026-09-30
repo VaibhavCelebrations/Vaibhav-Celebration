@@ -72,10 +72,28 @@ export function mapThemeCard(theme: ApiTheme): ThemeCard {
 
 export function mapThemeDetail(theme: ApiThemeDetail): ThemeCard {
   const MAX_GALLERY = 5;
-  const galleryUrls = theme.galleryImages.map((g) => mediaUrl(g.media));
-  const sampleUrls = theme.sampleAssets.map((a) => mediaUrl(a.media));
+  const MAX_MEDIA = 12;
   const hero = mediaUrl(theme.heroImage);
-  const allGallery = [...new Set([hero, ...galleryUrls, ...sampleUrls].filter(Boolean))].slice(0, MAX_GALLERY);
+
+  // Samples can be videos or PDFs. Only images may reach next/image; videos go to the viewer; the rest are skipped.
+  const isImage = (m: MediaRef | null | undefined) => !m?.type || m.type.startsWith("image/");
+  const isVideo = (m: MediaRef | null | undefined) => Boolean(m?.type?.startsWith("video/"));
+
+  const media: NonNullable<ThemeCard["galleryMedia"]> = [
+    { url: hero, type: theme.heroImage?.type ?? "image/*", altText: theme.heroImage?.altText ?? theme.title },
+    ...theme.galleryImages
+      .filter((g) => g.media?.url && isImage(g.media))
+      .map((g) => ({ url: g.media.url, type: g.media.type, altText: g.altText, caption: g.caption })),
+    ...theme.sampleAssets
+      .filter((a) => a.media?.url && (isImage(a.media) || isVideo(a.media)))
+      .map((a) => ({ url: a.media.url, type: a.media.type, altText: a.media.altText ?? a.title, caption: a.title })),
+  ];
+  const seen = new Set<string>();
+  const galleryMedia = media.filter((m) => !seen.has(m.url) && seen.add(m.url)).slice(0, MAX_MEDIA);
+  const allGallery = galleryMedia
+    .filter((m) => !m.type?.startsWith("video/"))
+    .map((m) => m.url)
+    .slice(0, MAX_GALLERY);
 
   return {
     id: theme.id,
@@ -89,26 +107,27 @@ export function mapThemeDetail(theme: ApiThemeDetail): ThemeCard {
     seoDescription: theme.seoDescription ?? theme.shortDescription,
     themeVibe: theme.audienceNote ?? "",
     galleryImages: allGallery.length ? allGallery : [hero],
+    galleryMedia,
   };
 }
 
 export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | null): PackageCard {
   const price = priceOverrideInPaise ?? pkg.priceInPaise;
-  const features = pkg.serviceItems
-      .slice()
-      .sort((a, b) => a.displayOrder - b.displayOrder)
-      .filter((item) => {
-        if (!item.isIncluded) return false;
-        if (!item.extraService.slug) return false;
-        if (item.extraService.isActive === false) return false;
-        const cat = item.extraService.category;
-        if (cat === "DECOR") return false;
-        return true;
-      })
-      .map((item) => ({
-        label: item.extraService.label,
-        included: item.isIncluded,
-      }));
+  // Décor is location-dependent and described separately; services without a slug are not customer-facing.
+  const listed = pkg.serviceItems
+    .slice()
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .filter((item) => item.extraService.slug && item.extraService.isActive !== false && item.extraService.category !== "DECOR");
+  const services = listed.map((item) => ({
+    id: item.extraService.id,
+    label: item.extraService.label,
+    description: item.extraService.description,
+    stage: item.extraService.celebrationStage ?? null,
+    included: item.isIncluded,
+    chooseCount: item.extraService.isProductChoice ? (item.extraService.selectionCount ?? 1) : null,
+    previewMedia: item.extraService.hasPreview ? (item.extraService.previewMedia ?? []) : [],
+  }));
+  const features = services.filter((s) => s.included).map((s) => ({ label: s.label, included: true }));
   return {
     id: pkg.id,
     title: pkg.displayName?.trim() || pkg.title,
@@ -122,6 +141,7 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
     hasGiftRegistry: pkg.slug === "signature" || pkg.slug === "grand",
     description: pkg.description ?? "",
     features,
+    services,
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import LogoImage from "@/assets/logo.png";
@@ -60,7 +60,6 @@ export function Navbar() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const { itemCount, openCart } = useCart();
   const { isAuthenticated, user, openAuthModal, logout } = useAuth();
-  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleMobile = useCallback(() => setMobileOpen((prev) => !prev), []);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -68,15 +67,22 @@ export function Navbar() {
   // Close account dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (
-        accountMenuRef.current &&
-        !accountMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowAccountMenu(false);
-      }
+      // The menu and its buttons exist twice (desktop and mobile). A press inside either must not
+      // count as "outside", or the menu closes before the tapped link receives its click.
+      if (e.target instanceof Element && e.target.closest("[data-account-menu]")) return;
+      setShowAccountMenu(false);
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setShowAccountMenu(false);
+      setActiveSubmenu(null);
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, []);
 
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
@@ -100,9 +106,9 @@ export function Navbar() {
                 alt="Vaibhav Celebrations"
                 width={155}
                 height={155}
-                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[80px]"
+                className="shrink-0 transition-premium group-hover:scale-105 w-auto h-[64px] md:h-[72px]"
                 style={{ width: "auto" }}
-                priority
+                preload
               />
             </Link>
 
@@ -119,10 +125,17 @@ export function Navbar() {
                     link.submenu && setActiveSubmenu(link.label)
                   }
                   onMouseLeave={() => setActiveSubmenu(null)}
+                  // Keyboard: tabbing onto the link opens its menu; tabbing past the last item closes it.
+                  onFocus={() => link.submenu && setActiveSubmenu(link.label)}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setActiveSubmenu(null);
+                  }}
                 >
                   <Link
                     href={link.href}
                     className="nav-link hover:text-mocha transition-colors flex items-center gap-1 py-2"
+                    aria-haspopup={link.submenu ? "true" : undefined}
+                    aria-expanded={link.submenu ? activeSubmenu === link.label : undefined}
                   >
                     {link.label}
                     {link.submenu && (
@@ -151,12 +164,14 @@ export function Navbar() {
 
             <div className="hidden lg:flex items-center gap-3">
               {/* Account Icon */}
-              <div className="relative" ref={accountMenuRef}>
+              <div className="relative" data-account-menu>
                 {isAuthenticated ? (
                   <button
                     onClick={() => setShowAccountMenu(!showAccountMenu)}
                     className="w-10 h-10 rounded-full bg-mocha text-white text-sm font-bold flex items-center justify-center hover:bg-mocha-dark transition-colors cursor-pointer shadow-sm"
                     aria-label="Account menu"
+                    aria-haspopup="true"
+                    aria-expanded={showAccountMenu}
                   >
                     {userInitial}
                   </button>
@@ -242,8 +257,11 @@ export function Navbar() {
               {isAuthenticated ? (
                 <button
                   onClick={() => setShowAccountMenu(!showAccountMenu)}
-                  className="w-9 h-9 rounded-full bg-mocha text-white text-xs font-bold flex items-center justify-center cursor-pointer"
-                  aria-label="Account"
+                  data-account-menu
+                  className="w-10 h-10 rounded-full bg-mocha text-white text-xs font-bold flex items-center justify-center cursor-pointer"
+                  aria-label="Account menu"
+                  aria-haspopup="true"
+                  aria-expanded={showAccountMenu}
                 >
                   {userInitial}
                 </button>
@@ -284,7 +302,7 @@ export function Navbar() {
 
       {/* Mobile account dropdown */}
       {showAccountMenu && isAuthenticated && (
-        <div className="lg:hidden absolute top-[80px] right-4 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
+        <div data-account-menu className="lg:hidden absolute top-[80px] right-4 w-56 bg-surface rounded-xl shadow-card border border-border-light py-2 z-50">
           <div className="px-4 py-3 border-b border-border-light">
             <p className="text-sm font-bold text-charcoal truncate">
               {user?.name}

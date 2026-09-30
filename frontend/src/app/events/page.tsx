@@ -5,7 +5,6 @@ import Image from "next/image";
 import { ArrowRight, MapPin, Calendar, Sparkles } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listEvents } from "@/lib/cms/events";
@@ -117,7 +116,7 @@ export default async function EventsPage() {
                         </div>
 
                         <div 
-                          className="prose prose-sm prose-p:leading-relaxed prose-p:text-text-muted mb-6 line-clamp-3"
+                          className="cms-html-content mb-6 line-clamp-3"
                           dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(event.shortDescription) }}
                         />
                       </div>
@@ -130,7 +129,6 @@ export default async function EventsPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

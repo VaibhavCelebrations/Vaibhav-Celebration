@@ -118,12 +118,13 @@ export async function listCollections(q: { featured?: boolean; festive?: boolean
 }
 
 export async function getCollectionBySlug(slug: string) {
-  const item = await cached(`pub:collections:slug:${slug}`, PUB_TTL, () =>
-    prisma.productCollection.findFirst({ where: { slug, ...activeWindow() }, include: collectionInclude }),
-  );
-  if (!item) throw new NotFoundError("Collection not found");
-  const shaped = shapeCollection(item);
-  if (shaped.productCount === 0) throw new NotFoundError("Collection not found");
+  // Cache the shaped collection, never the raw row: a row read back from Redis has its dates as
+  // strings, and shaping it then threw (500 on every cache hit). Versioned key: see getProductBySlug.
+  const shaped = await cached(`pub:collections:v2:slug:${slug}`, PUB_TTL, async () => {
+    const row = await prisma.productCollection.findFirst({ where: { slug, ...activeWindow() }, include: collectionInclude });
+    return row ? shapeCollection(row) : null;
+  });
+  if (!shaped || shaped.productCount === 0) throw new NotFoundError("Collection not found");
   return shaped;
 }
 
@@ -211,7 +212,8 @@ export async function adminListCollections(q: { page?: number; pageSize?: number
           updatedAt: c.updatedAt.toISOString(),
           deletedAt: c.deletedAt?.toISOString() ?? null,
           products,
-          productCount: products.length,
+          // Same rule as the storefront, which only counts (and only shows) active products.
+          productCount: products.filter((p) => p.isActive).length,
         };
       }),
       total,

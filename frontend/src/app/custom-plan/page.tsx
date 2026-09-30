@@ -6,7 +6,6 @@ import Image from "next/image";
 import { ArrowLeft, ArrowRight, Check, Loader2, MessageCircle, Palette, ShoppingCart, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { FooterClient } from "@/components/layout/FooterClient";
-import { WhatsAppFAB } from "@/components/layout/WhatsAppFAB";
 import { whatsappHref } from "@/lib/cms/map-media";
 import { envWhatsAppNumber } from "@/lib/business";
 import { useCatalog } from "@/context/catalog-context";
@@ -547,7 +546,6 @@ function CustomPlanContent() {
         </div>
       </main>
 
-      <WhatsAppFAB />
       <FooterClient />
     </>
   );

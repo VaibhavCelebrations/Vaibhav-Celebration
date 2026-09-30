@@ -73,15 +73,22 @@ export async function getCart(): Promise<ServerCart> {
   return apiFetch<ServerCart>("/cart", { cache: "no-store" });
 }
 
-export async function addCartItem(
-  productId: string,
-  quantity: number,
-  personalizationValues?: unknown,
-  registryItemId?: string,
-): Promise<ServerCart> {
+/** `personalizationSelected` left undefined means "no choice made here" — an existing line keeps its setting. */
+export type CartLineOptions = { personalizationSelected?: boolean; registryItemId?: string };
+
+export type GuestCartLine = { productId: string; quantity: number } & CartLineOptions;
+
+export async function addCartItem(productId: string, quantity: number, options: CartLineOptions = {}): Promise<ServerCart> {
   return apiFetch<ServerCart>("/cart/items", {
     method: "POST",
-    body: { productId, quantity, personalizationValues, registryItemId },
+    body: { productId, quantity, ...options },
+  });
+}
+
+export async function setCartItemPersonalization(lineKey: string, personalizationSelected: boolean): Promise<ServerCart> {
+  return apiFetch<ServerCart>(`/cart/items/${encodeURIComponent(lineKey)}`, {
+    method: "PATCH",
+    body: { personalizationSelected },
   });
 }
 
@@ -376,14 +383,16 @@ export async function uploadRegistryCoverImage(file: File): Promise<{ url: strin
   const formData = new FormData();
   formData.append("file", file);
 
-  const { getApiBaseUrl } = await import("./api-client");
+  const { getApiBaseUrl, fetchWithSessionRefresh } = await import("./api-client");
   const API_BASE = getApiBaseUrl();
 
-  const res = await fetch(`${API_BASE}/account/registries/upload-cover`, {
-    method: "POST",
-    body: formData,
-    credentials: "include",
-  });
+  const res = await fetchWithSessionRefresh(() =>
+    fetch(`${API_BASE}/account/registries/upload-cover`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    }),
+  );
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.success) {
@@ -395,7 +404,7 @@ export async function uploadRegistryCoverImage(file: File): Promise<{ url: strin
 
 /* -- Guest Checkout (No auth required) ------------------------------ */
 
-export async function getGuestCartQuote(cartItems: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>): Promise<ServerCart> {
+export async function getGuestCartQuote(cartItems: GuestCartLine[]): Promise<ServerCart> {
   return apiFetch<ServerCart>("/shop/guest-checkout/quote", {
     method: "POST",
     body: { cartItems },
@@ -403,7 +412,7 @@ export async function getGuestCartQuote(cartItems: Array<{ productId: string; qu
 }
 
 export async function createGuestShopOrder(input: {
-  cartItems: Array<{ productId: string; quantity: number; personalizationValues?: unknown; registryItemId?: string }>;
+  cartItems: GuestCartLine[];
   shippingAddress: ShippingAddress;
   contactEmail: string;
   contactPhone: string;

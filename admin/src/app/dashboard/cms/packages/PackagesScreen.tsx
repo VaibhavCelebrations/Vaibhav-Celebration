@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AdminApiError } from "@/lib/admin-api-client";
 import {
@@ -16,7 +16,17 @@ import { useToast } from "@/components/ui/Toast";
 import { NumberInput, PriceInput, TextArea, TextInput, ToggleSwitch } from "@/components/ui/fields";
 import { productsRepo } from "@/lib/data/products";
 import { themesRepo } from "@/lib/data/themes";
-import type { ExtraService, ExtraServiceInput, PackageMatrixRow, Product, Theme } from "@/types/cms";
+import { MediaPicker, MediaThumb } from "@/components/ui/MediaPicker";
+import {
+  CELEBRATION_STAGES,
+  CELEBRATION_STAGE_LABELS,
+  type ExtraService,
+  type ExtraServiceInput,
+  type PackageMatrixRow,
+  type Product,
+  type Theme,
+} from "@/types/cms";
+import type { MediaRef } from "@/types/common";
 import {
   ServiceProductAssignments,
   themesMissingProducts,
@@ -42,7 +52,20 @@ const EMPTY_SERVICE: ExtraServiceInput = {
   isProductChoice: false,
   selectionCount: 1,
   isPerGroup: false,
+  hasPreview: false,
+  celebrationStage: null,
 };
+
+/** How the customer meets a service in the builder. Exactly one applies. */
+type ServiceMode = "included" | "preview" | "choice";
+
+const SERVICE_MODES: Array<{ id: ServiceMode; title: string; hint: string }> = [
+  { id: "included", title: "Included only", hint: "Listed as part of the package. Nothing to view or choose." },
+  { id: "preview", title: "Preview", hint: "Customer sees your images and videos of it. Nothing to choose." },
+  { id: "choice", title: "Customize", hint: "Customer picks 1, 2 or 3 products for it." },
+];
+
+const MAX_PREVIEW_MEDIA = 20;
 
 export function PackagesScreen() {
   const [tab, setTab] = useState<Tab>("matrix");
@@ -66,6 +89,10 @@ export function PackagesScreen() {
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [themeProducts, setThemeProducts] = useState<ThemeProductMap>({});
+
+  // Preview setup — the service's own images/videos, in the order the customer sees them.
+  const [previewMedia, setPreviewMedia] = useState<MediaRef[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const toast = useToast();
 
@@ -209,8 +236,20 @@ export function PackagesScreen() {
       displayOrder: (matrix?.extraServices.length ?? 0) + 1,
     });
     setThemeProducts({});
+    setPreviewMedia([]);
     setServiceFormError(null);
     setServiceDrawer(true);
+  }
+
+  async function loadPreviewMedia(serviceId: string) {
+    setPreviewLoading(true);
+    try {
+      setPreviewMedia(await extraServicesRepo.previewMedia(serviceId));
+    } catch (err) {
+      setServiceFormError(err instanceof AdminApiError ? err.message : "Could not load the preview files.");
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   function openEditService(svc: ExtraService) {
@@ -225,16 +264,32 @@ export function PackagesScreen() {
       isProductChoice: svc.isProductChoice ?? false,
       selectionCount: svc.selectionCount ?? 1,
       isPerGroup: svc.isPerGroup ?? false,
+      hasPreview: svc.hasPreview ?? false,
+      celebrationStage: svc.celebrationStage ?? null,
     });
     setThemeProducts({});
+    setPreviewMedia([]);
     setServiceFormError(null);
     setServiceDrawer(true);
     if (svc.isProductChoice) void loadAssignments(svc.id);
+    if (svc.hasPreview) void loadPreviewMedia(svc.id);
   }
 
-  function onToggleProductChoice(enabled: boolean) {
-    setServiceForm((f) => ({ ...f, isProductChoice: enabled }));
-    if (enabled && Object.keys(themeProducts).length === 0) void loadAssignments(editingService?.id ?? null);
+  const serviceMode: ServiceMode = serviceForm.hasPreview ? "preview" : serviceForm.isProductChoice ? "choice" : "included";
+
+  function onServiceModeChange(mode: ServiceMode) {
+    setServiceForm((f) => ({ ...f, hasPreview: mode === "preview", isProductChoice: mode === "choice" }));
+    if (mode === "choice" && Object.keys(themeProducts).length === 0) void loadAssignments(editingService?.id ?? null);
+  }
+
+  function movePreviewMedia(index: number, by: -1 | 1) {
+    setPreviewMedia((list) => {
+      const target = index + by;
+      if (target < 0 || target >= list.length) return list;
+      const next = [...list];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   }
 
   async function onServiceSubmit(e: FormEvent<HTMLFormElement>) {
@@ -251,6 +306,16 @@ export function PackagesScreen() {
         return;
       }
     }
+    if (serviceForm.hasPreview) {
+      if (!serviceForm.celebrationStage) {
+        setServiceFormError("Choose where the preview appears: Before, During or After the celebration.");
+        return;
+      }
+      if (previewMedia.length === 0) {
+        setServiceFormError("Add at least one image or video for the preview.");
+        return;
+      }
+    }
     setServiceSubmitting(true);
     try {
       const body: ExtraServiceInput = {
@@ -262,6 +327,7 @@ export function PackagesScreen() {
               themeProducts: themes.map((t) => ({ themeId: t.id, productIds: themeProducts[t.id] ?? [] })),
             }
           : {}),
+        ...(serviceForm.hasPreview ? { previewMediaIds: previewMedia.map((m) => m.id) } : {}),
       };
       if (editingService) {
         await extraServicesRepo.update(editingService.id, body);
@@ -443,23 +509,156 @@ export function PackagesScreen() {
         </div>
 
         <div className="mt-4 rounded-lg border border-(--color-border-soft) p-4">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              id="svc-choice"
-              className="mt-0.5 h-4 w-4 cursor-pointer accent-(--color-mocha)"
-              checked={serviceForm.isProductChoice}
-              onChange={(e) => onToggleProductChoice(e.target.checked)}
-            />
-            <span>
-              <span className="block text-sm font-medium text-(--color-charcoal)">
-                Customize — customer picks products for this service
-              </span>
-              <span className="block text-xs text-(--color-text-muted)">
-                Shown in the &ldquo;Customize&rdquo; step for every package that includes this service in the matrix.
-              </span>
-            </span>
-          </label>
+          <p id="svc-mode-label" className="text-sm font-medium text-(--color-charcoal)">
+            How does the customer see this service?
+          </p>
+          <p className="mb-3 text-xs text-(--color-text-muted)">
+            Applies in the &ldquo;Customize&rdquo; step of every package that includes this service in the matrix. A
+            service is either previewed or customized, never both.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-labelledby="svc-mode-label">
+            {SERVICE_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="radio"
+                aria-checked={serviceMode === mode.id}
+                onClick={() => onServiceModeChange(mode.id)}
+                className={`cursor-pointer rounded-md border p-3 text-left transition-colors ${
+                  serviceMode === mode.id
+                    ? "border-(--color-mocha) bg-(--color-mocha)/5"
+                    : "border-(--color-border) hover:border-(--color-mocha)"
+                }`}
+              >
+                <span className="block text-sm font-semibold text-(--color-charcoal)">{mode.title}</span>
+                <span className="mt-0.5 block text-xs text-(--color-text-muted)">{mode.hint}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 border-t border-(--color-border-soft) pt-4">
+            <FormField
+              label="Celebration stage"
+              htmlFor="svc-stage"
+              hint={
+                serviceForm.isProductChoice
+                  ? "Where this service is listed on the package pages. In the Customize step it follows its products' category."
+                  : "Where customers see this service: on the package pages and in the Customize step."
+              }
+              required={serviceForm.hasPreview}
+            >
+              <div id="svc-stage" className="flex flex-wrap gap-2" role="radiogroup">
+                {CELEBRATION_STAGES.map((stage) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    role="radio"
+                    aria-checked={serviceForm.celebrationStage === stage}
+                    onClick={() => setServiceForm({ ...serviceForm, celebrationStage: stage })}
+                    className={`h-10 cursor-pointer rounded-md border px-3 text-sm font-medium transition-colors ${
+                      serviceForm.celebrationStage === stage
+                        ? "border-(--color-mocha) bg-(--color-mocha) text-white"
+                        : "border-(--color-border) hover:border-(--color-mocha)"
+                    }`}
+                  >
+                    {CELEBRATION_STAGE_LABELS[stage]}
+                  </button>
+                ))}
+                {!serviceForm.hasPreview && (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={serviceForm.celebrationStage === null}
+                    onClick={() => setServiceForm({ ...serviceForm, celebrationStage: null })}
+                    className={`h-10 cursor-pointer rounded-md border px-3 text-sm font-medium transition-colors ${
+                      serviceForm.celebrationStage === null
+                        ? "border-(--color-mocha) bg-(--color-mocha) text-white"
+                        : "border-(--color-border) hover:border-(--color-mocha)"
+                    }`}
+                  >
+                    Not set
+                  </button>
+                )}
+              </div>
+            </FormField>
+          </div>
+
+          {serviceForm.hasPreview && (
+            <div className="mt-4 space-y-4 border-t border-(--color-border-soft) pt-4">
+              <div>
+                <p className="mb-1 text-sm font-medium text-(--color-charcoal)">Preview images and videos</p>
+                <p className="mb-2 text-xs text-(--color-text-muted)">
+                  Shown in this order. The first one is the cover. Videos: MP4 or WebM, up to 50 MB.
+                </p>
+                {previewLoading ? (
+                  <p className="flex items-center gap-2 text-sm text-(--color-text-muted)">
+                    <Loader2 size={14} className="animate-spin" /> Loading preview files…
+                  </p>
+                ) : (
+                  <>
+                    {previewMedia.length > 0 && (
+                      <ul className="mb-3 space-y-2">
+                        {previewMedia.map((media, index) => (
+                          <li
+                            key={media.id}
+                            className="flex items-center gap-3 rounded-md border border-(--color-border-soft) p-2"
+                          >
+                            <MediaThumb media={media} className="h-12 w-16 shrink-0 rounded" />
+                            <span className="min-w-0 flex-1 truncate text-sm text-(--color-charcoal)">
+                              {media.altText || (media.type?.startsWith("video/") ? "Video" : "Image")}
+                              {index === 0 && (
+                                <span className="ml-2 rounded bg-(--color-mocha)/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-(--color-mocha)">
+                                  Cover
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="Move up"
+                              disabled={index === 0}
+                              onClick={() => movePreviewMedia(index, -1)}
+                              className="btn btn-ghost p-1.5 disabled:opacity-30"
+                            >
+                              <ArrowUp size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Move down"
+                              disabled={index === previewMedia.length - 1}
+                              onClick={() => movePreviewMedia(index, 1)}
+                              className="btn btn-ghost p-1.5 disabled:opacity-30"
+                            >
+                              <ArrowDown size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Remove from preview"
+                              onClick={() => setPreviewMedia((list) => list.filter((m) => m.id !== media.id))}
+                              className="btn btn-ghost p-1.5 text-(--color-error)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {previewMedia.length < MAX_PREVIEW_MEDIA && (
+                      <MediaPicker
+                        value={null}
+                        kind="media"
+                        scope="services"
+                        onChange={(media) => {
+                          if (!media) return;
+                          // Picking the same file twice would only duplicate it in the customer's gallery.
+                          setPreviewMedia((list) => (list.some((m) => m.id === media.id) ? list : [...list, media]));
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {serviceForm.isProductChoice && (
             <div className="mt-4 space-y-4 border-t border-(--color-border-soft) pt-4">
@@ -661,6 +860,7 @@ function PackageMatrixEditor({
               <td className="sticky left-0 z-10 bg-white px-4 py-3 align-top">
                 <p className="font-medium text-(--color-charcoal)">{svc.label}</p>
                 {svc.isProductChoice && <ChoiceBadge svc={svc} />}
+                {svc.hasPreview && <PreviewBadge svc={svc} />}
                 {svc.description && (
                   <p className="mt-0.5 text-xs text-(--color-text-muted) line-clamp-2">{svc.description}</p>
                 )}
@@ -719,6 +919,14 @@ function ChoiceBadge({ svc }: { svc: ExtraService }) {
   );
 }
 
+function PreviewBadge({ svc }: { svc: ExtraService }) {
+  return (
+    <span className="mt-1 inline-block rounded bg-(--color-mocha)/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-(--color-mocha)">
+      Preview{svc.celebrationStage ? ` · ${svc.celebrationStage.toLowerCase()}` : ""}
+    </span>
+  );
+}
+
 function ExtraServicesList({
   services,
   onEdit,
@@ -749,6 +957,7 @@ function ExtraServicesList({
                 </span>
               )}
               {svc.isProductChoice && <ChoiceBadge svc={svc} />}
+              {svc.hasPreview && <PreviewBadge svc={svc} />}
             </div>
             {svc.description && (
               <p className="mt-1 text-sm text-(--color-text-muted)">{svc.description}</p>

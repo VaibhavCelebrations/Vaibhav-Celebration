@@ -435,7 +435,10 @@ export function ProductsScreen() {
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <p className="text-[0.8125rem] font-medium text-(--color-charcoal)">Personalization</p>
-              <p className="text-xs text-(--color-text-muted)">Enable paid customization and define fields customers fill before adding to cart.</p>
+              <p className="text-xs text-(--color-text-muted)">
+                Customers opt in on the product page, in a package or in the cart, and see the extra cost before paying. Your team
+                collects the details on WhatsApp after the order. Fields below are optional: a checklist of what to collect.
+              </p>
             </div>
             <ToggleSwitch
               checked={form.personalizationEnabled}

@@ -4,7 +4,6 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { buildPageMetadata } from "@/lib/cms/metadata";
 import { listThemes } from "@/lib/cms/themes";
@@ -88,7 +87,6 @@ export default async function ThemesPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { CTABand } from "@/components/home/CTABand";
 import { WhyUsSection } from "@/components/home/WhyUsSection";
 import { TestimonialCarousel } from "@/components/home/TestimonialCarousel";
@@ -152,7 +151,6 @@ export default async function AboutPage() {
         <CTABand settings={settings ?? undefined} whatsappNumber={whatsappNumber} />
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { WhatsAppFABServer } from "@/components/layout/WhatsAppFABServer";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { buildPageMetadata } from "@/lib/cms/metadata";
@@ -96,7 +95,6 @@ export default async function ContactPage() {
         </div>
       </main>
       <Footer />
-      <WhatsAppFABServer />
     </>
   );
 }

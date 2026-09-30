@@ -4,6 +4,7 @@ import { Loader2, Sparkles, X } from "lucide-react";
 import { FreeDeliveryProgress } from "@/components/ecom/FreeDeliveryProgress";
 import type { BuilderLineItem, BuilderQuote } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
+import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
 
 const SECTION_TITLES: Record<string, string> = {
   "per-child": "Per-child items",
@@ -34,8 +35,7 @@ export function PersonalizationNotice({ className = "" }: { className?: string }
     <div className={`flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 ${className}`}>
       <Sparkles size={16} className="text-amber-700 mt-0.5 shrink-0" />
       <p className="text-xs text-amber-900 leading-relaxed">
-        <strong>Personalised items in your plan.</strong> Our team will contact you soon to collect the details before we
-        start production.
+        <strong>Personalised items in your plan.</strong> {PERSONALIZATION_FOLLOW_UP_NOTE}
       </p>
     </div>
   );

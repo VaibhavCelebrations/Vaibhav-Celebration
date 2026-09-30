@@ -31,7 +31,84 @@ type RequestOptions = {
   next?: { revalidate?: number | false; tags?: string[] };
 };
 
+/* ── Silent session refresh (browser only) ─────────────────────────────
+   The access cookie lasts 15 minutes; the session cookie lasts weeks. When a
+   call comes back 401 we rotate the session once and replay the call, so a
+   signed-in customer never has to reload the page to keep working. */
+
+/** Calls whose 401 means "wrong credentials" or that manage the session themselves. */
+const NO_REFRESH_PATHS = [
+  "/customer/auth/refresh",
+  "/customer/auth/login",
+  "/customer/auth/signup",
+  "/customer/auth/logout",
+];
+
+export type RefreshOutcome = "refreshed" | "signed-out" | "unavailable";
+
+const authLostListeners = new Set<() => void>();
+
+/** Subscribe to "the session is really gone" (refresh was rejected). Returns an unsubscribe. */
+export function onAuthLost(listener: () => void): () => void {
+  authLostListeners.add(listener);
+  return () => {
+    authLostListeners.delete(listener);
+  };
+}
+
+async function requestRefresh(): Promise<RefreshOutcome> {
+  try {
+    const res = await fetch(`${API_BASE}/customer/auth/refresh`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    if (res.ok) return "refreshed";
+    // 429 / 5xx: the session may well be fine — don't sign the customer out over it.
+    if (res.status !== 401) return "unavailable";
+    const json = (await res.json().catch(() => null)) as ApiFailure | null;
+    if (json?.error?.code === "SESSION_REFRESH_RACE") {
+      // Another request rotated the session a moment ago; give its cookies time to land.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return "refreshed";
+    }
+    return "signed-out";
+  } catch {
+    return "unavailable";
+  }
+}
+
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+/** One refresh at a time per tab, and (via Web Locks) one at a time across tabs. */
+export function refreshSession(): Promise<RefreshOutcome> {
+  if (!refreshInFlight) {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    const run: Promise<RefreshOutcome> = locks
+      ? (async () => await locks.request("vc-session-refresh", requestRefresh))()
+      : requestRefresh();
+    refreshInFlight = run.finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/**
+ * For the rare call that can't go through `apiFetch` (multipart uploads): run it, and if the
+ * access token has lapsed, refresh and run it once more.
+ */
+export async function fetchWithSessionRefresh(send: () => Promise<Response>): Promise<Response> {
+  const res = await send();
+  if (res.status !== 401 || typeof window === "undefined") return res;
+  const outcome = await refreshSession();
+  if (outcome === "refreshed") return send();
+  if (outcome === "signed-out") authLostListeners.forEach((listener) => listener());
+  return res;
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...options.headers,
@@ -60,9 +137,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     }
   }
 
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+  const send = () =>
+    fetch(`${API_BASE}${normalizedPath}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -70,6 +146,12 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       next: options.next,
       credentials: "include",
     });
+
+  let res: Response;
+  try {
+    res = NO_REFRESH_PATHS.some((p) => normalizedPath.startsWith(p))
+      ? await send()
+      : await fetchWithSessionRefresh(send);
   } catch {
     throw new ApiClientError(
       "NETWORK_ERROR",
