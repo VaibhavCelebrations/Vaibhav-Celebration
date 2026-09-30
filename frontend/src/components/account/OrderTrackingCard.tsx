@@ -104,6 +104,9 @@ function detectCarrier(url: string | null): CarrierInfo {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./, "");
+    if (host.includes("vaibhavcelebrations")) {
+      return { name: "Vaibhav Celebrations Delivery", partnerBadge: "In-house Dispatch", domainText: host };
+    }
     const formatted = host.split(".")[0];
     const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
     return {
@@ -186,150 +189,114 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
     `Hi Vaibhav Celebrations! I'm inquiring about delivery and tracking for my order #${order.orderCode}.`
   );
 
+  const statusTitle = isDelivered ? "Order Delivered" : isShipped ? "Shipment In Transit" : "Order Confirmed & Preparing";
+  const statusText = isDelivered
+    ? "Delivered to your shipping address. We hope your celebration is magical!"
+    : isShipped
+      ? "Dispatched via our courier partner. Use the tracking link below for live updates."
+      : "Your celebration items are being handpicked, customised and prepared for dispatch.";
+
   return (
     <section
       aria-label="Order Tracking and Fulfillment"
-      className="bg-surface rounded-2xl border border-border-light shadow-soft overflow-hidden"
+      className="@container bg-surface rounded-2xl border border-border-light shadow-soft overflow-hidden"
     >
-      {/* Top Header */}
-      <div className="bg-cream/40 border-b border-border-light p-5 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                isDelivered
-                  ? "bg-emerald-100 text-emerald-800"
-                  : isShipped
-                    ? "bg-mocha text-white ring-4 ring-mocha/10"
-                    : "bg-surface text-mocha border border-border-light"
-              }`}
-            >
-              {isDelivered ? (
-                <CheckCircle2 size={22} className="text-emerald-700" />
-              ) : isShipped ? (
-                <Truck size={22} className="animate-pulse" />
-              ) : (
-                <Package size={22} />
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg sm:text-xl font-bold text-charcoal">
-                  {isDelivered
-                    ? "Order Delivered"
-                    : isShipped
-                      ? "Shipment In Transit"
-                      : "Order Confirmed & Preparing"}
-                </h2>
-                {isShipped && (
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                  </span>
-                )}
-              </div>
-              <p className="text-xs sm:text-sm text-text-muted mt-0.5">
-                {isDelivered
-                  ? "Delivered to your shipping address. We hope your celebration is magical!"
-                  : isShipped
-                    ? "Dispatched via verified courier partner. Real-time carrier tracking is active."
-                    : "Your celebration items are being handpicked, customized, and prepared for dispatch."}
-              </p>
-            </div>
+      {/* Header */}
+      <div className="bg-cream/40 border-b border-border-light p-5 @md:p-6">
+        <div className="flex items-start gap-3.5">
+          <div
+            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+              isDelivered
+                ? "bg-emerald-100 text-emerald-700"
+                : isShipped
+                  ? "bg-mocha text-white ring-4 ring-mocha/10"
+                  : "bg-surface text-mocha border border-border-light"
+            }`}
+          >
+            {isDelivered ? <CheckCircle2 size={22} /> : isShipped ? <Truck size={22} /> : <Package size={22} />}
           </div>
 
-          <div className="shrink-0 self-start sm:self-auto">
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                isDelivered
-                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                  : isShipped
-                    ? "bg-purple-100 text-purple-900 border border-purple-200"
-                    : "bg-blue-50 text-blue-800 border border-blue-100"
-              }`}
-            >
-              {isDelivered ? (
-                <>
-                  <CheckCircle2 size={13} /> Delivered
-                </>
-              ) : isShipped ? (
-                <>
-                  <Truck size={13} /> Dispatched & On The Way
-                </>
-              ) : (
-                <>
-                  <Clock size={13} /> In Preparation
-                </>
-              )}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <h2 className="font-display text-lg @md:text-xl font-bold text-charcoal">{statusTitle}</h2>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                  isDelivered
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : isShipped
+                      ? "bg-mocha/10 text-mocha border border-mocha/20"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+              >
+                {isDelivered ? (
+                  <>
+                    <CheckCircle2 size={12} /> Delivered
+                  </>
+                ) : isShipped ? (
+                  <>
+                    <Truck size={12} /> On The Way
+                  </>
+                ) : (
+                  <>
+                    <Clock size={12} /> In Preparation
+                  </>
+                )}
+              </span>
+            </div>
+            <p className="text-sm text-text-muted mt-1 leading-relaxed">{statusText}</p>
           </div>
         </div>
 
-        {/* Visual Progress Stepper with EXACT vertical line alignment */}
-        <div className="mt-7 pt-6 border-t border-border-light/60">
+        {/* Progress stepper — vertical on narrow cards, horizontal once the card itself is wide enough */}
+        <div className="mt-6 pt-6 border-t border-border-light/60">
           <div className="relative">
-            {/* Background connection bar: strictly at top-[18px], middle of the 36px circle (w-9 h-9) */}
-            <div className="hidden sm:block absolute top-[18px] left-[10%] right-[10%] h-[3px] bg-border-light rounded-full -translate-y-1/2 -z-0" />
-
-            {/* Active progress bar: strictly at top-[18px] */}
+            <div className="hidden @md:block absolute top-[18px] left-[10%] right-[10%] h-[3px] bg-border-light rounded-full -translate-y-1/2" />
             <div
-              className="hidden sm:block absolute top-[18px] left-[10%] h-[3px] bg-mocha rounded-full transition-all duration-500 -translate-y-1/2 -z-0"
-              style={{
-                width: `${Math.min(80, (currentStepIndex / 4) * 80)}%`,
-              }}
+              className="hidden @md:block absolute top-[18px] left-[10%] h-[3px] bg-mocha rounded-full transition-all duration-500 -translate-y-1/2"
+              style={{ width: `${(currentStepIndex / 4) * 80}%` }}
             />
 
-            <ol className="relative z-10 grid grid-cols-2 sm:grid-cols-5 gap-y-4 gap-x-2">
+            <ol className="relative grid grid-cols-1 @md:grid-cols-5 gap-3 @md:gap-2">
               {TIMELINE_STEPS.map((step, idx) => {
-                const isStepCompleted = idx < currentStepIndex;
-                const isStepCurrent = idx === currentStepIndex;
-
-                let state = "upcoming";
-                if (isStepCompleted) state = "completed";
-                else if (isStepCurrent) state = "current";
+                const state =
+                  idx < currentStepIndex || (isDelivered && idx === currentStepIndex)
+                    ? "completed"
+                    : idx === currentStepIndex
+                      ? "current"
+                      : "upcoming";
 
                 return (
-                  <li key={step.key} className="flex sm:flex-col items-center sm:text-center gap-3 sm:gap-2">
-                    {/* Circle is strictly 36px (w-9 h-9) with solid background so line stays behind */}
+                  <li key={step.key} className="flex @md:flex-col items-center @md:text-center gap-3 @md:gap-2">
                     <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all duration-300 ${
+                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                         state === "completed"
-                          ? "bg-mocha text-white shadow-sm ring-4 ring-mocha/10"
+                          ? "bg-mocha text-white ring-4 ring-mocha/10"
                           : state === "current"
-                            ? "bg-mocha text-white ring-4 ring-mocha/20 animate-pulse shadow-sm"
+                            ? "bg-surface text-mocha border-2 border-mocha ring-4 ring-mocha/15"
                             : "bg-surface text-text-light border-2 border-border-light"
                       }`}
                     >
                       {state === "completed" ? (
                         <Check size={15} className="stroke-[3]" />
-                      ) : state === "current" ? (
-                        idx === 3 ? (
-                          <Truck size={15} />
-                        ) : idx === 4 ? (
-                          <CheckCircle2 size={15} />
-                        ) : (
-                          idx + 1
-                        )
+                      ) : state === "current" && idx === 3 ? (
+                        <Truck size={15} />
                       ) : (
                         idx + 1
                       )}
                     </div>
-
-                    {/* Labels are placed strictly BELOW the circle container */}
                     <div className="min-w-0">
                       <p
-                        className={`text-xs font-semibold leading-snug ${
+                        className={`text-xs leading-snug ${
                           state === "current"
                             ? "text-mocha font-bold"
                             : state === "completed"
-                              ? "text-charcoal"
-                              : "text-text-muted"
+                              ? "text-charcoal font-semibold"
+                              : "text-text-muted font-medium"
                         }`}
                       >
                         {step.label}
                       </p>
-                      <p className="text-[11px] text-text-light hidden sm:block mt-0.5">{step.subtitle}</p>
+                      <p className="text-[11px] text-text-light mt-0.5">{step.subtitle}</p>
                     </div>
                   </li>
                 );
@@ -339,133 +306,123 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
         </div>
       </div>
 
-      {/* Main Body */}
-      <div className="p-5 sm:p-6 space-y-6">
-        {/* Dispatched / Shipped Details */}
+      {/* Body */}
+      <div className="p-5 @md:p-6 space-y-5">
         {isShipped || isDelivered || validTrackingUrl ? (
-          <div className="bg-sand/30 rounded-2xl p-5 border border-border-light space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold uppercase tracking-wider text-mocha">
-                    Logistics Partner
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    <ShieldCheck size={13} className="text-emerald-600" /> {carrier.partnerBadge}
+          <div className="rounded-2xl border border-border-light bg-sand/30 p-4 @md:p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-mocha/10 text-mocha flex items-center justify-center shrink-0">
+                <Truck size={19} />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-mocha">Logistics Partner</span>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <ShieldCheck size={12} className="text-emerald-600" /> {carrier.partnerBadge}
                   </span>
                 </div>
-                <h3 className="font-display text-lg font-bold text-charcoal">{carrier.name}</h3>
-                <p className="text-xs text-text-muted">
-                  Official courier portal: <span className="font-mono text-charcoal">{carrier.domainText}</span>
+                <h3 className="font-display text-lg font-bold text-charcoal leading-tight">{carrier.name}</h3>
+                <p className="text-xs text-text-muted truncate">
+                  Courier portal: <span className="font-mono text-charcoal">{carrier.domainText}</span>
                 </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                {validTrackingUrl ? (
-                  <>
-                    <a
-                      href={validTrackingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-                      title="Open official courier tracking in new tab"
-                    >
-                      <Truck size={17} />
-                      <span>Track Order</span>
-                      <ExternalLink size={14} className="opacity-80" />
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={handleCopy}
-                      title="Copy tracking link to clipboard"
-                      className="btn-outline inline-flex items-center gap-1.5 px-3.5 py-3 text-xs font-semibold bg-surface hover:bg-cream border-border-light transition-all"
-                    >
-                      {copied ? (
-                        <>
-                          <Check size={14} className="text-emerald-600 stroke-[3]" />
-                          <span className="text-emerald-700 font-bold">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={14} />
-                          <span>Copy Link</span>
-                        </>
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                    <AlertCircle size={15} className="shrink-0" />
-                    <span>Tracking link syncing with courier partner. Check back shortly.</span>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Direct URL destination with security notice */}
-            {validTrackingUrl && (
-              <div className="pt-3 border-t border-border-light/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-text-muted">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-medium text-charcoal shrink-0">Tracking Link:</span>
+            {validTrackingUrl ? (
+              <>
+                <div className="grid grid-cols-1 @sm:grid-cols-[1fr_auto] gap-2.5">
                   <a
                     href={validTrackingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-mocha hover:underline truncate max-w-md block"
-                    title={validTrackingUrl}
+                    className="btn-primary inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold"
+                    title="Open courier tracking in a new tab"
                   >
-                    {validTrackingUrl}
+                    <Truck size={17} />
+                    <span>Track Order</span>
+                    <ExternalLink size={14} className="opacity-80" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    title="Copy tracking link to clipboard"
+                    className="btn-outline inline-flex items-center justify-center gap-1.5 px-4 py-3 text-sm font-semibold bg-surface"
+                  >
+                    {copied ? (
+                      <>
+                        <Check size={15} className="text-emerald-600 stroke-[3]" />
+                        <span className="text-emerald-700">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={15} />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-[11px] text-text-light shrink-0">
-                  <ShieldCheck size={13} className="text-emerald-600" />
-                  <span>Opens securely in new tab &middot; Insured Dispatch</span>
+                <div className="rounded-xl bg-surface border border-border-light px-3.5 py-2.5 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium text-charcoal shrink-0">Tracking link</span>
+                    <a
+                      href={validTrackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-mocha hover:underline truncate min-w-0"
+                      title={validTrackingUrl}
+                    >
+                      {validTrackingUrl}
+                    </a>
+                  </div>
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-text-light">
+                    <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
+                    Opens securely in a new tab · Insured dispatch
+                  </p>
                 </div>
+              </>
+            ) : (
+              <div className="flex items-start gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <AlertCircle size={15} className="shrink-0 mt-px" />
+                <span>Tracking link is syncing with the courier partner. Please check back shortly.</span>
               </div>
             )}
           </div>
         ) : (
-          /* Preparing state when order is paid but not yet shipped */
-          <div className="bg-sand/30 rounded-2xl p-5 border border-border-light space-y-3">
+          <div className="rounded-2xl border border-border-light bg-sand/30 p-4 @md:p-5 space-y-3">
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-mocha/10 text-mocha flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-mocha/10 text-mocha flex items-center justify-center shrink-0">
                 <Sparkles size={20} />
               </div>
               <div className="space-y-1">
-                <h3 className="font-display text-base font-bold text-charcoal">
-                  Celebration Items in Preparation
-                </h3>
-                <p className="text-xs sm:text-sm text-text-muted leading-relaxed">
-                  Your order has been verified and allocated to our curation and packing studio. Once quality checks and customized elements are finalized, your package will be handed over to our express courier partner.
+                <h3 className="font-display text-base font-bold text-charcoal">Celebration Items in Preparation</h3>
+                <p className="text-sm text-text-muted leading-relaxed">
+                  Your order has been verified and allocated to our curation and packing studio. Once quality checks
+                  and customised elements are finalised, it will be handed over to our courier partner.
                 </p>
               </div>
             </div>
-
-            <div className="pt-3 border-t border-border-light/70 flex items-center gap-2 text-xs text-mocha font-medium">
-              <Clock size={14} className="shrink-0" />
-              <span>Real-time courier tracking link will be sent to your WhatsApp & Email once dispatched.</span>
+            <div className="pt-3 border-t border-border-light/70 flex items-start gap-2 text-xs text-mocha font-medium">
+              <Clock size={14} className="shrink-0 mt-px" />
+              <span>The courier tracking link will be sent to your WhatsApp &amp; email once dispatched.</span>
             </div>
           </div>
         )}
 
-        {/* Footer Support & Guarantee */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border-light text-xs text-text-muted">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={14} className="text-mocha shrink-0" />
-            <span>All shipments are tamper-sealed and insured against transit damages.</span>
+        {/* Footer */}
+        <div className="flex flex-col @lg:flex-row @lg:items-center justify-between gap-3 pt-4 border-t border-border-light text-xs text-text-muted">
+          <div className="flex items-start gap-2">
+            <ShieldCheck size={14} className="text-mocha shrink-0 mt-px" />
+            <span>All shipments are tamper-sealed and insured against transit damage.</span>
           </div>
-
           <a
             href={conciergeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-mocha hover:text-mocha-dark font-semibold transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 self-start @lg:self-auto rounded-full border border-mocha/20 bg-mocha/5 px-3 py-1.5 text-mocha hover:bg-mocha/10 font-semibold transition-colors shrink-0"
           >
             <MessageCircle size={14} />
-            <span>Need delivery assistance? WhatsApp Concierge</span>
+            <span>Delivery help on WhatsApp</span>
           </a>
         </div>
       </div>
