@@ -40,8 +40,15 @@ export const envSchema = z.object({
   /** Password reset link validity — enforced server-side even if JWT-less token */
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().default(10),
   EMAIL_VERIFICATION_TOKEN_TTL_HOURS: z.coerce.number().default(48),
-  /** Used to build absolute links in transactional emails (reset/verify) */
-  FRONTEND_URL: z.string().default("http://localhost:3000"),
+  /**
+   * Used to build absolute links in transactional emails (reset/verify) and registry share URLs.
+   * Must be a single origin — if a comma-separated list is supplied (a common copy-paste from
+   * CORS_ORIGINS), only the first entry is used and trailing slashes are stripped.
+   */
+  FRONTEND_URL: z
+    .string()
+    .default("http://localhost:3000")
+    .transform((v) => (v.split(",")[0] ?? "").trim().replace(/\/+$/, "")),
   CUSTOMER_MAX_FAILED_LOGINS: z.coerce.number().default(5),
   CUSTOMER_LOCKOUT_MINUTES: z.coerce.number().default(15),
   OTP_EXPIRES_MINUTES: z.coerce.number().default(10),
@@ -85,11 +92,15 @@ export const envSchema = z.object({
   PHONE_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().default(10),
   /** Template name used for Meta WhatsApp Authentication OTP. Defaults to phone_otp_verification. */
   WHATSAPP_PHONE_OTP_TEMPLATE: z.string().default("phone_otp_verification"),
-  /** Whether the Meta Authentication template includes a copy-code button component. */
+  /**
+   * Whether the Meta Authentication template includes a copy-code / one-tap button component.
+   * Meta Authentication templates always carry an OTP button, so this defaults to true —
+   * omitting the button parameter makes Meta reject the send with #131008.
+   */
   WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON: z
     .string()
     .optional()
-    .transform((v) => v === "true"),
+    .transform((v) => v !== "false"),
   /** Explicit opt-in gate for scripts/test-whatsapp.ts to send a REAL template message. Never enabled by default. */
   TEST_WHATSAPP_SEND: z
     .string()

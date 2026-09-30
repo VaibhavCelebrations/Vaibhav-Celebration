@@ -27,12 +27,13 @@ type BuiltMessage = Omit<SendTemplateMessageInput, "toPhoneE164">;
 
 /**
  * Meta Authentication template OTP for customer phone verification.
- * Passes the 6-digit OTP as body parameter {{1}}.
- * Supports optional copy-code button component when WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON=true.
+ * Passes the 6-digit OTP as body parameter {{1}} AND as the OTP button's URL
+ * parameter — Meta requires both, otherwise the send fails with #131008.
+ * Set WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON=false only for a template without a button.
  */
 export function buildPhoneOtpMessage(otp: string, options?: { hasCopyCodeButton?: boolean }): BuiltMessage {
   const template = WHATSAPP_TEMPLATES.phoneOtpVerification;
-  const hasButton = options?.hasCopyCodeButton ?? env.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON ?? false;
+  const hasButton = options?.hasCopyCodeButton ?? env.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON ?? true;
 
   const buttons = hasButton
     ? [

@@ -50,6 +50,60 @@ describe("parseProductHtml", () => {
     expect(parsePriceToPaise(parsed.price, parsed.currency)).toBe(249900);
   });
 
+  it("picks the lowest offer from a JSON-LD offer array and AggregateOffer", () => {
+    const arrayHtml = `<script type="application/ld+json">{"@type":"Product","name":"Toy","offers":[{"@type":"Offer","price":"1599","priceCurrency":"INR"},{"@type":"Offer","price":"1299","priceCurrency":"INR"}]}</script>`;
+    expect(parseProductHtml(arrayHtml, "https://shop.test/toy").price).toBe("1299");
+    const aggHtml = `<script type="application/ld+json">{"@graph":[{"@type":"Product","name":"Toy","offers":{"@type":"AggregateOffer","lowPrice":899,"priceCurrency":"INR"}}]}</script>`;
+    expect(parsePriceToPaise(parseProductHtml(aggHtml, "https://shop.test/toy").price, "INR")).toBe(89900);
+  });
+
+  it("reads prices from a Shopify ProductGroup variant and priceSpecification", () => {
+    const html = `<script type="application/ld+json">{"@type":"ProductGroup","name":"Dress","hasVariant":[{"@type":"Product","offers":{"@type":"Offer","priceSpecification":{"price":"2,450.00","priceCurrency":"INR"}}}]}</script>`;
+    const parsed = parseProductHtml(html, "https://store.test/products/dress");
+    expect(parsePriceToPaise(parsed.price, parsed.currency)).toBe(245000);
+    expect(parsed.currency).toBe("INR");
+  });
+
+  it("prefers the meta sale price over the list price", () => {
+    const html = `<meta property="og:title" content="Lamp"><meta property="product:price:amount" content="3000"><meta property="product:sale_price:amount" content="2200">`;
+    expect(parseProductHtml(html, "https://shop.test/lamp").price).toBe("2200");
+  });
+
+  it("extracts the Amazon price-to-pay when no structured price exists", () => {
+    const html = `<meta property="og:title" content="LEGO Classic"><div id="corePriceDisplay_desktop_feature_div"><span class="a-price priceToPay"><span class="a-offscreen">₹1,299.00</span><span class="a-price-whole">1,299</span></span></div><span class="a-price a-text-price"><span class="a-offscreen">₹1,999.00</span></span>`;
+    const parsed = parseProductHtml(html, "https://www.amazon.in/dp/B0EXAMPLE");
+    expect(parsePriceToPaise(parsed.price, parsed.currency)).toBe(129900);
+    expect(parsed.currency).toBe("INR");
+    expect(parsed.extractionMethod).toContain("amazon:price");
+  });
+
+  it("extracts the Flipkart final price from embedded state", () => {
+    const html = `<script>window.__INITIAL_STATE__={"pricing":{"mrp":{"value":79900},"finalPrice":{"currency":"INR","value":69999}}}</script>`;
+    const parsed = parseProductHtml(html, "https://www.flipkart.com/apple-iphone-15/p/itm6ac6485515ae4");
+    expect(parsePriceToPaise(parsed.price, parsed.currency)).toBe(6999900);
+  });
+
+  it("extracts the Myntra discounted price", () => {
+    const html = `<script>window.__myntra_preloaded_state__={"pdpData":{"price":{"mrp":2999,"discounted":1499}}}</script>`;
+    expect(parseProductHtml(html, "https://www.myntra.com/dresses/x/123/buy").price).toBe("1499");
+  });
+
+  it("falls back to microdata and visible price elements, skipping struck-out MRP", () => {
+    const micro = `<span itemprop="price" content="749.00">₹749</span>`;
+    expect(parseProductHtml(micro, "https://shop.test/a").price).toBe("749.00");
+    const visible = `<span class="price-strike">₹999</span><div class="product-price"><span>₹ 1,149</span></div>`;
+    expect(parsePriceToPaise(parseProductHtml(visible, "https://shop.test/b").price, null)).toBe(114900);
+  });
+
+  it("parses messy price strings into paise", () => {
+    expect(parsePriceToPaise("Rs. 1,299", "INR")).toBe(129900);
+    expect(parsePriceToPaise("₹1,29,999.50", "INR")).toBe(12999950);
+    expect(parsePriceToPaise("1.299,00", "EUR")).toBe(129900);
+    expect(parsePriceToPaise("499 - 899", "INR")).toBe(49900);
+    expect(parsePriceToPaise("0", "INR")).toBeNull();
+    expect(parsePriceToPaise("Out of stock", "INR")).toBeNull();
+  });
+
   it("does not crash on empty html", () => {
     const parsed = parseProductHtml("<html></html>", "https://example.com");
     expect(parsed.title).toBeNull();

@@ -210,15 +210,20 @@ function parseJsonLd(html: string): Partial<ParsedProductMeta> & { images: Image
   for (const script of scripts) {
     const raw = script.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
     try {
-      const parsed = JSON.parse(raw) as unknown;
+      const parsed = JSON.parse(raw.replace(/^<!--|-->$/g, "")) as unknown;
       const nodes = flattenJsonLd(parsed);
-      const product = nodes.find((n) => typeIncludes(n, "Product"));
+      const product =
+        nodes.find((n) => typeIncludes(n, "Product")) ?? nodes.find((n) => typeIncludes(n, "ProductGroup"));
       if (!product) continue;
-      const offer = asRecord(product.offers) ?? (Array.isArray(product.offers) ? asRecord(product.offers[0]) : null);
       title = title ?? str(product.name);
       description = description ?? str(product.description);
-      price = price ?? str(offer?.price ?? offer?.lowPrice ?? product.price);
-      currency = currency ?? str(offer?.priceCurrency ?? product.priceCurrency);
+      const variants = Array.isArray(product.hasVariant) ? product.hasVariant.map(asRecord) : [];
+      for (const node of [product, ...variants]) {
+        if (price || !node) continue;
+        const offer = pickJsonLdOffer(node.offers);
+        price = offer?.price ?? str(node.price);
+        currency = currency ?? offer?.currency ?? str(node.priceCurrency);
+      }
       storeName = storeName ?? str(asRecord(product.brand)?.name) ?? str(product.brand);
       for (const image of collectJsonLdImages(product.image)) {
         images.push({ url: image, source: "jsonld:image" });
@@ -228,6 +233,109 @@ function parseJsonLd(html: string): Partial<ParsedProductMeta> & { images: Image
     }
   }
   return { title, description, image: images[0]?.url ?? null, price, currency, storeName, images };
+}
+
+/**
+ * Resolves a JSON-LD `offers` value (Offer, Offer[], AggregateOffer, nested offers,
+ * priceSpecification) to the lowest positive price, which is what the shopper pays.
+ */
+function pickJsonLdOffer(value: unknown, depth = 0): { price: string; currency: string | null } | null {
+  if (!value || depth > 3) return null;
+  if (Array.isArray(value)) {
+    let best: { price: string; currency: string | null; amount: number } | null = null;
+    for (const entry of value) {
+      const offer = pickJsonLdOffer(entry, depth + 1);
+      const amount = offer ? priceAmount(offer.price) : null;
+      if (offer && amount !== null && (!best || amount < best.amount)) best = { ...offer, amount };
+    }
+    return best ? { price: best.price, currency: best.currency } : null;
+  }
+  const record = asRecord(value);
+  if (!record) return null;
+  const currency = str(record.priceCurrency);
+  for (const candidate of [record.price, record.lowPrice]) {
+    const price = str(candidate);
+    if (price && priceAmount(price) !== null) return { price, currency };
+  }
+  const spec = pickJsonLdOffer(record.priceSpecification, depth + 1);
+  if (spec) return { price: spec.price, currency: spec.currency ?? currency };
+  const nested = pickJsonLdOffer(record.offers, depth + 1);
+  if (nested) return { price: nested.price, currency: nested.currency ?? currency };
+  return null;
+}
+
+const RUPEE = String.raw`(?:₹|&#8377;|&#x20b9;|\\u20b9|Rs\.?|INR)`;
+const AMOUNT = String.raw`(\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)`;
+
+function firstMatch(html: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    const value = html.match(pattern)?.[1];
+    if (value && priceAmount(value) !== null) return value;
+  }
+  return null;
+}
+
+/**
+ * Store-specific and generic fallbacks for pages that expose no price in
+ * meta tags / JSON-LD (Amazon, Flipkart, Myntra and most SPA storefronts).
+ * Selling price is always preferred over MRP / list price.
+ */
+function retailPrice(html: string, sourceUrl: string): { price: string; method: string } | null {
+  let host = "";
+  try {
+    host = new URL(sourceUrl).hostname.toLowerCase();
+  } catch {
+    /* ignore */
+  }
+
+  if (/amazon\./.test(host) || /amzn\./.test(host)) {
+    const amazon = firstMatch(html, [
+      /"priceAmount"\s*:\s*"?(\d+(?:\.\d+)?)/,
+      new RegExp(
+        String.raw`(?:priceToPay|apexPriceToPay|corePriceDisplay_desktop_feature_div|corePrice_feature_div)[\s\S]{0,600}?class="a-offscreen">\s*${RUPEE}?\s*${AMOUNT}`,
+      ),
+      new RegExp(String.raw`id="priceblock_(?:dealprice|ourprice|saleprice)"[^>]*>\s*${RUPEE}?\s*${AMOUNT}`),
+      /class="a-price-whole">\s*([\d,]+)/,
+    ]);
+    if (amazon) return { price: amazon, method: "amazon:price" };
+  }
+
+  if (/flipkart\.com/.test(host)) {
+    const flipkart = firstMatch(html, [
+      /"finalPrice"\s*:\s*\{[^{}]*?"value"\s*:\s*(\d+(?:\.\d+)?)/,
+      /"sellingPrice"\s*:\s*\{[^{}]*?"value"\s*:\s*(\d+(?:\.\d+)?)/,
+      /"fsp"\s*:\s*(\d+(?:\.\d+)?)/,
+    ]);
+    if (flipkart) return { price: flipkart, method: "flipkart:price" };
+  }
+
+  if (/myntra\.com/.test(host)) {
+    const myntra = firstMatch(html, [/"discounted"\s*:\s*(\d+(?:\.\d+)?)/, /"mrp"\s*:\s*(\d+(?:\.\d+)?)/]);
+    if (myntra) return { price: myntra, method: "myntra:price" };
+  }
+
+  // Microdata on non-meta elements: <span itemprop="price" content="1299">…</span>
+  for (const tag of html.match(/<[a-z]+\b[^>]*itemprop=["']price["'][^>]*>/gi) ?? []) {
+    const content = attr(tag, "content");
+    if (content && priceAmount(content) !== null) return { price: content, method: "microdata:price" };
+  }
+
+  // Embedded state JSON used by most SPA storefronts (Next.js / Nuxt / custom).
+  const jsonPrice = firstMatch(html, [
+    /"(?:sellingPrice|selling_price|salePrice|sale_price|finalPrice|final_price|offerPrice|offer_price|discountedPrice|discounted_price|specialPrice|special_price)"\s*:\s*"?(?:₹|Rs\.?\s*)?(\d[\d,]*(?:\.\d{1,2})?)/i,
+  ]);
+  if (jsonPrice) return { price: jsonPrice, method: "json:price" };
+
+  // Last resort: a rupee amount inside an element whose class mentions "price".
+  const visible = firstMatch(html, [
+    new RegExp(
+      String.raw`class=["'](?![^"']*(?:strike|mrp|old|was|original|list|cut))[^"']*\bprice\b[^"']*["'][^>]*>\s*(?:<[^>]+>\s*){0,3}${RUPEE}\s*${AMOUNT}`,
+      "i",
+    ),
+  ]);
+  if (visible) return { price: visible, method: "html:price" };
+
+  return null;
 }
 
 function collectJsonLdImages(value: unknown): string[] {
@@ -357,9 +465,22 @@ export function parseProductHtml(html: string, sourceUrl: string): ParsedProduct
   const best = pickBestImage(candidates);
   if (best) methods.push(best.source);
 
-  const price = first(meta, ["product:price:amount", "og:price:amount"]) ?? jsonLd.price;
-  const currency = first(meta, ["product:price:currency", "og:price:currency"]) ?? jsonLd.currency;
-  if (jsonLd.price || price) methods.push(jsonLd.price ? "jsonld:price" : "meta:price");
+  // Sale price first, then structured data, then store-specific / generic HTML fallbacks.
+  const validPrice = (value: string | null | undefined) => (value && priceAmount(value) !== null ? value : null);
+  const metaSale = validPrice(first(meta, ["product:sale_price:amount", "og:sale_price:amount"]));
+  const metaPrice = validPrice(first(meta, ["product:price:amount", "og:price:amount", "price"]));
+  const jsonLdPrice = validPrice(jsonLd.price);
+  const fallback = metaSale || jsonLdPrice || metaPrice ? null : retailPrice(html, sourceUrl);
+  const price = metaSale ?? jsonLdPrice ?? metaPrice ?? fallback?.price ?? null;
+  if (metaSale) methods.push("meta:sale_price");
+  else if (jsonLdPrice) methods.push("jsonld:price");
+  else if (metaPrice) methods.push("meta:price");
+  else if (fallback) methods.push(fallback.method);
+
+  const currency =
+    first(meta, metaSale ? ["product:sale_price:currency", "product:price:currency"] : ["product:price:currency", "og:price:currency", "pricecurrency"]) ??
+    jsonLd.currency ??
+    (price ? "INR" : null);
 
   const storeName =
     first(meta, ["og:site_name", "application-name"]) ?? jsonLd.storeName ?? hostnameStore(sourceUrl) ?? null;
@@ -387,11 +508,29 @@ function hostnameStore(url: string): string | null {
   }
 }
 
+/**
+ * Parses the first numeric amount out of a price string ("₹1,299.00", "Rs. 1,299",
+ * "1.299,00", "1299 - 1599"). Returns null for missing / zero / absurd values.
+ */
+function priceAmount(raw: string): number | null {
+  const token = decodeEntities(raw).match(/\d[\d.,]*/)?.[0];
+  if (!token) return null;
+  let normalized: string;
+  if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(token) || /^\d+,\d{1,2}$/.test(token)) {
+    // European format: 1.299,00 / 1299,50
+    normalized = token.replace(/\./g, "").replace(",", ".");
+  } else {
+    normalized = token.replace(/,/g, "").replace(/\.$/, "");
+  }
+  const amount = Number.parseFloat(normalized);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return null;
+  return amount;
+}
+
 export function parsePriceToPaise(raw: string | null, currency: string | null): number | null {
   if (!raw) return null;
-  const cleaned = raw.replace(/[^\d.,]/g, "").replace(/,/g, "");
-  const amount = Number.parseFloat(cleaned);
-  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const amount = priceAmount(raw);
+  if (amount === null) return null;
   const zeroDecimal = new Set(["JPY", "KRW"]);
   if (currency && zeroDecimal.has(currency.toUpperCase())) return Math.round(amount);
   return Math.round(amount * 100);

@@ -64,8 +64,23 @@ describe("env WhatsApp configuration", () => {
     if (result.success) expect(result.data.WHATSAPP_PHONE_OTP_TEMPLATE).toBe("phone_otp_verification");
   });
 
-  it("defaults WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON to false", () => {
+  it("defaults WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON to true (Meta auth templates always carry an OTP button)", () => {
     const result = envSchema.safeParse(REQUIRED_BASE);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON).toBe(true);
+  });
+
+  it("normalizes a comma-separated FRONTEND_URL to its first origin without trailing slash", () => {
+    const result = envSchema.safeParse({
+      ...REQUIRED_BASE,
+      FRONTEND_URL: "https://vaibhavcelebrations.in/ , https://www.vaibhavcelebrations.in/",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.FRONTEND_URL).toBe("https://vaibhavcelebrations.in");
+  });
+
+  it("disables WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON only when explicitly 'false'", () => {
+    const result = envSchema.safeParse({ ...REQUIRED_BASE, WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON: "false" });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.WHATSAPP_AUTH_HAS_COPY_CODE_BUTTON).toBe(false);
   });

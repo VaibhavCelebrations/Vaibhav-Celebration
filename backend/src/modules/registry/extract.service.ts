@@ -239,10 +239,13 @@ async function rehostProductImage(imageUrl: string, pageUrl: URL): Promise<strin
 function cacheIsUsable(cached: {
   image: string | null;
   title: string | null;
+  priceInPaise: number | null;
   extractedAt: Date;
 }): boolean {
   if (Date.now() - cached.extractedAt.getTime() >= CACHE_TTL_MS) return false;
   if (!cached.image) return false;
+  // Retry rows saved without a price — the parser improves over time and prices change.
+  if (!cached.priceInPaise) return false;
   if (isLikelyLogoOrSprite(cached.image)) return false;
   if (/^amazon(\.in)?$/i.test((cached.title ?? "").trim())) return false;
   return true;
