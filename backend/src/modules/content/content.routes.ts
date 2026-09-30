@@ -14,6 +14,7 @@ import { requireAdmin, requireRoles } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { triggerRevalidate } from "../../integrations/revalidate/client";
 import { loadMediaById, loadMediaMap } from "../../lib/media-ref";
+import { getLegalPageVersion, listLegalPageVersions, saveLegalPage } from "./legal.service";
 
 const roles = [
   requireAdmin,
@@ -459,11 +460,8 @@ adminContentRouter.get("/metadata", async (_req, res, next) => {
 });
 adminContentRouter.post("/legal", validate(legal), async (req, res, next) => {
   try {
-    const item = await prisma.legalPage.upsert({
-      where: { type: req.body.type },
-      create: req.body,
-      update: req.body,
-    });
+    const { type, ...data } = req.body as z.infer<typeof legal>;
+    const item = await saveLegalPage(type, data);
     void triggerRevalidate(LEGAL_PATHS);
     return created(res, item);
   } catch (error) {
@@ -476,11 +474,37 @@ adminContentRouter.put(
   validate(legal.omit({ type: true }).partial()),
   async (req, res, next) => {
     try {
-      const item = await prisma.legalPage.update({
-        where: { type: param(req, "type") as LegalPageType },
-        data: req.body,
-      });
+      const type = param(req, "type") as LegalPageType;
+      if (!(await prisma.legalPage.findUnique({ where: { type }, select: { id: true } }))) {
+        throw new NotFoundError("Legal page not found");
+      }
+      const item = await saveLegalPage(type, req.body);
       void triggerRevalidate(LEGAL_PATHS);
+      return ok(res, item);
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+// Every saved version of a legal page is kept; these two read that history.
+adminContentRouter.get(
+  "/legal/:type/versions",
+  validate(z.object({ type: z.nativeEnum(LegalPageType) }), "params"),
+  async (req, res, next) => {
+    try {
+      return ok(res, await listLegalPageVersions(param(req, "type") as LegalPageType));
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+adminContentRouter.get(
+  "/legal/:type/versions/:version",
+  validate(z.object({ type: z.nativeEnum(LegalPageType), version: z.coerce.number().int().positive() }), "params"),
+  async (req, res, next) => {
+    try {
+      const item = await getLegalPageVersion(param(req, "type") as LegalPageType, Number(param(req, "version")));
+      if (!item) throw new NotFoundError("Version not found");
       return ok(res, item);
     } catch (error) {
       return next(error);

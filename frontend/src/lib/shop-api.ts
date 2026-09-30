@@ -130,6 +130,10 @@ export async function createShopOrder(input: {
   contactPhone: string;
   /** Present when an event package (built via /build-package) is checked out alongside — or instead of — the shop cart. */
   packageData?: unknown;
+  /** The required "I agree to the policies" tick; the server stamps the time and policy versions on the order. */
+  policiesAccepted?: boolean;
+  /** The optional "send me offers" tick; stored as a consent record. */
+  marketingConsent?: boolean;
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders", {
     method: "POST",
@@ -147,6 +151,8 @@ export async function createDirectShopOrder(input: {
   personalizationValues?: unknown;
   personalizationSelected?: boolean;
   packageData?: unknown;
+  policiesAccepted?: boolean;
+  marketingConsent?: boolean;
 }): Promise<CreateOrderResult> {
   return apiFetch<CreateOrderResult>("/shop/orders/direct", {
     method: "POST",
@@ -180,6 +186,18 @@ export async function createPackageOrder(input: {
     body: input,
     headers: { "Idempotency-Key": crypto.randomUUID() },
   });
+}
+
+/* ── Marketing preference (requires customer auth cookie) ─────────── */
+
+export type MarketingConsent = { granted: boolean; updatedAt: string | null };
+
+export async function getMarketingConsent(): Promise<MarketingConsent> {
+  return apiFetch<MarketingConsent>("/account/consents/marketing", { cache: "no-store" });
+}
+
+export async function setMarketingConsent(granted: boolean): Promise<MarketingConsent> {
+  return apiFetch<MarketingConsent>("/account/consents/marketing", { method: "PUT", body: { granted } });
 }
 
 export async function listMyOrders(page = 1, pageSize = 10): Promise<{ items: OrderDto[]; total: number; page: number; pageSize: number }> {

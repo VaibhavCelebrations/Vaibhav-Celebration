@@ -1737,8 +1737,15 @@ export async function adminGetOrder(orderId: string) {
 
   if (!order) throw new NotFoundError("Order not found");
 
+  // The customer's current marketing choice, so the team knows whether offers may be sent.
+  const consent = await prisma.consentRecord.findFirst({
+    where: { purpose: "MARKETING", OR: [{ userId: order.userId }, { email: order.contactEmail.toLowerCase() }] },
+    orderBy: { createdAt: "desc" },
+  });
+
   return {
     ...order,
+    marketingConsent: consent ? { granted: consent.granted, updatedAt: consent.createdAt } : null,
     items: order.items.map((i) => ({
       id: i.id,
       productId: i.productId,

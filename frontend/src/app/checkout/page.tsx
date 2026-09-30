@@ -121,6 +121,7 @@ export default function CheckoutPage() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [agreedPolicies, setAgreedPolicies] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [gateConfig, setGateConfig] = useState<{
     open: boolean;
     initialMode: "otp" | "login";
@@ -538,6 +539,8 @@ export default function CheckoutPage() {
           contactPhone: contactPhone.trim(),
           personalizationSelected: directCheckout.personalizationSelected,
           packageData,
+          policiesAccepted: agreedPolicies,
+          marketingConsent: marketingOptIn,
         });
 
         if (saveAsDefault && isAuthenticated) {
@@ -567,6 +570,8 @@ export default function CheckoutPage() {
         contactEmail: contactEmail.trim(),
         contactPhone: contactPhone.trim(),
         packageData,
+        policiesAccepted: agreedPolicies,
+        marketingConsent: marketingOptIn,
       };
 
       const order = await shopApi.createShopOrder(payload);
@@ -1015,10 +1020,12 @@ export default function CheckoutPage() {
                       <label className="flex items-start gap-2 cursor-pointer">
                         <input
                           type="checkbox"
+                          checked={marketingOptIn}
+                          onChange={(e) => setMarketingOptIn(e.target.checked)}
                           className="mt-0.5 w-4 h-4 rounded border-border-light text-mocha focus:ring-mocha shrink-0"
                         />
                         <span className="text-[11px] text-text-muted leading-relaxed">
-                          I would like to receive order updates, offers, and celebration ideas via WhatsApp/email. (Optional)
+                          I would like to receive offers and celebration ideas via WhatsApp/email. You can opt out any time. (Optional)
                         </span>
                       </label>
                     </div>

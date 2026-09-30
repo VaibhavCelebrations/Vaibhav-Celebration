@@ -401,6 +401,9 @@ export type ContactFormPayload = {
   phone?: string;
   message?: string;
   interestArea?: string;
+  /** Optional "send me offers" tick; stored as a consent record against the email / phone. */
+  marketingConsent?: boolean;
+  consentSource?: "contact-form" | "enquiry-form";
 };
 
 export type Popup = {

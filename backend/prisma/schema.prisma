@@ -411,8 +411,48 @@ model LegalPage {
   type        LegalPageType @unique
   title       String
   bodyHtml    String
+  /// Bumped every time the title or body changes; each version is kept in LegalPageVersion.
+  version     Int           @default(1)
   updatedAt   DateTime      @updatedAt
   publishedAt DateTime?
+}
+
+/// Immutable copy of a legal page as it stood at one version, so the text a customer
+/// accepted at checkout can always be produced later.
+model LegalPageVersion {
+  id          String        @id @default(cuid())
+  type        LegalPageType
+  version     Int
+  title       String
+  bodyHtml    String
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@unique([type, version])
+}
+
+/// Append-only log of consent given or withdrawn. The newest row for a contact is their current choice.
+model ConsentRecord {
+  id        String         @id @default(cuid())
+  purpose   ConsentPurpose
+  granted   Boolean
+  email     String?
+  phone     String?
+  userId    String?
+  /// Where the choice was made: checkout, contact-form, enquiry-form, account.
+  source    String
+  orderId   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+
+  @@index([email])
+  @@index([phone])
+  @@index([userId])
+}
+
+enum ConsentPurpose {
+  MARKETING
 }
 
 model SiteMetadata {
@@ -979,6 +1019,10 @@ model Order {
   whatsappSendStatus          String?
   whatsappError               String?
   whatsappMessageId           String?
+  /// When the customer ticked "I agree to the Terms & Policies" at checkout.
+  policiesAcceptedAt          DateTime?
+  /// Version of each legal page in force at that moment, e.g. { "TERMS_OF_SERVICE": 2 }.
+  policyVersions              Json?
   giftContributions           GiftRegistryContribution[]
   invoice                     Invoice?
   registry                    GiftRegistry?               @relation("GuestRegistryOrder", fields: [registryId], references: [id])

@@ -42,7 +42,6 @@ export function EnquiryForm() {
       ["Guests / kids", field("guestCount")],
       ["Theme / idea", field("themeIdea")],
       ["Budget", field("budgetRange")],
-      ["Marketing updates", form.get("marketingConsent") ? "Yes" : "No"],
     ]
       .filter(([, value]) => value)
       .map(([label, value]) => `${label}: ${value}`)
@@ -55,6 +54,8 @@ export function EnquiryForm() {
         phone,
         interestArea: field("celebrationType") || undefined,
         message: details || undefined,
+        marketingConsent: form.get("marketingConsent") === "on",
+        consentSource: "enquiry-form",
       });
       setSubmitted(true);
     } catch {

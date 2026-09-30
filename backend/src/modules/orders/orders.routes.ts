@@ -7,6 +7,7 @@ import { idempotency } from "../../middleware/idempotency";
 import { validate } from "../../middleware/validate";
 import { builderSelectionsSchema } from "../builder/builder.routes";
 import { paginationQuerySchema } from "../../lib/validators";
+import { recordCheckoutConsents } from "../consent/consent.service";
 import {
   createOrderFromCart,
   createPackageOrder,
@@ -61,6 +62,28 @@ const packageBuilderSchema = z.object({
   }),
 });
 
+/** The two checkout ticks: the required "I agree to the policies" and the optional marketing opt-in. */
+const consentFields = {
+  policiesAccepted: z.boolean().optional(),
+  marketingConsent: z.boolean().optional(),
+};
+
+/** Stamps policy acceptance and marketing opt-in on the order just created. Never fails the checkout. */
+async function saveCheckoutConsents(req: import("express").Request, result: { orderId: string }, userId?: string) {
+  const body = req.body as { policiesAccepted?: boolean; marketingConsent?: boolean; contactEmail?: string; contactPhone?: string };
+  await recordCheckoutConsents(
+    result.orderId,
+    {
+      policiesAccepted: body.policiesAccepted,
+      marketingConsent: body.marketingConsent,
+      email: body.contactEmail,
+      phone: body.contactPhone,
+      userId,
+    },
+    req,
+  );
+}
+
 export const shopCheckoutRouter = Router();
 shopCheckoutRouter.use(requireCustomer);
 
@@ -112,11 +135,13 @@ guestCheckoutRouter.post(
       contactEmail: z.string().email("Enter a valid email"),
       contactPhone: z.string().min(6).max(20, "Enter a valid phone number"),
       packageData: packageBuilderSchema.optional(),
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
     try {
       const result = await createGuestShopOrder(req.body);
+      await saveCheckoutConsents(req, result);
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -138,11 +163,13 @@ guestCheckoutRouter.post(
       personalizationValues: z.unknown().optional(),
       personalizationSelected: z.boolean().optional(),
       packageData: packageBuilderSchema.optional(),
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
     try {
       const result = await createGuestDirectShopOrder(req.body);
+      await saveCheckoutConsents(req, result);
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -162,11 +189,13 @@ guestCheckoutRouter.post(
       shippingAddress: shippingAddressSchema.optional(),
       eventDetails: packageBuilderSchema.shape.eventDetails,
       builder: packageBuilderSchema.shape.builder,
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
     try {
       const result = await createGuestPackageOrder(req.body);
+      await saveCheckoutConsents(req, result);
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -208,11 +237,13 @@ ordersRouter.post(
       contactEmail: z.string().email(),
       contactPhone: z.string().min(6).max(20),
       packageData: packageBuilderSchema.optional(),
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
     try {
       const result = await createOrderFromCart(customerId(req), req.body);
+      await saveCheckoutConsents(req, result, customerId(req));
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -233,6 +264,7 @@ ordersRouter.post(
       personalizationValues: z.unknown().optional(),
       personalizationSelected: z.boolean().optional(),
       packageData: packageBuilderSchema.optional(),
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
@@ -257,6 +289,7 @@ ordersRouter.post(
         personalizationSelected: body.personalizationSelected,
         packageData: body.packageData,
       });
+      await saveCheckoutConsents(req, result, customerId(req));
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);
@@ -275,11 +308,13 @@ ordersRouter.post(
       shippingAddress: shippingAddressSchema.optional(),
       eventDetails: packageBuilderSchema.shape.eventDetails,
       builder: packageBuilderSchema.shape.builder,
+      ...consentFields,
     }),
   ),
   async (req, res, next) => {
     try {
       const result = await createPackageOrder(customerId(req), req.body);
+      await saveCheckoutConsents(req, result, customerId(req));
       return res.status(201).json({ success: true, data: result });
     } catch (err) {
       return next(err);

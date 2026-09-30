@@ -68,6 +68,7 @@ import {
 } from "./modules/inventory/inventory.routes";
 import { adminInventoryReportsRouter } from "./modules/inventory/reports.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/whatsapp.routes";
+import { accountConsentRouter } from "./modules/consent/consent.routes";
 
 export function createApp() {
   const app = express();
@@ -361,6 +362,7 @@ export function createApp() {
   api.use("/shop/orders", strictLimiter, ordersRouter);
   api.use("/account/orders", publicLimiter, accountOrdersRouter);
   api.use("/account/registries", publicLimiter, accountRegistryRouter);
+  api.use("/account/consents", publicLimiter, accountConsentRouter);
   api.use("/registry", publicLimiter, registryRouter);
 
   api.use("/whatsapp/webhook", webhookLimiter, whatsappWebhookRouter);

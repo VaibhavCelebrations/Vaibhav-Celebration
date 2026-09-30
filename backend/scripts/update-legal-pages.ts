@@ -1,16 +1,17 @@
 /**
  * Script to update legal pages with comprehensive policy content.
- * Run: npx ts-node scripts/update-legal-pages.ts
+ * Run: npx tsx scripts/update-legal-pages.ts
  * 
- * This updates Privacy Policy and Terms of Service with
- * Meta API, Razorpay, GDPR, and DPDP compliant content.
+ * Publishes the four policy files in prisma/legal-content. Each page whose text changed gets a
+ * new version; the previous text stays in LegalPageVersion. Unchanged pages are left alone.
  */
 
-import { PrismaClient, LegalPageType } from "@prisma/client";
+import { LegalPageType } from "@prisma/client";
 import * as fs from "fs";
 import * as path from "path";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/db/prisma";
+import { saveLegalPage } from "../src/modules/content/legal.service";
+import { triggerRevalidate } from "../src/integrations/revalidate/client";
 
 async function main() {
   console.log("🔄 Updating legal pages with comprehensive policy content...\n");
@@ -50,30 +51,25 @@ async function main() {
 
     const bodyHtml = fs.readFileSync(filePath, "utf-8");
     
-    await prisma.legalPage.upsert({
-      where: { type: update.type },
-      create: {
-        type: update.type,
-        title: update.title,
-        bodyHtml,
-        publishedAt: new Date(),
-      },
-      update: {
-        title: update.title,
-        bodyHtml,
-        publishedAt: new Date(),
-      },
-    });
+    const before = await prisma.legalPage.findUnique({ where: { type: update.type } });
+    if (before && before.title === update.title && before.bodyHtml === bodyHtml) {
+      console.log(`➖ Unchanged: ${update.title} (version ${before.version})`);
+      continue;
+    }
+    const page = await saveLegalPage(update.type, { title: update.title, bodyHtml, publishedAt: new Date() });
 
-    console.log(`✅ Updated: ${update.title}`);
+    console.log(`✅ Updated: ${update.title} (version ${page.version})`);
   }
 
-  console.log("\n✨ Legal pages updated successfully!");
-  console.log("─────────────────────────────────────────");
-  console.log("Pages updated:");
-  console.log("  • Privacy Policy - DPDP, GDPR, Meta API compliant");
-  console.log("  • Terms & Conditions - Razorpay, E-commerce compliant");
-  console.log("─────────────────────────────────────────");
+  // The storefront caches legal pages; ask it to refetch them.
+  const revalidated = await triggerRevalidate([
+    "/legal/privacy-policy",
+    "/legal/terms-of-service",
+    "/legal/refund-policy",
+    "/legal/cancellation-policy",
+  ]);
+  console.log(`\nStorefront refresh: ${revalidated.skipped ? "skipped (not configured)" : revalidated.ok ? "ok" : "failed"}`);
+  console.log("✨ Legal pages are up to date.");
 }
 
 main()

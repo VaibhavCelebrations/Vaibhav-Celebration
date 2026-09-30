@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Scale } from "lucide-react";
+import { History, Pencil, Scale } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AdminApiError, adminFetch } from "@/lib/admin-api-client";
 import { useListQuery } from "@/lib/use-list-query";
@@ -12,13 +12,14 @@ import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { DateInput, TextInput } from "@/components/ui/fields";
-import type { LegalPage, LegalPageType } from "@/types/cms";
+import type { LegalPage, LegalPageType, LegalPageVersion } from "@/types/cms";
 
 const TYPE_LABELS: Record<LegalPageType, string> = {
   PRIVACY_POLICY: "Privacy Policy",
   TERMS_OF_SERVICE: "Terms of Service",
   REFUND_POLICY: "Refund Policy",
-  CANCELLATION_POLICY: "Cancellation Policy",
+  // Stored under this type for historical reasons; the public page is "Shipping & Delivery".
+  CANCELLATION_POLICY: "Shipping & Delivery Policy",
 };
 
 type LegalForm = {
@@ -48,6 +49,12 @@ export function LegalPagesScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const toast = useToast();
 
+  // Every saved version of the page being edited, newest first, and the one being looked at.
+  const [versions, setVersions] = useState<LegalPageVersion[]>([]);
+  const [versionsError, setVersionsError] = useState(false);
+  const [viewing, setViewing] = useState<LegalPageVersion | null>(null);
+  const [loadingVersion, setLoadingVersion] = useState<number | null>(null);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -75,6 +82,28 @@ export function LegalPagesScreen() {
     setFormError(null);
     setDirty(false);
     setDrawerOpen(true);
+    setVersions([]);
+    setVersionsError(false);
+    setViewing(null);
+    adminFetch<LegalPageVersion[]>(`/admin/legal/${row.type}/versions`)
+      .then(setVersions)
+      .catch(() => setVersionsError(true));
+  }
+
+  async function viewVersion(v: LegalPageVersion) {
+    if (!editing) return;
+    if (viewing?.version === v.version) {
+      setViewing(null);
+      return;
+    }
+    setLoadingVersion(v.version);
+    try {
+      setViewing(await adminFetch<LegalPageVersion>(`/admin/legal/${editing.type}/versions/${v.version}`));
+    } catch (err) {
+      toast({ tone: "error", title: err instanceof AdminApiError ? err.message : "Could not load that version." });
+    } finally {
+      setLoadingVersion(null);
+    }
   }
 
   function patch(patch: Partial<LegalForm>) {
@@ -126,6 +155,7 @@ export function LegalPagesScreen() {
       ),
     },
     { key: "title", header: "Title", hideBelow: "md", cell: (r) => r.title },
+    { key: "version", header: "Version", hideBelow: "sm", cell: (r) => `v${r.version ?? 1}` },
     {
       key: "publishedAt",
       header: "Published",
@@ -139,7 +169,7 @@ export function LegalPagesScreen() {
       <PageHeader
         eyebrow="Content"
         title="Legal Pages"
-        description="Privacy policy, terms, refund, and cancellation pages shown on the public site."
+        description="Privacy policy, terms, refund, and shipping pages shown on the public site. Every saved change is kept as a version."
       />
       <AdminDataTable
         columns={columns}
@@ -162,7 +192,7 @@ export function LegalPagesScreen() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? `Edit — ${TYPE_LABELS[editing.type]}` : "Edit Legal Page"}
-        description="Edit the content of this legal document. Plain text only — no images."
+        description="Edit the content of this legal document. Plain text only — no images. Saving a change to the text creates a new version; earlier versions are kept below."
         onSubmit={onSubmit}
         submitting={submitting}
         error={formError}
@@ -186,6 +216,65 @@ export function LegalPagesScreen() {
             minHeight={400}
           />
         </FormField>
+
+        <section className="mt-6 border-t border-(--color-border) pt-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-(--color-charcoal)">
+            <History size={15} aria-hidden="true" /> Version history
+          </h3>
+          <p className="mt-1 text-xs text-(--color-text-muted)">
+            Each order records which version the customer accepted at checkout.
+          </p>
+          {versionsError ? (
+            <p className="mt-3 text-sm text-red-600">Could not load the version history.</p>
+          ) : versions.length === 0 ? (
+            <p className="mt-3 text-sm text-(--color-text-muted)">No earlier versions yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-(--color-border) rounded-lg border border-(--color-border)">
+              {versions.map((v) => (
+                <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span>
+                    <span className="font-medium text-(--color-charcoal)">Version {v.version}</span>
+                    {editing && v.version === (editing.version ?? 1) && (
+                      <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Current</span>
+                    )}
+                    <span className="ml-2 text-(--color-text-muted)">saved {formatDate(v.createdAt)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void viewVersion(v)}
+                    disabled={loadingVersion === v.version}
+                    className="text-sm font-medium text-(--color-mocha) underline underline-offset-2 disabled:opacity-50"
+                  >
+                    {viewing?.version === v.version ? "Hide" : loadingVersion === v.version ? "Loading…" : "View"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {viewing && (
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-(--color-charcoal)">
+                  Version {viewing.version} — {viewing.title}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => patch({ title: viewing.title, bodyHtml: viewing.bodyHtml ?? "" })}
+                  className="text-xs font-medium text-(--color-mocha) underline underline-offset-2"
+                >
+                  Copy this version into the editor
+                </button>
+              </div>
+              {/* Sandboxed so stored HTML is only ever displayed, never run. */}
+              <iframe
+                title={`Version ${viewing.version}`}
+                sandbox=""
+                srcDoc={`<body style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.5;color:#333;padding:8px">${viewing.bodyHtml ?? ""}</body>`}
+                className="mt-2 h-72 w-full rounded-lg border border-(--color-border) bg-white"
+              />
+            </div>
+          )}
+        </section>
       </AdminModalForm>
     </div>
   );

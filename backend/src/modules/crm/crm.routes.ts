@@ -6,6 +6,8 @@ import { created, ok, paginationMeta, parsePagination } from "../../lib/response
 import { paginationQuerySchema } from "../../lib/validators";
 import { requireAdmin, requireRoles, type AuthenticatedRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
+import { logger } from "../../lib/logger";
+import { recordMarketingConsent } from "../consent/consent.service";
 import {
   addCustomerNote,
   createContactLead,
@@ -26,11 +28,23 @@ leadsPublicRouter.post(
       phone: z.string().optional(),
       message: z.string().optional(),
       interestArea: z.string().optional(),
+      /** Optional "send me offers" tick on the contact and enquiry forms. */
+      marketingConsent: z.boolean().optional(),
+      consentSource: z.enum(["contact-form", "enquiry-form"]).optional(),
     }),
   ),
   async (req, res, next) => {
     try {
-      return created(res, await createContactLead(req.body));
+      const { marketingConsent, consentSource, ...lead } = req.body;
+      const item = await createContactLead(lead);
+      if (marketingConsent) {
+        // The enquiry has been saved; a failed consent write must not turn it into an error.
+        await recordMarketingConsent(
+          { granted: true, email: lead.email, phone: lead.phone, source: consentSource ?? "contact-form" },
+          req,
+        ).catch((err) => logger.error({ err, leadId: item.id }, "Failed to record marketing consent"));
+      }
+      return created(res, item);
     } catch (err) {
       return next(err);
     }

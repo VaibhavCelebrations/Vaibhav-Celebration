@@ -551,6 +551,19 @@ export type LegalPage = {
   title: string;
   bodyHtml: string;
   publishedAt: ISODate | null;
+  /** Bumped on every text change; earlier versions are kept. */
+  version: number;
+};
+
+export type LegalPageVersion = {
+  id: string;
+  type: LegalPageType;
+  version: number;
+  title: string;
+  publishedAt: ISODate | null;
+  createdAt: ISODate;
+  /** Only present when a single version is fetched. */
+  bodyHtml?: string;
 };
 
 // ─── Static pages ───────────────────────────────────────────────────────────

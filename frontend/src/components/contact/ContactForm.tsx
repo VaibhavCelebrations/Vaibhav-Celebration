@@ -37,6 +37,8 @@ export function ContactForm({
         phone: phone || undefined,
         interestArea: interest || undefined,
         message: message || undefined,
+        marketingConsent: data.get("marketingConsent") === "on",
+        consentSource: "contact-form",
       });
       setStatus("success");
       form.reset();

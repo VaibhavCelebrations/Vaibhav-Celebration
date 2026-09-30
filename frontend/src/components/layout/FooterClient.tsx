@@ -5,6 +5,7 @@ import Image from "next/image";
 import { MapPin, Mail, Phone, Clock } from "lucide-react";
 import type { PublicSettings } from "@/lib/cms/types";
 import { BUSINESS, DEFAULT_PUBLIC_SETTINGS, telHref } from "@/lib/business";
+import { openCookieSettings } from "@/lib/cookie-consent";
 
 const exploreLinks = [
   { label: "Home", href: "/" },
@@ -128,9 +129,12 @@ export function FooterClient({
               </a>
             )}
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
             <Link href="/legal/privacy-policy" className="hover:text-mocha transition-colors">Privacy Policy</Link>
             <Link href="/legal/terms-of-service" className="hover:text-mocha transition-colors">Terms & Conditions</Link>
+            <button type="button" onClick={openCookieSettings} className="hover:text-mocha transition-colors cursor-pointer">
+              Cookie Settings
+            </button>
           </div>
         </div>
       </div>
