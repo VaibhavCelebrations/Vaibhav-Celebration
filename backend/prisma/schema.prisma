@@ -139,6 +139,7 @@ model Theme {
   orderPackages    OrderPackage[]
   productTags      ProductThemeTag[]
   serviceProducts  ServiceProduct[]
+  servicePreviews  ExtraServiceMedia[]
   testimonials     Testimonial[]
   heroImage        MediaAsset?        @relation("ThemeHero", fields: [heroImageId], references: [id])
   ogImage          MediaAsset?        @relation("ThemeOgImage", fields: [ogImageId], references: [id])
@@ -246,16 +247,19 @@ model ExtraService {
   @@index([label(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
-/// Images / videos shown to the customer for a preview service, in display order.
+/// Images / videos shown to the customer for a preview service under one theme, in display order.
+/// Previews are always per theme: a service looks different for each theme.
 model ExtraServiceMedia {
   id             String       @id @default(cuid())
   extraServiceId String
+  themeId        String
   mediaId        String
   displayOrder   Int          @default(0)
   extraService   ExtraService @relation(fields: [extraServiceId], references: [id], onDelete: Cascade)
+  theme          Theme        @relation(fields: [themeId], references: [id], onDelete: Cascade)
   media          MediaAsset   @relation(fields: [mediaId], references: [id])
 
-  @@index([extraServiceId])
+  @@index([extraServiceId, themeId])
 }
 
 /// Per-package inclusion matrix — one checkbox per service per package tier.

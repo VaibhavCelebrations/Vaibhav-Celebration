@@ -13,6 +13,7 @@ import {
   getExtraServicePreviewMedia,
   getExtraServiceProducts,
   listExtraServices,
+  reorderExtraServices,
   updateExtraService,
 } from "./extra-services.service";
 
@@ -59,8 +60,11 @@ const schema = z.object({
   /** "Preview" option: the customer is shown this service's images/videos. Exclusive with isProductChoice. */
   hasPreview: z.boolean().optional(),
   celebrationStage: z.enum(["BEFORE", "DURING", "AFTER"]).optional().nullable(),
-  /** Media library ids shown as the preview, in order; replaces the full list when present. */
-  previewMediaIds: z.array(z.string().min(1)).max(20).optional(),
+  /** Per-theme preview files (media library ids, in order); replaces the service's full set when present. */
+  themePreviews: z
+    .array(z.object({ themeId: z.string().min(1), mediaIds: z.array(z.string().min(1)).max(20) }))
+    .max(200)
+    .optional(),
   /** Per-theme product lists; replaces the service's full assignment when present. */
   themeProducts: z
     .array(z.object({ themeId: z.string().min(1), productIds: z.array(z.string().min(1)).max(500) }))
@@ -113,6 +117,20 @@ adminExtraServicesRouter.get("/:id/preview-media", validate(id, "params"), async
     return next(err);
   }
 });
+
+adminExtraServicesRouter.put(
+  "/order",
+  validate(z.object({ ids: z.array(z.string().min(1)).min(1).max(500) })),
+  async (req, res, next) => {
+    try {
+      const items = await reorderExtraServices(req.body.ids);
+      await audit(req as AuthenticatedRequest, "REORDER", "all");
+      return ok(res, items);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 adminExtraServicesRouter.post("/", validate(schema), async (req, res, next) => {
   try {

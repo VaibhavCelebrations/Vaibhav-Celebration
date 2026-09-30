@@ -131,7 +131,7 @@ const ProductCard = memo(function ProductCard({
                 onToggle(serviceId, p.sku);
                 setViewerOpen(false);
               }}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-charcoal hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              className="btn-primary h-11 px-6 text-sm font-bold cursor-pointer"
             >
               {selected ? "Remove from my plan" : "Add to my plan"}
             </button>

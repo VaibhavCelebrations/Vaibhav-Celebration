@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma";
 import { NotFoundError } from "../../lib/errors";
-import { toMediaRef, type MediaRef } from "../../lib/media-ref";
+import { toMediaRef } from "../../lib/media-ref";
 import { cached, delPattern } from "../../lib/redis";
 import { CUSTOM_PLAN_SLUG, invalidateBuilderCaches } from "../builder/builder.service";
 
@@ -24,7 +24,13 @@ const publicInclude = {
     orderBy: { displayOrder: "asc" as const },
     include: {
       extraService: {
-        include: { previewMedia: { orderBy: { displayOrder: "asc" as const }, include: { media: true } } },
+        include: {
+          previewMedia: {
+            where: { theme: { deletedAt: null, isActive: true } },
+            orderBy: [{ theme: { displayOrder: "asc" as const } }, { displayOrder: "asc" as const }],
+            include: { media: true, theme: { select: { slug: true, title: true } } },
+          },
+        },
       },
     },
   },
@@ -32,7 +38,11 @@ const publicInclude = {
 
 type PublicPackageRow = Prisma.PackageGetPayload<{ include: typeof publicInclude }>;
 
-/** Reduce preview rows to public media refs (no storage keys), and only when Preview is switched on. */
+/**
+ * Reduce preview rows to public media refs (no storage keys), each tagged with the theme it
+ * belongs to, and only when Preview is switched on. Theme pages show their own theme's files;
+ * the general packages page shows them all, labelled by theme.
+ */
 function shapePublicPackage(pkg: PublicPackageRow) {
   return {
     ...pkg,
@@ -41,7 +51,10 @@ function shapePublicPackage(pkg: PublicPackageRow) {
       extraService: {
         ...item.extraService,
         previewMedia: item.extraService.hasPreview
-          ? item.extraService.previewMedia.map((m) => toMediaRef(m.media)).filter((m): m is MediaRef => m !== null)
+          ? item.extraService.previewMedia.flatMap((m) => {
+              const ref = toMediaRef(m.media);
+              return ref ? [{ ...ref, themeSlug: m.theme.slug, themeTitle: m.theme.title }] : [];
+            })
           : [],
       },
     })),
@@ -51,7 +64,7 @@ function shapePublicPackage(pkg: PublicPackageRow) {
 // Public cache keys are versioned ("v2") because the cached shape gained previewMedia: an older
 // API instance sharing this cache must not hand its shape to this one, or the reverse.
 export async function listPackages() {
-  return cached("pub:packages:v2:list", PUB_TTL, async () => {
+  return cached("pub:packages:v3:list", PUB_TTL, async () => {
     const rows = await prisma.package.findMany({
       where: { deletedAt: null, isActive: true },
       include: publicInclude,
@@ -70,7 +83,7 @@ export async function comparePackages(ids: string[]) {
 }
 
 export async function getPackageBySlug(slug: string) {
-  const key = `pub:packages:v2:slug:${slug}`;
+  const key = `pub:packages:v3:slug:${slug}`;
   const item = await cached(key, PUB_TTL, async () => {
     const row = await prisma.package.findFirst({
       where: { slug, deletedAt: null, isActive: true },

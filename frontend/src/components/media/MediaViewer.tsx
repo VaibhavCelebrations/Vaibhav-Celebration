@@ -24,17 +24,20 @@ type MediaViewerProps = {
 
 const FOCUSABLE = 'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
 
+/** Above the navbar, drawers, modals and floating buttons. Set inline so it can never lose to a stylesheet. */
+const VIEWER_Z_INDEX = 1000;
+
 /**
- * Full-screen viewer for a mixed set of images and videos: swipe or arrow keys to move, Esc to
- * close, focus kept inside while open and returned to the opener afterwards. The one lightbox
- * used across the site.
+ * Preview popup for a mixed set of images and videos: a centred card on desktop, a bottom sheet
+ * on phones. Swipe or arrow keys to move, Esc / backdrop / Close to dismiss, focus kept inside
+ * while open and returned to the opener afterwards. The one media popup used across the site.
  */
 export function MediaViewer({ items, initialIndex = 0, onClose, title, description, action }: MediaViewerProps) {
   const viewable = items.filter(isViewable);
   const start = Math.min(Math.max(initialIndex, 0), Math.max(viewable.length - 1, 0));
   const [current, setCurrent] = useState(start);
   const [mounted, setMounted] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [emblaRef, emblaApi] = useEmblaCarousel({ startIndex: start, loop: viewable.length > 2 });
 
@@ -74,11 +77,9 @@ export function MediaViewer({ items, initialIndex = 0, onClose, title, descripti
       const onVideo = document.activeElement instanceof HTMLVideoElement;
       if (e.key === "ArrowLeft" && !onVideo) goPrev();
       if (e.key === "ArrowRight" && !onVideo) goNext();
-      if (e.key !== "Tab" || !dialogRef.current) return;
+      if (e.key !== "Tab" || !panelRef.current) return;
 
-      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-        (el) => el.offsetParent !== null,
-      );
+      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -102,145 +103,136 @@ export function MediaViewer({ items, initialIndex = 0, onClose, title, descripti
 
   const item = viewable[current] ?? viewable[0];
   const many = viewable.length > 1;
-  const label = title ?? item.altText ?? "Media viewer";
+  const label = title ?? item.altText ?? "Preview";
   // Load the slide on screen and its neighbours; the rest wait until the customer gets near them.
   const isNear = (i: number) => {
     const distance = Math.abs(i - current);
     return distance <= 1 || distance === viewable.length - 1;
   };
+  const arrowClass =
+    "absolute top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-charcoal shadow-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha cursor-pointer";
 
   return createPortal(
     <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      className="fixed inset-0 z-[300] flex flex-col bg-charcoal/95 backdrop-blur-sm h-dvh"
+      className="fixed inset-0 flex items-end justify-center bg-charcoal/70 sm:items-center sm:p-6"
+      style={{ zIndex: VIEWER_Z_INDEX }}
+      onMouseDown={(e) => {
+        // Press on the dimmed area outside the card closes the popup.
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-3 md:px-6 md:py-4">
-        <div className="min-w-0">
-          {title && <p className="truncate font-display text-base font-semibold text-white md:text-lg">{title}</p>}
-          {many && (
-            <p className="text-xs font-medium text-white/60" aria-live="polite">
-              {current + 1} / {viewable.length}
-            </p>
-          )}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className="flex w-full flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:max-w-3xl sm:rounded-3xl animate-slide-up"
+        style={{ maxHeight: "92dvh" }}
+      >
+        {/* Header — always visible, so Close is always reachable */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-light px-4 py-3 sm:px-6 sm:py-4">
+          <div className="min-w-0">
+            <p className="truncate font-display text-base font-semibold text-charcoal sm:text-lg">{title ?? "Preview"}</p>
+            {many && (
+              <p className="text-xs font-medium text-text-muted" aria-live="polite">
+                {current + 1} of {viewable.length}
+              </p>
+            )}
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cream text-charcoal transition-colors hover:bg-blush focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha cursor-pointer"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
         </div>
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
-        >
-          <X size={22} aria-hidden="true" />
-        </button>
-      </div>
 
-      {/* Slides */}
-      <div className="relative min-h-0 flex-1">
-        <div ref={emblaRef} className="h-full overflow-hidden">
-          <div className="flex h-full touch-pan-y">
-            {viewable.map((slide, i) => (
-              <div
-                key={`${slide.url}-${i}`}
-                className="relative h-full min-w-0 flex-[0_0_100%] px-4 md:px-20"
-                // Off-screen slides must not be reachable by keyboard or screen reader.
-                inert={i !== current}
-                onClick={(e) => {
-                  // A click on the empty area around the media closes the viewer.
-                  if (e.target === e.currentTarget) onClose();
-                }}
-              >
-                {!isNear(i) ? null : isVideo(slide) ? (
-                  <div className="flex h-full items-center justify-center">
-                    <VideoPlayer
-                      src={slide.url}
-                      label={slide.altText || label}
-                      active={i === current}
-                      className="max-h-full max-w-full rounded-lg"
-                    />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Media stage: a fixed 4:3 box (capped on short screens), so it can never collapse */}
+          <div className="relative w-full bg-cream-dark" style={{ aspectRatio: "4 / 3", maxHeight: "58dvh" }}>
+            <div ref={emblaRef} className="absolute inset-0 overflow-hidden">
+              <div className="flex h-full touch-pan-y">
+                {viewable.map((slide, i) => (
+                  <div
+                    key={`${slide.url}-${i}`}
+                    className="relative h-full min-w-0"
+                    style={{ flex: "0 0 100%" }}
+                    // Off-screen slides must not be reachable by keyboard or screen reader.
+                    inert={i !== current}
+                  >
+                    {!isNear(i) ? null : isVideo(slide) ? (
+                      <div className="flex h-full items-center justify-center bg-black">
+                        <VideoPlayer src={slide.url} label={slide.altText || label} active={i === current} className="h-full w-full object-contain" />
+                      </div>
+                    ) : (
+                      <Image
+                        src={slide.url}
+                        alt={slide.altText || label}
+                        fill
+                        sizes="(min-width: 640px) 768px, 100vw"
+                        preload={i === start}
+                        className="object-contain"
+                      />
+                    )}
                   </div>
-                ) : (
-                  <div className="relative h-full w-full">
-                    <Image
-                      src={slide.url}
-                      alt={slide.altText || label}
-                      fill
-                      sizes="100vw"
-                      preload={i === start}
-                      className="object-contain"
-                    />
-                  </div>
+                ))}
+              </div>
+            </div>
+
+            {many && (
+              <>
+                <button type="button" onClick={goPrev} aria-label="Previous" className={`${arrowClass} left-2 sm:left-3`}>
+                  <ChevronLeft size={22} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={goNext} aria-label="Next" className={`${arrowClass} right-2 sm:right-3`}>
+                  <ChevronRight size={22} aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Details */}
+          <div className="px-4 py-4 sm:px-6 sm:py-5">
+            {many && (
+              <div className="mb-4 flex gap-2 overflow-x-auto hide-scrollbar p-1">
+                {viewable.map((thumb, i) => (
+                  <button
+                    key={`${thumb.url}-thumb-${i}`}
+                    type="button"
+                    onClick={() => emblaApi?.scrollTo(i)}
+                    aria-label={`Show ${isVideo(thumb) ? "video" : "image"} ${i + 1} of ${viewable.length}`}
+                    aria-current={i === current}
+                    className={`shrink-0 overflow-hidden rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha cursor-pointer ${
+                      i === current ? "ring-2 ring-mocha" : "opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <MediaThumb media={thumb} alt="" sizes="64px" className="h-12 w-16" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {item.caption && <p className="text-sm font-semibold text-charcoal">{item.caption}</p>}
+            {description && <p className="mt-1 text-sm leading-relaxed text-text-muted">{description}</p>}
+
+            {(action || item.link) && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {action}
+                {item.link && (
+                  <Link
+                    href={item.link.href}
+                    className="inline-flex h-11 items-center gap-2 rounded-full bg-mocha px-6 text-xs font-bold uppercase tracking-wider text-white hover:bg-mocha-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha focus-visible:ring-offset-2"
+                  >
+                    {item.link.label} <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
                 )}
               </div>
-            ))}
+            )}
           </div>
         </div>
-
-        {many && (
-          <>
-            <button
-              type="button"
-              onClick={goPrev}
-              aria-label="Previous"
-              className="absolute left-2 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:left-5 sm:flex cursor-pointer"
-            >
-              <ChevronLeft size={26} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              aria-label="Next"
-              className="absolute right-2 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:right-5 sm:flex cursor-pointer"
-            >
-              <ChevronRight size={26} aria-hidden="true" />
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Footer: caption, description, actions, thumbnails */}
-      <div className="shrink-0 px-4 pb-4 pt-3 md:px-6 md:pb-6">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 text-center">
-          {item.caption && <p className="text-sm font-medium text-white/85">{item.caption}</p>}
-          {description && <p className="max-h-24 overflow-y-auto text-sm leading-relaxed text-white/75">{description}</p>}
-          {(action || item.link) && (
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {action}
-              {item.link && (
-                <Link
-                  href={item.link.href}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-mocha px-6 text-xs font-bold uppercase tracking-wider text-white hover:bg-mocha-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  {item.link.label} <ArrowRight size={14} aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-
-        {many && (
-          <div className="mt-3 flex justify-center">
-            <div className="flex max-w-full gap-2 overflow-x-auto hide-scrollbar p-1">
-              {viewable.map((thumb, i) => (
-                <button
-                  key={`${thumb.url}-thumb-${i}`}
-                  type="button"
-                  onClick={() => emblaApi?.scrollTo(i)}
-                  aria-label={`Show ${isVideo(thumb) ? "video" : "image"} ${i + 1} of ${viewable.length}`}
-                  aria-current={i === current}
-                  className={`shrink-0 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
-                    i === current ? "ring-2 ring-white opacity-100" : "opacity-50 hover:opacity-90"
-                  }`}
-                >
-                  <MediaThumb media={thumb} alt="" sizes="64px" className="h-12 w-16 rounded-lg" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>,
     document.body,

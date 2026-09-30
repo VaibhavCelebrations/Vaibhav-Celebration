@@ -67,6 +67,25 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
   const toast = useToast();
 
   useEffect(() => { setMounted(true); }, []);
+
+  // The picker usually opens on top of a form modal that also listens for Escape. Handle the key
+  // first (capture phase) and stop it there, so Esc closes only the topmost layer instead of
+  // asking to discard the whole form.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      if (showAltPrompt) {
+        setShowAltPrompt(false);
+        setPendingFile(null);
+      } else {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, showAltPrompt]);
   // Keep filter in sync with kind prop
   useEffect(() => { setFilterCategory(kind); }, [kind]);
 
@@ -154,7 +173,7 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
             onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
           >
-            <div className="card flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
+            <div className="card relative flex max-h-[85vh] min-h-[22rem] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-[var(--color-border-soft)] px-5 py-4">
                 <div>
@@ -175,16 +194,16 @@ export function MediaPicker({ value, onChange, kind, scope }: MediaPickerProps) 
 
               {/* ALT Text Prompt overlay (shown after file pick) */}
               {showAltPrompt && pendingFile && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Add ALT text">
                   <div className="card w-full max-w-sm p-6 shadow-2xl">
                     <h3 className="mb-1 font-serif text-lg">Add ALT Text</h3>
                     <p className="mb-3 text-xs text-[var(--color-text-muted)]">
-                      Required for SEO and accessibility. Describe what&apos;s in <strong>{pendingFile.name}</strong>.
+                      Required for SEO and accessibility. Describe the image or video <strong className="break-all">{pendingFile.name}</strong>.
                     </p>
                     <textarea
                       className="input w-full resize-none text-sm"
                       rows={3}
-                      placeholder="e.g. Bride and groom cutting a three-tier wedding cake…"
+                      placeholder="e.g. Space theme video invitation sample"
                       value={altDraft}
                       onChange={(e) => setAltDraft(e.target.value)}
                       maxLength={250}

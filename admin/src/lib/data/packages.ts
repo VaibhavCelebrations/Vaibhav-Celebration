@@ -137,8 +137,11 @@ export const extraServicesRepo = {
   update: (id: string, body: Partial<ExtraServiceInput>) =>
     adminFetch<ExtraService>(`${EXTRA_ENDPOINT}/${id}`, { method: "PATCH", body }),
   archive: (id: string) => adminFetch<void>(`${EXTRA_ENDPOINT}/${id}`, { method: "DELETE" }),
+  /** Save the order services are listed in (matrix, packages page, builder). */
+  reorder: (ids: string[]) => adminFetch<ExtraService[]>(`${EXTRA_ENDPOINT}/order`, { method: "PUT", body: { ids } }),
   /** Theme → product ids the customer may pick for this service. */
   products: (id: string) => adminFetch<ThemeProductAssignment[]>(`${EXTRA_ENDPOINT}/${id}/products`),
-  /** Images / videos shown to the customer for a preview service, in display order. */
-  previewMedia: (id: string) => adminFetch<MediaRef[]>(`${EXTRA_ENDPOINT}/${id}/preview-media`),
+  /** Theme → images / videos shown to the customer for a preview service, in display order. */
+  previewMedia: (id: string) =>
+    adminFetch<Array<{ themeId: string; media: MediaRef[] }>>(`${EXTRA_ENDPOINT}/${id}/preview-media`),
 };

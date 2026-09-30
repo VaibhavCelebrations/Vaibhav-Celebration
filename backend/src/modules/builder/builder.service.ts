@@ -414,23 +414,26 @@ type ServiceWithPreview = {
   description: string | null;
   customizationPriceInPaise: number;
   hasPreview: boolean;
-  previewMedia: Array<{ media: Parameters<typeof toMediaRef>[0] }>;
+  previewMedia: Array<{ themeId: string; media: Parameters<typeof toMediaRef>[0] }>;
 };
 
-/** A service's preview files — empty unless the admin turned Preview on. */
-function previewMediaOf(svc: ServiceWithPreview): MediaRef[] {
+/** A service's preview files for one theme — empty unless the admin turned Preview on. */
+function previewMediaOf(svc: ServiceWithPreview, themeId: string): MediaRef[] {
   if (!svc.hasPreview) return [];
-  return svc.previewMedia.map((m) => toMediaRef(m.media)).filter((m): m is MediaRef => m !== null);
+  return svc.previewMedia
+    .filter((m) => m.themeId === themeId)
+    .map((m) => toMediaRef(m.media))
+    .filter((m): m is MediaRef => m !== null);
 }
 
-function toDecorOption(svc: ServiceWithPreview | undefined): BuilderDecorOption | null {
+function toDecorOption(svc: ServiceWithPreview | undefined, themeId: string): BuilderDecorOption | null {
   if (!svc) return null;
   return {
     serviceId: svc.id,
     label: svc.label,
     description: svc.description,
     priceInPaise: svc.customizationPriceInPaise,
-    media: previewMediaOf(svc),
+    media: previewMediaOf(svc, themeId),
   };
 }
 
@@ -441,9 +444,9 @@ function toDecorOption(svc: ServiceWithPreview | undefined): BuilderDecorOption 
  * Cached; busted by any admin change.
  */
 export async function getBuilderOptions(q: { theme: string; package: string }): Promise<BuilderOptions> {
-  // "v2": the response became an object. The key is versioned so an older API instance sharing
+  // "v3": the response became an object, and previews became per theme. The key is versioned so an older API instance sharing
   // this cache never reads the new shape (or the reverse) during a rollout.
-  return cached(`pub:builder:options:v2:${q.package}:${q.theme}`, OPTIONS_TTL, async () => {
+  return cached(`pub:builder:options:v3:${q.package}:${q.theme}`, OPTIONS_TTL, async () => {
     const [pkg, theme] = await Promise.all([
       prisma.package.findFirst({
         where: { slug: q.package, deletedAt: null, isActive: true },
@@ -480,7 +483,7 @@ export async function getBuilderOptions(q: { theme: string; package: string }): 
         description: s.description,
         celebrationStage: s.celebrationStage,
         locationScope: s.locationScope,
-        media: previewMediaOf(s),
+        media: previewMediaOf(s, theme.id),
       }))
       .filter((p) => p.media.length > 0)
       .sort((a, b) => stageRank(a.celebrationStage) - stageRank(b.celebrationStage));
@@ -488,7 +491,7 @@ export async function getBuilderOptions(q: { theme: string; package: string }): 
     // Decor rows are matched by slug whether or not the matrix box is ticked — same rule as the quote.
     const slugs = decorSlugs(pkg.slug);
     const bySlug = (slug: string) => pkg.serviceItems.find((i) => i.extraService.slug === slug)?.extraService;
-    const decor = { jaipur: toDecorOption(bySlug(slugs.jaipur)), guide: toDecorOption(bySlug(slugs.guide)) };
+    const decor = { jaipur: toDecorOption(bySlug(slugs.jaipur), theme.id), guide: toDecorOption(bySlug(slugs.guide), theme.id) };
 
     // Same lookup as the quote, so the step shows exactly what will be charged.
     const registryItem = pkg.serviceItems.find((i) => isGiftRegistryMatrixService(i.extraService));

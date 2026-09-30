@@ -65,7 +65,7 @@ export function PackageInclusions({ packages, themeSlug }: { packages: PackageCa
                       <ServicePreviewButton
                         label={service.label}
                         description={service.description}
-                        media={service.previewMedia}
+                        media={service.previewMedia.filter((m) => m.themeSlug === themeSlug)}
                         className="ml-2"
                       />
                     </span>

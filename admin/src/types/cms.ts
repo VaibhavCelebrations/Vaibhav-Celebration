@@ -140,8 +140,8 @@ export type ExtraServiceInput = Pick<
 > & {
   /** Full per-theme product lists; only sent when isProductChoice. */
   themeProducts?: ThemeProductAssignment[];
-  /** Media library ids shown as the preview, in order; only sent when hasPreview. */
-  previewMediaIds?: string[];
+  /** Per-theme preview files (media library ids, in order); only sent when hasPreview. */
+  themePreviews?: Array<{ themeId: string; mediaIds: string[] }>;
 };
 
 export type PackageServiceItem = {

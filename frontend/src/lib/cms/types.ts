@@ -200,13 +200,16 @@ export type ApiPackageServiceItem = {
     selectionCount?: number;
     /** Before / During / After the celebration, set on the service in admin. */
     celebrationStage?: CelebrationStageName | null;
-    /** Images/videos of the service; empty unless the admin turned Preview on. */
+    /** Images/videos of the service, per theme; empty unless the admin turned Preview on. */
     hasPreview?: boolean;
-    previewMedia?: MediaRef[];
+    previewMedia?: ThemedPreviewMedia[];
   };
 };
 
 export type CelebrationStageName = "BEFORE" | "DURING" | "AFTER";
+
+/** A preview file and the theme it shows the service in. Previews are always theme-specific. */
+export type ThemedPreviewMedia = MediaRef & { themeSlug: string; themeTitle: string; caption?: string };
 
 /** One service as a package page shows it: what it is, when it happens, and what there is to look at. */
 export type PackageServiceInfo = {
@@ -217,7 +220,8 @@ export type PackageServiceInfo = {
   included: boolean;
   /** Set when the customer chooses this many products for it ("Choose any 2"). */
   chooseCount: number | null;
-  previewMedia: MediaRef[];
+  /** All themes' previews, each captioned with its theme. Filter by `themeSlug` on a theme page. */
+  previewMedia: ThemedPreviewMedia[];
 };
 
 export type ApiPackage = {

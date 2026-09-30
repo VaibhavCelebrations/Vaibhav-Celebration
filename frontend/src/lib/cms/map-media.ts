@@ -125,7 +125,9 @@ export function mapPackageCard(pkg: ApiPackage, priceOverrideInPaise?: number | 
     stage: item.extraService.celebrationStage ?? null,
     included: item.isIncluded,
     chooseCount: item.extraService.isProductChoice ? (item.extraService.selectionCount ?? 1) : null,
-    previewMedia: item.extraService.hasPreview ? (item.extraService.previewMedia ?? []) : [],
+    previewMedia: item.extraService.hasPreview
+      ? (item.extraService.previewMedia ?? []).map((m) => ({ ...m, caption: m.themeTitle }))
+      : [],
   }));
   const features = services.filter((s) => s.included).map((s) => ({ label: s.label, included: true }));
   return {
