@@ -16,14 +16,15 @@ import {
 import type { PackageCard, ThemeCard } from "@/lib/cms/types";
 import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
 import { formatPaise } from "@/lib/shop-types";
-import { estimateLine, formatEventDate, type Basics } from "./shared";
+import { STEP_ADDONS, STEP_BASICS, STEP_CUSTOMIZE, estimateLine, formatEventDate, type Basics } from "./shared";
 
 const LINE_SECTIONS: Array<{ key: string; title: string }> = [
   { key: "package", title: "Package" },
   { key: "per-child", title: "Per-child items" },
   { key: "per-group", title: "Per-group items" },
   { key: "auto", title: "Matched to your theme" },
-  { key: "fixed", title: "Add-ons" },
+  { key: "addon", title: "Add-ons" },
+  { key: "fixed", title: "Extras" },
   { key: "decor", title: "Décor" },
 ];
 
@@ -59,6 +60,7 @@ export function ReviewStep({ basics, theme, pkg, options, selections, quote, quo
   const sections = options ? buildStageSections(options, basics.location) : [];
   const decor = options ? (basics.location === "jaipur" ? options.decor.jaipur : options.decor.guide) : null;
   const decorChosen = basics.location === "outside" ? Boolean(decor) : Boolean(decor && selections.decor);
+  const pickedAddons = (selections.addons ?? []).flatMap((sku) => (options?.addons ?? []).filter((p) => p.sku === sku));
   // Inclusions already shown with their own preview are not repeated in the plain list.
   const shownLabels = new Set([...(options?.previews.map((p) => p.label) ?? []), decor?.label]);
   // The quote can name an inclusion twice (Gift Registry is added by two rules), so de-duplicate.
@@ -86,7 +88,7 @@ export function ReviewStep({ basics, theme, pkg, options, selections, quote, quo
                 <p className="text-xs font-bold uppercase tracking-wider text-mocha">{pkg?.title ?? "Package"}</p>
                 <h2 className="font-display text-xl font-semibold text-charcoal">{theme?.title ?? "Theme"}</h2>
               </div>
-              <EditButton onClick={() => onEdit(0)} label="Edit theme and details" />
+              <EditButton onClick={() => onEdit(STEP_BASICS)} label="Edit theme and details" />
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
@@ -116,7 +118,7 @@ export function ReviewStep({ basics, theme, pkg, options, selections, quote, quo
       <div className={cardClass}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-display text-lg md:text-xl font-semibold text-charcoal">What you&apos;re getting</h2>
-          <EditButton onClick={() => onEdit(1)} label="Edit your choices" />
+          <EditButton onClick={() => onEdit(STEP_CUSTOMIZE)} label="Edit your choices" />
         </div>
 
         <div className="space-y-6">
@@ -198,6 +200,46 @@ export function ReviewStep({ basics, theme, pkg, options, selections, quote, quo
               </div>
             </div>
           )}
+
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-mocha">Add-ons</h3>
+              <EditButton onClick={() => onEdit(STEP_ADDONS)} label="Edit add-ons" />
+            </div>
+            {pickedAddons.length === 0 ? (
+              <p className="text-sm text-text-muted">No add-ons added.</p>
+            ) : (
+              <ul className="space-y-3">
+                {pickedAddons.map((product) => {
+                  const personalized = Boolean(selections.personalization?.[product.sku]) && product.personalizationEnabled;
+                  const line = estimateLine(product, basics.guestCount, false, personalized);
+                  const media = productMedia(product);
+                  return (
+                    <li key={product.sku} className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setViewer({ title: product.title, items: media, description: product.description })}
+                        disabled={media.length === 0}
+                        aria-label={`View ${product.title}`}
+                        className="shrink-0 rounded-xl overflow-hidden cursor-zoom-in disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mocha"
+                      >
+                        <MediaThumb media={media[0]} alt={product.title} sizes="64px" className="h-14 w-16" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-charcoal">{product.title}</p>
+                        {personalized && (
+                          <p className="inline-flex items-center gap-1 text-xs font-semibold text-mocha">
+                            <Sparkles size={11} aria-hidden="true" /> Personalized
+                          </p>
+                        )}
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-charcoal">{formatPaise(line.total)}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
 
           {otherIncluded.length > 0 && (
             <div>

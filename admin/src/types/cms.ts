@@ -436,6 +436,8 @@ export type Product = SoftDeletable &
     priceInPaise: Paise;
     compareAtPriceInPaise: Paise | null;
     personalizationEnabled: boolean;
+    /** Also offered as an optional add-on (per theme) in the package builder and custom plan. */
+    isAddon?: boolean;
     personalizationCostInPaise: Paise;
     isActive: boolean;
     minOrderQuantity: number;
@@ -456,6 +458,7 @@ export type ProductInput = Pick<
   | "priceInPaise"
   | "compareAtPriceInPaise"
   | "personalizationEnabled"
+  | "isAddon"
   | "personalizationCostInPaise"
   | "isActive"
   | "minOrderQuantity"

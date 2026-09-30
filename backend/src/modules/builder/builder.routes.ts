@@ -25,6 +25,10 @@ export const builderSelectionsSchema = z.object({
   decor: z.boolean().optional().default(false),
   personalization: z.record(z.string(), z.boolean()).optional(),
   giftRegistryCustomize: z.boolean().optional().default(false),
+  /** SKUs of optional add-on products (priced per child, like other picks). */
+  addons: z.array(z.string().min(1)).max(50).optional(),
+  /** Custom plan only: ids of preview services bought at their Customize price. */
+  services: z.array(z.string().min(1)).max(50).optional(),
 });
 
 const quoteSchema = z.object({

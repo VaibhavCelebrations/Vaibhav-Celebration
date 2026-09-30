@@ -47,6 +47,8 @@ const productSchema = z.object({
   priceInPaise: z.number().int().positive(),
   compareAtPriceInPaise: z.number().int().positive().optional().nullable(),
   personalizationEnabled: z.boolean().optional(),
+  /** Also offer this product as an optional add-on (per theme) in the package builder and custom plan. */
+  isAddon: z.boolean().optional(),
   personalizationCostInPaise: z.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),
   minOrderQuantity: z.number().int().positive().optional(),

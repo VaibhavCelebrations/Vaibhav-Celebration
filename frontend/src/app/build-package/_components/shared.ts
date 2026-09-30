@@ -1,4 +1,4 @@
-import { ClipboardCheck, CreditCard, Gift, Palette } from "lucide-react";
+import { ClipboardCheck, CreditCard, Gift, PackagePlus, Palette } from "lucide-react";
 import type { BuilderChoiceService, BuilderOptions, BuilderSelections } from "@/lib/builder-api";
 import type { PackageCard, ThemeCard } from "@/lib/cms/types";
 import { estimateLine, isDateWithin7Days } from "@/app/custom-plan/_components/shared";
@@ -12,19 +12,21 @@ export const MIN_GUESTS = 5;
 export const MAX_GUESTS = 200;
 
 /**
- * The package journey. The first three steps live on this page; the fourth is /checkout, where
+ * The package journey. All but the last step live on this page; the last is /checkout, where
  * contact and delivery details are entered once.
  */
 export const STEPS = [
   { label: "Theme & details", icon: Palette },
   { label: "Customize", icon: Gift },
+  { label: "Add-ons", icon: PackagePlus },
   { label: "Review", icon: ClipboardCheck },
   { label: "Checkout", icon: CreditCard },
 ] as const;
 
 export const STEP_BASICS = 0;
 export const STEP_CUSTOMIZE = 1;
-export const STEP_REVIEW = 2;
+export const STEP_ADDONS = 2;
+export const STEP_REVIEW = 3;
 
 /** What the customer decides on the first step. */
 export type Basics = {
@@ -77,11 +79,13 @@ export function pruneSelections(selections: BuilderSelections, options: BuilderO
     const offered = new Set(svc.products.map((p) => p.sku));
     choices[svc.serviceId] = (selections.choices?.[svc.serviceId] ?? []).filter((sku) => offered.has(sku)).slice(0, svc.selectionCount);
   }
-  const picked = new Set(Object.values(choices).flat());
+  const offeredAddons = new Set((options.addons ?? []).map((p) => p.sku));
+  const addons = [...new Set(selections.addons ?? [])].filter((sku) => offeredAddons.has(sku));
+  const picked = new Set([...Object.values(choices).flat(), ...addons]);
   const personalization = Object.fromEntries(
     Object.entries(selections.personalization ?? {}).filter(([sku, on]) => on && picked.has(sku)),
   );
-  return { ...selections, choices, personalization };
+  return { ...selections, choices, addons, personalization };
 }
 
 /**
@@ -104,6 +108,10 @@ export function estimateSubtotalInPaise(
       if (!product) continue;
       total += estimateLine(product, guestCount, product.pricingMode === "PER_GROUP", Boolean(selections.personalization?.[sku])).total;
     }
+  }
+  for (const sku of selections.addons ?? []) {
+    const product = (options.addons ?? []).find((p) => p.sku === sku);
+    if (product) total += estimateLine(product, guestCount, false, Boolean(selections.personalization?.[sku])).total;
   }
   if (selections.decor && location === "jaipur" && options.decor.jaipur) total += options.decor.jaipur.priceInPaise;
   if (selections.giftRegistryCustomize && options.giftRegistry && !options.giftRegistry.included) {

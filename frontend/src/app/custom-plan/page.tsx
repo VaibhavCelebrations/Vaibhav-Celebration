@@ -54,7 +54,15 @@ function pruneSelections(sel: Selections, options: CustomPlanOptions): Selection
     const valid = skus.filter((sku) => offered.get(serviceId)?.has(sku));
     if (valid.length) choices[serviceId] = valid;
   }
-  return { ...sel, choices, giftRegistry: sel.giftRegistry && options.giftRegistry.available };
+  const addonSkus = new Set((options.addons ?? []).map((p) => p.sku));
+  const serviceIds = new Set((options.previewServices ?? []).map((s) => s.serviceId));
+  return {
+    ...sel,
+    choices,
+    addons: (sel.addons ?? []).filter((sku) => addonSkus.has(sku)),
+    services: (sel.services ?? []).filter((id) => serviceIds.has(id)),
+    giftRegistry: sel.giftRegistry && options.giftRegistry.available,
+  };
 }
 
 function CustomPlanContent() {
@@ -83,7 +91,9 @@ function CustomPlanContent() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  const hydrated = useRef(false);
+  // State, not a ref: the draft must not be saved until the render that carries the restored values,
+  // or the first save would overwrite the stored draft with the empty defaults.
+  const [hydrated, setHydrated] = useState(false);
   const whatsappUrl = whatsappHref(envWhatsAppNumber(), process.env.NEXT_PUBLIC_WHATSAPP_PREFILL_MESSAGE);
 
   /* ── Draft persistence ─────────────────────────────────────────── */
@@ -109,18 +119,18 @@ function CustomPlanContent() {
     } catch {
       /* ignore corrupt draft */
     }
-    hydrated.current = true;
+    setHydrated(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, details, contact, address, themeSlug, selections: rawSelections }));
     } catch {
       /* storage unavailable */
     }
-  }, [step, details, contact, address, themeSlug, rawSelections]);
+  }, [hydrated, step, details, contact, address, themeSlug, rawSelections]);
 
   // Prefill from the signed-in customer's profile without overwriting anything they typed.
   useEffect(() => {
@@ -261,10 +271,19 @@ function CustomPlanContent() {
     }));
   }, []);
 
+  const toggleIn = (key: "addons" | "services") => (value: string) =>
+    setRawSelections((prev) => {
+      const current = prev[key] ?? [];
+      return { ...prev, [key]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] };
+    });
+  const toggleAddon = toggleIn("addons");
+  const toggleService = toggleIn("services");
+
   const selectTheme = (slug: string) => {
     if (slug === themeSlug) return;
     setThemeSlug(slug);
-    setRawSelections((prev) => ({ ...prev, choices: {}, personalization: {} }));
+    // Everything picked belongs to the old theme.
+    setRawSelections((prev) => ({ ...prev, choices: {}, personalization: {}, addons: [], services: [] }));
     setQuote(null);
   };
 
@@ -409,6 +428,8 @@ function CustomPlanContent() {
               {step === 2 && (
                 <BuildStep
                   services={optionsReady && options ? options.services : []}
+                  previewServices={optionsReady && options ? (options.previewServices ?? []) : []}
+                  onToggleService={toggleService}
                   loading={optionsLoading || (!optionsReady && !optionsError)}
                   error={optionsError}
                   themeTitle={themeTitle}
@@ -423,6 +444,13 @@ function CustomPlanContent() {
 
               {step === 3 && (
                 <AddonsStep
+                  addons={optionsReady && options ? (options.addons ?? []) : []}
+                  themeTitle={themeTitle}
+                  guestCount={details.guestCount}
+                  selectedAddons={selections.addons}
+                  personalization={selections.personalization}
+                  onToggleAddon={toggleAddon}
+                  onPersonalize={togglePersonalize}
                   giftRegistry={optionsReady && options ? options.giftRegistry : null}
                   selected={selections.giftRegistry}
                   onToggle={(on) => setRawSelections((prev) => ({ ...prev, giftRegistry: on }))}
@@ -440,6 +468,8 @@ function CustomPlanContent() {
                   quoteError={quoteError}
                   onEdit={goTo}
                   onRemoveChoice={removeChoice}
+                  onRemoveAddon={toggleAddon}
+                  onRemoveService={toggleService}
                   onRemoveGiftRegistry={() => setRawSelections((prev) => ({ ...prev, giftRegistry: false }))}
                 />
               )}
@@ -457,6 +487,8 @@ function CustomPlanContent() {
                     loading={quoteLoading}
                     error={quoteError}
                     onRemoveChoice={removeChoice}
+                    onRemoveAddon={toggleAddon}
+                    onRemoveService={toggleService}
                     onRemoveGiftRegistry={() => setRawSelections((prev) => ({ ...prev, giftRegistry: false }))}
                   />
                 </div>
@@ -481,6 +513,8 @@ function CustomPlanContent() {
                 loading={quoteLoading}
                 error={quoteError}
                 onRemoveChoice={removeChoice}
+                onRemoveAddon={toggleAddon}
+                onRemoveService={toggleService}
                 onRemoveGiftRegistry={() => setRawSelections((prev) => ({ ...prev, giftRegistry: false }))}
               />
             </div>

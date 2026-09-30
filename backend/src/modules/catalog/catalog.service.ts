@@ -36,6 +36,7 @@ function shapeProduct(p: ProductWithRelations) {
     compareAtPriceInPaise: p.compareAtPriceInPaise,
     personalizationEnabled: p.personalizationEnabled,
     personalizationCostInPaise: p.personalizationCostInPaise,
+    isAddon: p.isAddon,
     isActive: p.isActive,
     minOrderQuantity: p.minOrderQuantity,
     maxOrderQuantity: p.maxOrderQuantity,
@@ -162,6 +163,7 @@ export type AdminProductInput = {
   compareAtPriceInPaise?: number | null;
   personalizationEnabled?: boolean;
   personalizationCostInPaise?: number;
+  isAddon?: boolean;
   isActive?: boolean;
   minOrderQuantity?: number;
   maxOrderQuantity?: number | null;
@@ -246,6 +248,7 @@ export async function createProduct(input: AdminProductInput) {
       priceInPaise: input.priceInPaise,
       compareAtPriceInPaise: input.compareAtPriceInPaise ?? null,
       personalizationEnabled: input.personalizationEnabled ?? Boolean(input.personalizationFields?.length),
+      isAddon: input.isAddon ?? false,
       personalizationCostInPaise: input.personalizationCostInPaise ?? 0,
       isActive: input.isActive ?? true,
       minOrderQuantity: input.minOrderQuantity ?? 1,
@@ -299,6 +302,7 @@ export async function updateProduct(id: string, input: Partial<AdminProductInput
         priceInPaise: input.priceInPaise,
         compareAtPriceInPaise: input.compareAtPriceInPaise,
         personalizationEnabled: input.personalizationEnabled,
+        isAddon: input.isAddon,
         personalizationCostInPaise: input.personalizationCostInPaise,
         isActive: input.isActive,
         minOrderQuantity: input.minOrderQuantity,

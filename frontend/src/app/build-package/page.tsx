@@ -11,6 +11,7 @@ import { useCart } from "@/context/cart-context";
 import { ApiClientError } from "@/lib/api-client";
 import { getBuilderOptions, getBuilderQuote, type BuilderOptions, type BuilderQuote, type BuilderSelections } from "@/lib/builder-api";
 import { formatPaise } from "@/lib/shop-types";
+import { AddonPicker } from "@/components/builder/AddonPicker";
 import { BasicsStep } from "./_components/BasicsStep";
 import { BuilderStepper } from "./_components/BuilderStepper";
 import { CustomizeStep } from "./_components/CustomizeStep";
@@ -18,6 +19,7 @@ import { ReviewStep } from "./_components/ReviewStep";
 import {
   DRAFT_KEY,
   MIN_GUESTS,
+  STEP_ADDONS,
   STEP_BASICS,
   STEP_CUSTOMIZE,
   STEP_REVIEW,
@@ -57,6 +59,7 @@ function BuildPackageContent() {
     ),
     decor: searchParams.get("decor") === "1",
     giftRegistryCustomize: searchParams.get("grc") === "1",
+    addons: (searchParams.get("addons") || "").split(",").filter(Boolean),
     personalization: {},
   }));
   const [hydrated, setHydrated] = useState(false);
@@ -186,7 +189,7 @@ function BuildPackageContent() {
   const requestedStep = Math.min(STEP_REVIEW, Math.max(STEP_BASICS, parseInt(searchParams.get("step") || "0", 10) || 0));
   // Never show a step whose prerequisites are missing (old links, edited URLs, a changed theme).
   // Until the draft is restored the date is unknown, so the requested step is trusted for that moment.
-  const step = hydrated && !basicsValid ? STEP_BASICS : requestedStep === STEP_REVIEW && optionsReady && !choicesComplete ? STEP_CUSTOMIZE : requestedStep;
+  const step = hydrated && !basicsValid ? STEP_BASICS : requestedStep > STEP_CUSTOMIZE && optionsReady && !choicesComplete ? STEP_CUSTOMIZE : requestedStep;
 
   const buildUrl = useCallback(
     (targetStep: number) => {
@@ -201,6 +204,7 @@ function BuildPackageContent() {
       }
       if (selections.decor) params.set("decor", "1");
       if (selections.giftRegistryCustomize) params.set("grc", "1");
+      if (selections.addons?.length) params.set("addons", selections.addons.join(","));
       return `/build-package?${params.toString()}`;
     },
     [basics.themeSlug, basics.pkgSlug, basics.guestCount, basics.location, selections],
@@ -298,9 +302,20 @@ function BuildPackageContent() {
         focusFirstError(`#svc-${missing[0].serviceId}`);
         return;
       }
-      goTo(STEP_REVIEW);
+      goTo(STEP_ADDONS);
+      return;
     }
+    // Add-ons are optional: nothing to validate.
+    if (step === STEP_ADDONS) goTo(STEP_REVIEW);
   };
+
+  const toggleAddon = (sku: string) =>
+    setSelections((prev) => {
+      const current = prev.addons ?? [];
+      return { ...prev, addons: current.includes(sku) ? current.filter((s) => s !== sku) : [...current, sku] };
+    });
+  const setPersonalization = (sku: string, on: boolean) =>
+    setSelections((prev) => ({ ...prev, personalization: { ...(prev.personalization ?? {}), [sku]: on } }));
 
   const onCheckout = () => {
     if (!quote || !selectedPkg || !selectedTheme) return;
@@ -357,6 +372,32 @@ function BuildPackageContent() {
               flaggedServiceIds={flaggedServiceIds}
               onEditBasics={() => goTo(STEP_BASICS)}
             />
+          )}
+
+          {step === STEP_ADDONS && (
+            <section>
+              <header className="mb-6">
+                <h1 className="font-display text-2xl md:text-3xl font-semibold text-charcoal mb-2">Add-ons</h1>
+                <p className="text-sm text-text-muted">
+                  Optional extras for the {selectedTheme?.title ?? "chosen"} theme, priced per child. Add any you like, or skip this step.
+                </p>
+              </header>
+              {!optionsReady ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-text-muted" role="status">
+                  <Loader2 className="animate-spin" size={18} aria-hidden="true" /> Loading add-ons…
+                </div>
+              ) : (
+                <AddonPicker
+                  addons={options?.addons ?? []}
+                  themeTitle={selectedTheme?.title ?? ""}
+                  guestCount={basics.guestCount}
+                  selectedSkus={selections.addons ?? []}
+                  personalization={selections.personalization ?? {}}
+                  onToggle={toggleAddon}
+                  onPersonalize={setPersonalization}
+                />
+              )}
+            </section>
           )}
 
           {step === STEP_REVIEW && (

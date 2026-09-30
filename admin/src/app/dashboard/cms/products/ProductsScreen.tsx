@@ -60,6 +60,7 @@ const EMPTY_FORM: ProductInput = {
   priceInPaise: 0,
   compareAtPriceInPaise: null,
   personalizationEnabled: false,
+  isAddon: false,
   personalizationCostInPaise: 0,
   isActive: true,
   minOrderQuantity: 1,
@@ -150,6 +151,7 @@ export function ProductsScreen() {
       priceInPaise: row.priceInPaise,
       compareAtPriceInPaise: row.compareAtPriceInPaise,
       personalizationEnabled: row.personalizationEnabled,
+      isAddon: row.isAddon ?? false,
       personalizationCostInPaise: row.personalizationCostInPaise,
       isActive: row.isActive,
       minOrderQuantity: row.minOrderQuantity,
@@ -485,6 +487,24 @@ export function ProductsScreen() {
               Add field
             </button>
           </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <label htmlFor="product-addon" className="text-sm font-medium text-(--color-charcoal)">
+              Add-on product
+            </label>
+            <p className="text-xs text-(--color-text-muted)">
+              Also offer this product as an optional add-on in the package builder and the custom plan. It is shown to
+              customers who choose the theme selected above, and is charged per child. It stays in the shop as well.
+            </p>
+            {form.isAddon && (form.themeIds ?? []).length === 0 && (
+              <p className="mt-1 text-xs font-medium text-(--color-error)">
+                Select a theme above, or this add-on will not appear for any theme.
+              </p>
+            )}
+          </div>
+          <ToggleSwitch id="product-addon" checked={Boolean(form.isAddon)} onChange={(v) => patchForm({ isAddon: v })} />
         </div>
 
         <div className="flex items-center justify-between">

@@ -41,6 +41,8 @@ type Props = {
   quoteError: string | null;
   onEdit: (step: number) => void;
   onRemoveChoice: (serviceId: string, sku: string) => void;
+  onRemoveAddon: (sku: string) => void;
+  onRemoveService: (serviceId: string) => void;
   onRemoveGiftRegistry: () => void;
 };
 
@@ -54,6 +56,8 @@ export function ReviewStep({
   quoteError,
   onEdit,
   onRemoveChoice,
+  onRemoveAddon,
+  onRemoveService,
   onRemoveGiftRegistry,
 }: Props) {
   const addressLine = [address.line1, address.line2, address.city, address.state, address.pincode, address.country]
@@ -81,6 +85,8 @@ export function ReviewStep({
               error={quoteError}
               grouped
               onRemoveChoice={onRemoveChoice}
+              onRemoveAddon={onRemoveAddon}
+              onRemoveService={onRemoveService}
               onRemoveGiftRegistry={onRemoveGiftRegistry}
               emptyHint="Go back to Build and pick at least one item."
             />

@@ -9,7 +9,8 @@ import { PERSONALIZATION_FOLLOW_UP_NOTE } from "@/lib/personalization";
 const SECTION_TITLES: Record<string, string> = {
   "per-child": "Per-child items",
   "per-group": "Group items",
-  fixed: "Add-ons",
+  addon: "Add-ons",
+  fixed: "Services & extras",
 };
 
 /** Line keys look like `choice-<serviceId>-<index>`; service ids never contain a hyphen. */
@@ -25,6 +26,9 @@ type Props = {
   /** When set, product lines get a remove button. */
   onRemoveChoice?: (serviceId: string, sku: string) => void;
   onRemoveGiftRegistry?: () => void;
+  /** Add-on lines (key `addon-<sku>`) and service lines (key `service-<id>`) get a remove button when set. */
+  onRemoveAddon?: (sku: string) => void;
+  onRemoveService?: (serviceId: string) => void;
   /** Group lines under section headings (review) instead of a flat list (side cart). */
   grouped?: boolean;
   emptyHint?: string;
@@ -41,7 +45,7 @@ export function PersonalizationNotice({ className = "" }: { className?: string }
   );
 }
 
-export function CartSummary({ quote, loading, error, onRemoveChoice, onRemoveGiftRegistry, grouped, emptyHint }: Props) {
+export function CartSummary({ quote, loading, error, onRemoveChoice, onRemoveGiftRegistry, onRemoveAddon, onRemoveService, grouped, emptyHint }: Props) {
   if (!quote) {
     return (
       <div className="text-center py-8 px-4">
@@ -62,7 +66,19 @@ export function CartSummary({ quote, loading, error, onRemoveChoice, onRemoveGif
   const renderLine = (line: BuilderLineItem) => {
     const serviceId = parseChoiceKey(line.key);
     const isGiftRegistry = line.key === "gift-registry-addon";
-    const canRemove = Boolean(onRemoveChoice && serviceId && line.sku) || Boolean(onRemoveGiftRegistry && isGiftRegistry);
+    const addonSku = line.key.startsWith("addon-") ? line.key.slice("addon-".length) : null;
+    const boughtServiceId = line.key.startsWith("service-") ? line.key.slice("service-".length) : null;
+    const remove = () => {
+      if (isGiftRegistry) onRemoveGiftRegistry?.();
+      else if (addonSku) onRemoveAddon?.(addonSku);
+      else if (boughtServiceId) onRemoveService?.(boughtServiceId);
+      else if (serviceId && line.sku) onRemoveChoice?.(serviceId, line.sku);
+    };
+    const canRemove =
+      Boolean(onRemoveChoice && serviceId && line.sku) ||
+      Boolean(onRemoveGiftRegistry && isGiftRegistry) ||
+      Boolean(onRemoveAddon && addonSku) ||
+      Boolean(onRemoveService && boughtServiceId);
     return (
       <li key={line.key} className="flex items-start justify-between gap-3 text-sm">
         <div className="min-w-0">
@@ -75,7 +91,7 @@ export function CartSummary({ quote, loading, error, onRemoveChoice, onRemoveGif
             <button
               type="button"
               aria-label={`Remove ${line.label}`}
-              onClick={() => (isGiftRegistry ? onRemoveGiftRegistry?.() : onRemoveChoice?.(serviceId!, line.sku!))}
+              onClick={remove}
               className="w-6 h-6 rounded-full text-text-light hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors"
             >
               <X size={14} />
@@ -90,7 +106,7 @@ export function CartSummary({ quote, loading, error, onRemoveChoice, onRemoveGif
     <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"} aria-busy={loading}>
       {grouped ? (
         <div className="space-y-5">
-          {(["per-child", "per-group", "fixed"] as const).map((section) => {
+          {(["per-child", "per-group", "addon", "fixed"] as const).map((section) => {
             const items = lines.filter((l) => l.section === section);
             if (!items.length) return null;
             return (

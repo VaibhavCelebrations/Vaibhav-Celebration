@@ -109,6 +109,8 @@ export type BuilderOptions = {
   decor: { jaipur: BuilderDecorOption | null; guide: BuilderDecorOption | null };
   /** Gift Registry for this package: included with the tier, or a paid add-on. Null when not offered. */
   giftRegistry: { included: boolean; priceInPaise: number; description: string | null } | null;
+  /** Optional add-on products the admin tagged with this theme. */
+  addons: BuilderProduct[];
 };
 
 export type StageSection = {
@@ -153,6 +155,10 @@ export type BuilderSelections = {
   decor?: boolean;
   personalization?: Record<string, boolean>;
   giftRegistryCustomize?: boolean;
+  /** SKUs of optional add-on products for the chosen theme (priced per child). */
+  addons?: string[];
+  /** Custom plan only: ids of preview services bought at their Customize price. */
+  services?: string[];
 };
 
 export type BuilderQuoteInput = {
@@ -228,9 +234,24 @@ export type CustomPlanService = ServicePlacement & {
   products: BuilderProduct[];
 };
 
+/** A preview service sold on its own in the custom plan, shown with the chosen theme's images/videos. */
+export type CustomPlanPreviewService = {
+  serviceId: string;
+  label: string;
+  description: string | null;
+  celebrationStage: CelebrationStage | null;
+  /** Charged once. */
+  priceInPaise: number;
+  media: BuilderMedia[];
+};
+
 export type CustomPlanOptions = {
   themeSlug: string;
   services: CustomPlanService[];
+  /** Preview services that have a price and a preview for this theme. */
+  previewServices: CustomPlanPreviewService[];
+  /** Optional add-on products the admin tagged with this theme. */
+  addons: BuilderProduct[];
   giftRegistry: { available: boolean; label: string; description: string | null; priceInPaise: number };
 };
 

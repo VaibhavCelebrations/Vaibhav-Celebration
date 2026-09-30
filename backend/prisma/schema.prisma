@@ -799,6 +799,8 @@ model Product {
   title                       String
   slug                        String                        @unique
   sku                         String                        @unique
+  /// Offered as an optional add-on (per theme) in the package builder and custom plan, as well as in the shop.
+  isAddon                     Boolean                       @default(false)
   barcode                     String?                       @unique
   unit                        String                        @default("piece")
   description                 String
